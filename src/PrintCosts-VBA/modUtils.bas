@@ -244,20 +244,3 @@ Public Function CurrentUser() As String
     CurrentUser = Application.UserName
     If Len(Trim$(CurrentUser)) = 0 Then CurrentUser = "unknown"
 End Function
-
-Public Function NextId(ByVal lo As ListObject, ByVal IdHeader As String, ByVal Prefix As String, ByVal Digits As Long) As String
-    ' IDs are allocated from the highest ever issued, never from the row count,
-    ' so deleting a configuration row cannot cause an ID to be handed out twice
-    ' and silently re-point historical records.
-    Dim i As Long, n As Long, hi As Long, s As String
-    For i = 1 To lo.ListRows.Count
-        s = CStr(CellIn(lo, i, IdHeader).Value)
-        If Len(s) > Len(Prefix) Then
-            If StrComp(Left$(s, Len(Prefix)), Prefix, vbTextCompare) = 0 Then
-                n = Val(Mid$(s, Len(Prefix) + 1))
-                If n > hi Then hi = n
-            End If
-        End If
-    Next i
-    NextId = Prefix & Format$(hi + 1, String$(Digits, "0"))
-End Function

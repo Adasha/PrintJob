@@ -266,6 +266,9 @@ Public Sub EnsureSystemSheets()
     EnsureColumn REG_TABLE, "Last export"
     EnsureColumn REG_TABLE, "Export sig"
 
+    ' Likewise predates the persisted Job ID high-water mark (see NextJobId).
+    EnsureColumn REG_TABLE, "Job ID HWM"
+
     Set ws = SheetOrNew(AUDIT_SHEET)
     EnsureTable ws, AUDIT_TABLE, Array("When", "User", "Action", "Location", "Detail")
 
@@ -361,14 +364,19 @@ Private Sub WriteRegistry(ByVal sheets As Collection, ByVal codes As clsDict)
     ' exported. That is the conservative direction and is left deliberately:
     ' warning about an export that was in fact done costs a spare file, while
     ' the reverse costs the records.
-    Dim keepWhen As clsDict, keepSig As clsDict, k As String
+    ' The Job ID high-water mark has to survive a refresh for the same reason
+    ' and by the same means - it is what NextJobId reads, and it must never
+    ' move backwards (see NextJobId).
+    Dim keepWhen As clsDict, keepSig As clsDict, keepHwm As clsDict, k As String
     Set keepWhen = New clsDict
     Set keepSig = New clsDict
+    Set keepHwm = New clsDict
     For i = 1 To lo.ListRows.Count
         k = Trim$(CStr(CellIn(lo, i, "SheetName").Value))
         If Len(k) > 0 Then
             keepWhen.Add k, CellIn(lo, i, "Last export").Value
             keepSig.Add k, CStr(CellIn(lo, i, "Export sig").Value)
+            keepHwm.Add k, NumOf(CellIn(lo, i, "Job ID HWM"))
         End If
     Next i
 
@@ -395,6 +403,9 @@ Private Sub WriteRegistry(ByVal sheets As Collection, ByVal codes As clsDict)
             CellIn(lo, r.Index, "Last export").Value = keepWhen.Item(ws.Name)
             CellIn(lo, r.Index, "Last export").NumberFormat = "dd/mm/yyyy hh:mm"
             CellIn(lo, r.Index, "Export sig").Value = CStr(keepSig.Item(ws.Name))
+        End If
+        If keepHwm.Exists(ws.Name) Then
+            CellIn(lo, r.Index, "Job ID HWM").Value = CDbl(keepHwm.Item(ws.Name))
         End If
     Next v
 
@@ -527,4 +538,95 @@ Public Function ConsolidatedRange() As Range
     Set dws = ThisWorkbook.Worksheets(DATA_SHEET)
     If dws Is Nothing Then Exit Function
     Set ConsolidatedRange = dws.Cells(DATA_ROW, 1).SpillingToRange
+End Function
+
+' ------------------------------------------------------------ job ID hwm ---
+' The persisted Job ID high-water mark, one per location, and the allocator
+' that reads it.
+'
+' Before this, IDs were allocated from a scan of rows currently on the sheet.
+' Deleting the highest-numbered job then silently reissued its ID, breaking
+' the "globally unique, never re-issued" invariant export, import and any
+' future aggregation all depend on. The fix: allocate from a value that only
+' ever increases, never from what happens to be on the sheet right now.
+'
+' The scan below still runs, but only as a FLOOR under the persisted value,
+' never as the source of truth - Max(persisted, scan) cannot move backwards
+' when a row is deleted, because deleting only lowers what the scan finds,
+' never the persisted figure. It earns its keep in two cases the persisted
+' value alone cannot cover: seeding it the first time this column exists on
+' an already-populated sheet, and raising it after an import has just written
+' rows under this exact prefix with higher numbers than anything allocated
+' locally so far (see modImport.ApplyImport).
+Public Function NextJobId(ByVal ws As Worksheet, ByVal lo As ListObject) As String
+    Dim site As String, code As String, prefix As String, hi As Long
+    site = SettingText("SITE_ID", "SITE")
+    code = LocValue(ws, "LOC_Code")
+    If Len(code) = 0 Then code = "LOC"
+    prefix = site & "-" & code & "-"
+
+    hi = JobIdHWM(ws)
+    hi = CLng(Application.WorksheetFunction.Max(hi, ScanMaxSuffix(lo, "Job ID", prefix)))
+    hi = hi + 1
+    SetJobIdHWM ws, hi
+    NextJobId = prefix & Format$(hi, "00000")
+End Function
+
+' The safety-net scan NextJobId takes a floor from. Digits only, so Val() is
+' safe here - the locale trap modUtils.NumOf guards against is specific to a
+' fractional part, and a Job ID suffix never has one.
+Private Function ScanMaxSuffix(ByVal lo As ListObject, ByVal IdHeader As String, ByVal Prefix As String) As Long
+    Dim i As Long, n As Long, hi As Long, s As String
+    For i = 1 To lo.ListRows.Count
+        s = CStr(CellIn(lo, i, IdHeader).Value)
+        If Len(s) > Len(Prefix) Then
+            If StrComp(Left$(s, Len(Prefix)), Prefix, vbTextCompare) = 0 Then
+                n = Val(Mid$(s, Len(Prefix) + 1))
+                If n > hi Then hi = n
+            End If
+        End If
+    Next i
+    ScanMaxSuffix = hi
+End Function
+
+Private Function JobIdHWM(ByVal ws As Worksheet) As Long
+    Dim lo As ListObject, i As Long
+    Set lo = Tbl(REG_TABLE)
+    If lo Is Nothing Then Exit Function
+    i = RegRowFor(lo, ws.Name)
+    If i = 0 Then Exit Function
+    JobIdHWM = CLng(NumOf(CellIn(lo, i, "Job ID HWM")))
+End Function
+
+Private Sub SetJobIdHWM(ByVal ws As Worksheet, ByVal Value As Long)
+    Dim lo As ListObject, i As Long
+    Set lo = Tbl(REG_TABLE)
+    If lo Is Nothing Then Exit Sub
+    i = RegRowFor(lo, ws.Name)
+    If i = 0 Then Exit Sub
+    UnlockSheet lo.Parent
+    CellIn(lo, i, "Job ID HWM").Value = Value
+    RelockSheet lo.Parent
+End Sub
+
+Private Function RegRowFor(ByVal lo As ListObject, ByVal SheetName As String) As Long
+    Dim i As Long
+    For i = 1 To lo.ListRows.Count
+        If StrComp(Trim$(CStr(CellIn(lo, i, "SheetName").Value)), SheetName, vbTextCompare) = 0 Then
+            RegRowFor = i
+            Exit Function
+        End If
+    Next i
+End Function
+
+' Location code -> its sheet. Used by Reports-page delete (Problem 3) to map
+' a visible row's Location back to the sheet holding its actual table row.
+Public Function SheetForCode(ByVal Code As String) As Worksheet
+    Dim ws As Worksheet
+    For Each ws In LocationSheets()
+        If StrComp(LocValue(ws, "LOC_Code"), Code, vbTextCompare) = 0 Then
+            Set SheetForCode = ws
+            Exit Function
+        End If
+    Next ws
 End Function

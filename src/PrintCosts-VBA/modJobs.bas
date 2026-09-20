@@ -47,12 +47,10 @@ Private Function NewJobId(ByVal ws As Worksheet, ByVal lo As ListObject) As Stri
     ' <SITE>-<LOCATION>-00001. The site component matters because records from
     ' several workbook copies may later be collated, and two copies of the same
     ' template would otherwise both hold a location coded MAIN.
-    Dim site As String, code As String, prefix As String
-    site = SettingText("SITE_ID", "SITE")
-    code = LocValue(ws, "LOC_Code")
-    If Len(code) = 0 Then code = "LOC"
-    prefix = site & "-" & code & "-"
-    NewJobId = NextId(lo, "Job ID", prefix, 5)
+    '
+    ' Allocated from modRegistry.NextJobId's persisted high-water mark, not
+    ' from a scan of this sheet's rows - see that function's comment for why.
+    NewJobId = NextJobId(ws, lo)
 End Function
 
 Public Sub StampNow(ByVal ws As Worksheet)
