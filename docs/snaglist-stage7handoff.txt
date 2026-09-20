@@ -1,0 +1,60 @@
+LARGER CHANGES
+--------------
+These are larger changes that affect the current architecture. They should be done when prudent to minimise additional work.
+
+Scope note (agreed in discussion): this work is aimed at local functionality and data safety. It is not a formal implementation of design-doc O7 (the future multi-workbook aggregation feature, deferred on GDPR grounds) - O7 stays deferred. Any overlap with it here is incidental. Organisational file-handling procedure is already GDPR compliant; the more hands-on recovery/import workflow below is a staff-training matter, not something the code needs to mitigate (e.g. no name-stripping/anonymisation is required).
+
+PREREQUISITE: NextId high-water mark
+-------------------------------------
+modUtils.NextId (modUtils.bas:248) currently allocates the next ID as "highest ID *currently present in the row scan*, plus one", despite its own comment claiming otherwise. Deleting the highest-numbered job row lets the next new job silently reissue that same Job ID, which breaks the "globally unique, never re-issued" invariant that export, import (below) and any future aggregation all depend on.
+
+Fix before Problem 3 is built: allocate from a persisted high-water mark (e.g. stamped in the registry) that only ever increases, never from a scan of rows currently on the sheet.
+
+PROBLEM 1:
+The realisation that there are no explicit upgrade paths or data recovery methods. Current exported CSV files are a dead end.
+
+SOLUTION:
+Leverage existing export functionality. Extend export method to allow for exporting of all workbook data. Add an import function (globally and on each location sheet) to allow for restoring data after a loss, or importing print data to an existing room, or if the workbook itself gets replaced with a newer version.
+
+Refined (agreed in discussion):
+- Covers three related cases through one mechanism: restoring a backup into the location it came from, importing one location's exported jobs into a different room, and pulling several locations' exports into one copy for reporting.
+- No cost reconciliation needed on import. Job-row formulas only ever read the row's own snapshot columns and inputs (never tblPapers/tblPrinters), so an imported row already carries the rates it needs (S_UnitCost, S_ConsRate, S_PrinterID, etc.) and costs correctly regardless of what the target workbook's config tables contain.
+- No catalog reconciliation either. Import never creates, matches or edits rows in the target's tblPrinters/tblTechnicians/tblPapers/tblConsumables. An imported row's Technician/Printer/Paper Stock values are carried as plain text even when absent from the target's current lists. New jobs entered in that workbook going forward continue to be driven only by that workbook's own catalog tables - import never pollutes them.
+- Import writes only the input and snapshot columns per row (Job ID, Date/Time, Student Name, Student No, Technician, Printer, Paper Stock, Unit, Quantity, Print Width mm, Disregard Paper, Disregard Consumable, Notes, and all S_* snapshot columns). The calculated columns (Area m2, Paper Cost, Consumable Cost, Gross Cost, Disregarded, Chargeable Cost) are left to the job table's existing per-row formulas, which reproduce the historical figures exactly from the snapshot - the same way a locally entered job does.
+- Conflict handling is by Job ID (globally unique, never reassigned - see the NextId prerequisite above). No existing row with that ID: append as a new row. An existing row with that ID: overwrite it with the imported version. Overwrite, not skip, is deliberate - it is what makes "restore a backup over stale/edited data" and "re-aggregate overlapping exports" both work correctly.
+- Before an overwrite is committed, warn the user how many existing records will be replaced (and ideally a per-location breakdown), following the same "show what you're about to lose before you lose it" pattern already used by modJobs.RemoveRow / ClearAll.
+- Imported rows bypass Worksheet_Change (written via VBA with EnableEvents False, same as all of the app's own writes), so Status/H_Issues will not populate automatically - needs either a recompute pass right after import or to read visibly as "imported, not yet checked" until Check Workbook runs. Detail for the implementation pass, not a design blocker.
+
+BONUS:
+This also provides a possible solution to deferred item O7. By permitting exporting and importing of print data any location's workbook can serve as the 'master' location. An empty, blank copy of the workbook could import the data from all other locations and run reports on it. Importing data would need to permit technicians, printers, papers, settings etc not present or different in the target copy. This would help with GDPR as files would be shared over secure methods, with no risk of leaving cached data somewhere with an automated process or passing unsecured data over a connection. It would also build aggregation functionality into the main workbook, removing the need for additional apps. Aggregation is likely to happen only a few times each year so the manual steps are acceptable.
+
+PROBLEM 2:
+The summary and cost calculations pages are overlapping in functionality and are missing usability features.
+
+SOLUTION:
+Rework both pages to provide tangible benefits...
+
+Summary: Summary should be an at-a-glance summary of all print activity in this workbook. It should provide a current total of paper use, number of prints, total costs incurred and costs disregarded. It should be arranged by room, then each printer in that room, then each paper type for that printer. Don't combine papers common to more than one printer model, display them separately.
+
+Refined (agreed in discussion): a flat table sorted by Location, then Printer, then Paper Stock is sufficient - no need for a visually grouped/outlined layout with subtotal bands. This extends the existing three-part approach in modReports.BuildSummary (currently keyed on Location x Paper Stock only) to a three-column key (Location, Printer, Paper Stock), same SORT(UNIQUE(HSTACK(...))) pattern. Keep the existing totals-above-the-table layout.
+
+Cost calculations: Rename to 'Reports'. Keep basic concept of a filtered list pulled from all print room sheets in the workbook, but extend filtering options to allow filtering by student name and/or number, date range, technician name, printer used, paper stock used, print quantity, and any other sensible filter options. Ensure these columns are added to the results table and allow sorting by any column. Provide an 'Export report' button that saves out a formatted document containing the filtered results, for human use/physical archiving.
+
+Refined (agreed in discussion):
+- Each new filter is one more multiplied IF(...) term in the existing modReports.Criteria chain - same pattern already used for student name/number/date range, low risk to extend.
+- "Sort by any column": add two input cells (sort column, sort direction) and wrap the existing FILTER in SORTBY.
+- Add Job ID to the results table (can be a hidden column) as the correlation key Problem 3's delete needs to map a visible row back to its source location sheet and row.
+- Export format: .xlsx, chosen over CSV or PDF. Requirements were: (a) enough formatting to style for readability, (b) opens directly and consistently on most computers, (c) modifiable with appropriate software, (d) machine-readable text/metadata, no OCR needed. CSV fails (a) outright. PDF is the weaker choice on both (c) (needs dedicated software to modify) and (d) - this project has already been burned once by a PDF whose text layer was not actually extractable (see docs/HANDOFF up to stage 7.md, the removed design-doc PDF). .xlsx clears all four and needs no new machinery: same shape as modExport.ExportLocation (Workbooks.Add, populate a sheet, SaveAs), reusing modReports.FormatCostCalc-style formatting (bold header row, currency number formats, column widths), written as static values as a point-in-time archive snapshot rather than live formulas.
+- Running Export report also stamps a signature of the exported filtered set (same shape as modExport.ExportSig: row count + sums + max date) for Problem 3's "no up-to-date report generated" warning to compare against.
+
+PROBLEM 3:
+There are minimal tools for pruning data.
+
+SOLUTION: Add options to delete 'currently visible' records on the updated Reports sheet. Confirmation pop up listing number of records from each room about to be deleted. Warn if affected data has not been exported to .CSV
+
+Refined (agreed in discussion):
+- Deletion lives only on the Reports page, operating on whatever is currently visible under the active filters. No new bulk-delete is added to individual location sheets - modJobs.RemoveRow (single row) and ClearAll (whole sheet) there are sufficient and stay as they are. Reports-page deletion is deliberately the higher-friction, encourages-a-backup-first path for bulk pruning.
+- Uses the Job ID column (added in Problem 2's refinement) to map each visible row back to its source location sheet and table row for the actual delete.
+- Confirmation dialog lists the number of records to be deleted, broken down by room, following the same "show what you're about to lose" pattern as modJobs.RemoveRow / ClearAll.
+- Additional warning, before that confirmation: compare the current filtered set's signature (see Problem 2) against the signature stamped by the last Export report run. If they don't match - never exported, or the filters/underlying data have changed since - warn that an up-to-date report/backup does not exist for what is about to be deleted. This replaces the original "warn if not exported to .CSV" wording, since Reports-page deletion is keyed off the new Export report signature rather than the per-location CSV export status.
+- Depends on the NextId prerequisite above: bulk deletion from a filtered, cross-location view makes ID reuse far more likely to actually occur than the existing single-row/whole-sheet deletes do.
