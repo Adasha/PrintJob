@@ -144,6 +144,24 @@ Fail:
     ReportError "Re-stamp prices"
 End Sub
 
+Public Sub btnExportReport()
+    On Error GoTo Fail
+    If Not RequireReports Then Exit Sub
+    ExportReportSnapshot ActiveSheet
+    Exit Sub
+Fail:
+    ReportError "Export report"
+End Sub
+
+Public Sub btnDeleteVisibleReports()
+    On Error GoTo Fail
+    If Not RequireReports Then Exit Sub
+    DeleteVisibleReports
+    Exit Sub
+Fail:
+    ReportError "Delete visible records"
+End Sub
+
 Private Function RequireLocation() As Boolean
     If TypeOf ActiveSheet Is Worksheet Then
         If IsLocation(ActiveSheet) Then
@@ -152,4 +170,14 @@ Private Function RequireLocation() As Boolean
         End If
     End If
     Say "This command only works on a print room sheet.", "The sheet you are on is not set up as a print room.", "Switch to a print room tab and try again."
+End Function
+
+Private Function RequireReports() As Boolean
+    If TypeOf ActiveSheet Is Worksheet Then
+        If StrComp(ActiveSheet.Name, "Reports", vbTextCompare) = 0 Then
+            RequireReports = True
+            Exit Function
+        End If
+    End If
+    Say "This command only works on the Reports sheet.", "It acts on whatever is currently visible there.", "Go to the Reports sheet, then try again."
 End Function

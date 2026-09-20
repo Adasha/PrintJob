@@ -331,6 +331,156 @@ Private Sub FormatReports(ByVal ws As Worksheet)
     ws.Rows(14).Font.Bold = True
 End Sub
 
+' ======================================================== delete visible ===
+' Problem 3: bulk pruning, deliberately confined to the Reports page and
+' operating on whatever is currently visible under the active filters.
+' modJobs.RemoveRow (single row) and ClearAll (whole sheet) on individual
+' location sheets are sufficient and stay as they are - this is the
+' higher-friction, encourages-a-backup-first path for pruning across rooms.
+Public Sub DeleteVisibleReports()
+    Dim ws As Worksheet, rng As Range, n As Long
+    Dim locCol As Long, jobCol As Long, i As Long, loc As String
+    Dim rooms As clsDict, k As Variant, breakdown As String, staleWarn As String
+    Dim curSig As String, lastSig As String
+
+    Set ws = ReportsSheet()
+    If ws Is Nothing Then
+        Say "The Reports sheet could not be found.", "Run Refresh Locations first."
+        Exit Sub
+    End If
+
+    On Error Resume Next
+    Set rng = ws.Range("A15").SpillingToRange
+    On Error GoTo 0
+    If rng Is Nothing Then
+        Say "There is nothing to delete.", "The Reports sheet has no results under the current filters."
+        Exit Sub
+    End If
+    ' A15 may be spilling FILTER's own "no jobs match"/"no jobs recorded"
+    ' fallback TEXT rather than real rows - see FilteredSig's own comment.
+    If Not IsNumeric(rng.Cells(1, 1).Value2) Then
+        Say "There is nothing to delete.", CStr(rng.Cells(1, 1).Value)
+        Exit Sub
+    End If
+    n = rng.Rows.Count
+
+    locCol = ColByHeader(ws, 14, "Location")
+    jobCol = ColByHeader(ws, 14, "Job ID")
+    If locCol = 0 Or jobCol = 0 Then
+        Say "The Reports sheet layout looks wrong.", "The Location or Job ID column could not be found.", "Rebuild the report sheets (Refresh Locations), then try again."
+        Exit Sub
+    End If
+
+    ' Broken down by room, following the same "show what you're about to
+    ' lose" pattern as modJobs.RemoveRow/ClearAll.
+    Set rooms = New clsDict
+    For i = 1 To n
+        loc = CStr(rng.Cells(i, locCol).Value)
+        If rooms.Exists(loc) Then
+            rooms.Add loc, CLng(rooms.Item(loc)) + 1
+        Else
+            rooms.Add loc, 1
+        End If
+    Next i
+    For Each k In rooms.Keys
+        breakdown = breakdown & "  " & CStr(k) & ": " & rooms.Item(CStr(k)) & vbCrLf
+    Next k
+
+    ' Warn when the current filtered set does not match what the last
+    ' Export report run actually captured - never exported, or the filters
+    ' or underlying data have changed since. Replaces the original "warn if
+    ' not exported to CSV" wording, since deletion here is keyed off the
+    ' Export report signature rather than per-location CSV export status.
+    curSig = FilteredSig(ws)
+    lastSig = ReportsExportSig(ws)
+    If Len(lastSig) = 0 Then
+        staleWarn = vbCrLf & vbCrLf & "Export report has never been run for a filtered set like this one - " & _
+            "there is no up-to-date report or backup of what is about to be deleted."
+    ElseIf StrComp(lastSig, curSig, vbBinaryCompare) <> 0 Then
+        staleWarn = vbCrLf & vbCrLf & "The filters or underlying data have changed since the last Export report - " & _
+            "there is no up-to-date report or backup of what is about to be deleted."
+    End If
+
+    If Not Ask("Delete " & n & " visible record" & IIf(n = 1, "", "s") & " from the Reports page?" & vbCrLf & vbCrLf & _
+        breakdown & staleWarn & vbCrLf & vbCrLf & "This cannot be undone.", "Delete visible records") Then Exit Sub
+
+    DeleteVisibleReportsConfirmed ws, rng, locCol, jobCol, n
+End Sub
+
+' The actual deletion. Public so a test can call it directly, bypassing the
+' Ask() gate above - Ask() always declines under SetQuiet, same reason
+' modJobs.RemoveRow/ClearAll and modImport.ApplyImportConfirmed are split
+' this way.
+Public Sub DeleteVisibleReportsConfirmed(ByVal ws As Worksheet, ByVal rng As Range, _
+                                         ByVal LocCol As Long, ByVal JobCol As Long, ByVal n As Long)
+    Dim i As Long, targetWs As Worksheet, lo As ListObject, rowIdx As Long
+    Dim deleted As Long, missing As Long, detail As String
+    Dim jobIds() As String, locs() As String
+
+    On Error GoTo Fail
+
+    ' Copied into memory FIRST. rng points at a live spilled formula range -
+    ' the moment the first row is deleted from a source table, _Data (and
+    ' this sheet's own FILTER) shrink, and rng's cells would be reading a
+    ' moving target for every row after the first.
+    ReDim jobIds(1 To n)
+    ReDim locs(1 To n)
+    For i = 1 To n
+        jobIds(i) = CStr(rng.Cells(i, JobCol).Value)
+        locs(i) = CStr(rng.Cells(i, LocCol).Value)
+    Next i
+
+    AppOff
+    For i = 1 To n
+        Set targetWs = SheetForCode(locs(i))
+        rowIdx = 0
+        If Not targetWs Is Nothing Then
+            Set lo = JobsTable(targetWs)
+            If Not lo Is Nothing Then rowIdx = FindReportRow(lo, jobIds(i))
+        End If
+        If rowIdx > 0 Then
+            UnlockSheet targetWs
+            lo.ListRows(rowIdx).Delete
+            RelockSheet targetWs
+            deleted = deleted + 1
+        Else
+            missing = missing + 1
+        End If
+    Next i
+    AppOn
+
+    detail = deleted & " record" & IIf(deleted = 1, "", "s") & " deleted from the Reports page."
+    If missing > 0 Then detail = detail & " " & missing & " could not be found (already removed?)."
+    LogAudit "Delete visible (Reports)", "(multiple rooms)", detail
+
+    Say detail, "A note of what was removed has been kept in the workbook's audit log."
+    Exit Sub
+Fail:
+    AppReset
+    ReportError "Delete visible records"
+End Sub
+
+Private Function FindReportRow(ByVal lo As ListObject, ByVal JobId As String) As Long
+    Dim i As Long
+    For i = 1 To lo.ListRows.Count
+        If StrComp(Trim$(CStr(CellIn(lo, i, "Job ID").Value)), JobId, vbTextCompare) = 0 Then
+            FindReportRow = i
+            Exit Function
+        End If
+    Next i
+End Function
+
+Private Function ColByHeader(ByVal ws As Worksheet, ByVal HdrRow As Long, ByVal Header As String) As Long
+    Dim c As Long
+    For c = 1 To 100
+        If Len(Trim$(CStr(ws.Cells(HdrRow, c).Value))) = 0 Then Exit Function
+        If StrComp(CStr(ws.Cells(HdrRow, c).Value), Header, vbTextCompare) = 0 Then
+            ColByHeader = c
+            Exit Function
+        End If
+    Next c
+End Function
+
 ' ============================================================== helpers ===
 Private Function SheetNamed(ByVal Nm As String, ByVal Position As Long) As Worksheet
     Dim ws As Worksheet

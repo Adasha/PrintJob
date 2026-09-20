@@ -24,6 +24,7 @@ Option Explicit
 ' invalidating older exports.
 
 Private Const CSV_UTF8 As Long = 62         ' xlCSVUTF8
+Private Const XLSX_FORMAT As Long = 51      ' xlOpenXMLWorkbook
 Private Const EXPORT_CELL As String = "$B$8"
 
 ' The canonical export order. Fixed here rather than mirroring the sheet, so
@@ -177,6 +178,142 @@ Private Function ExportOne(ByVal ws As Worksheet, ByRef n As Long, ByRef path As
 
     StampExported ws
     RefreshExportStatus ws
+End Function
+
+' ======================================================= report snapshot ===
+' Problem 2's "Export report" - a formatted, point-in-time .xlsx archive of
+' the Reports sheet's CURRENT filtered and sorted results, for human use and
+' physical archiving.
+'
+' .xlsx over CSV or PDF. Requirements were: enough formatting to style for
+' readability (CSV fails outright), opens directly and consistently on most
+' computers, modifiable with ordinary software (PDF needs dedicated tools to
+' change), and machine-readable text with no OCR needed - this project has
+' already been burned once by a PDF whose text layer was not actually
+' extractable (see docs/HANDOFF up to stage 7.md, the removed design-doc
+' PDF). Written as static VALUES, not live formulas - an archive snapshot of
+' what the filters showed at the moment of export, same as modExport's own
+' CSVs are a snapshot rather than a link back into the workbook.
+Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
+    Const HDR_ROW As Long = 14
+    Dim lastCol As Long, rng As Range, block As Variant, n As Long
+    Dim path As String, wbOut As Workbook
+
+    On Error GoTo Fail
+    lastCol = LastVisibleColumn(repWs, HDR_ROW)
+    If lastCol = 0 Then
+        Say "There is nothing to export.", "No result columns were found on the Reports sheet."
+        Exit Sub
+    End If
+
+    On Error Resume Next
+    Set rng = repWs.Range("A15").SpillingToRange
+    On Error GoTo 0
+    If rng Is Nothing Then
+        Say "There is nothing to export.", "The Reports sheet has no results yet."
+        Exit Sub
+    End If
+    ' A15 may be spilling FILTER's own "no jobs match"/"no jobs recorded"
+    ' fallback TEXT rather than real rows - the first cell of a real row is
+    ' always a Date/Time serial number, so ISNUMBER is what tells them apart.
+    If Not IsNumeric(rng.Cells(1, 1).Value2) Then
+        Say "There is nothing to export.", CStr(rng.Cells(1, 1).Value)
+        Exit Sub
+    End If
+    n = rng.Rows.Count
+
+    block = SnapshotBlock(repWs, rng, HDR_ROW, lastCol, n)
+
+    path = ReportSnapshotPath()
+    If Len(path) = 0 Then
+        Say "This report could not be exported.", _
+            "The workbook's own folder could not be resolved to a location on this computer. " & _
+            "That happens when the file is open from OneDrive and Excel reports its address as a web link rather than a folder.", _
+            "Open the workbook from the OneDrive folder on this computer rather than from the browser, then try again."
+        Exit Sub
+    End If
+
+    AppOff
+    Set wbOut = Application.Workbooks.Add
+    With wbOut.Worksheets(1)
+        .Range(.Cells(1, 1), .Cells(UBound(block, 1), UBound(block, 2))).Value = block
+        .Rows(1).Font.Bold = True
+        .Rows(1).Interior.Color = RGB(222, 232, 244)
+        FormatSnapshotColumns wbOut.Worksheets(1), block
+        .Columns.AutoFit
+    End With
+    wbOut.SaveAs path, XLSX_FORMAT
+    wbOut.Close False
+    AppOn
+
+    If Not FileExists(path) Then
+        Say "The export did not produce a file.", _
+            "Excel accepted the save but nothing was written to:" & vbCrLf & path, _
+            "Nothing has been marked as exported. Check you can write to that folder, then try again."
+        Exit Sub
+    End If
+
+    StampReportsExport repWs
+
+    Say n & " record" & IIf(n = 1, "", "s") & " exported.", _
+        "Written to:" & vbCrLf & path, _
+        "A point-in-time copy of the filtered, sorted results currently shown, for human use or physical archiving. " & _
+        "It will not update - run Export report again after changing the filters."
+    Exit Sub
+Fail:
+    AppReset
+    ReportError "Export report"
+End Sub
+
+' The last column with a header, skipping the hidden Job ID column at the
+' end - an internal correlation key, not part of the human-facing archive.
+Private Function LastVisibleColumn(ByVal ws As Worksheet, ByVal HdrRow As Long) As Long
+    Dim c As Long, last As Long
+    c = 1
+    Do While Len(Trim$(CStr(ws.Cells(HdrRow, c).Value))) > 0
+        If Not ws.Columns(c).Hidden Then last = c
+        c = c + 1
+        If c > 100 Then Exit Do
+    Loop
+    LastVisibleColumn = last
+End Function
+
+Private Function SnapshotBlock(ByVal ws As Worksheet, ByVal rng As Range, _
+                               ByVal HdrRow As Long, ByVal LastCol As Long, ByVal n As Long) As Variant
+    Dim a() As Variant, r As Long, c As Long
+    ReDim a(1 To n + 1, 1 To LastCol)
+    For c = 1 To LastCol
+        a(1, c) = ws.Cells(HdrRow, c).Value
+    Next c
+    For r = 1 To n
+        For c = 1 To LastCol
+            a(r + 1, c) = rng.Cells(r, c).Value
+        Next c
+    Next r
+    SnapshotBlock = a
+End Function
+
+Private Sub FormatSnapshotColumns(ByVal outWs As Worksheet, ByVal block As Variant)
+    Dim c As Long, hdr As String
+    For c = 1 To UBound(block, 2)
+        hdr = CStr(block(1, c))
+        Select Case hdr
+            Case "Date/Time"
+                outWs.Columns(c).NumberFormat = "dd/mm/yyyy hh:mm"
+            Case "Paper cost", "Consumable cost", "Gross", "Disregarded", "Chargeable"
+                outWs.Columns(c).NumberFormat = ChrW(163) & "#,##0.00"
+            Case "Quantity", "Area m2"
+                outWs.Columns(c).NumberFormat = "#,##0.00"
+        End Select
+    Next c
+End Sub
+
+Private Function ReportSnapshotPath() As String
+    Dim folder As String, base As String
+    folder = ExportFolder()
+    If Len(folder) = 0 Then Exit Function
+    base = "PrintCosts-Report-" & SettingText("SITE_ID", "SITE") & "-" & Format$(Now, "yyyymmdd-hhnn") & ".xlsx"
+    ReportSnapshotPath = folder & Application.PathSeparator & base
 End Function
 
 ' Header block, then a blank line, then the header row, then the records.
