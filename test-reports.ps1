@@ -1,4 +1,6 @@
-﻿# Phase 5: Summary and Cost Calculations.
+# Summary (regrouped to a Location x Printer x Paper Stock key) and Reports
+# (renamed from Cost Calculations, extended with Technician/Printer/Paper
+# Stock/Quantity filters, sort-by-column, and a hidden Job ID column).
 #
 # AT-10  a student's total across every print room in this workbook
 # AT-12  the four blank-criteria cases
@@ -6,37 +8,9 @@
 # Drives the criteria cells, then closes WITHOUT saving.
 
 $ErrorActionPreference = 'Stop'
-# Drives a COPY in %TEMP%, never src\PrintCosts.xlsm itself.
-#
-# Neither Close($false) nor AutoSaveOn is the protection it looks like.
-# Workbook_Open does real work on every open - ProtectAll unprotects and
-# reprotects all fourteen sheets, plus Invalidate and HealButtons - so the
-# workbook is dirty the instant it opens. Excel holds this file through its
-# cloud-backed handle (Workbook.Path returns a d.docs.live.net URL), so
-# AutoSave is on and COMMITS that immediately: $wb.Saved reads True on the
-# very next line after Open, despite every sheet having just been modified.
-# The bytes land when the handle closes - measured, the timestamp and the
-# SHA-256 both move at Close/Quit, not at Open.
-#
-# Which is exactly why Close($false) does not help. It means "discard unsaved
-# changes", and by then there are none: AutoSave has accepted them, so what
-# is written at close is committed state. Setting AutoSaveOn = $false after
-# Open is too late for the same reason, and Open offers no earlier hook - so
-# no guard is attempted here, because none can work. (build.ps1 sets it, but
-# only ever on a %TEMP% copy, which is not cloud-backed; its own comment notes
-# it is usually a no-op there.) Tested: AutoSaveOn False, Saved forced True,
-# nothing touched at all - the file still changes.
-#
-# None of this is the sync client. It reproduces with syncing paused and all
-# sync operations settled. It is Excel-side only.
-#
-# verify.ps1 and probe.ps1 take the other way out: read-only, so Workbook_Open
-# cannot save anything. These scripts need read-write to drive mutating
-# macros, so a throwaway copy is what is left. Discarded at the end.
-#
-# Left unfixed, this rewrites the artefact under test: the phase 5-7 runs did,
-# and a later script read an earlier one's edits back as though they were the
-# build.
+# Drives a COPY in %TEMP%, never src\PrintCosts.xlsm itself - see verify.ps1's
+# comment for why (AutoSave on a OneDrive-backed handle commits regardless of
+# Close($false)).
 $deliverable = Join-Path $PSScriptRoot 'src\PrintCosts.xlsm'
 $workDir = Join-Path ([IO.Path]::GetTempPath()) ('PrintCostsTest-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $workDir | Out-Null
@@ -50,9 +24,9 @@ $wb = $null
 try {
     $wb = $xl.Workbooks.Open($f)
     $s = $wb.Worksheets('Summary')
-    $c = $wb.Worksheets('Cost Calculations')
+    $c = $wb.Worksheets('Reports')
 
-    Write-Host '=== Summary ==='
+    Write-Host '=== Summary (Location x Printer x Paper Stock) ==='
     Write-Host ("  A10 formula length: {0} chars" -f $s.Range('A10').Formula2.Length)
     try {
         $sp = $s.Range('A10').SpillingToRange
@@ -60,20 +34,24 @@ try {
     } catch { Write-Host ('  NO SPILL: ' + $s.Range('A10').Text) }
     Write-Host ("  totals: jobs={0} gross={1} disregarded={2} chargeable={3}" -f `
         $s.Range('B6').Text, $s.Range('D6').Text, $s.Range('F6').Text, $s.Range('H6').Text)
-    for ($r = 9; $r -le 14; $r++) {
+    $hdrRow = @()
+    for ($col = 1; $col -le 14; $col++) { $hdrRow += [string]$s.Cells(9, $col).Text }
+    Write-Host ('  headers: ' + ($hdrRow -join ' | '))
+    if ($hdrRow[1] -ne 'Printer') {
+        Write-Host "FAIL: Summary column B header should be 'Printer', got '$($hdrRow[1])'"
+        exit 1
+    }
+    Write-Host "  OK: Printer is now part of the Summary key (Location, Printer, Paper stock, ...)"
+    for ($r = 10; $r -le 15; $r++) {
         $v = @()
-        foreach ($col in 1, 2, 5, 6, 7, 11, 13) { $v += [string]$s.Cells($r, $col).Text }
+        # Location, Printer, Paper stock, Unit, Jobs, Quantity, Gross, Chargeable
+        foreach ($col in 1, 2, 3, 6, 7, 8, 12, 14) { $v += [string]$s.Cells($r, $col).Text }
         if ($v[0] -ne '') { Write-Host ('   ' + ($v -join ' | ')) }
     }
 
     Write-Host ''
-    Write-Host '=== Cost Calculations: AT-12 blank-criteria cases ==='
+    Write-Host '=== Reports: AT-12 blank-criteria cases (student name/number/date range) ==='
     function Try-Criteria($name, $num, $from, $to, $label) {
-        # Two COM traps here. .Value2 is the serial-number variant and rejects
-        # a DateTime outright; and once PowerShell has bound that setter with
-        # a String it refuses a Double on later calls. So: dates go in as a
-        # DATE() formula - a real date value, and locale-independent, unlike
-        # typing "16/09/2026" - and everything else as a string.
         function Set-Crit($cell, $v) {
             if ($null -eq $v -or "$v" -eq '') { $cell.ClearContents() | Out-Null; return }
             if ($v -is [datetime]) {
@@ -95,7 +73,6 @@ try {
         Write-Host $line
     }
 
-    # Real DateTime values, as a user typing into a date-formatted cell gets.
     $d15 = Get-Date '2026-09-15'
     $d16 = Get-Date '2026-09-16'
     $d17 = Get-Date '2026-09-17'
@@ -109,16 +86,57 @@ try {
     Try-Criteria 'Patel' '' $d15 $d17             'name + both dates'
     Try-Criteria 'Smith' '2203110' '' ''          'mismatched name/number (14.1)'
     Try-Criteria 'Nobody' '' '' ''                'no matches'
-    # A date left as text, which is what an unformatted cell can produce.
     Try-Criteria '' '' '16/09/2026' ''            'from date as TEXT (robustness)'
 
-    # Parentheses matter: $range.ClearContents without them returns the method
-    # definition and clears nothing, so the breakdowns below were silently
-    # being read with the previous test's criteria still applied.
     $c.Range('C5:C8').ClearContents() | Out-Null
+
+    Write-Host ''
+    Write-Host '=== Reports: new filters (Technician / Printer / Paper Stock / Quantity) ==='
+    $c.Range('G5').Value2 = 'Okonkwo'
     $xl.CalculateFullRebuild()
-    Write-Host ("  (criteria cleared: C5..C8 = '{0}','{1}','{2}','{3}')" -f `
-        $c.Range('C5').Text, $c.Range('C6').Text, $c.Range('C7').Text, $c.Range('C8').Text)
+    Write-Host ("  Technician contains 'Okonkwo': jobs={0}" -f $c.Range('B12').Text)
+    if ([int]$c.Range('B12').Text -eq 0) { Write-Host 'FAIL: expected at least one match on Technician filter'; exit 1 }
+    $c.Range('G5').ClearContents() | Out-Null
+
+    $c.Range('G6').Value2 = 'Epson'
+    $xl.CalculateFullRebuild()
+    Write-Host ("  Printer contains 'Epson': jobs={0}" -f $c.Range('B12').Text)
+    if ([int]$c.Range('B12').Text -eq 0) { Write-Host 'FAIL: expected at least one match on Printer filter'; exit 1 }
+    $c.Range('G6').ClearContents() | Out-Null
+
+    $c.Range('G8').Value2 = 12
+    $xl.CalculateFullRebuild()
+    Write-Host ("  Quantity = 12: jobs={0}" -f $c.Range('B12').Text)
+    if ([int]$c.Range('B12').Text -eq 0) { Write-Host 'FAIL: expected at least one match on Quantity filter'; exit 1 }
+    $c.Range('G8').ClearContents() | Out-Null
+    $xl.CalculateFullRebuild()
+
+    Write-Host ''
+    Write-Host '=== Reports: hidden Job ID correlation column ==='
+    if (-not $c.Columns('O').Hidden) { Write-Host 'FAIL: column O (Job ID) should be hidden'; exit 1 }
+    $sp = $c.Range('A15').SpillingToRange
+    Write-Host ("  results spill: {0} rows x {1} cols" -f $sp.Rows.Count, $sp.Columns.Count)
+    $jobIdSample = [string]$sp.Cells(1, 15).Value2
+    Write-Host ("  O15 (Job ID) sample value: '{0}'" -f $jobIdSample)
+    if ($jobIdSample -notmatch '-MAIN-|-ANNEX-') { Write-Host 'FAIL: hidden Job ID column does not look like a Job ID'; exit 1 }
+    Write-Host '  OK: Job ID is present as a hidden 15th column'
+
+    Write-Host ''
+    Write-Host '=== Reports: sort by column ==='
+    $c.Range('K5').Value2 = 'Quantity'
+    $c.Range('K6').Value2 = 'Descending'
+    $xl.CalculateFullRebuild()
+    $sp = $c.Range('A15').SpillingToRange
+    $qtys = @()
+    for ($r = 1; $r -le $sp.Rows.Count; $r++) { $qtys += [double]$sp.Cells($r, 5).Value2 }
+    Write-Host ('  Quantity column, sorted Descending: ' + ($qtys -join ', '))
+    $sortedDesc = $qtys | Sort-Object -Descending
+    $matches = $true
+    for ($i = 0; $i -lt $qtys.Count; $i++) { if ($qtys[$i] -ne $sortedDesc[$i]) { $matches = $false } }
+    if (-not $matches) { Write-Host 'FAIL: results were not sorted by Quantity Descending'; exit 1 }
+    Write-Host '  OK: SORTBY reordered the results as requested'
+    $c.Range('K5:K6').ClearContents() | Out-Null
+    $xl.CalculateFullRebuild()
 
     Write-Host ''
     Write-Host '=== breakdowns (no criteria) ==='
@@ -139,6 +157,7 @@ finally {
     $xl.Quit()
     [void][Runtime.InteropServices.Marshal]::ReleaseComObject($xl)
 }
-Write-Host 'closed without saving'
+Write-Host ''
+Write-Host 'PASS'
 
 Remove-Item $workDir -Recurse -Force -ErrorAction SilentlyContinue
