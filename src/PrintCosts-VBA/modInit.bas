@@ -33,7 +33,7 @@ Public Sub InitialiseWorkbook()
     EnsureVersionSettings
     WriteAbout
 
-    ' Summary and Cost Calculations, likewise built here. Their formulas read
+    ' Summary and Reports, likewise built here. Their formulas read
     ' _Data, which RefreshLocations writes at the end of this run - until then
     ' they sit on their IFERROR fallbacks rather than showing errors.
     BuildReportSheets

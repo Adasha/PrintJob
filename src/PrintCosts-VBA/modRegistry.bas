@@ -438,7 +438,7 @@ End Sub
 ' ------------------------------------------------------ consolidated range ---
 ' Every print room's records stacked into one spill range, each row tagged with
 ' its location code. This one formula is VBA's entire involvement in reporting:
-' the Summary and Cost Calculations sheets are live formulas over it, so there
+' the Summary and Reports sheets are live formulas over it, so there
 ' is nothing to refresh and nothing that can go stale.
 '
 ' Shape: Location, then Job ID .. Notes as the job table lays them out.

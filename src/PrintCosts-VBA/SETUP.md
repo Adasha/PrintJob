@@ -65,8 +65,9 @@ does not matter.
 | `modInit.bas` | One-time setup |
 | `modMain.bas` | The button entry points |
 | `modRegistry.bas` | Finds the print rooms, renames their tables, writes the reporting range |
-| `modReports.bas` | Builds the Summary and Cost Calculations sheets |
-| `modExport.bas` | Per-location CSV, and what has not been exported |
+| `modReports.bas` | Builds the Summary and Reports sheets; Reports-page delete |
+| `modExport.bas` | Per-location CSV and Export All Locations; the Export report snapshot; what has not been exported |
+| `modImport.bas` | Restores or merges an exported file into a print room's job table |
 | `modVersion.bas` | Version identity, the About block, file properties |
 
 The last four were added in build phases 4 to 7 and were missing from this
@@ -143,10 +144,13 @@ job IDs already carry it.
 | `test-duplicate.ps1` | AT-13. Duplicates a print room in VBA, refreshes, reports, and closes without saving |
 | `lockcheck.ps1` | Who is holding the `.xlsm`: Excel processes, owner lock files, and an exclusive-write test |
 | `xlfnscan.ps1` | Every `_xlfn.` / `_xlws.` occurrence in the workbook's XML, including hidden sheets, conditional formatting and data validation |
-| `test-reports.ps1` | Phase 5. Drives the Cost Calculations criteria through every AT-12 case and reports Summary and breakdown figures. Closes without saving |
+| `test-reports.ps1` | Drives the Reports criteria (including Technician/Printer/Paper Stock/Quantity and sort-by-column) through every AT-12 case, and reports the regrouped Summary and breakdown figures. Closes without saving |
 | `filecheck.ps1` | Integrity of the `.xlsx`, `.xlsm` and every backup: size, VBA project present, sheet count, declared type, version stamp |
 | `test-export.ps1` | Phase 6. Exports a print room, reads the CSV back, edits a row and confirms the fingerprint notices |
 | `test-validation.ps1` | Phase 7. AT-11, AT-14 and AT-16 — the conflict warning, the Clear All confirmation, and inactive-record behaviour |
+| `test-nextid.ps1` | The persisted Job ID high-water mark: deleting the top row must not reissue its ID, and the mark must survive RefreshLocations |
+| `test-import.ps1` | Export All Locations, and Import restoring into origin and into a different room |
+| `test-deletereports.ps1` | Export report (a static-value `.xlsx` snapshot) and the Reports-page bulk delete, including the audit log entry |
 | `prune-backups.ps1` | Keeps the N most recent `*.bak.xlsm` and removes the rest. `build.ps1` calls it with `-Keep 5` |
 
 **The tests are non-destructive by construction, not by care.** `test-validation.ps1`
@@ -284,10 +288,23 @@ The validation sweep (phase 7) is done. AT-11, AT-14 and AT-16 pass, and
 nothing in the workbook needed changing to make them — the mechanisms were
 built in earlier phases and this confirmed them.
 
-Summary and Cost Calculations are built. Both are **live formulas** over the
+Summary and Reports are built. Both are **live formulas** over the
 consolidated range on `_Data` — `modReports` writes their layout and formulas
 once and does no reporting at run time, so there is nothing to refresh and
-nothing that can go stale.
+nothing that can go stale. Summary is keyed on Location, Printer and Paper
+Stock. Reports (renamed from Cost Calculations) adds Technician/Printer/Paper
+Stock/Quantity filters, sort-by-any-column, a hidden Job ID correlation
+column, an "Export report" static-value `.xlsx` snapshot, and a bulk
+"Delete visible records" confined to whatever the active filters show.
 
-Per-location export is built (`modExport`). Import is deliberately left to a
-later revision; the format carries everything an import would need.
+Per-location export, Export All Locations, and Import are built (`modExport`,
+`modImport`). Import restores a backup into the location it came from, moves
+one room's exported jobs into another, or pulls several rooms' exports into
+one copy for reporting - conflicts are resolved by Job ID (overwrite), and
+only the input and snapshot columns are written so an imported row costs
+correctly at the prices it was originally stamped with rather than being
+re-derived from the target workbook's current catalogue.
+
+Job IDs are allocated from a persisted high-water mark (`modRegistry.NextJobId`),
+not a scan of the sheet's current rows, so deleting the highest-numbered job
+cannot cause its ID to be reissued.
