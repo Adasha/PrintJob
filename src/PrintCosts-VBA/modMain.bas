@@ -44,6 +44,31 @@ Fail:
     ReportError "Export"
 End Sub
 
+Public Sub btnExportAll()
+    On Error GoTo Fail
+    ExportAllLocations
+    Exit Sub
+Fail:
+    ReportError "Export All Locations"
+End Sub
+
+Public Sub btnImportLocation()
+    On Error GoTo Fail
+    If Not RequireLocation Then Exit Sub
+    ImportIntoLocation ActiveSheet
+    Exit Sub
+Fail:
+    ReportError "Import"
+End Sub
+
+Public Sub btnImportGlobal()
+    On Error GoTo Fail
+    ImportGlobal
+    Exit Sub
+Fail:
+    ReportError "Import"
+End Sub
+
 Public Sub btnClearAll()
     On Error GoTo Fail
     If Not RequireLocation Then Exit Sub

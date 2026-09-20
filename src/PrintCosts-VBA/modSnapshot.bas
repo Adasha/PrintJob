@@ -83,7 +83,11 @@ End Sub
 ' without this a mistaken deletion would be both unrecoverable and untraceable.
 Public Sub LogAudit(ByVal Action As String, ByVal Location As String, ByVal Detail As String)
     Dim lo As ListObject, r As ListRow, aws As Worksheet
-    Dim eNum As Long, eDesc As String
+    ' Not eNum: VBA identifiers are case-insensitive, and "eNum" collapses to
+    ' the reserved word Enum - a Dim of that name is a compile error (Syntax
+    ' error), not a warning, and it never surfaced before because nothing
+    ' called LogAudit until modImport did.
+    Dim errNum As Long, errDesc As String
 
     ' The lookup is the only part entitled to fail quietly. A workbook with no
     ' audit table should not stop a deletion the user has already confirmed.
@@ -117,8 +121,8 @@ Fail:
     ' Read Err FIRST. Every form of On Error resets the Err object, and
     ' RelockSheet runs two of them, so reading Err after reprotecting reports
     ' "0: " and loses the only description of what actually went wrong.
-    eNum = Err.Number
-    eDesc = Err.Description
+    errNum = Err.Number
+    errDesc = Err.Description
 
     ' Reprotect whatever state we got to, then say so. This reports rather
     ' than re-raising: the caller is midway through a destructive operation
@@ -126,6 +130,6 @@ Fail:
     ' but is not a reason to abandon the deletion half-done.
     If Not aws Is Nothing Then RelockSheet aws
     Say "The print job was removed, but the audit note could not be written.", _
-        eNum & ": " & eDesc, _
+        errNum & ": " & errDesc, _
         "The records themselves are unaffected. Pass this on to whoever maintains the workbook."
 End Sub

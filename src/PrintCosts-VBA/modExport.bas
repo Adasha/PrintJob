@@ -47,16 +47,91 @@ End Function
 
 ' =============================================================== export ===
 Public Sub ExportLocation(ByVal ws As Worksheet)
-    Dim lo As ListObject, n As Long, cols As Variant
-    Dim block As Variant, path As String, wbOut As Workbook
+    Dim n As Long, path As String, status As String
 
     On Error GoTo Fail
+    status = ExportOne(ws, n, path)
+    Select Case status
+        Case "EMPTY"
+            Say "There is nothing to export.", "'" & LocValue(ws, "LOC_Name") & "' has no print jobs recorded."
+        Case "NOPATH"
+            Say "This print room could not be exported.", _
+                "The workbook's own folder could not be resolved to a location on this computer. " & _
+                "That happens when the file is open from OneDrive and Excel reports its address as a web link rather than a folder.", _
+                "Open the workbook from the OneDrive folder on this computer rather than from the browser, then try again."
+        Case "NOFILE"
+            Say "The export did not produce a file.", _
+                "Excel accepted the save but nothing was written to:" & vbCrLf & path, _
+                "Nothing has been marked as exported. Check you can write to that folder, then try again."
+        Case ""
+            Say n & " print job" & IIf(n = 1, "", "s") & " exported.", _
+                "Written to:" & vbCrLf & path, _
+                "The file holds every column, including the frozen prices each job was costed at, so it is a complete record of this print room."
+    End Select
+    Exit Sub
+Fail:
+    AppReset
+    ReportError "Export"
+End Sub
+
+' Every registered print room, one CSV each, in one pass. Shares ExportOne
+' with ExportLocation rather than looping the button macro, so this is one
+' AppOff/AppOn bracket for the whole batch (no recalculation thrash between
+' locations) and one summary dialog instead of N.
+Public Sub ExportAllLocations()
+    Dim ws As Worksheet, n As Long, path As String, status As String
+    Dim done As Long, skipped As Long, detail As String, failed As String, why As String
+
+    On Error GoTo Fail
+    AppOff
+    For Each ws In LocationSheets()
+        status = ExportOne(ws, n, path)
+        Select Case status
+            Case ""
+                done = done + 1
+                detail = detail & "- " & LocValue(ws, "LOC_Name") & ": " & n & " job" & IIf(n = 1, "", "s") & vbCrLf
+            Case "EMPTY"
+                skipped = skipped + 1
+            Case Else
+                failed = failed & "- " & LocValue(ws, "LOC_Name") & ": " & status & vbCrLf
+        End Select
+    Next ws
+    AppOn
+
+    If done = 0 And skipped = 0 And Len(failed) = 0 Then
+        Say "No print rooms were found.", "Run Refresh Locations first."
+        Exit Sub
+    End If
+
+    why = detail
+    If skipped > 0 Then why = why & skipped & " print room" & IIf(skipped = 1, "", "s") & " had nothing to export and " & IIf(skipped = 1, "was", "were") & " skipped." & vbCrLf
+    If Len(failed) > 0 Then why = why & vbCrLf & "Could not be exported:" & vbCrLf & failed
+
+    Say done & " print room" & IIf(done = 1, "", "s") & " exported.", why, _
+        "Each file holds every column, including the frozen prices each job was costed at, so it is a complete record of that print room."
+    Exit Sub
+Fail:
+    AppReset
+    ReportError "Export All Locations"
+End Sub
+
+' Does the actual export, without showing anything. Returns "" on success
+' (N and Path filled in, the location already stamped as exported), or one of
+' EMPTY / NOPATH / NOFILE naming what stopped it - so ExportLocation and
+' ExportAllLocations can each decide how to tell the user, one dialog at a
+' time or rolled into a single summary.
+Private Function ExportOne(ByVal ws As Worksheet, ByRef n As Long, ByRef path As String) As String
+    Dim lo As ListObject, cols As Variant, block As Variant, wbOut As Workbook
+
     Set lo = JobsTable(ws)
-    If lo Is Nothing Then Exit Sub
+    If lo Is Nothing Then
+        ExportOne = "EMPTY"
+        Exit Function
+    End If
     n = RowCount(lo)
     If n = 0 Then
-        Say "There is nothing to export.", "'" & LocValue(ws, "LOC_Name") & "' has no print jobs recorded."
-        Exit Sub
+        ExportOne = "EMPTY"
+        Exit Function
     End If
 
     cols = ExportColumns
@@ -64,11 +139,8 @@ Public Sub ExportLocation(ByVal ws As Worksheet)
 
     path = ExportPath(ws)
     If Len(path) = 0 Then
-        Say "This print room could not be exported.", _
-            "The workbook's own folder could not be resolved to a location on this computer. " & _
-            "That happens when the file is open from OneDrive and Excel reports its address as a web link rather than a folder.", _
-            "Open the workbook from the OneDrive folder on this computer rather than from the browser, then try again."
-        Exit Sub
+        ExportOne = "NOPATH"
+        Exit Function
     End If
 
     AppOff
@@ -95,27 +167,17 @@ Public Sub ExportLocation(ByVal ws As Worksheet)
     ' Confirm the file is actually there before claiming anything. SaveAs to a
     ' destination Excel accepts but does not write locally - a OneDrive URL, a
     ' path the CSV prompt was cancelled on - returns without raising, and the
-    ' three lines below would then stamp the location as exported and tell the
-    ' user their records were safe. This status is what stands between a sheet
+    ' two lines below would then stamp the location as exported and tell the
+    ' caller its records were safe. This status is what stands between a sheet
     ' deletion and the records, so it must never be optimistic.
     If Not FileExists(path) Then
-        Say "The export did not produce a file.", _
-            "Excel accepted the save but nothing was written to:" & vbCrLf & path, _
-            "Nothing has been marked as exported. Check you can write to that folder, then try again."
-        Exit Sub
+        ExportOne = "NOFILE"
+        Exit Function
     End If
 
     StampExported ws
     RefreshExportStatus ws
-
-    Say n & " print job" & IIf(n = 1, "", "s") & " exported.", _
-        "Written to:" & vbCrLf & path, _
-        "The file holds every column, including the frozen prices each job was costed at, so it is a complete record of this print room."
-    Exit Sub
-Fail:
-    AppReset
-    ReportError "Export"
-End Sub
+End Function
 
 ' Header block, then a blank line, then the header row, then the records.
 Private Function BuildBlock(ByVal ws As Worksheet, ByVal lo As ListObject, _

@@ -58,6 +58,13 @@ Public Sub InitialiseWorkbook()
             DrawOne ws, 4, 20, "Check workbook", "btnCheckWorkbook", 130
             DrawOne ws, 6, 20, "Re-stamp prices...", "btnReStamp", 130
             DrawOne ws, 8, 20, "About", "btnAbout", 130
+            DrawOne ws, 10, 20, "Export All Locations...", "btnExportAll", 130
+            DrawOne ws, 12, 20, "Import (choose room)...", "btnImportGlobal", 130
+        ElseIf StrComp(ws.Name, "Reports", vbTextCompare) = 0 Then
+            ' Column further right than the results table and the by-room/
+            ' by-stock breakdown blocks, so nothing here overlaps them.
+            DrawOne ws, 1, 26, "Export report...", "btnExportReport", 140
+            DrawOne ws, 3, 26, "Delete visible records...", "btnDeleteVisibleReports", 140
         End If
     Next ws
 
@@ -86,6 +93,7 @@ Private Sub DrawLocationButtons(ByVal ws As Worksheet)
     DrawOne ws, 10, 9, "Check this sheet", "btnCheckSheet", 110
     DrawOne ws, 10, 11, "Clear All", "btnClearAll", 110
     DrawOne ws, 10, 13, "Export...", "btnExport", 110
+    DrawOne ws, 10, 15, "Import...", "btnImportLocation", 110
 
     Dim c As Long
     For c = 1 To 15
