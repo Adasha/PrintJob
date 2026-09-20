@@ -29,12 +29,13 @@ try {
     $loAnnexe = $annexe.ListObjects('tblJobs_ANNEX')
 
     Write-Host '=== Export report ==='
-    # Filter to Printer contains 'Epson' so this is a genuine subset, not
-    # the whole workbook - exercises the filtered-snapshot path.
-    $rep.Range('G6').Value2 = 'Epson'
+    # Filter to one printer (G6 is now an exact-match dropdown) so this is a
+    # genuine subset, not the whole workbook - exercises the filtered-
+    # snapshot path.
+    $rep.Range('G6').Value2 = 'Epson SureColor P9500'
     $xl.CalculateFullRebuild()
     $beforeJobs = [int]$rep.Range('B12').Text
-    Write-Host ("  filtered to Printer contains 'Epson': {0} jobs" -f $beforeJobs)
+    Write-Host ("  filtered to Printer = 'Epson SureColor P9500': {0} jobs" -f $beforeJobs)
     if ($beforeJobs -eq 0) { Write-Host 'FAIL: expected at least one job for this filter'; exit 1 }
 
     $rep.Activate()

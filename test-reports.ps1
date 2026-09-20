@@ -92,15 +92,16 @@ try {
 
     Write-Host ''
     Write-Host '=== Reports: new filters (Technician / Printer / Paper Stock / Quantity) ==='
-    $c.Range('G5').Value2 = 'Okonkwo'
+    Write-Host '  (G5/G6/G7 are now dropdowns - exact match against the staged distinct-value list)'
+    $c.Range('G5').Value2 = 'J. Okonkwo'
     $xl.CalculateFullRebuild()
-    Write-Host ("  Technician contains 'Okonkwo': jobs={0}" -f $c.Range('B12').Text)
+    Write-Host ("  Technician = 'J. Okonkwo': jobs={0}" -f $c.Range('B12').Text)
     if ([int]$c.Range('B12').Text -eq 0) { Write-Host 'FAIL: expected at least one match on Technician filter'; exit 1 }
     $c.Range('G5').ClearContents() | Out-Null
 
-    $c.Range('G6').Value2 = 'Epson'
+    $c.Range('G6').Value2 = 'Epson SureColor P9500'
     $xl.CalculateFullRebuild()
-    Write-Host ("  Printer contains 'Epson': jobs={0}" -f $c.Range('B12').Text)
+    Write-Host ("  Printer = 'Epson SureColor P9500': jobs={0}" -f $c.Range('B12').Text)
     if ([int]$c.Range('B12').Text -eq 0) { Write-Host 'FAIL: expected at least one match on Printer filter'; exit 1 }
     $c.Range('G6').ClearContents() | Out-Null
 
@@ -110,6 +111,27 @@ try {
     if ([int]$c.Range('B12').Text -eq 0) { Write-Host 'FAIL: expected at least one match on Quantity filter'; exit 1 }
     $c.Range('G8').ClearContents() | Out-Null
     $xl.CalculateFullRebuild()
+
+    Write-Host ''
+    Write-Host '=== Reports: dropdown/date-picker UI controls ==='
+    foreach ($addr in 'G5', 'G6', 'G7', 'K5', 'K6') {
+        $t = $c.Range($addr).Validation.Type
+        Write-Host ("  {0} validation type: {1} (3 = list/dropdown)" -f $addr, $t)
+        if ($t -ne 3) { Write-Host "FAIL: $addr should be a list dropdown"; exit 1 }
+    }
+    foreach ($addr in 'C7', 'C8') {
+        $t = $c.Range($addr).Validation.Type
+        Write-Host ("  {0} validation type: {1} (4 = date, gives the native calendar picker)" -f $addr, $t)
+        if ($t -ne 4) { Write-Host "FAIL: $addr should be Date-type validation"; exit 1 }
+    }
+    Write-Host '  OK: Technician/Printer/Paper Stock/Sort by/Sort direction are dropdowns; From/To date use Date validation'
+
+    Write-Host ''
+    Write-Host '=== Reports: buttons within the first screenful ==='
+    foreach ($b in $c.Buttons()) {
+        Write-Host ("  {0,-34} left={1}px" -f $b.Name, [int]$b.Left)
+        if ([int]$b.Left -gt 900) { Write-Host "FAIL: $($b.Name) is positioned too far right ($([int]$b.Left)px)"; exit 1 }
+    }
 
     Write-Host ''
     Write-Host '=== Reports: hidden Job ID correlation column ==='

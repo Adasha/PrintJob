@@ -61,10 +61,11 @@ Public Sub InitialiseWorkbook()
             DrawOne ws, 10, 20, "Export All Locations...", "btnExportAll", 130
             DrawOne ws, 12, 20, "Import (choose room)...", "btnImportGlobal", 130
         ElseIf StrComp(ws.Name, "Reports", vbTextCompare) = 0 Then
-            ' Column further right than the results table and the by-room/
-            ' by-stock breakdown blocks, so nothing here overlaps them.
-            DrawOne ws, 1, 26, "Export report...", "btnExportReport", 140
-            DrawOne ws, 3, 26, "Delete visible records...", "btnDeleteVisibleReports", 140
+            ' Rows 1-3, column F: clear of the title text (A1:A2) and above
+            ' the filter/sort boxes (rows 5+), so both buttons sit inside the
+            ' first screenful on any normal window - no scrolling needed.
+            DrawOne ws, 1, 6, "Export report...", "btnExportReport", 140
+            DrawOne ws, 3, 6, "Delete visible records...", "btnDeleteVisibleReports", 140
         End If
     Next ws
 

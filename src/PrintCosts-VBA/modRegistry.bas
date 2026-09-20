@@ -76,6 +76,15 @@ Public Sub RefreshLocations()
     WriteRegistry sheets, codes
     WriteConsolidated sheets, codes
 
+    ' The Reports page's Technician/Printer/Paper Stock dropdowns are a VBA
+    ' snapshot of _Data's distinct values, not a live formula (a literal
+    ' Formula1 list is capped at 255 characters), so they need refreshing
+    ' here too - the same reason BindColumns refreshes each location's own
+    ' dropdowns on every call rather than only once at setup.
+    Dim repWs As Worksheet
+    Set repWs = ReportsSheet()
+    If Not repWs Is Nothing Then RefreshReportFilterLists repWs
+
     ' After WriteRegistry, because the status is read out of the registry.
     For Each v In sheets
         Set ws = v

@@ -119,7 +119,12 @@ End Sub
 
 ' Claims a staging column for this tag, writing the list into it, and points
 ' the target range's validation at it.
-Private Sub ApplyTo(ByVal ws As Worksheet, ByVal target As Range, ByVal items As Collection, ByVal Tag As String, ByVal Title As String, ByVal Msg As String)
+'
+' Public so modReports can reuse it for the Reports page's Technician/
+' Printer/Paper Stock filters - the same "own staging column per tag" reason
+' this exists at all applies there too: a literal Formula1 list is capped at
+' 255 characters, which a real printer or paper stock list can exceed.
+Public Sub ApplyTo(ByVal ws As Worksheet, ByVal target As Range, ByVal items As Collection, ByVal Tag As String, ByVal Title As String, ByVal Msg As String)
     Dim st As Worksheet, col As Long, i As Long, last As Long, src As String
     If target Is Nothing Then Exit Sub
     Set st = ThisWorkbook.Worksheets(STAGE_SHEET)

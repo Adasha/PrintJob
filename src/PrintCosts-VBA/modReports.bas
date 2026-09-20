@@ -141,11 +141,12 @@ Private Function Criteria() As String
     s = s & "*IF($C$8="""",TRUE,IF(ISERROR($C$8*1),TRUE," & _
         "IFERROR(" & C("Date/Time") & "*1,0)<$C$8*1+1))"
 
-    ' Technician, Printer and Paper Stock: one more multiplied IF(...) term
-    ' each, same partial-match pattern as Student name above.
-    s = s & "*IF($G$5="""",TRUE,ISNUMBER(SEARCH($G$5," & C("Technician") & ")))"
-    s = s & "*IF($G$6="""",TRUE,ISNUMBER(SEARCH($G$6," & C("Printer") & ")))"
-    s = s & "*IF($G$7="""",TRUE,ISNUMBER(SEARCH($G$7," & C("Paper Stock") & ")))"
+    ' Technician, Printer and Paper Stock are dropdowns (RefreshReportFilterLists),
+    ' not free text, so an exact match is what "choose one from the list"
+    ' means - unlike Student name, there is no fragment to search for.
+    s = s & "*IF($G$5="""",TRUE," & C("Technician") & "=$G$5)"
+    s = s & "*IF($G$6="""",TRUE," & C("Printer") & "=$G$6)"
+    s = s & "*IF($G$7="""",TRUE," & C("Paper Stock") & "=$G$7)"
 
     ' Quantity: exact match, blank ignored, *1-coerced the same way the date
     ' boxes are so a value left as text by an unformatted cell is treated as
@@ -200,13 +201,15 @@ Public Sub BuildReports()
 
     CritCell ws, "A5", "C5", "Student name", "Part of a name is enough - ""Smith"" finds ""Jane Smith""."
     CritCell ws, "A6", "C6", "Student number", "Matched exactly."
-    CritCell ws, "A7", "C7", "From date", "Leave blank for no start date."
+    CritCell ws, "A7", "C7", "From date", "Pick a date, or leave blank for no start date."
     CritCell ws, "A8", "C8", "To date", "Jobs logged at any time on this date are included."
     ws.Range("C7:C8").NumberFormat = "dd/mm/yyyy"
+    AddDateValidation ws.Range("C7"), "From date", "Leave blank for no start date."
+    AddDateValidation ws.Range("C8"), "To date", "Jobs logged at any time on this date are included."
 
-    CritCell ws, "E5", "G5", "Technician", "Part of a name is enough."
-    CritCell ws, "E6", "G6", "Printer", "Part of a model name is enough."
-    CritCell ws, "E7", "G7", "Paper stock", "Part of a stock description is enough."
+    CritCell ws, "E5", "G5", "Technician", "Choose from the list, or leave blank for all."
+    CritCell ws, "E6", "G6", "Printer", "Choose from the list, or leave blank for all."
+    CritCell ws, "E7", "G7", "Paper stock", "Choose from the list, or leave blank for all."
     CritCell ws, "E8", "G8", "Quantity", "Matched exactly."
 
     CritCell ws, "I5", "K5", "Sort by", "Leave blank for no sorting."
@@ -271,6 +274,14 @@ Public Sub BuildReports()
 
     BuildBreakdowns ws, ok
     FormatReports ws
+
+    ' Last, deliberately. ApplyTo (called from RefreshReportFilterLists) does
+    ' its own Unlock/RelockSheet on ws as a self-contained operation - called
+    ' any earlier, its RelockSheet would re-protect the sheet mid-build and
+    ' every Validation.Add after it (the sort dropdowns above) would fail
+    ' with a bare 1004 on the now-protected cells.
+    RefreshReportFilterLists ws
+
     RelockSheet ws
 End Sub
 
@@ -638,3 +649,108 @@ Private Sub AddList(ByVal target As Range, ByVal QuotedItems As String, ByVal Ti
         .ErrorMessage = "Choose one of the listed options, or leave it blank."
     End With
 End Sub
+
+' A cell with Date-type validation gets Excel's own calendar picker (the
+' small icon that appears on selection, in Excel for Microsoft 365) with no
+' ActiveX involved - consistent with modPicker's Mac-safe, no-ActiveX rule.
+' Validation only fires on manual entry, never on a value set from VBA/COM,
+' so this adds a UI convenience without narrowing what modImport or a test
+' script can write, and the Criteria() formula's own tolerance for a text
+' date left by an unformatted cell is still needed and unchanged.
+'
+' The lower bound is a real DATE() formula, not a literal date string - a
+' string like "01/01/2000" is read back through the machine's locale, the
+' same class of trap modUtils.NumOf's comment warns about for numbers.
+Private Sub AddDateValidation(ByVal target As Range, ByVal Title As String, ByVal Msg As String)
+    With target.Validation
+        .Delete
+        .Add Type:=xlValidateDate, AlertStyle:=xlValidAlertStop, Operator:=xlGreaterEqual, Formula1:="=DATE(2000,1,1)"
+        .IgnoreBlank = True
+        .ShowInput = True
+        .ShowError = True
+        .InputTitle = Title
+        .InputMessage = Msg
+        .ErrorTitle = Title
+        .ErrorMessage = "Enter a valid date on or after 1 January 2000, or leave blank."
+    End With
+End Sub
+
+' Technician/Printer/Paper Stock dropdowns, sourced from what has actually
+' been recorded (the consolidated _Data range) rather than the current
+' Papers/Printers/Technicians catalogue - so a job against a since-renamed
+' or deactivated printer or a technician no longer active is still findable,
+' and every choice offered is guaranteed to match at least one record.
+'
+' Public, and also called from modRegistry.RefreshLocations after it
+' rewrites _Data - not just from here. _Data does not exist yet the first
+' time BuildReports runs (InitialiseWorkbook builds the report sheets before
+' RefreshLocations ever writes it), and it changes on every later refresh
+' too, so a one-time snapshot taken only at build time would read empty on
+' a fresh workbook and go stale the moment a job is added anywhere.
+Public Sub RefreshReportFilterLists(ByVal ws As Worksheet)
+    ApplyTo ws, ws.Range("G5"), DistinctValues("Technician"), "REP|Technician", _
+        "Technician", "Choose a technician, or leave blank to include all."
+    ApplyTo ws, ws.Range("G6"), DistinctValues("Printer"), "REP|Printer", _
+        "Printer", "Choose a printer, or leave blank to include all."
+    ApplyTo ws, ws.Range("G7"), DistinctValues("Paper Stock"), "REP|Paper stock", _
+        "Paper stock", "Choose a paper stock, or leave blank to include all."
+End Sub
+
+' Distinct, sorted, non-blank values of one column of the consolidated range,
+' read directly in VBA rather than as a formula - ApplyTo's staging column
+' needs a Collection of plain values, not a spilled array.
+Private Function DistinctValues(ByVal Header As String) As Collection
+    Dim out As Collection, seen As clsDict
+    Dim rng As Range, hdrRng As Range, m As Variant
+    Dim hdrCol As Long, i As Long, j As Long, v As String, tmp As String
+    Dim vals() As String, n As Long
+
+    Set out = New Collection
+    Set rng = ConsolidatedRange()
+    If rng Is Nothing Then
+        Set DistinctValues = out
+        Exit Function
+    End If
+
+    ' DATA_HDR is already sheet-qualified ("_Data!$A$9:$AZ$9"), and
+    ' Worksheet.Range does not reliably accept a qualified address string -
+    ' Application.Range does.
+    Set hdrRng = Application.Range(DATA_HDR)
+    m = Application.Match(Header, hdrRng, 0)
+    If IsError(m) Then
+        Set DistinctValues = out
+        Exit Function
+    End If
+    hdrCol = CLng(m)   ' Both rng and hdrRng start at column A, so this offset lines up with rng directly.
+
+    Set seen = New clsDict
+    ReDim vals(1 To rng.Rows.Count)
+    For i = 1 To rng.Rows.Count
+        v = Trim$(CStr(rng.Cells(i, hdrCol).Value))
+        If Len(v) > 0 Then
+            If Not seen.Exists(v) Then
+                seen.Add v, True
+                n = n + 1
+                vals(n) = v
+            End If
+        End If
+    Next i
+
+    ' An insertion sort is plenty for a list this size (printers, paper
+    ' stocks, technicians number in the tens, not thousands).
+    For i = 2 To n
+        tmp = vals(i)
+        j = i - 1
+        Do While j >= 1
+            If StrComp(vals(j), tmp, vbTextCompare) <= 0 Then Exit Do
+            vals(j + 1) = vals(j)
+            j = j - 1
+        Loop
+        vals(j + 1) = tmp
+    Next i
+
+    For i = 1 To n
+        out.Add vals(i)
+    Next i
+    Set DistinctValues = out
+End Function
