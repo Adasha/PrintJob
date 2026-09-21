@@ -122,6 +122,24 @@ locked cells, not determined ones. Set a password by hand in Excel (Review >
 Protect Sheet) on a particular workbook if you need one - nothing in
 `modProtect` generates one by default any more.
 
+**Exports write beside the workbook by default.** Set the "Export folder"
+value on the Settings sheet to send CSV exports and report snapshots
+somewhere else instead - it only takes effect if that folder already exists
+on the computer running Excel.
+
+**The Summary sheet's "Hide settings sheets" button** hides Print
+Technicians, Printers, Papers and Settings from the tab bar (not full Excel
+protection - Unhide still reaches them). Click it again, now labelled "Show
+settings sheets", to bring them back.
+
+**Add row/Remove row buttons** sit above the Printers, Papers and Print
+Technicians tables. Removing a row never affects a print job already
+recorded against it - every job snapshots the price it was costed at. The
+smaller lookup tables on the Settings sheet (paper types, paper families,
+standard sizes, consumables) don't have their own buttons; their cells are
+unlocked, so a row added the normal Excel Table way (Tab at the last cell,
+or right-click > Insert > Table Rows) keeps its formatting and validation.
+
 ## Adding a print room
 
 1. Right-click a print room tab, **Move or Copy**, tick **Create a copy**.
