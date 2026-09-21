@@ -23,6 +23,42 @@ Option Explicit
 ' acceptance passes at the end of the sequence.
 
 Public Const APP_NAME As String = "Print Cost Management"
+' 0.8.1 - phase 8's original scope, finally built (see the 0.8.0 note below,
+' which explicitly deferred this):
+'
+'   - modSettings.CurrencySymbol (already reading SET_CURRENCY, previously
+'     unreferenced) is now read everywhere a NumberFormat or Format$ used to
+'     hardcode ChrW(163) - modReports (Summary and Reports), modExport's
+'     export-report snapshot, and modJobs.RemoveRow's delete-confirmation
+'     dialog. The NumberFormat sites go through the new
+'     modSettings.CurrencyFormatCode rather than CurrencySymbol() directly -
+'     verified directly against this workbook over COM: setting a Range's
+'     NumberFormat from VBA to a BARE or quoted currency symbol (e.g.
+'     "$#,##0.00") is silently canonicalised by Excel back to the OS's own
+'     regional currency symbol, no matter what SET_CURRENCY holds - invisible
+'     on a GBP-locale machine, where it happened to always match, but it
+'     would have silently defeated the setting everywhere else. Excel's
+'     "[$symbol]" bracket syntax round-trips exactly as given and was
+'     confirmed to render identically for the unaffected GBP case, so
+'     CurrencyFormatCode is a strict fix, not a behaviour change. Format$
+'     (RemoveRow's dialog) does not have this problem - confirmed separately
+'     - and keeps using CurrencySymbol() plain. Changing SET_CURRENCY still
+'     only repaints Summary/Reports on the next InitialiseWorkbook run, same
+'     as every other piece of their formatting.
+'   - Conditional formatting exists in the workbook for the first time.
+'     modInit.ApplyStatusFormat gives every location sheet's Status column an
+'     amber fill whenever a row reads anything other than "OK" - the
+'     "warning state" §5/§11 already called out as "conditionally
+'     formatted". modReports.FormatSummaryErrors gives Summary's Type/Family
+'     columns red bold text when a job references a paper stock that no
+'     longer exists in tblPapers ("(not in Papers)") - the "error state",
+'     matched to the one place the workbook's own formulas already flag a
+'     genuine data-integrity break rather than a routine per-row warning.
+'   - modReports.DrawLegend adds the Summary-sheet legend §11 planned and
+'     never built: the four everyday cell-role colours (input, calculated,
+'     configuration, read-only reference), at O9 down, in the colours
+'     already used for those roles elsewhere on Summary/Reports.
+'
 ' 0.8.0 - NextId high-water mark, Export/Import, Reports rework, UI snag
 ' list. Real new functionality, not just fixes, so the phase digit moves:
 '
@@ -78,7 +114,7 @@ Public Const APP_NAME As String = "Print Cost Management"
 ' A patch increment, not a phase: the phase digit still reads 7 because phase
 ' 8 has not been built. The revision digit is what "0.<phase>.<revision>"
 ' exists for.
-Public Const APP_VERSION As String = "0.8.0"
+Public Const APP_VERSION As String = "0.8.1"
 Public Const APP_AUTHOR As String = "Adam Shailer"
 
 Public Function VersionString() As String

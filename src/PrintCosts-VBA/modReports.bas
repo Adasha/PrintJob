@@ -95,19 +95,83 @@ Public Sub BuildSummary()
     ws.Range("A10").Formula2 = f
 
     FormatSummary ws
+    FormatSummaryErrors ws
+    DrawLegend ws
     RelockSheet ws
 End Sub
 
 Private Sub FormatSummary(ByVal ws As Worksheet)
     ws.Range("A9:N9").Interior.Color = RGB(222, 232, 244)
     ws.Range("H10:I2000").NumberFormat = "#,##0.00"
-    ws.Range("J10:N2000").NumberFormat = ChrW(163) & "#,##0.00"
-    ws.Range("D6").NumberFormat = ChrW(163) & "#,##0.00"
-    ws.Range("F6").NumberFormat = ChrW(163) & "#,##0.00"
-    ws.Range("H6").NumberFormat = ChrW(163) & "#,##0.00"
+    ws.Range("J10:N2000").NumberFormat = CurrencyFormatCode()
+    ws.Range("D6").NumberFormat = CurrencyFormatCode()
+    ws.Range("F6").NumberFormat = CurrencyFormatCode()
+    ws.Range("H6").NumberFormat = CurrencyFormatCode()
     ws.Columns("A:N").ColumnWidth = 14
     ws.Columns("A:C").ColumnWidth = 24
     ws.Rows(9).Font.Bold = True
+End Sub
+
+' Phase 8's "error state" (design doc §11): the one place the workbook's own
+' formulas already flag a genuine data-integrity break, as opposed to a
+' routine per-row validation nag - a paper stock a job was costed against has
+' since been renamed or removed from tblPapers, so the Type/Family lookup in
+' A10's spilled formula falls back to the literal "(not in Papers)" (IFNA in
+' BuildSummary above). Like Status, this is pure spilled-formula output with
+' no per-cell VBA hook, so conditional formatting is the only way to colour
+' it. Red reuses the exact colour the Reports disjoint-criteria warning and
+' the "needs export" flag already use (modReports.BuildReports, modExport.
+' RefreshExportStatus), so "error" reads the same everywhere it appears.
+Private Sub FormatSummaryErrors(ByVal ws As Worksheet)
+    Dim rng As Range, fc As FormatCondition
+    Set rng = ws.Range("D10:E2000")
+    Set fc = rng.FormatConditions.Add(Type:=xlExpression, _
+        Formula1:="=D10=""(not in Papers)""")
+    fc.Font.Color = RGB(176, 0, 32)
+    fc.Font.Bold = True
+End Sub
+
+' Phase 8's Summary legend (design doc §11 / architecture §16.2): explains
+' the four everyday cell-role colours - not the exceptional Warning/Error
+' states above, which explain themselves by firing, and not the niche
+' Snapshot/historical role, which lives collapsed in a column group nobody
+' opens day to day. Sits at O9 down: clear of the report table (A:N) and
+' clear of the buttons InitialiseWorkbook draws at column O rows 1/3/5/7, and
+' level with the table's own header row so it reads as "this explains that".
+' Colours are the exact ones already in use elsewhere on this sheet/Reports,
+' so the swatches actually match what they claim to explain.
+Private Sub DrawLegend(ByVal ws As Worksheet)
+    ws.Range("O9").Value = "Cell colours"
+    ws.Range("O9").Font.Bold = True
+
+    LegendRow ws, 10, "Type your own values here", RGB(255, 255, 255), False, False, True
+    LegendRow ws, 11, "Calculated automatically", RGB(217, 217, 217), True, False, False
+    LegendRow ws, 12, "Workbook configuration", RGB(222, 232, 244), False, False, False
+    LegendRow ws, 13, "Reference information (read-only)", RGB(217, 217, 217), False, True, False
+
+    ws.Columns("O").ColumnWidth = 4
+    ws.Columns("P").ColumnWidth = 30
+End Sub
+
+Private Sub LegendRow(ByVal ws As Worksheet, ByVal RowNo As Long, ByVal Label As String, _
+                       ByVal Fill As Long, ByVal Italic As Boolean, ByVal GreyText As Boolean, _
+                       ByVal BlueBorder As Boolean)
+    Dim swatch As Range
+    Set swatch = ws.Cells(RowNo, 15) ' column O
+    swatch.Interior.Color = Fill
+    If BlueBorder Then
+        With swatch.Borders(xlEdgeLeft)
+            .LineStyle = xlContinuous
+            .Weight = xlMedium
+            .Color = RGB(46, 100, 168)
+        End With
+    End If
+
+    With ws.Cells(RowNo, 16) ' column P
+        .Value = Label
+        .Font.Italic = Italic
+        If GreyText Then .Font.Color = RGB(110, 110, 110)
+    End With
 End Sub
 
 ' ============================================================= Reports ===
@@ -241,9 +305,9 @@ Public Sub BuildReports()
     TotalCell ws, "D13", "Gross", "=IFERROR(SUM(FILTER(" & C("Gross Cost") & "," & ok & ")),0)"
     TotalCell ws, "F13", "Disregarded", "=IFERROR(SUM(FILTER(" & C("Disregarded") & "," & ok & ")),0)"
     TotalCell ws, "H13", "Chargeable", "=IFERROR(SUM(FILTER(" & C("Chargeable Cost") & "," & ok & ")),0)"
-    ws.Range("D13").NumberFormat = ChrW(163) & "#,##0.00"
-    ws.Range("F13").NumberFormat = ChrW(163) & "#,##0.00"
-    ws.Range("H13").NumberFormat = ChrW(163) & "#,##0.00"
+    ws.Range("D13").NumberFormat = CurrencyFormatCode()
+    ws.Range("F13").NumberFormat = CurrencyFormatCode()
+    ws.Range("H13").NumberFormat = CurrencyFormatCode()
 
     ' --- the records ------------------------------------------------------
     ' Job ID is appended after Notes and hidden - the correlation key that
@@ -318,9 +382,9 @@ Private Sub BuildBreakdowns(ByVal ws As Worksheet, ByVal ok As String)
     ' columns are the third and fourth - Jobs is a count and must not be
     ' formatted as currency.
     ws.Range("R17:R2000").NumberFormat = "#,##0"
-    ws.Range("S17:T2000").NumberFormat = ChrW(163) & "#,##0.00"
+    ws.Range("S17:T2000").NumberFormat = CurrencyFormatCode()
     ws.Range("V17:V2000").NumberFormat = "#,##0"
-    ws.Range("W17:X2000").NumberFormat = ChrW(163) & "#,##0.00"
+    ws.Range("W17:X2000").NumberFormat = CurrencyFormatCode()
 End Sub
 
 ' Group the filtered records by one column. SUMIFS cannot be used here: its
@@ -350,7 +414,7 @@ Private Sub FormatReports(ByVal ws As Worksheet)
     ws.Range("A15:N15").Interior.Color = RGB(222, 232, 244)
     ws.Range("A16:A2000").NumberFormat = "dd/mm/yyyy hh:mm"
     ws.Range("E16:G2000").NumberFormat = "#,##0.00"
-    ws.Range("H16:L2000").NumberFormat = ChrW(163) & "#,##0.00"
+    ws.Range("H16:L2000").NumberFormat = CurrencyFormatCode()
     ws.Columns("A:N").ColumnWidth = 14
     ws.Columns("B:D").ColumnWidth = 22
     ws.Columns("N").ColumnWidth = 30

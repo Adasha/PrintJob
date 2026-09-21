@@ -301,8 +301,10 @@ is how you find that, and killing the orphaned process is how you clear it.
 
 ## What is not built yet
 
-Phases 8 and 9 of the design document: visual polish and user notes, and the
-full acceptance test run on Windows and Mac with its report.
+Phase 9 of the design document: the full acceptance test run on Windows and
+Mac with its report. Phase 8 (visual polish — the Summary legend,
+conditional formatting for warning/error states, and currency wired to the
+global setting) is built; see `docs/ARCHITECTURE.md` §16.2.
 
 The validation sweep (phase 7) is done. AT-11, AT-14 and AT-16 pass, and
 nothing in the workbook needed changing to make them — the mechanisms were

@@ -47,6 +47,7 @@ Public Sub InitialiseWorkbook()
             ConfigValidation ws
             BindColumns ws
             GroupJobColumns ws
+            ApplyStatusFormat ws
             n = n + 1
         ElseIf StrComp(ws.Name, "Summary", vbTextCompare) = 0 Then
             ' Column O onwards, clear of the A:M report table.
@@ -481,5 +482,37 @@ Private Sub GroupColumnRange(ByVal lo As ListObject, ByVal FirstHeader As String
     Set ws = lo.Parent
     UnlockSheet ws
     ws.Range(lo.HeaderRowRange.Cells(1, c1), lo.HeaderRowRange.Cells(1, c2)).EntireColumn.Group
+    RelockSheet ws
+End Sub
+
+' ------------------------------------------------------- status colour ---
+' Phase 8's "warning state" (design doc §11 / architecture §5): the Status
+' column is a formula ("OK" or a semicolon-joined issue list from H_Issues,
+' behind the scenes) - there is no Worksheet_Change-style hook that fires
+' when a formula's result changes, so real conditional formatting is the
+' only mechanism that can colour it live as a row goes bad or gets fixed.
+'
+' Added to the table's DataBodyRange rather than a fixed row range, so Excel's
+' normal table auto-extend carries the rule onto rows ListRows.Add creates
+' later - the same mechanic AddPrintJob already relies on for the Status
+' formula itself.
+'
+' Re-run safe: unlike BuildSummary (which clears the whole sheet before
+' redrawing), this loop never wipes the location sheets, so a second
+' InitialiseWorkbook run must delete the rule it drew last time before
+' re-adding it - otherwise every re-run stacks another identical one.
+Private Sub ApplyStatusFormat(ByVal ws As Worksheet)
+    Dim lo As ListObject, rng As Range, fc As FormatCondition
+    Set lo = JobsTable(ws)
+    If lo Is Nothing Then Exit Sub
+    If lo.DataBodyRange Is Nothing Then Exit Sub
+    Set rng = lo.ListColumns("Status").DataBodyRange
+
+    UnlockSheet ws
+    rng.FormatConditions.Delete
+    Set fc = rng.FormatConditions.Add(Type:=xlExpression, _
+        Formula1:="=AND(" & rng.Cells(1, 1).Address(False, False) & "<>""""," & _
+                  rng.Cells(1, 1).Address(False, False) & "<>""OK"")")
+    fc.Interior.Color = RGB(255, 192, 0)
     RelockSheet ws
 End Sub

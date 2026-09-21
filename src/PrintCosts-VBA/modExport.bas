@@ -301,7 +301,7 @@ Private Sub FormatSnapshotColumns(ByVal outWs As Worksheet, ByVal block As Varia
             Case "Date/Time"
                 outWs.Columns(c).NumberFormat = "dd/mm/yyyy hh:mm"
             Case "Paper cost", "Consumable cost", "Gross", "Disregarded", "Chargeable"
-                outWs.Columns(c).NumberFormat = ChrW(163) & "#,##0.00"
+                outWs.Columns(c).NumberFormat = CurrencyFormatCode()
             Case "Quantity", "Area m2"
                 outWs.Columns(c).NumberFormat = "#,##0.00"
         End Select

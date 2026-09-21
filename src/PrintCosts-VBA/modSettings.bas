@@ -32,12 +32,13 @@ Public Function RoundDP() As Long
     RoundDP = CLng(SettingNum("ROUND_DP", 2))
 End Function
 
-' Currently unreferenced. Kept rather than deleted because wiring SET_CURRENCY
-' up is phase 8 work (the symbol is hardcoded as ChrW(163) in twelve places
-' across modReports and modJobs), and this is where that belongs - deleting it
-' now would only mean writing it again. The Val() it used to contain is gone:
-' Val on a currency value is the same locale trap as Val on a date, so the
-' coercion goes through modUtils.NumOf's rule instead.
+' Currently unreferenced by any live job cost - RemoveRow's confirmation
+' dialog is the only caller (via Format$, not this function directly). Kept
+' rather than deleted: it is the locale-safe formatter for anywhere a future
+' caller needs a formatted money string rather than a NumberFormat code. The
+' Val() it used to contain is gone: Val on a currency value is the same
+' locale trap as Val on a date, so the coercion goes through modUtils.NumOf's
+' rule instead.
 Public Function Money(ByVal v As Variant) As String
     Dim d As Double
     If IsNumeric(v) Then
@@ -46,10 +47,30 @@ Public Function Money(ByVal v As Variant) As String
     Money = Format$(d, CurrencySymbol & "#,##0." & String$(RoundDP, "0"))
 End Function
 
-' The symbol the money formats use. Reads SET_CURRENCY so the setting is not
-' merely decorative, and falls back to the pound sign the rest of the workbook
-' assumes. Phase 8 is where the twelve hardcoded ChrW(163) sites come through
-' here.
+' The symbol every money NumberFormat and money Format$ call builds from -
+' modReports, modExport and modJobs.RemoveRow all read this rather than
+' hardcoding a symbol. Reads SET_CURRENCY so the setting is not merely
+' decorative, and falls back to the pound sign the rest of the workbook
+' assumes.
 Public Function CurrencySymbol() As String
     CurrencySymbol = SettingText("CURRENCY", ChrW(163))
+End Function
+
+' The NumberFormat code every money cell uses. Deliberately wraps
+' CurrencySymbol() in Excel's [$symbol] locale-currency bracket syntax rather
+' than just concatenating it - verified directly (COM automation, this
+' workbook): a NumberFormat set from VBA to a bare or quoted currency symbol
+' followed by "#,##0.00" is silently canonicalised by Excel to the OS's own
+' regional currency symbol, no matter what SET_CURRENCY actually holds. On a
+' machine whose regional currency happens to be GBP this is invisible - the
+' bare-£ code this replaced always "worked" purely because it already matched
+' - but it would have silently defeated SET_CURRENCY for any other currency.
+' [$symbol] (no "-LCID" needed) round-trips exactly as given and renders
+' identically to the bare form for the unaffected case, so this is a strict
+' fix, not a behaviour change for the existing £ default. Excel-specific:
+' modJobs.RemoveRow's Format$ dialog text is VBA's own formatter, not this
+' property, and does not have this problem - it keeps using CurrencySymbol()
+' plain.
+Public Function CurrencyFormatCode() As String
+    CurrencyFormatCode = "[$" & CurrencySymbol() & "]#,##0.00"
 End Function

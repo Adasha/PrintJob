@@ -67,7 +67,7 @@ Public Sub RemoveRow(ByVal ws As Worksheet)
     n = SelectedRow(ws, lo)
     If n = 0 Then Exit Sub
 
-    detail = CStr(CellIn(lo, n, "Job ID").Value) & "  " & Format$(CellIn(lo, n, "Date/Time").Value, "dd/mm/yyyy hh:mm") & vbCrLf & "Student: " & NzText(CellIn(lo, n, "Student Name").Value, "(not given)") & "  " & CStr(CellIn(lo, n, "Student No").Value) & vbCrLf & "Printer: " & CStr(CellIn(lo, n, "Printer").Value) & vbCrLf & "Stock: " & CStr(CellIn(lo, n, "Paper Stock").Value) & vbCrLf & "Cost: " & Format$(CellIn(lo, n, "Gross Cost").Value, ChrW(163) & "#,##0.00")
+    detail = CStr(CellIn(lo, n, "Job ID").Value) & "  " & Format$(CellIn(lo, n, "Date/Time").Value, "dd/mm/yyyy hh:mm") & vbCrLf & "Student: " & NzText(CellIn(lo, n, "Student Name").Value, "(not given)") & "  " & CStr(CellIn(lo, n, "Student No").Value) & vbCrLf & "Printer: " & CStr(CellIn(lo, n, "Printer").Value) & vbCrLf & "Stock: " & CStr(CellIn(lo, n, "Paper Stock").Value) & vbCrLf & "Cost: " & Format$(CellIn(lo, n, "Gross Cost").Value, CurrencySymbol() & "#,##0.00")
 
     ' Never a bare "are you sure" - spec 10.12 requires the user to see what
     ' they are about to lose.

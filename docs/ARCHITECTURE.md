@@ -6,10 +6,10 @@
 
 **Current state, as verified against the actual VBA source on 2026-09-21:**
 
-- Workbook version reported in-code: `0.8.0` (`modVersion.APP_VERSION`), bumped from the long-stale `0.7.1` to actually reflect the NextId fix, Export/Import, the Reports rework and the 2026-09-21 snag list — see §16.1.
-- Data schema version: `1.0` (`modUtils.SCHEMA_VER`), unchanged since inception — none of the 0.8.0 work touched a job-row column.
+- Workbook version reported in-code: `0.8.1` (`modVersion.APP_VERSION`) — `0.8.0` reflected the NextId fix, Export/Import, the Reports rework and the 2026-09-21 snag list; `0.8.1` closes out phase 8's own original scope — see §16.1.
+- Data schema version: `1.0` (`modUtils.SCHEMA_VER`), unchanged since inception — none of the 0.8.x work touched a job-row column.
 - Everything in the original design document's phases 1–7 is built and verified.
-- Phase 8's original scope (visual polish) is **partially done** — see §16.2 for exactly what remains.
+- Phase 8's original scope (visual polish) is **fully built** — see §16.2.
 - The "larger changes" plan (`snaglist-stage7handoff.txt`: NextId fix, Import/Export rework, Reports rework, bulk delete) is **fully built**.
 - The 2026-09-21 seventeen-item snag list (`snaglist_2026-09-21.rtf`) is **fully built**.
 - Phase 9 (formal acceptance testing on Windows and Mac, test report) has **not** run.
@@ -382,7 +382,7 @@ Consumption columns count **every** record regardless of disregard flags; only m
 
 **Totals sit above the table, not beneath it.** The detail spills to an unpredictable height, so anything below it is overwritten the moment a job is added.
 
-**Still missing (phase 8 carry-over, see §16.2): a legend explaining the everyday cell states, and conditional formatting for warning/error states.** No conditional formatting of any kind exists anywhere in the workbook as of this writing.
+**A cell-colour legend and conditional formatting (phase 8 carry-over, resolved 0.8.1, see §16.2) sit at `O9` down**, clear of the report table and the buttons drawn at column O rows 1/3/5/7: `modReports.DrawLegend` explains the four everyday cell colours, and `modReports.FormatSummaryErrors` gives the Type/Family columns red bold text for a paper stock no longer in `tblPapers`.
 
 **"Hide settings sheets" / "Show settings sheets" toggle (snag item 13, resolved).** A button on Summary (`modInit.ToggleConfigSheets`) hides Print Technicians, Printers, Papers and Settings using `xlSheetHidden` (not `xlSheetVeryHidden`, so **Unhide** still reaches them — this is UI tidiness, not a security boundary) and relabels itself between the two states by reading which of the four sheets it can currently find.
 
@@ -672,12 +672,12 @@ compared against `tblLocations.Export sig` from the last export. Nothing hooks a
 | Configuration | Pale blue fill, unlocked |
 | Read-only reference | Light grey fill, grey text, locked |
 | Snapshot / historical | Darker grey, collapsed group, locked |
-| Warning state | Amber fill via conditional formatting — **not yet built**, see §16.2 |
-| Error state | Red text via conditional formatting — **not yet built**, see §16.2 |
+| Warning state | Amber fill via conditional formatting, on every location sheet's Status column (`modInit.ApplyStatusFormat`) whenever a row reads anything other than `OK` |
+| Error state | Red bold text via conditional formatting, on Summary's Type/Family columns (`modReports.FormatSummaryErrors`) whenever a job references a paper stock no longer in `tblPapers` (`"(not in Papers)"`) |
 
-Transaction tables use freeze panes below the header, filter buttons, and banded rows. **GBP formatting is still hardcoded, not driven by the global setting** — see §16.2.
+Transaction tables use freeze panes below the header, filter buttons, and banded rows. GBP formatting is driven by the global `SET_CURRENCY` setting (`modSettings.CurrencySymbol`) everywhere a money `NumberFormat` or `Format$` is built — see §16.2.
 
-**A legend explaining the everyday cell states was planned for the Summary sheet and has not been built** (§16.2) — do not assume it exists.
+**A legend explaining the four everyday cell states lives on the Summary sheet**, at `O9` down (`modReports.DrawLegend`) — clear of the report table and the buttons `InitialiseWorkbook` draws at column O rows 1/3/5/7.
 
 **Text wrapping** on the global settings table's Notes column is built (`modInit.FormatSettingsNotes`, snag item 16).
 
@@ -821,17 +821,21 @@ Several acceptance tests are about what happens as a person types, which is wort
 
 ### 16.1 The in-code version stamp — resolved 2026-09-21
 
-`modVersion.APP_VERSION` had stayed at `"0.7.1"` through thirteen commits of real work (the NextId high-water-mark fix, Export All Locations, Export report snapshot, Import, the Reports rework, the Mac OneDrive export-folder fix, and the seventeen-item 2026-09-21 snag list), none of which were reflected in its changelog comment. **Bumped to `0.8.0`**, with the comment block above `APP_VERSION` rewritten to list everything in that batch, and a note that phase 8's original scope (§16.2) is explicitly *not* part of the bump. This is a source-code change — it only reaches the workbook's About block and document properties the next time `build.ps1` runs.
+`modVersion.APP_VERSION` had stayed at `"0.7.1"` through thirteen commits of real work (the NextId high-water-mark fix, Export All Locations, Export report snapshot, Import, the Reports rework, the Mac OneDrive export-folder fix, and the seventeen-item 2026-09-21 snag list), none of which were reflected in its changelog comment. **Bumped to `0.8.0`**, with the comment block above `APP_VERSION` rewritten to list everything in that batch, and a note that phase 8's original scope (§16.2) is explicitly *not* part of the bump. **Bumped again to `0.8.1`** once phase 8's original scope itself landed (§16.2) — a revision within phase 8, not a new phase digit, since this is that phase's own scope completing rather than new work being scoped in. This is a source-code change — it only reaches the workbook's About block and document properties the next time `build.ps1` runs.
 
-### 16.2 Phase 8's original scope — partially done
+### 16.2 Phase 8's original scope — fully built (0.8.1)
 
 Of the three things phase 8 was scoped to add (§11):
 
-1. ~~The Summary legend explaining the four everyday cell states~~ — **not built.**
-2. ~~Conditional formatting for warning (amber fill) and error (red text) states~~ — **not built.** There is still no conditional formatting anywhere in the workbook.
-3. **Currency from the global setting** — **not built.** `modSettings.CurrencySymbol()` exists and correctly reads `SET_CURRENCY`, but nothing calls it: `£` remains hardcoded as `ChrW(163)` in roughly a dozen places across `modReports` and `modExport`. `modSettings.Money()` — the function meant to consume `CurrencySymbol()` — is itself still unreferenced by any caller.
+1. **The Summary legend explaining the four everyday cell states** — built. `modReports.DrawLegend`, called from `BuildSummary`, at `O9` down on the Summary sheet.
+2. **Conditional formatting for warning (amber fill) and error (red text) states** — built. `modInit.ApplyStatusFormat` gives every location sheet's Status column an amber fill whenever a row reads anything other than `OK` (the "warning state" §5's own column table already called "conditionally formatted"). `modReports.FormatSummaryErrors` gives Summary's Type/Family columns red bold text when a job references a paper stock no longer in `tblPapers` (the `"(not in Papers)"` `IFNA` fallback already in `BuildSummary`'s formula) — the concrete "error state" chosen because it's the one place the workbook's own formulas already flag a genuine data-integrity break rather than a routine per-row nag, and because (like Status) it's pure spilled-formula output with no VBA hook to colour it imperatively. This is a design interpretation, not something the original scoping pinned down beyond the Status column — worth revisiting if a different "error" case turns out to matter more in practice.
+3. **Currency from the global setting** — built. `modSettings.CurrencySymbol()` is now read everywhere a money `NumberFormat` or `Format$` previously hardcoded `£` as `ChrW(163)`: `modReports` (Summary and Reports), `modExport`'s export-report snapshot, and `modJobs.RemoveRow`'s delete-confirmation dialog. `modSettings.Money()` — the locale-safe formatter — remains unreferenced by any of these (they build a `NumberFormat`/`Format$` code string rather than a pre-formatted value), and is kept for whenever a future caller needs one.
 
-A large amount of *other* visual/UX work has been done since phase 8 was originally scoped — the entire 2026-09-21 snag list (freeze panes, tab order, column groups, hide/show toggle, notes wrap, catalogue buttons, Reports layout) — but none of it touches these three specific items. They remain open exactly as originally scoped.
+   **A real Excel quirk surfaced building this, worth knowing before touching any of these sites again:** setting a `Range.NumberFormat` from VBA to a *bare or quoted* currency symbol followed by `#,##0.00` (e.g. `"$#,##0.00"`) is silently canonicalised by Excel to the OS's own regional currency symbol, regardless of what string was actually assigned — verified directly against this workbook over COM (a plain `"$#,##0.00"` round-tripped as `"£#,##0.00"` on this GBP-locale machine). This was invisible for as long as this code hardcoded `£`, because `£` already matched the OS default and needed no canonicalisation; it would have silently defeated `SET_CURRENCY` for any other value the moment this item got wired up naively. The fix: `modSettings.CurrencyFormatCode()` wraps the symbol in Excel's `[$symbol]` locale-currency bracket syntax (no `-LCID` suffix needed), which round-trips exactly as given and was confirmed to render identically to the bare form for the unaffected `£` case — every `NumberFormat` site above calls this rather than `CurrencySymbol()` directly. `modJobs.RemoveRow`'s `Format$` dialog text does **not** have this problem (confirmed separately: VBA's own `Format$` engine does not canonicalise a bare `$`) and keeps calling `CurrencySymbol()` plain — the bug is specific to the `Range.NumberFormat` COM property, not to currency symbols in general.
+
+   **Changing `SET_CURRENCY` still only repaints Summary/Reports on the next `InitialiseWorkbook` run**, same as every other piece of their formatting — `RefreshLocations` does not rebuild them, and that has not changed here.
+
+A large amount of *other* visual/UX work had already been done since phase 8 was originally scoped — the entire 2026-09-21 snag list (freeze panes, tab order, column groups, hide/show toggle, notes wrap, catalogue buttons, Reports layout) — but none of it touched these three specific items until now.
 
 ### 16.3 Other loose ends
 
