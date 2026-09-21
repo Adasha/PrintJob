@@ -10,3 +10,7 @@ src/*.bak.xlsm
 
 # Local Claude Code session settings, not project config
 .claude/settings.local.json
+
+# Word lock/temp files left behind while a .doc/.rtf is open
+~$*
+~WRL*.tmp
