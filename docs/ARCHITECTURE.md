@@ -6,8 +6,8 @@
 
 **Current state, as verified against the actual VBA source on 2026-09-21:**
 
-- Workbook version reported in-code: `0.7.1` (`modVersion.APP_VERSION`). **This is stale** — see §16.1. A great deal has been built since it was last true.
-- Data schema version: `1.0` (`modUtils.SCHEMA_VER`), unchanged since inception.
+- Workbook version reported in-code: `0.8.0` (`modVersion.APP_VERSION`), bumped from the long-stale `0.7.1` to actually reflect the NextId fix, Export/Import, the Reports rework and the 2026-09-21 snag list — see §16.1.
+- Data schema version: `1.0` (`modUtils.SCHEMA_VER`), unchanged since inception — none of the 0.8.0 work touched a job-row column.
 - Everything in the original design document's phases 1–7 is built and verified.
 - Phase 8's original scope (visual polish) is **partially done** — see §16.2 for exactly what remains.
 - The "larger changes" plan (`snaglist-stage7handoff.txt`: NextId fix, Import/Export rework, Reports rework, bulk delete) is **fully built**.
@@ -156,9 +156,9 @@ The schema version is load-bearing: it is what an importer or aggregator checks 
 
 **What bumps the schema version.** Adding, removing or renaming a column bumps it. **Reordering columns does not** — exports carry a header row and are read by column *name*. The case the number cannot protect against is a column whose *meaning* changes while its name stays the same; that is a discipline, not a mechanism. The `Job ID HWM` registry column and the `EXPORT_FOLDER` setting are new, but neither is a job-row column, so neither touched `SCHEMA_VER`.
 
-**Numbering is `0.<phase>.<revision>`.** It reaches `1.0.0` when acceptance passes. **See §16.1 — the in-code constant has not been bumped since 0.7.1 despite substantial work landing since.** This document, not `modVersion.APP_VERSION`, is the current record of what phase the project is actually at.
+**Numbering is `0.<phase>.<revision>`.** It reaches `1.0.0` when acceptance passes. Bumped to `0.8.0` on 2026-09-21 (§16.1) to reflect the NextId fix, Export All Locations, Import, the Reports rework and the full snag list — a phase-digit move, not a revision, because that batch is real new functionality rather than fixes with no behaviour change.
 
-**Where the version is visible**, in ascending order of effort: the file's **document properties** (Explorer, Finder — without opening the file); the **About block** on Settings, which reads the settings cells by formula so it cannot drift; and the **About button**. All three currently under-report the build, per §16.1.
+**Where the version is visible**, in ascending order of effort: the file's **document properties** (Explorer, Finder — without opening the file); the **About block** on Settings, which reads the settings cells by formula so it cannot drift; and the **About button**. All three now report `0.8.0` once the workbook is rebuilt from source (`build.ps1` — the version lives in the VBA source until a build stamps it into the `.xlsm`).
 
 **What stamps what.** `EnsureVersionSettings` writes `APP_VER` from the constant on every setup run, because the code in the workbook *is* its version. `BUILT` and `BUILT_BY` are written only by `StampBuild`, called by the build script **after** `InitialiseWorkbook` — users re-run setup whenever they add a print room, and stamping from there would reset the build date to whenever someone last duplicated a sheet.
 
@@ -819,11 +819,9 @@ Several acceptance tests are about what happens as a person types, which is wort
 
 ## 16. Known gaps — read this before starting the next phase
 
-### 16.1 The in-code version stamp is stale
+### 16.1 The in-code version stamp — resolved 2026-09-21
 
-`modVersion.APP_VERSION` still reads `"0.7.1"`, and its changelog comment block still only describes the pre-phase-8 review-pass fixes. None of the following, all landed since, are reflected in it: the NextId high-water-mark fix, Export All Locations, Export report snapshot, Import, the Reports rework (rename, extra filters, sort-by-any-column, bulk delete), the Mac OneDrive export-folder fix, or any of the seventeen 2026-09-21 snag-list UI items (password removal, config-input unlocking, freeze-pane changes, tab order, hide/show settings toggle, column/row groups, notes wrap, catalogue row buttons).
-
-**Before the next phase of work, bump `APP_VERSION` and rewrite its changelog comment to describe what actually shipped.** The workbook's own About block and file properties currently under-report the build to anyone who checks them the intended way (§3.5). This document is the interim source of truth for what phase the project is actually at; the in-code constant should be brought back into agreement with it rather than the other way around.
+`modVersion.APP_VERSION` had stayed at `"0.7.1"` through thirteen commits of real work (the NextId high-water-mark fix, Export All Locations, Export report snapshot, Import, the Reports rework, the Mac OneDrive export-folder fix, and the seventeen-item 2026-09-21 snag list), none of which were reflected in its changelog comment. **Bumped to `0.8.0`**, with the comment block above `APP_VERSION` rewritten to list everything in that batch, and a note that phase 8's original scope (§16.2) is explicitly *not* part of the bump. This is a source-code change — it only reaches the workbook's About block and document properties the next time `build.ps1` runs.
 
 ### 16.2 Phase 8's original scope — partially done
 

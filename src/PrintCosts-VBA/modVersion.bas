@@ -23,6 +23,43 @@ Option Explicit
 ' acceptance passes at the end of the sequence.
 
 Public Const APP_NAME As String = "Print Cost Management"
+' 0.8.0 - NextId high-water mark, Export/Import, Reports rework, UI snag
+' list. Real new functionality, not just fixes, so the phase digit moves:
+'
+'   - modRegistry.NextJobId now allocates from a persisted high-water mark
+'     (a new "Job ID HWM" registry column) instead of a scan of rows on the
+'     sheet, so deleting the highest-numbered job can no longer reissue its
+'     ID. Fixed first because Export/Import both depend on the "globally
+'     unique, never re-issued" invariant actually holding.
+'   - modExport gained Export All Locations (every room in one pass) and an
+'     Export report snapshot - a static-value .xlsx of the Reports sheet's
+'     current filtered/sorted view, with its own signature stamped on
+'     Reports for the delete command below to check against. Exports now
+'     resolve to a selectable folder (SET_EXPORT_FOLDER, falling back to the
+'     workbook's own location if unset or not present on this machine), and
+'     the OneDrive path fix now also searches
+'     ~/Library/CloudStorage/OneDrive* on Mac, where the Windows-only
+'     OneDrive environment variables never existed in the first place.
+'   - modImport is new: restores or merges an exported file into a
+'     location's job table. Rows match by Job ID - append if new, overwrite
+'     if not - and only input/snapshot columns are written, so an imported
+'     row costs correctly from its own frozen rates regardless of the
+'     target workbook's current catalogue.
+'   - Cost Calculations renamed to Reports: Technician/Printer/Paper
+'     Stock/Quantity filters, sort-by-any-column, a hidden Job ID
+'     correlation column, and a bulk "Delete visible records" command
+'     confined to whatever the active filters show. Summary regrouped to a
+'     Location x Printer x Paper stock key.
+'   - The 2026-09-21 snag list: no default sheet-protection password,
+'     unlocked configuration table inputs, freeze panes moved off the
+'     config sheets and onto Reports, tab order fixed, a hide/show toggle
+'     for the config sheets, column and row groups, Settings notes
+'     wrapped, and catalogue row add/remove buttons.
+'
+' Not part of this bump: phase 8's original scope (the Summary legend,
+' conditional formatting for warning/error states, and wiring SET_CURRENCY
+' into the still-hardcoded GBP symbol) remains outstanding.
+'
 ' 0.7.1 - review pass before phase 8. Seven fixes, no new features:
 '
 '   - modReports.SheetNamed moved a sheet LATER with Move Before:, which is a
@@ -41,7 +78,7 @@ Public Const APP_NAME As String = "Print Cost Management"
 ' A patch increment, not a phase: the phase digit still reads 7 because phase
 ' 8 has not been built. The revision digit is what "0.<phase>.<revision>"
 ' exists for.
-Public Const APP_VERSION As String = "0.7.1"
+Public Const APP_VERSION As String = "0.8.0"
 Public Const APP_AUTHOR As String = "Adam Shailer"
 
 Public Function VersionString() As String
