@@ -486,7 +486,7 @@ Version is no longer a constraint (D12); **platform still is**. Excel for Mac ha
 | Workbook structure | **Unprotected** — required so users can duplicate location sheets (§17) |
 | VBA project | Locked for viewing |
 
-Sheet password is `printlog`. Structural operations route through `modProtect` wrappers that unprotect, act and reprotect within a single error-guarded call, because adding rows to a ListObject on a protected sheet is unreliable even with `UserInterfaceOnly`.
+Sheets protect without a password (removed 2026-09-21 - snag list item 7; set one by hand in Excel if a workbook needs it). Structural operations route through `modProtect` wrappers that unprotect, act and reprotect within a single error-guarded call, because adding rows to a ListObject on a protected sheet is unreliable even with `UserInterfaceOnly`.
 
 ---
 

@@ -54,9 +54,9 @@ try {
     Write-Host ''
     Write-Host ("victim row: {0}  chargeable={1}  S_UnitCost={2}" -f $victimId, $victimChg, $victimUnitCost)
 
-    $main.Unprotect('printlog')
+    $main.Unprotect()
     $loMain.ListRows($victimRow).Delete()
-    $main.Protect('printlog')
+    $main.Protect()
     $stillThere = $false
     for ($i = 1; $i -le $loMain.ListRows.Count; $i++) {
         if ([string]$loMain.ListRows($i).Range.Cells(1, $idCol).Value2 -eq $victimId) { $stillThere = $true }

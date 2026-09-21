@@ -10,8 +10,11 @@ Option Explicit
 '
 ' Workbook structure is deliberately left unprotected: users must be able to
 ' duplicate a location sheet to create a new print room (spec 17).
-
-Public Const PWD As String = "printlog"
+'
+' No password (snag list item 7). Sheets are still locked - this only removes
+' the PWD that used to gate Unprotect. Add one back by hand in Excel
+' (Review > Protect Sheet) if a particular workbook needs it; nothing here
+' generates one by default any more.
 
 Public Sub ProtectAll()
     Dim ws As Worksheet
@@ -22,8 +25,8 @@ End Sub
 
 Public Sub ProtectSheet(ByVal ws As Worksheet)
     On Error Resume Next
-    ws.Unprotect PWD
-    ws.Protect Password:=PWD, UserInterfaceOnly:=True, DrawingObjects:=False, Contents:=True, Scenarios:=False, AllowFiltering:=True, AllowSorting:=True, AllowFormattingCells:=False, AllowFormattingColumns:=True, AllowFormattingRows:=True
+    ws.Unprotect
+    ws.Protect UserInterfaceOnly:=True, DrawingObjects:=False, Contents:=True, Scenarios:=False, AllowFiltering:=True, AllowSorting:=True, AllowFormattingCells:=False, AllowFormattingColumns:=True, AllowFormattingRows:=True
     ws.EnableOutlining = True
     On Error GoTo 0
 End Sub
@@ -32,7 +35,7 @@ End Sub
 ' even with UserInterfaceOnly, so structural work is bracketed by these.
 Public Sub UnlockSheet(ByVal ws As Worksheet)
     On Error Resume Next
-    ws.Unprotect PWD
+    ws.Unprotect
 End Sub
 
 Public Sub RelockSheet(ByVal ws As Worksheet)

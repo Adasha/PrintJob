@@ -117,8 +117,10 @@ created before redrawing them.
 button. Row `UNI-MAIN-00005` is deliberately invalid, to show the Status column
 working.
 
-**The sheet password is `printlog`**, set in `modProtect`. Change it there if
-you want; it stops accidental edits, not determined ones.
+**Sheets are protected without a password.** That stops accidental edits to
+locked cells, not determined ones. Set a password by hand in Excel (Review >
+Protect Sheet) on a particular workbook if you need one - nothing in
+`modProtect` generates one by default any more.
 
 ## Adding a print room
 

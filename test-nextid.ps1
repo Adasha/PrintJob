@@ -46,9 +46,9 @@ try {
     # destructive op on the user's behalf), so the button path cannot be
     # driven here. This is the exact scenario the bug fix targets: the
     # highest-numbered row is gone before the next ID is allocated.
-    $ws.Unprotect('printlog')
+    $ws.Unprotect()
     $lo.ListRows($n1).Delete()
-    $ws.Protect('printlog')
+    $ws.Protect()
     Write-Host ("deleted row {0} ({1})" -f $n1, $id1)
 
     $xl.Run('btnAddPrintJob')

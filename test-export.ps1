@@ -77,7 +77,7 @@ try {
     }
     $cell = $lo.ListRows(1).Range.Cells(1, $qtyCol)
     $was = $cell.Value2
-    $ws.Unprotect('printlog')
+    $ws.Unprotect()
     $cell.Value2 = [double]$was + 7
     $xl.CalculateFullRebuild()
     $xl.Run('RefreshExportStatus', $ws)

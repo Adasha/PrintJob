@@ -83,7 +83,7 @@ try {
     Write-Host ''
     Write-Host '=== AT-11: student name/number conflict ==='
     $xl.Run('SetQuiet', $true)
-    $main.Unprotect('printlog')
+    $main.Unprotect()
     $nameCol = Col $lo 'Student Name'
     $noCol   = Col $lo 'Student No'
     Write-Host ("  row1: {0} / {1}" -f $lo.ListRows(1).Range.Cells(1, $nameCol).Text, $lo.ListRows(1).Range.Cells(1, $noCol).Text)
@@ -103,7 +103,7 @@ try {
     Write-Host ''
     Write-Host '=== AT-16: inactive records ==='
     $tech = $wb.Worksheets('Print Technicians')
-    $tech.Unprotect('printlog')
+    $tech.Unprotect()
     $tlo = $tech.ListObjects('tblTechnicians')
     $nCol = Col $tlo 'Name'
     $aCol = Col $tlo 'Active'
