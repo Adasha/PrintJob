@@ -384,8 +384,15 @@ End Function
 
 ' The folder to write into, as a real filesystem path.
 '
-' ThisWorkbook.Path is NOT reliably one. When a workbook is opened from a
-' OneDrive-backed folder Excel may report its location as the service URL -
+' EXPORT_FOLDER (snag list item 10) overrides the default when set and the
+' path actually exists on this computer - checked rather than trusted, so a
+' folder that only existed on whoever set it does not silently swallow every
+' export on a different machine. It falls through to the workbook-relative
+' default in that case rather than exporting nowhere.
+'
+' Otherwise: ThisWorkbook.Path is NOT reliably a filesystem path. When a
+' workbook is opened from a OneDrive-backed folder Excel may report its
+' location as the service URL -
 ' "https://d.docs.live.net/<cid>/Development/.../src" - and this project lives
 ' in OneDrive. Concatenating that with Application.PathSeparator produced a
 ' hybrid like ".../src\PrintCosts-UNI-MAIN-....csv", SaveAs did not raise, and
@@ -397,7 +404,15 @@ End Function
 ' A local path is returned unchanged, which is the Mac case and the ordinary
 ' Windows case. A URL is mapped back onto the local OneDrive root.
 Private Function ExportFolder() As String
-    Dim p As String
+    Dim custom As String, p As String
+    custom = Trim$(SettingText("EXPORT_FOLDER"))
+    If Len(custom) > 0 Then
+        If FolderExists(custom) Then
+            ExportFolder = custom
+            Exit Function
+        End If
+    End If
+
     p = ThisWorkbook.path
     If Not IsUrl(p) Then
         ExportFolder = p
@@ -405,6 +420,17 @@ Private Function ExportFolder() As String
         ExportFolder = LocalRootOf(p)
     End If
 End Function
+
+' Ensures the optional EXPORT_FOLDER override exists on Settings (snag list
+' item 10). Run once per setup rather than shipped in the .xlsx, for the same
+' reason modVersion.EnsureVersionSettings' rows are - so the workbook file
+' stays something VBA can reconstruct.
+Public Sub EnsureExportSettings()
+    EnsureSetting "EXPORT_FOLDER", "Export folder", _
+        "Optional. Leave blank to export beside the workbook (the default). " & _
+        "If set, the folder must already exist on this computer - there is no " & _
+        "Browse button, because Application.FileDialog does not exist on Mac."
+End Sub
 
 Private Function IsUrl(ByVal p As String) As Boolean
     IsUrl = (InStr(1, p, "http://", vbTextCompare) = 1) Or _
@@ -420,11 +446,11 @@ End Function
 ' first that names a folder that actually exists. Returns "" when none does,
 ' which the caller reports rather than guessing.
 Private Function LocalRootOf(ByVal url As String) As String
-    Dim roots As Variant, parts As Variant
+    Dim roots As Collection, parts As Variant, root As Variant
     Dim tail As String, cand As String, sep As String
-    Dim i As Long, j As Long, k As Long
+    Dim i As Long, j As Long
 
-    roots = Array(Environ$("OneDrive"), Environ$("OneDriveConsumer"), Environ$("OneDriveCommercial"))
+    Set roots = CandidateOneDriveRoots()
     sep = Application.PathSeparator
 
     tail = url
@@ -442,15 +468,41 @@ Private Function LocalRootOf(ByVal url As String) As String
             If Len(cand) > 0 Then cand = cand & sep
             cand = cand & CStr(parts(j))
         Next j
-        For k = LBound(roots) To UBound(roots)
-            If Len(CStr(roots(k))) > 0 Then
-                If FolderExists(CStr(roots(k)) & sep & cand) Then
-                    LocalRootOf = CStr(roots(k)) & sep & cand
-                    Exit Function
-                End If
+        For Each root In roots
+            If FolderExists(CStr(root) & sep & cand) Then
+                LocalRootOf = CStr(root) & sep & cand
+                Exit Function
             End If
-        Next k
+        Next root
     Next i
+End Function
+
+' Windows sets OneDrive/OneDriveConsumer/OneDriveCommercial environment
+' variables naming the sync root(s) directly. Mac never has - the OneDrive
+' Mac client sets no equivalent - and instead syncs each account under
+' ~/Library/CloudStorage/OneDrive-<AccountName>, so that folder is scanned
+' for candidates instead. This is what let a Mac user reproduce the NOPATH
+' error even when the workbook's OneDrive folder was fully synced locally:
+' the Windows-only env vars were the only roots ever tried.
+Private Function CandidateOneDriveRoots() As Collection
+    Dim out As New Collection, v As Variant
+    Dim home As String, base As String, name As String
+
+    For Each v In Array(Environ$("OneDrive"), Environ$("OneDriveConsumer"), Environ$("OneDriveCommercial"))
+        If Len(CStr(v)) > 0 Then out.Add CStr(v)
+    Next v
+
+    home = Environ$("HOME")
+    If Len(home) > 0 Then
+        base = home & "/Library/CloudStorage"
+        name = Dir$(base & "/OneDrive*", vbDirectory)
+        Do While Len(name) > 0
+            If name <> "." And name <> ".." Then out.Add base & "/" & name
+            name = Dir$()
+        Loop
+    End If
+
+    Set CandidateOneDriveRoots = out
 End Function
 
 Private Function FolderExists(ByVal p As String) As Boolean
