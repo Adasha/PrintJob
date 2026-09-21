@@ -1,0 +1,853 @@
+# University Printing Cost Management Workbook — Architecture & Implementation Reference
+
+**This is the single source of truth for this project's design and implementation.** It supersedes and replaces `stage1-design-architecture.md`, `HANDOFF up to stage 7.md`, `snaglist-stage7handoff.txt` and `snaglist_2026-09-21.rtf`, which described the same system at different, now-stale points in time and had started to disagree with each other and with the code. Their content is folded in below; nothing that still mattered was dropped, but the historical changelog they were built from has been compressed into §16 rather than repeated inline.
+
+**Source of truth for the code itself:** `src\PrintCosts.xlsx` (everything a file can carry except VBA) plus `src\PrintCosts-VBA\*.bas` / `*.cls` (the authoritative VBA source). `src\PrintCosts.xlsm` is a **build output** — never hand-edit it. `src\PrintCosts-VBA\SETUP.md` is the separate, actively-maintained *operational* guide (how to build, test, and set up the workbook) and is not duplicated here; this document is design and architecture, SETUP.md is procedure.
+
+**Current state, as verified against the actual VBA source on 2026-09-21:**
+
+- Workbook version reported in-code: `0.7.1` (`modVersion.APP_VERSION`). **This is stale** — see §16.1. A great deal has been built since it was last true.
+- Data schema version: `1.0` (`modUtils.SCHEMA_VER`), unchanged since inception.
+- Everything in the original design document's phases 1–7 is built and verified.
+- Phase 8's original scope (visual polish) is **partially done** — see §16.2 for exactly what remains.
+- The "larger changes" plan (`snaglist-stage7handoff.txt`: NextId fix, Import/Export rework, Reports rework, bulk delete) is **fully built**.
+- The 2026-09-21 seventeen-item snag list (`snaglist_2026-09-21.rtf`) is **fully built**.
+- Phase 9 (formal acceptance testing on Windows and Mac, test report) has **not** run.
+
+---
+
+## 1. What this is
+
+An Excel `.xlsm` (Microsoft 365 only, Windows and Mac) for logging print jobs per print room and costing them. One location sheet per room, plus **Summary** and **Reports** report sheets. VBA handles entry, validation, snapshotting, the location registry, and export/import. Reports are live dynamic-array formulas over a consolidated range, not VBA-generated output — the whole reporting layer can only ever be a wrong *sheet*, visible immediately, never a wrong *figure* on a sheet that looks right.
+
+---
+
+## 2. Decisions taken at clarification
+
+| # | Question | Decision |
+|---|---|---|
+| D1 | Student name/number consistency with no master list | No Students register. On entry, cross-check the pair against all existing rows in all locations; warn (never block) on conflict |
+| D2 | Mechanism for historical cost integrity | Snapshot the resolved rates onto each row at creation; visible costs remain live formulas over those snapshot values |
+| D3 | Contents of "global settings" | Currency format + rounding rule; organisation/report header metadata; site identity; export folder. No VAT, no overhead markup |
+| D4 | Per-row *Now* and *Remove* controls | Toolbar of Form Control buttons above each table, acting on the selected row; plus double-click to stamp date/time |
+| D5 | How reports discover location sheets after duplication | Marker cell on each location sheet; a **Refresh Locations** command rescans and rebuilds a hidden registry |
+| D6 | Papers "Cost" means £/sheet or £/metre | One `Cost` column, with an adjacent calculated `Cost unit` label driven by the stock's family |
+| D7 | Units for transaction print width | Millimetres, matching stock width |
+| D8 | Presentation of disregarded costs | Gross, Disregarded and Chargeable as separate columns; consumption unaffected throughout |
+| D9 | Custom sheet sizes | Standard A-sizes remain a picker; explicit custom width × height in mm also permitted |
+| D10 | Multi-select for printer families and location printers | Worksheet-based picker with a multi-select list, writing a delimited string to a single cell |
+| D11 | Deployment / file-sharing model | Single workbook is the product. Multi-workbook aggregation is a planned feature — D17, §12 |
+| D12 | Minimum Excel version | **Microsoft 365 builds only**, Windows and Mac. Dynamic array formulas may be relied upon |
+| D13 | Report construction | Reports are live formulas over a consolidated spill range, not VBA-generated output (§8) |
+| D14 | Multi-site collation mechanism | Superseded by D17/D18: collation, when built, reads the **exported CSV files** (§12.2) |
+| D15 | `.xlsm` delivery | A PowerShell build script drives Excel over COM. Manual import route retained for Mac (SETUP.md) |
+| D16 | Version identity | **Two independent version numbers** — a workbook version for the build, and a data schema version for the shape of the records (§2.6) |
+| D17 | Scope of v1 | **Multi-workbook aggregation is a planned feature, not in v1.** v1 delivers a single workbook complete in itself, preserving the invariants an aggregator needs (§12.1). O7 deferred with it, though see §12.4 — the built Export/Import mechanism now covers most of what a job-level aggregator needs, manually |
+| D18 | Deleted location sheets | **Export-based mitigation** rather than a shadow copy: per-location CSV, a visible per-sheet status, surfaced by *Check workbook* and *Refresh Locations* (§10.4, §3.3) |
+
+### 2.1 Interpretations — confirmed at sign-off
+
+- **I1 — Sheet-stock consumable area scales with quantity.** Area is `sheet area × number of sheets`.
+- **I2 — Paper families carry a measurement basis.** Each family carries an explicit **Measurement basis** of `Sheet` or `Roll`, and behaviour keys off that attribute, never off the family's name.
+- **I3 — Sheet-stock quantities are whole numbers.** Roll quantities are decimal metres; sheet quantities integers ≥ 1.
+- **I4 — Rounding is applied per cost component at row level**, so a printed report's rows add up to its totals.
+- **I5 — AT-11 is a warning, not a block.** With no authoritative student list the first entry of any student is unverifiable, and legitimate name changes would trigger it. Verified in phase 7.
+
+---
+
+## 3. Data model
+
+### 3.1 Entities and relationships
+
+```
+Settings (global key/value)
+PaperType ──┐
+            ├──< PaperStock >──── PaperFamily ──< PrinterFamily >── Printer ──── ConsumableType
+StandardSize┘         │                                               │
+                      │                                               │
+                      └───────────┐                   ┌───────────────┘
+                                  │                   │
+Technician ──────────────────────>PrintJob<───────────┘
+                                  │
+                              Location (one sheet each)
+                                  │
+                              Site (one workbook each)
+```
+
+- A **Printer** supports one-or-more **PaperFamily** (delimited list on the printer row).
+- A **PaperStock** belongs to exactly one **PaperFamily** and one **PaperType**.
+- A **PrintJob** references one Technician, one Printer and one PaperStock, and belongs to one Location.
+- A stock is valid for a printer only when the stock's family appears in that printer's supported families.
+- A **Location** permits a subset of printers.
+- A **Site** is one workbook file. In v1 there is one site per workbook and nothing collates them automatically (§12) — though see §12.4 for the manual route that now exists.
+
+### 3.2 Identity and referential integrity
+
+Every configuration record carries a **stable ID** — `TEC-001`, `PRN-001`, `STK-001` — assigned once and **never re-issued**, even after deletion. Job rows store the ID in their snapshot block, so renaming a printer or technician cannot orphan or silently re-point a historical record. IDs come from the highest ever issued, never the row count.
+
+The visible cell on a job row holds the **display name**, because that is what a technician recognises in a dropdown. Configuration names are therefore unique within their table, enforced on entry.
+
+**Job IDs are `<SITE>-<LOC>-00001`.** The site component exists so records from several workbook copies can never be conflated. It costs nothing in v1 and is one of the invariants aggregation depends on (§12.1).
+
+Because a location's code is baked into its job IDs, **an existing code is never reassigned** (§4.2).
+
+> **Integrity rule:** configuration rows must be deactivated, not deleted (§9). Deleting a row history references is blocked with a message naming the number of dependent records.
+
+**Job ID allocation is a persisted high-water mark, not a row scan (fixed 2026-09-21).** Before this fix, `NextJobId` allocated "highest ID currently present on the sheet, plus one" — so deleting the highest-numbered job row let the next new job silently reissue that same Job ID, breaking the "globally unique, never re-issued" invariant that export, import and any future aggregation all depend on. This was fixed **before** Import was built, because Import needed the invariant to actually hold.
+
+Current mechanism (`modRegistry.NextJobId`, `modRegistry.bas:570`):
+
+- A **`Job ID HWM`** column lives on `_Registry.tblLocations`, one value per location, added via `EnsureColumn` like `Last export`/`Export sig` (§3.4) and preserved across `RefreshLocations` rebuilds the same way (captured into a keyed collection before the registry is wiped, restored per sheet name afterward).
+- `NextJobId` reads the persisted value (`JobIdHWM`), takes `Max(persisted, ScanMaxSuffix(...))` as a **floor only** — the row scan can never move the effective value backwards, since deleting a row only lowers what the scan finds, never the persisted figure — increments by one, writes the new value back, and returns the formatted ID.
+- The scan still runs, but only earns its keep in two cases the persisted value alone can't cover: seeding the HWM the first time the column exists on an already-populated sheet, and raising the mark after **Import** has just written rows under the same prefix with higher numbers than anything allocated locally so far.
+- Verified by `test-nextid.ps1`: deleting the top row must not reissue its ID, and the mark must survive `RefreshLocations`.
+
+### 3.3 Configuration tables
+
+| Table | Columns |
+|---|---|
+| `tblSettings` | Key, Setting, Value, Notes |
+| `tblPaperTypes` | Paper type, Active |
+| `tblStandardSizes` | Size name, Width mm, Height mm |
+| `tblPaperFamilies` | Family, **Measurement basis** (`Sheet`/`Roll`), Notes |
+| `tblConsumables` | Consumable type, Active |
+
+Each setting is exposed as a workbook-scoped defined name so formulas and VBA reference meaning rather than cell addresses: `SET_SITE_ID`, `SET_SITE_NAME`, `SET_ORG`, `SET_DEPT`, `SET_CURRENCY`, `SET_ROUND_DP`, `SET_FOOTER`, `SET_FY_START`, `SET_EXPORT_FOLDER`, plus read-only `SET_SCHEMA`, `SET_LASTREF`, `SET_APP_VER`, `SET_BUILT`, `SET_BUILT_BY`.
+
+`modSettings` addresses every setting as `SET_<KEY>`, so the defined name — not the row — is what makes an entry a real setting. Settings that don't ship in the `.xlsx` are self-provisioned by VBA via `modVersion.EnsureSetting`: `APP_VER`/`BUILT`/`BUILT_BY` (`modVersion.EnsureVersionSettings`) and `EXPORT_FOLDER` (`modExport.EnsureExportSettings`, called from `modInit.InitialiseWorkbook`). The rest — `SITE_ID`, `SITE_NAME`, `ORG`, `DEPT`, `ROUND_DP`, `CURRENCY`, `SCHEMA` — ship directly in `PrintCosts.xlsx`.
+
+**Print Technicians** — `tblTechnicians`: TechID, Name, Department, Active.
+**Printers** — `tblPrinters`: PrinterID, Model, Consumable type, **Cost per m2**, Supported families, Active.
+**Papers** — `tblPapers`: StockID, Description, Paper type, Family, *Measure* (calc), Size mode, Standard size, **Width mm**, **Height mm**, **Cost**, *Cost unit* (calc), Active.
+
+All dimensions are stored in millimetres; metres appear only as a transaction quantity for roll stock.
+
+**Adding/removing configuration rows (snag item 17, resolved).** `modCatalog.AddCatalogRow` / `RemoveCatalogRow` back Add-row/Remove-row buttons on Printers, Papers and Print Technicians (full-size buttons) and compact `+`/`-` button pairs above the four Settings lookup tables — Paper types, Family, Size, Consumable (button names kept short deliberately: `Button.Name` silently truncates at 32 characters and raises error 1004 at 33+). `AddCatalogRow` reuses an existing single blank row if present, else `ListRows.Add`, which keeps formatting and validation automatically. `RemoveCatalogRow` operates on the row under the current selection, shows every column's value in the confirmation, and states explicitly that jobs already recorded against a removed row keep their frozen snapshot prices — deactivation-not-deletion (§3.2) is enforced by the confirmation text, not by disabling the button.
+
+The smaller lookup tables on Settings (paper types, families, standard sizes, consumables) deliberately don't get their own buttons: their cells are unlocked (§9.4), so a row added the normal Excel Table way (Tab at the last cell, or right-click → Insert → Table Rows) keeps formatting and validation without VBA's help.
+
+### 3.4 Hidden working sheets
+
+`xlSheetVeryHidden`, so they cannot be unhidden from the tab context menu:
+
+| Sheet | Purpose |
+|---|---|
+| `_Registry` | `tblLocations`: SheetName, Code, Name, Department, Rows, First date, Last date, State, **Last export**, **Export sig**, **Job ID HWM** |
+| `_Work` | **Validation staging only** — §6.2, and reused for Reports filter dropdowns (§8) |
+| `_Data` | The consolidated job range (§7.1) |
+| `_Audit` | `tblAudit`: When, User, Action, Location, Detail (§10.3) |
+| `_Export` | Reserved. The export writes to disk (§10.4) |
+| `_Picker` | Backing sheet for the multi-select picker (§8.3 of the VBA architecture section, §9.3 below) |
+
+**Why `_Data` is separate from `_Work`.** `modLists` claims `_Work` one column at a time, tagging each in row 1 and scanning up to 200 for a free slot, and will overwrite anything else parked there.
+
+**Why the export stamp lives in the registry.** `Last export`, `Export sig` and `Job ID HWM` are keyed by sheet name, not stored in the location's config block. A sheet-scoped cell would copy with a duplicated sheet, and the copy would inherit "already exported" (or a Job ID counter) while holding records never exported anywhere, or none at all. A registry row means a duplicate gets a fresh row and correctly reads as unexported with a fresh counter; a renamed sheet likewise. Both are the conservative direction.
+
+The shipped `.xlsx` predates the export and NextId-fix features, so these columns are added to the existing registry table by `EnsureColumn` rather than being part of its creation.
+
+### 3.5 Version identity (D16)
+
+| | Meaning | Changes when | Held in |
+|---|---|---|---|
+| **Workbook version** | This build — code, layout, formulas | Every rebuild worth distinguishing | `modVersion.APP_VERSION` → `SET_APP_VER` |
+| **Data schema version** | The shape of the stored records | Only on a genuine shape change | `modUtils.SCHEMA_VER` → `SET_SCHEMA`, stamped on every job row as `S_SchemaVer` |
+
+The schema version is load-bearing: it is what an importer or aggregator checks before reading records, and what a job row carries so its origin is recoverable. Conflating the two would force a schema bump on every cosmetic change and make that check meaningless.
+
+**What bumps the schema version.** Adding, removing or renaming a column bumps it. **Reordering columns does not** — exports carry a header row and are read by column *name*. The case the number cannot protect against is a column whose *meaning* changes while its name stays the same; that is a discipline, not a mechanism. The `Job ID HWM` registry column and the `EXPORT_FOLDER` setting are new, but neither is a job-row column, so neither touched `SCHEMA_VER`.
+
+**Numbering is `0.<phase>.<revision>`.** It reaches `1.0.0` when acceptance passes. **See §16.1 — the in-code constant has not been bumped since 0.7.1 despite substantial work landing since.** This document, not `modVersion.APP_VERSION`, is the current record of what phase the project is actually at.
+
+**Where the version is visible**, in ascending order of effort: the file's **document properties** (Explorer, Finder — without opening the file); the **About block** on Settings, which reads the settings cells by formula so it cannot drift; and the **About button**. All three currently under-report the build, per §16.1.
+
+**What stamps what.** `EnsureVersionSettings` writes `APP_VER` from the constant on every setup run, because the code in the workbook *is* its version. `BUILT` and `BUILT_BY` are written only by `StampBuild`, called by the build script **after** `InitialiseWorkbook` — users re-run setup whenever they add a print room, and stamping from there would reset the build date to whenever someone last duplicated a sheet.
+
+---
+
+## 4. Location-sheet architecture
+
+### 4.1 Layout
+
+```
+Rows 1–8    Configuration block
+Row 10      Toolbar (Form Control buttons)
+Row 12      Table header
+Row 13+     tblJobs_<CODE> body
+```
+
+| Cell | Name | Content |
+|---|---|---|
+| B1 | `LOC_Name` | Room name |
+| B2 | `LOC_Dept` | Department |
+| B3 | `LOC_Code` | Location code (auto-assigned, read-only) |
+| B4 | `LOC_DefDisPaper` | Default disregard paper cost (Yes/No) |
+| B5 | `LOC_DefDisCons` | Default disregard consumable cost (Yes/No) |
+| B6 | `LOC_Printers` | Permitted printers, delimited, read-only |
+| B7 | `LOC_Status` | Validation summary for the sheet |
+| B8 | `LOC_Export` | Export status |
+| AZ1 | — | Marker cell, `PRINTLOC/v1`. Hidden column, never edited |
+
+`LOC_Export` is deliberately separate from `LOC_Status`: validation and export state are independent, and a sheet can easily be valid and unexported at once. Both are derived and rewritten, never typed. `LOC_Export`'s name is created by `modExport` on every refresh rather than shipped in the `.xlsx`, so a duplicated or renamed sheet gets a correct one without hand surgery.
+
+**Why sheet-scoped names matter:** Excel copies them with the worksheet. Workbook-scoped names would collide on copy and silently become `LOC_Name1`, `LOC_Name2`.
+
+**The marker is the exception, and is a plain cell.** It copies with a duplicated sheet exactly as a scoped name does, Excel cannot quietly rename it, and it is one moving part instead of two.
+
+**Freeze panes and column groups (unchanged by the 2026-09-21 snag list; that work targeted Settings/Printers/Papers/Technicians and Reports instead — §9.4, §11).** Location sheets keep whatever freeze panes and column groups the `.xlsx` ships, and `modInit.GroupJobColumns` additionally groups two column ranges on every location sheet during setup: `Paper Cost`→`Chargeable Cost` (the calculated cost columns) and `S_PrinterID`→`S_SchemaVer` (the snapshot columns) — the snag list's "add column groups to related table columns including costs" (item 14). `modProtect.ProtectSheet` sets `EnableOutlining = True` so grouping/collapsing still works on a protected sheet.
+
+### 4.2 Detection and registration (D5)
+
+A sheet is a location if and only if `AZ1` reads `PRINTLOC/v1`. **Refresh Locations** walks every worksheet, tests the marker, and rebuilds `_Registry.tblLocations`. In order:
+
+1. **Parks every job table on a temporary name.** Excel auto-renames a duplicated `ListObject` — in testing, `tblJobs_ANNEX` became `tblJobs_ANNEX14`. Renaming straight to the final name fails whenever that name is still held by a table the pass has not reached, which is exactly the situation after a duplication.
+2. **Assigns a location code** where `LOC_Code` is blank or duplicated. Sheets are visited in workbook order and Excel inserts a duplicate immediately after its original, so the original is reached first and keeps its code — required, because its job IDs already carry it.
+3. **Renames each job table** to `tblJobs_` + its code (AT-13).
+4. **Re-points Form Control buttons** whose `OnAction` acquired a workbook-file prefix on copy.
+5. **Rebuilds the dependent dropdowns** and **re-applies protection**.
+6. **Rewrites the consolidated range formula** (§7.1) and **refreshes the Reports filter dropdowns** (§8, since `_Data` just changed).
+7. **Recomputes each location's export status** and writes `LOC_Export` — after the registry is written, because the status is read out of it (§10.4).
+8. **Stamps `SET_LASTREF`.**
+
+Any location with unexported changes is named in the refresh message. `Last export`, `Export sig` and `Job ID HWM` are captured before the registry rows are wiped and restored per sheet name afterward, so none of them resets on a routine refresh.
+
+**Button bindings need healing on open, too.** Excel re-qualifies every button's `OnAction` with the workbook's file name when it saves, so the shipped file reads `PrintCosts.xlsm!btnAddPrintJob` — which breaks if the file is renamed. `Workbook_Open` calls `HealButtons`, which rewrites only on a mismatch, so merely opening an untouched workbook never marks it dirty and prompts a save.
+
+### 4.3 Deleted locations (D18, was O9)
+
+**Excel provides no `BeforeDeleteSheet` event.** Deleting a location sheet cannot be intercepted, undone or audited. What changes is whether the records were somewhere else first.
+
+- **A recovery path.** Each location exports to CSV holding every column, including the snapshot block (§10.4), and — new — an entire workbook's locations can be exported in one action (§10.4), and a CSV export can be **imported back** (§10.5).
+- **A visible warning where the user is.** `LOC_Export` states how many records have changed since the last export, and *Check workbook* and *Refresh Locations* surface the same line per location.
+- **Self-healing afterwards.** The consolidated formula is wrapped in `IFERROR`, so a deleted sheet degrades to an empty result rather than cascading `#REF!`. Registry entries are compared against the sheets present on each refresh, and anything vanished is named.
+
+**This is a sign on the cliff, not a fence**, and the design says so rather than implying otherwise. The rejected alternative was a mirrored shadow copy of every location's rows — a permanent cost on every write, for an edge case a working export covers better and which has independent value.
+
+### 4.4 Documented procedure for adding a location
+
+1. Right-click any location tab → *Move or Copy* → tick *Create a copy*.
+2. Rename the new tab.
+3. Click **Clear All** to discard the copied records.
+4. Enter room name, department, defaults; click *Select printers…*.
+5. Click **Refresh Locations**.
+
+---
+
+## 5. Transaction table
+
+| # | Column | Type | Notes |
+|---|---|---|---|
+| 1 | Status | calc | `OK` or a warning; conditionally formatted |
+| 2 | Job ID | VBA | `<SITE>-<LOC>-00001`, never re-used (§3.2) |
+| 3 | Date/Time | input | Required. Toolbar *Now*, or double-click |
+| 4 | Student Name | input | At least one of name/number required |
+| 5 | Student No | input | " |
+| 6 | Technician | input | Dropdown, active only |
+| 7 | Printer | input | Dropdown, active ∩ permitted here |
+| 8 | Paper Stock | input | Dropdown, active ∩ compatible with printer |
+| 9 | Unit | calc | `sheets` or `metres` |
+| 10 | Quantity | input | > 0; whole number for sheet stock (I3) |
+| 11 | Print Width mm | input | Roll only; blank = full stock width; ≤ stock width |
+| 12 | Disregard Paper | input | Yes/No, seeded from location default |
+| 13 | Disregard Consumable | input | Yes/No, seeded from location default |
+| 14 | Area m2 | calc | Printed area |
+| 15–19 | Paper Cost, Consumable Cost, Gross Cost, Disregarded, Chargeable Cost | calc | §5.1 |
+| 20 | Notes | input | Optional |
+| 21 | H_Issues | calc | Hidden working column behind Status |
+
+**Snapshot block (22–33)** — locked, grey, collapsed group headed *Historical record — do not edit*: `S_PrinterID`, `S_StockID`, `S_TechID`, `S_Family`, `S_Measure`, `S_UnitCost`, `S_StockWidth_mm`, `S_SheetHeight_mm`, `S_ConsRate`, `S_StampedAt`, `S_StampedBy`, `S_SchemaVer`.
+
+Column *order* is not load-bearing anywhere: formulas use structured references, VBA resolves columns by header name, reports resolve `_Data` by header name (§6.2), imports write by header name (§10.5), and exports carry a header row read by name (§10.4). Reordering is free and does not bump the schema version.
+
+### 5.1 Formulas
+
+```
+Unit             =IF([@S_Measure]="Sheet","sheets","metres")
+
+Area m2          =IF([@Quantity]="","",
+                   LET(w, IF([@S_Measure]="Sheet",
+                             [@S_StockWidth_mm],
+                             IF([@[Print Width mm]]="", [@S_StockWidth_mm], [@[Print Width mm]])),
+                       h, IF([@S_Measure]="Sheet", [@S_SheetHeight_mm]/1000, [@Quantity]),
+                       n, IF([@S_Measure]="Sheet", [@Quantity], 1),
+                       (w/1000) * h * n))
+
+Paper Cost       =IF([@Quantity]="","",ROUND([@Quantity]*[@S_UnitCost],SET_ROUND_DP))
+Consumable Cost  =IF([@[Area m2]]="","",ROUND([@[Area m2]]*[@S_ConsRate],SET_ROUND_DP))
+Gross Cost       =IF([@[Paper Cost]]="","",[@[Paper Cost]]+[@[Consumable Cost]])
+Chargeable Cost  =IF([@[Paper Cost]]="","",
+                    IF([@[Disregard Paper]]="Yes",0,[@[Paper Cost]])
+                  + IF([@[Disregard Consumable]]="Yes",0,[@[Consumable Cost]]))
+Disregarded      =IF([@[Gross Cost]]="","",[@[Gross Cost]]-[@[Chargeable Cost]])
+```
+
+The formulas read **only snapshot columns and the row's own inputs**. No formula on a job row reaches into `tblPapers` or `tblPrinters` — the property that satisfies AT-09 and makes historical costs immune to config changes, and is also exactly why **imported rows cost correctly without any catalog reconciliation** (§10.5): an imported row already carries the rates it needs.
+
+`Print Width` appears in the area formula and nowhere in paper cost: AT-02 and AT-03 made structural rather than procedural.
+
+---
+
+## 6. Historical-data strategy (D2)
+
+### 6.1 Stamping
+
+When **Add Print Job** creates a row, and whenever printer or paper stock changes, `modSnapshot.StampRow` resolves the current configuration and writes the twelve snapshot values. Costs are computed by the row's own formulas from those values — *live formulas over frozen rates*, so the arithmetic stays auditable and a mis-typed quantity recalculates immediately.
+
+### 6.2 Re-stamping
+
+A **Re-stamp prices** command exists for the genuine correction case. Deliberately not on the location toolbar: it lives on Settings, confirms while naming the affected rows, and writes an `_Audit` entry.
+
+### 6.3 What survives configuration change
+
+| Change | Effect on existing rows |
+|---|---|
+| Paper cost edited | None — from `S_UnitCost` (AT-09) |
+| Consumable £/m² edited | None — from `S_ConsRate` |
+| Printer renamed | None — row holds `S_PrinterID` |
+| Printer families changed | None — compatibility validated at entry (AT-05) |
+| Stock dimensions changed | None — area from the stamped dimensions |
+| **Record set Inactive** | **None — remains in reports; excluded only from new dropdowns (AT-16, verified phase 7)** |
+| Location defaults changed | None — flags copied into the row at creation (AT-07, AT-08) |
+| **Global rounding changed** | **Recalculates existing rows — accepted (O1)**, and labelled as such on Settings |
+| **Config row removed via the row buttons (§3.3)** | None — jobs already recorded keep their snapshot prices; the confirmation text says so explicitly |
+
+---
+
+## 7. Data-validation strategy
+
+### 7.1 Layer 1 — Data Validation
+
+Static lists, numeric constraints, date type constraints. Enforced before VBA sees anything.
+
+### 7.2 Layer 2 — Dependent lists on staged ranges
+
+Version 1.1 specified dropdowns on spill references. Two hard limits ruled that out:
+
+- **A Data Validation rule is uniform down a table column**, but each row's candidate stocks depend on *that row's* printer. One spill cannot serve every row, and the workaround — a `SelectionChange` handler writing the active row's printer into a context cell — makes the dropdown depend on the selection. Replacing a cell's validation closes an open dropdown, so the arrow visibly flashed and vanished.
+- **A validation list supplied as a literal string is capped at 255 characters**, which a real stock list exceeds.
+
+`modLists` gives **every distinct list its own staging column** on `_Work`, claimed by a tag in row 1 — `PRN|<sheet>`, `TEC`, `STK|<model>`, and reused for the Reports page's own dropdowns (§8). Consequences:
+
+- Lists rebuild when something **changes**, never on selection, so nothing flashes.
+- Rows are grouped by printer before binding, so each distinct list is written once.
+- A per-list column was necessary: one shared column per list *type* meant the last sheet bound overwrote the others, and one print room showed another's printers.
+- **Paper Stock is locked while Printer is blank**, making the incompatible combination unreachable rather than merely caught.
+
+### 7.3 Layer 3 — Row and workbook validation
+
+`Worksheet_Change` runs `OnCellChanged` for cross-field rules validation lists cannot express: print width > stock width (AT-04); print width against sheet stock; non-integer sheet quantity (I3); neither student name nor number; name/number conflict against history (D1, AT-11); printer/stock combination made incompatible by a later edit (AT-05).
+
+Because a row can be invalidated by an edit elsewhere, *Status* persists the verdict, and **Check workbook** sweeps every location and reports all outstanding problems in one list.
+
+**Check workbook also reports export state, counted separately.** Unexported records are not a defect in the data — they are a risk *to* it, because sheet deletion cannot be intercepted (§4.3). Folding them into the problem count would make a perfectly valid workbook report problems, and a count that cries wolf gets ignored.
+
+Messages state what is wrong, why, and what to do — enforced by `modUtils.Say` taking the three parts as separate arguments so a caller cannot quietly omit the third.
+
+**Imported rows are written with events disabled** (§10.5), so they bypass `Worksheet_Change` entirely — Status/H_Issues do not populate until an explicit **Check workbook** / **Check this sheet** sweep runs on them.
+
+---
+
+## 8. Reports (D13)
+
+Two report sheets: **Summary** (at-a-glance totals) and **Reports** (filterable record-level detail — renamed from "Cost Calculations" as part of the 2026-09-21 rework, "Problem 2" in the historical plan). Both are **built once** by `modReports` — layout and formulas, computed nothing at run time — and are live over the consolidated range on `_Data`, so neither can go stale and neither needs refreshing by hand except when `RefreshLocations` rewrites `_Data` itself.
+
+### 8.1 The consolidated range
+
+`Refresh Locations` writes one formula to `_Data!A10`:
+
+```
+=LET(raw,
+  VSTACK(
+    HSTACK(IF(SEQUENCE(ROWS(tblJobs_MAIN[Job ID]))>0,"MAIN"),  tblJobs_MAIN[[Job ID]:[Notes]]),
+    HSTACK(IF(SEQUENCE(ROWS(tblJobs_ANNEX[Job ID]))>0,"ANNEX"), tblJobs_ANNEX[[Job ID]:[Notes]])),
+  IFERROR(FILTER(raw, INDEX(raw,,2)<>""), ""))
+```
+
+- **`IF(SEQUENCE(ROWS(…))>0,"CODE")` rather than a bare `"CODE"`**: `HSTACK` does not broadcast a scalar against a column.
+- **`FILTER(raw, INDEX(raw,,2)<>"")` drops blank table rows.**
+- **`IFERROR` on the outside** is the §4.3 safety net.
+
+Shape: `Location`, then `Job ID` through `Notes` — 20 columns. Headers are written to row 9 from the first location's actual header row, so they cannot drift.
+
+VBA's entire role in reporting is rewriting that one formula (plus refreshing the Reports filter dropdowns, §8.4). Everything downstream is a live worksheet formula.
+
+### 8.2 Summary sheet — built, reworked 2026-09-21
+
+One row per **Location × Printer × Paper stock** — a three-column key, extended from the original two-column Location × Paper-stock key (historical "Problem 2": two printers sharing a stock get separate rows, because cost-per-print differs by printer's consumable rate even for the same paper). Key pairs derived with `SORT(UNIQUE(HSTACK(...)))` and aggregated with `COUNTIFS`/`SUMIFS` taking the key columns as **array criteria**, which makes the results spill alongside the keys instead of needing one formula per row.
+
+| Location | Printer | Paper stock | Type | Family | Unit | Jobs | Quantity | Area m² | Paper cost | Consumable cost | Gross | Disregarded | Chargeable |
+
+Type, Family and Unit are resolved from `tblPapers` by stock description, wrapped in `IFNA` so a stock renamed or removed since shows `(not in Papers)` rather than an error. These are labels only — no cost figure is ever looked up live (§5.1).
+
+Consumption columns count **every** record regardless of disregard flags; only money columns split (D8).
+
+**Totals sit above the table, not beneath it.** The detail spills to an unpredictable height, so anything below it is overwritten the moment a job is added.
+
+**Still missing (phase 8 carry-over, see §16.2): a legend explaining the everyday cell states, and conditional formatting for warning/error states.** No conditional formatting of any kind exists anywhere in the workbook as of this writing.
+
+**"Hide settings sheets" / "Show settings sheets" toggle (snag item 13, resolved).** A button on Summary (`modInit.ToggleConfigSheets`) hides Print Technicians, Printers, Papers and Settings using `xlSheetHidden` (not `xlSheetVeryHidden`, so **Unhide** still reaches them — this is UI tidiness, not a security boundary) and relabels itself between the two states by reading which of the four sheets it can currently find.
+
+### 8.3 Reports sheet — rebuilt 2026-09-21 (was "Cost Calculations")
+
+A live `FILTER`+`SORTBY` driven by criteria cells; results update as criteria are typed, and can now be sorted by any result column.
+
+**Filters** (constant `SHEET_REPORTS = "Reports"`):
+
+| Cell | Filter | Behaviour |
+|---|---|---|
+| B5 | Student name | Fragment search, case-insensitive |
+| B6 | Student number | Exact match after trimming |
+| B7 / B8 | Date From / To | `*1`-coerced (tolerant of text dates); To-date test is `< end + 1` so a job logged at 16:30 on the closing date is not excluded |
+| F5 | Technician | Dropdown, exact match |
+| F6 | Printer | Dropdown, exact match |
+| F7 | Paper Stock | Dropdown, exact match |
+| F8 | Quantity | Dropdown, exact match |
+
+Layout convention (snag item 2, resolved): **label → input → hint → gap**, input immediately to the right of its label, with an unused trailing column separating the two filter groups — replacing the earlier NAME | gap | INPUT | hint arrangement.
+
+`A9` carries the disjoint-criteria warning (name and number both given, never appearing together on the same row) — red bold text, only fires when both are non-blank.
+
+**Row 11 is deliberately blank** (snag item 1, resolved) as a gap before the "Matching" totals row.
+
+**Sort controls** (`A10`/`B10` sort column — a dropdown of the result headers, Job ID excluded; `E10`/`F10` sort direction — Ascending/Descending) sit **below the filters and above the totals row** (snag item 3, resolved), not beside the Technician/Printer/Paper/Quantity group.
+
+**Filter and sort rows are grouped** (snag item 15, resolved): rows 5:10 — both filter groups, the name/number warning, and the sort controls — collapse together as one outline block.
+
+**Totals** ("Matching", rows 12–13) mirror the current filtered set: Jobs, Gross, Disregarded, Chargeable.
+
+**Results table** header at row 15; records spill from `A16` via one `FILTER`+`SORTBY` `LET` formula. Columns: Date/Time, Location, Printer, Paper stock, Quantity, Unit, Area m², Paper cost, Consumable cost, Gross, Disregarded, Chargeable, Technician, Notes — then a **hidden Job ID column** appended after Notes, added specifically as the correlation key **Delete visible records** (§10.6) needs to map a visible row back to its source location sheet and row.
+
+They cannot use `SUMIFS` for the breakdowns below — its arguments must be ranges, and after `FILTER` these are arrays — so per-key aggregation is `BYROW` with a `LAMBDA`. **Breakdowns sit to the right of the results** (`Q15` by print room, `U15` by paper stock — `key | Jobs | Gross | Chargeable`), for the same reason totals sit above the Summary table: the list spills to an unknown height.
+
+**Freeze panes** sit at `A15` (§9.4), so the filters, totals and header row stay visible while scrolling the results (snag item 9, resolved) — this replaces the freeze panes removed from the four config sheets (§9.4).
+
+**This is the whole of AT-10 for v1.** A student's total across every print *room* in this workbook is in scope and served here; only the cross-*workbook* case is deferred (D17, §12).
+
+**Verified** by `test-reports.ps1`: all criteria combinations including Technician/Printer/Paper Stock/Quantity and sort-by-any-column, single-day ranges including times, partial and case-insensitive names, the disjoint-criteria warning, and a date left as text. Breakdowns reconcile exactly to the Summary totals.
+
+### 8.4 Reports filter dropdowns
+
+`RefreshReportFilterLists` (called from both `BuildReports` and `RefreshLocations`, since the latter changes `_Data`):
+
+- **Student name / Student number**: non-strict autocomplete (`ApplyTo ..., Strict:=False`) over previously-recorded values — offered for convenience, but free text (or an unlogged number) is still accepted, since there is no authoritative student list (D1).
+- **Technician**: recorded values, strict list.
+- **Printer / Paper Stock**: **every active catalogue entry**, not just ones actually used yet (snag item 4, resolved) — deliberately independent of each other rather than cross-filtered by compatibility, so an incompatible combination on Reports simply returns an empty result rather than being prevented at the filter stage (unlike the location-sheet entry dropdowns, §7.2, which do enforce compatibility because an incompatible *job* would be a real error).
+
+**No calendar-icon date picker** was added to the From/To date cells (snag item 5). Checked and confirmed: the pop-up calendar icon on a date-formatted cell is an Excel-for-the-web feature and never ships on desktop Excel, Windows or Mac — this is a platform gap, not a bug, and is recorded as such rather than worked around. A custom worksheet-based picker (in the style of `modPicker`'s no-ActiveX multi-select) was considered and explicitly deferred rather than built.
+
+### 8.5 Where the commands live
+
+| Sheet | Buttons |
+|---|---|
+| Summary | Refresh Locations, Check workbook, Go to Settings, **Hide/Show settings sheets** |
+| Settings | Refresh Locations, Check workbook, Re-stamp prices…, About |
+| Each location | Add Print Job, Now, Remove Row, Select printers…, Check this sheet, Clear All, Export…, **Import…** |
+| Printers | Select families… |
+| Reports | **Export report…**, **Delete visible records…** |
+
+Settings keeps its own copies deliberately: it is where someone lands when configuring, and *Re-stamp prices* and *About* belong nowhere else. Export report / Delete visible records sit at the top of the Reports sheet (rows 1 and 3, column F), inside the first screenful, above the filter rows.
+
+---
+
+## 9. VBA architecture
+
+### 9.1 Modules
+
+| Module | Responsibility | State |
+|---|---|---|
+| `modMain` | Public entry points bound to buttons. Thin wrappers; names are a stable contract with the Form Controls | Built |
+| `modJobs` | AddPrintJob, StampNow, RemoveRow, ClearAll | Built |
+| `modSnapshot` | StampRow, ReStampAll, LogAudit | Built |
+| `modValidation` | OnCellChanged, CheckSheet, CheckWorkbook, student consistency scan | Built |
+| `modLists` | Dependent dropdowns and their staging columns; reused for Reports filter autocomplete | Built |
+| `modRegistry` | RefreshLocations, EnsureSystemSheets, code assignment, table renaming, button healing, consolidated-range formula, **Job ID high-water mark** | Built |
+| `modReports` | **Builds** the Summary and Reports sheets — layout and formulas, once; Reports-page bulk delete; filter-list refresh | Built |
+| `modExport` | Per-location CSV, **Export All Locations**, **Export report snapshot**, export-folder resolution (incl. the Mac OneDrive fix), the fingerprint, the `LOC_Export` status line | Built |
+| `modImport` | **Restores or merges an exported CSV into a location's job table** | Built |
+| `modVersion` | Version constants, settings rows, About block, document properties | Built |
+| `modPicker` | The multi-select picker | Built |
+| `modInit` | One-time/re-runnable setup: draws the Form Controls, applies protection, unlocks config inputs, sets/clears freeze panes, reorders tabs, groups columns, wraps Settings notes, hands over to RefreshLocations | Built |
+| `modCatalog` | Configuration loaded once per operation; **catalogue row Add/Remove** | Built |
+| `modSettings` | Typed accessors for settings and named ranges | Built |
+| `modProtect` | Protect/unprotect wrappers, re-applied on open, **no default password** | Built |
+| `modUtils` | Application state, messaging, quiet mode, table and name access, ID generation, schema version constant | Built |
+
+| Class | Responsibility | State |
+|---|---|---|
+| `clsDict` | Keyed collection, built on `Collection` — §9.3 | Built |
+| `clsStock` / `clsPrinterDef` | One paper stock / one printer | Built |
+
+**`modReports` exists, but computes nothing at run time.** It writes layout and formulas once. A defect in `modReports` can only produce a wrong *sheet*, visible immediately, not a wrong *figure* on a sheet that looks right.
+
+`clsCatalog` and `clsLocation` were not needed. `modCatalog` holds configuration in module-level `clsDict` instances with an `Invalidate` flag; location sheets are addressed through `modUtils` helpers.
+
+### 9.2 Conventions
+
+- `Option Explicit` in every module.
+- Every public entry point: disable events/screen updating → `On Error GoTo Fail` → work → restore state → exit. `AppOff`/`AppOn` are depth-counted so nesting is safe.
+- **`EnableEvents = False` during our own writes is not negotiable.** Handlers write cells, and writing a cell re-enters `Worksheet_Change`. `AddPrintJob` writes five cells on a row that does not exist yet; with events live, validation would judge a half-built row, emit spurious Status warnings, and could clear a legitimate Print Width. `ClearAll`, `ReStampAll` and `ApplyImport` would each run a validation pass per cell write. Anything needing to know that data changed must **derive** it, not listen for it.
+- **Derive state; do not track it.** Applied throughout: `IsLocation` reads a marker cell (§4.1); the registry rescans (§4.2); the export fingerprint is computed on demand (§10.4); the Reports export signature likewise (§10.4); report figures are formulas rather than stored results (§8); the Job ID high-water mark is the one deliberate exception — it *is* tracked state, because a derived value (a row scan) is exactly the bug it fixes (§3.2). Derived state cannot rot, survives a user editing with macros disabled, and survives an old copy of a sheet being dropped back in — all three defeat a tracked flag silently, which is why the Job ID mark is still read as a **floor** under a scan rather than trusted blindly.
+- **Reports address `_Data` columns by header name**: `INDEX(_Data!$A$10#,,MATCH("Quantity",_Data!$A$9:$AZ$9,0))`. Wordier than `INDEX(...,,10)`, and the reason the job table can be reordered without touching a report formula.
+- **A criteria expression must be an *array*, not a scalar.** `IF($C$5="",TRUE,…)` returns a bare `TRUE` when the box is empty, and `FILTER(column, TRUE)` is `#CALC!`. With all criteria blank the product is the scalar `1`, so Reports failed in its most ordinary state. Every criteria product is seeded with a column-shaped term (`Job ID <> ""`) that fixes its height. This still applies with the extra Technician/Printer/Paper Stock/Quantity criteria added in the 2026-09-21 rework — same pattern, one more multiplied `IF(...)` term each.
+- **Coerce both sides of a date comparison** with `*1`. A user typing `16/09/2026` into an unformatted cell leaves text behind, and `number >= text` is FALSE for every row without raising anything — a filter that silently returns nothing.
+- **A staging sheet used to reach Excel's CSV/xlsx writer must be formatted as Text.** The export formats dates as ISO and the schema version as `1.0`, then writes them into cells; without `NumberFormat = "@"` Excel re-parses both — the date becomes a date value again and is written out in the machine's locale (`9/15/2026` here), and `1.0` becomes the number `1`, so an importer checking for `1.0` sees `1`. Applies equally to `modImport`'s read side and to the Export report `.xlsx` snapshot.
+- **Totals go above a spill; secondary tables go beside it.** A spill's height is unknowable, so anything below it is displaced the moment the data grows. Applied to Summary's totals, Reports' totals, and Reports' breakdowns.
+- Formulas written from VBA use `.Formula2`, never `.Formula`. `.Formula2` is array-aware; `.Formula` applies implicit intersection and silently stores a single value where a spill was intended.
+- No hard-coded row or column numbers: columns are resolved by header name.
+- **Never `Val()` on a date or numeric cell.** `Val` takes a `String`, so a date is coerced to text and its leading digits read (`15/09/2026 10:24` comes back as `15`, a date in January 1900), and a number round-trips through the machine's decimal separator (comma-decimal locales silently read every paper cost, consumable rate and stock dimension as zero). `modUtils.DateSerialOf` and `modUtils.NumOf` read `.Value2` and are the only sanctioned routes. The Job ID suffix scan (`ScanMaxSuffix`) is the one place `Val()` is still used deliberately — a digits-only suffix has no fractional part, so the locale trap does not apply there.
+- **`On Error Resume Next` around a block, never around a batch of independent writes.** When several independent operations are wrapped in one blanket handler, a failure is invisible and untraceable to which operation caused it.
+- **Quiet mode.** `modUtils.SetQuiet` switches `Say` from `MsgBox` to collecting messages for `QuietLog`, and makes `Ask` return **False**. A script driving the workbook over COM has nobody to dismiss a dialog, and one `MsgBox` hangs the run indefinitely. `Ask` returning False is deliberate: an unattended run must never confirm a destructive operation on the user's behalf — and it has a second use, since it lets a test read a destructive command's confirmation text while guaranteeing the command aborts.
+- **Show what's about to be lost, before losing it.** `RemoveRow`, `ClearAll`, config-row removal (§3.3), Import's overwrite count (§10.5) and Reports' bulk delete (§10.6) all confirm with the specific record count (and, where relevant, a per-location breakdown) rather than a bare "Are you sure?".
+- **Read `Err.Number`/`Err.Description` first thing in a handler.** Every form of `On Error` resets the `Err` object, so reading it after any cleanup step (e.g. reprotecting a sheet) loses the description of what actually went wrong.
+
+### 9.3 Cross-platform strategy
+
+**Platform is the binding constraint**, not Excel version (D12): Excel for Mac has no ActiveX and no COM automation.
+
+| Unavailable on Mac | Approach taken |
+|---|---|
+| `Scripting.Dictionary` | `clsDict`, built on `Collection` with error-trapped lookup |
+| `Scripting.FileSystemObject` | Not used |
+| `ADODB.Stream` | Not used — CSV/xlsx written via Excel's own `SaveAs` |
+| ActiveX controls | Form Controls only |
+| `Application.FileDialog` (save side) | Export writes to a resolved folder path (§10.4), not a chooser |
+| UserForm rendering differences | The picker is a **worksheet** pretending to be a dialog (`_Picker`) |
+| COM automation | The build script is Windows-only; Mac uses the manual import route (SETUP.md) |
+| `Environ$("OneDrive")` / `OneDriveConsumer` / `OneDriveCommercial` | These env vars are Windows-only. On Mac, local OneDrive roots are found by scanning `~/Library/CloudStorage/OneDrive*` instead (§10.4) |
+
+- **Protection must be re-applied on open.** `UserInterfaceOnly:=True` is not persisted; a workbook saved in that state reopens fully protected and VBA can no longer write to its own sheets.
+- **1900 date system enforced** on open, since an older Mac workbook may carry 1904 and shift every date by four years.
+
+### 9.4 Protection model
+
+| Element | State |
+|---|---|
+| Job-row input cells | Unlocked |
+| Job-row formula, snapshot and header cells | Locked |
+| **Configuration table data-body cells** (Technicians, Printers, Papers, and the four Settings lookup tables) | **Unlocked** (snag item 6, resolved) |
+| **`tblSettings` Value cells not marked "Read-only" in Notes** | **Unlocked**; read-only rows (schema version, build stamp, last-refresh) stay locked |
+| Sheets | `UserInterfaceOnly:=True, AllowFiltering:=True, AllowSorting:=True, DrawingObjects:=False, EnableOutlining:=True` |
+| Hidden sheets | `xlSheetVeryHidden` |
+| Workbook structure | **Unprotected** — required so users can duplicate location sheets (§4.4) |
+| VBA project | Locked for viewing |
+| **Sheet protection password** | **None by default** (removed 2026-09-21, snag item 7). Set one by hand in Excel (Review → Protect Sheet) on a specific workbook if required — nothing in `modProtect` generates one |
+
+Structural operations route through `modProtect` wrappers that unprotect, act and reprotect within a single error-guarded call, because adding rows to a `ListObject` on a protected sheet is unreliable even with `UserInterfaceOnly`.
+
+**Freeze panes, current layout (snag items 8 and 9, resolved):**
+
+| Sheet | Freeze panes |
+|---|---|
+| Settings, Print Technicians, Printers, Papers | **None** — removed as unneeded visual clutter, since these are configuration tables typically viewed in full |
+| Reports | **`A15`** — added, freezing the filters/totals/header above the results table |
+| Location sheets | Unchanged (whatever the `.xlsx` ships) |
+| Summary | Unchanged |
+
+### 9.5 Sheet tab order
+
+`modInit.ReorderSheetTabs`, run at the end of every `InitialiseWorkbook`, produces (snag item 12, resolved):
+
+**Summary → Reports → [location sheets, in workbook order] → Print Technicians → Printers → Papers → Settings**
+
+Hidden system sheets (`_Data`, `_Registry`, `_Audit`, `_Work`, `_Picker`) are `xlSheetVeryHidden` and excluded from tab-order logic. `modReports.SheetNamed` places `Reports` at tab index 1 and `Summary` at index 2 on a first-run build.
+
+**A `Move Before:` gotcha, worth remembering for any future tab-order code:** `Worksheet.Move Before:=` only moves a sheet *earlier*. Moving one that already sits before the target is a no-op — removing it from its old position shifts everything down by one and it lands right back where it started. Moving a sheet *later* needs `Move After:=`. This shipped the Summary/Reports tabs reversed in every build up to 0.7.0, because the code asked for a later move using `Before:`.
+
+---
+
+## 10. Destructive operations, export and import
+
+### 10.1 Remove row
+
+Acts on the selected row. Confirms with the job's identifying detail — ID, date, student, printer, cost — never a bare "Are you sure?". Writes an `_Audit` entry, then deletes the row.
+
+### 10.2 Clear All — verified
+
+Scoped to the current location sheet. States the location name, record count and date range:
+
+> *Clear All — Main Print Room*
+> *This will permanently delete 5 print jobs dated 15/09/2026 to 17/09/2026.*
+> *Records on other print room sheets are not affected.*
+> *This cannot be undone. Continue?*
+
+Where the location has unexported changes, the confirmation says so.
+
+### 10.3 Audit note
+
+VBA operations clear Excel's undo stack. `_Audit` records what was removed, when and by whom. Sheet deletion is the one destructive act that cannot be caught (§4.3).
+
+### 10.4 Export — built, extended 2026-09-21
+
+**Purpose**, several at once: a recovery path for a deleted location sheet (§4.3), a way to get records out for finance, the transport for manual multi-workbook aggregation (§12.4), and — new — a point-in-time archive of a filtered Reports view for physical/human records.
+
+**Per-location export** (`modExport.ExportLocation`) and **Export All Locations** (`modExport.ExportAllLocations`, new) — the latter runs every location through one `AppOff`/`AppOn` bracket and shows a single summary dialog of done/skipped/failed per room, rather than requiring one click per location.
+
+**Content — the one irreversible decision.** Every column, **including the snapshot block**. An export without `S_UnitCost`, `S_ConsRate` and the rest is permanently unimportable: re-importing would recost every row at today's prices, destroying exactly the integrity AT-09 protects. `H_Issues` is the single exclusion — an internal working cell behind the Status message, meaningless outside the workbook and recomputed on import (well, on the next Check workbook sweep — §7.3).
+
+**Format.** CSV, written by copying to a temporary workbook and using `SaveAs FileFormat:=xlCSVUTF8`. Excel's own CSV writer, so quoting and comma escaping are its problem, and `xlCSVUTF8` gets `£` and any non-ASCII student name right. The staging sheet is formatted as Text throughout.
+
+A header block — schema version, site ID, location code and name, generated-at, row count — then a header row, then records. Dates are written `yyyy-mm-dd hh:nn:ss`: a serial would be unreadable and a locale-formatted date ambiguous, since `06/07` is two different days depending on who opens it.
+
+**Column order is not part of the contract.** The header row names the columns and any importer maps by name, so the job table may be reordered freely without invalidating older exports or bumping the schema version. The file uses a canonical order fixed in `modExport`.
+
+**Naming.** `PrintCosts-<SITE>-<LOC>-yyyymmdd-hhmm.csv`, written to the export folder (below).
+
+**Selectable export folder (snag item 10, resolved).** A `SET_EXPORT_FOLDER` setting (`EXPORT_FOLDER` internally), editable on the Settings sheet, read by `modExport.ExportFolder()`. If blank, or if the folder named there does not currently exist **on the machine running Excel**, the export falls back to the workbook's own resolved location — the setting is checked, not trusted, so a folder that only exists on one machine cannot silently swallow another user's exports. The row is self-provisioned by `modExport.EnsureExportSettings` (called from `InitialiseWorkbook`) if the `.xlsx` predates the feature.
+
+**Resolving "beside the workbook" — including the OneDrive fix (snag item 1, resolved).** `ThisWorkbook.Path` is not reliably a filesystem path: for a OneDrive-backed workbook, Excel may report the service URL (`https://d.docs.live.net/...`) instead. `ExportFolder()`:
+
+1. Uses the export-folder setting if valid (above).
+2. Otherwise, if `ThisWorkbook.Path` is not itself a URL, uses it directly — the ordinary case on both Windows and Mac.
+3. Otherwise (a OneDrive service URL), strips the scheme and host and tries progressively shorter path tails against every candidate local OneDrive root, returning the first that resolves to a real folder.
+4. Candidate roots (`CandidateOneDriveRoots`): on Windows, the `OneDrive`, `OneDriveConsumer` and `OneDriveCommercial` environment variables. **On Mac these variables don't exist**, so the function additionally scans `~/Library/CloudStorage/OneDrive*` — this Mac-specific scan is exactly what the 2026-09-21 fix added; without it, a fully-synced Mac OneDrive folder still produced *"The workbook's own folder could not be resolved to a location on this computer"*, purely because the only roots ever tried were Windows environment variables.
+5. If nothing resolves, the export **refuses with an explanation** rather than guessing.
+
+**The durable check, regardless of platform: the export verifies the file exists on disk before stamping anything as exported.** An earlier defect had the export announce success having written nothing (because the resolved path was wrong), then stamp the location as exported — which meant the §4.3 warning between a sheet deletion and its records said the opposite of the truth. That check is what makes the whole export status trustworthy.
+
+**Import is a later revision — see §10.5, now built.**
+
+**Knowing what is unexported — derived, not tracked.** A per-location fingerprint computed on demand:
+
+```
+row count + CountA(data range) + Sum(Quantity) + Sum(Chargeable Cost) + Max(Date/Time)
+```
+
+compared against `tblLocations.Export sig` from the last export. Nothing hooks any event and no mutator must remember anything.
+
+*The limitation, plainly:* a collision needs an edit leaving count, cell count, both sums and the latest date unchanged — two compensating changes in one location between exports. Constructible deliberately, vanishingly unlikely by accident.
+
+**Export report — a separate signature, for a separate artefact (new, "Problem 2/3").** `ExportReportSnapshot` writes a **static-value `.xlsx`** (not CSV) of the Reports sheet's current filtered-and-sorted results, chosen over CSV/PDF specifically because it (a) carries enough formatting to be readable, (b) opens directly and consistently on most computers, (c) stays modifiable with ordinary software, and (d) is machine-readable text/metadata with no OCR needed — a PDF whose text layer turned out not to be extractable at all is exactly what motivated ruling PDF out here (§16, the removed design-doc PDF). It builds the same kind of header block (schema version, site ID/name, location, generated-at, row count) and formats money/quantity columns, then stamps its **own** signature — same shape as the export fingerprint (row count, cell count, chargeable-cost sum, max date) but of the *filtered Reports view*, not a location sheet — into hidden cells on Reports (`AN1`/`AN2`). This is what **Delete visible records** (§10.6) compares against.
+
+**Data protection.** Export multiplies the places student names and numbers live, in files outside the workbook's protection. Not an objection, but the reason exports land in a resolved local folder rather than an arbitrary chooser, and a point for whoever writes the operating procedure. It connects directly to the deferred O7 (§12.3) and its BONUS resolution path (§12.4).
+
+**Verified** by `test-export.ps1` (per-location export and fingerprint) and `test-import.ps1` (Export All Locations).
+
+### 10.5 Import — built ("Problem 1")
+
+**Scope.** Always imports into **one** location's job table — there is deliberately no "import into every location" counterpart to Export All Locations. Two entry points: import into whichever location sheet is currently active, or a global command that first prompts for a destination location by code.
+
+**What it covers, in one mechanism:**
+- Restoring a backup into the location it came from (after data loss, or reverting a bad edit).
+- Importing one location's exported jobs into a different room.
+- Pulling several locations' exports into one copy of the workbook, for reporting or handover — see the BONUS note in §12.4.
+
+**No cost reconciliation needed.** Job-row formulas only ever read the row's own snapshot columns and inputs, never `tblPapers`/`tblPrinters` (§5.1), so an imported row already carries the rates it needs and costs correctly regardless of what the target workbook's configuration tables contain.
+
+**No catalog reconciliation either.** Import never creates, matches or edits rows in the target's `tblPrinters`/`tblTechnicians`/`tblPapers`/`tblConsumables`. An imported row's Technician/Printer/Paper Stock values are carried as plain text even when absent from the target's current lists. New jobs entered in that workbook afterwards continue to be driven only by that workbook's own catalog tables — import never pollutes them.
+
+**What is written.** Only the input and snapshot columns per row: Job ID, Date/Time, Student Name, Student No, Technician, Printer, Paper Stock, Unit, Quantity, Print Width mm, Disregard Paper, Disregard Consumable, Notes, and every `S_*` snapshot column. The calculated columns (Area m², Paper Cost, Consumable Cost, Gross Cost, Disregarded, Chargeable Cost) are left to the job table's existing per-row formulas, which reproduce the historical figures exactly from the snapshot — precisely as a locally entered job does.
+
+**Conflict handling is by Job ID** (globally unique, never reassigned — §3.2). No existing row with that ID: append. An existing row with that ID: **overwrite** it with the imported version. Overwrite, not skip, is deliberate: it is what makes "restore a backup over stale/edited data" and "re-aggregate overlapping exports" both work correctly.
+
+**Before an overwrite is committed**, a confirmation names how many existing records will be appended vs. replaced, following the same "show what you're about to lose" pattern as `RemoveRow`/`ClearAll`.
+
+**Imported rows bypass `Worksheet_Change`** (written via VBA with `EnableEvents` False, same as every other write the app makes to its own sheets), so Status/H_Issues do not populate automatically — a `CheckSheet` sweep runs immediately after import to fill them in, rather than leaving rows silently unchecked.
+
+**File format read is exactly what Export writes** — same header set, same ISO date convention (`yyyy-mm-dd hh:nn:ss`) that avoids locale ambiguity on the way back in.
+
+**Verified** by `test-import.ps1`: Export All Locations, then Import restoring into the origin location and into a different room.
+
+### 10.6 Delete visible records — built ("Problem 3")
+
+**Scope.** Confined to the Reports page, operating on **whatever the current filters show** — deliberately the higher-friction, encourages-a-backup-first path for bulk pruning, as opposed to per-location `RemoveRow`/`ClearAll` which remain unchanged and are sufficient for their own scope.
+
+**Row mapping.** For each visible row: `Location` → `SheetForCode` finds the target worksheet; the hidden `Job ID` column (§8.3) → `FindReportRow` locates the actual table row on that sheet, which is then deleted. Values are copied into memory *before* any deletion begins, because the live spill range shrinks as rows are removed elsewhere in the same run.
+
+**Confirmation content:**
+- The total record count and a **per-room breakdown**.
+- A staleness warning comparing the current filtered set's signature (§10.4) against the signature stamped by the last **Export report** run — either *"Export report has never been run for a filtered set like this one"* or *"The filters or underlying data have changed since the last Export report"*. This replaces the original plan's "warn if not exported to CSV" wording, since Reports-page deletion is keyed off the Export-report signature rather than the per-location CSV export status (they are different artefacts answering different questions).
+- *"This cannot be undone."*
+
+**Audit.** Logged to `tblAudit` as `Delete visible (Reports)`.
+
+**Verified** by `test-deletereports.ps1`, alongside the Export report snapshot itself.
+
+---
+
+## 11. Visual design
+
+| Cell role | Treatment |
+|---|---|
+| User input | White fill, blue left border, unlocked |
+| Calculated | Light grey fill, italic, locked |
+| Configuration | Pale blue fill, unlocked |
+| Read-only reference | Light grey fill, grey text, locked |
+| Snapshot / historical | Darker grey, collapsed group, locked |
+| Warning state | Amber fill via conditional formatting — **not yet built**, see §16.2 |
+| Error state | Red text via conditional formatting — **not yet built**, see §16.2 |
+
+Transaction tables use freeze panes below the header, filter buttons, and banded rows. **GBP formatting is still hardcoded, not driven by the global setting** — see §16.2.
+
+**A legend explaining the everyday cell states was planned for the Summary sheet and has not been built** (§16.2) — do not assume it exists.
+
+**Text wrapping** on the global settings table's Notes column is built (`modInit.FormatSettingsNotes`, snag item 16).
+
+**Column groups** exist on every location sheet's cost and snapshot column ranges, and on the Reports page's filter/sort row block (§4.1, §8.3, snag items 14/15).
+
+---
+
+## 12. Multi-workbook aggregation — planned feature (D17)
+
+**Automated collation across workbooks is still not built.** What has changed since the original design is that a **manual** route now exists and covers most of the same ground — see §12.4.
+
+### 12.1 What v1 must preserve
+
+| Invariant | Why it already holds |
+|---|---|
+| Job IDs globally unique — `UNI-MAIN-00001` | §3.2 |
+| Site ID is a real setting | `SET_SITE_ID` |
+| Every job row stamps `S_SchemaVer` | §5 |
+| All records consolidated into one range | `_Data`, built for the local reports anyway |
+| Location codes deterministic, never reassigned | §4.2 |
+| A complete per-location export exists | §10.4 |
+| **Job IDs come from a value that only ever increases**, never a row scan | §3.2, fixed 2026-09-21 — this specifically protects the "globally unique, never re-issued" half of the first invariant, which the original row-scan allocator could silently violate |
+
+v1 does not have to *do* anything automated for aggregation; it has to avoid breaking these. That makes aggregator-readiness testable at acceptance rather than aspirational.
+
+### 12.2 Deferred decision — O7
+
+**Granularity**: does an automated master read job-level records, or each site's Summary?
+
+- **Summary-level** aggregates by Location × Printer × Paper stock, discarding the student. A master built from summaries could never produce a cross-site student total — the entire purpose of Reports and AT-10.
+- **Job-level** preserves it, and costs nothing extra since the export already exists.
+- **Job-level with student number but no names** keeps cross-site totals working while narrowing what leaves each site.
+
+**Still deferred deliberately on data-protection grounds** for any *automated* collation tool — a decision about lawful basis and data handling rather than about software. Recorded here so it is re-decided from these three options rather than re-derived. See §12.4 for why the built manual mechanism has, in effect, already made a job-level choice for the manual case without that choice needing to be finalised for an automated one.
+
+### 12.3 The transport, when automated collation is built
+
+Collation would read **the exported CSV files** (§10.4), not the source workbooks — no Excel automation of other people's files, no sandbox handling on Mac, and no reading a spill range out of a closed workbook, which does not reliably work at all.
+
+### 12.4 The manual route that already exists ("BONUS" from the Problem 1 plan)
+
+Export All Locations + Import (§10.4, §10.5) together let **any copy of this workbook serve as an ad-hoc master**: a blank copy imports the exports from every site's locations, and Summary/Reports then run over the merged data exactly as they would for a single site's own records, since both sheets are built on `_Data` regardless of how the rows arrived there.
+
+This is import-by-hand of full job rows including student name and number — it is **not** an implementation of D17/O7's automated master workbook, and it does not resolve the O7 granularity decision for that future tool. It is recorded here because it is real, already-shipped functionality that happens to serve the same underlying need (GDPR-safer aggregation, since files move over whatever secure channel the organisation already uses rather than an automated process reaching into other people's workbooks), aggregation is expected to happen only a few times a year so the manual steps are acceptable, and any future automated master should be designed with this manual path already in mind rather than as an unrelated feature.
+
+---
+
+## 13. Build sequence and tooling
+
+### 13.1 Delivery
+
+A `.xlsm` cannot be assembled outside Excel: the VBA project is a binary structure no library on the build machine can author. Two artefacts and a script:
+
+- `src\PrintCosts.xlsx` — everything a file can carry.
+- `src\PrintCosts-VBA\*.bas`, `*.cls` — the complete VBA source, the authoritative copy.
+- `build.ps1` — validates the source, backs up the existing `.xlsm`, copies the source to `%TEMP%`, imports every module into the copy, pastes `ThisWorkbook.cls` into the existing document module, runs `InitialiseWorkbook` then `StampBuild` in quiet mode, saves to a temp `.xlsm`, copies that into `src\`, and prunes old backups to the five most recent.
+
+Requires **Trust access to the VBA project object model**, once. Windows only. The manual import route in `src\PrintCosts-VBA\SETUP.md` is the only route on Mac and must list all eighteen files — it was missing four (`modRegistry`, `modReports`, `modExport`, `modVersion`) until 0.7.1, which produced a project that would not compile on Mac. **`modImport.bas` makes the current total nineteen** — re-check SETUP.md's list stays complete whenever a module is added.
+
+**A build must never mutate its own input.** The project lives in OneDrive, where AutoSave is on by default; opening the source `.xlsx` in place and modifying it (importing modules, running setup, stamping the version) lets AutoSave commit those changes back over the source before `SaveAs` ever runs, with `DisplayAlerts = $false` swallowing the warning that would otherwise stop it. This happened once and cost a 410KB `.xlsx` with an embedded VBA project that Excel refused to open at all, recovered from OneDrive version history. Four guards now stand between the build and a repeat: it never opens the source (works on a `%TEMP%` copy); it refuses to start if the `.xlsx` already contains a VBA project; it compares the source's timestamp before and after and warns loudly if it changed; `$wb.AutoSaveOn = $false` on the working copy.
+
+**Excel also saves to `%TEMP%`, and the result is copied into place** — saving a few-hundred-KB workbook directly into an actively-syncing OneDrive folder was refused every time with an error that reads like a missing method rather than a contested destination.
+
+**Backups are pruned to five.** They are build outputs, regenerable from the `.xlsx` plus the VBA source.
+
+Two things the automation buys beyond convenience: a **compile check** (running a macro over COM forces the whole project to compile, so a syntax error fails the build rather than surfacing on a user's first click), and **safe testability** (quiet mode makes the test scripts non-destructive by construction, not by care).
+
+**A caution about verifying over COM.** `$wb.BuiltinDocumentProperties('Title')` does not resolve as a parameterized COM property from PowerShell — it returns blank rather than raising, indistinguishable from a workbook whose properties were never written. Likewise Excel's `Names` collection reports hidden `_xlfn.*` placeholders it invents at run time and never saves. Both verification scripts now read the OOXML package directly. **When a check and the thing it checks disagree, suspect the check.**
+
+### 13.2 Supporting scripts
+
+| Script | Does |
+|---|---|
+| `probe.ps1` | Structure of a workbook, read-only. Whole workbook, or `-Sheet <name>` cell by cell. Flags defined names not stored in the file |
+| `verify.ps1` | Opens the built `.xlsm` **read-only** and reports version, document properties, tables, registry, consolidated range and button bindings |
+| `test-duplicate.ps1` | AT-13 — duplicates a print room in VBA, refreshes, reports |
+| `test-reports.ps1` | Drives the Reports criteria (including Technician/Printer/Paper Stock/Quantity, sort-by-any-column), and reports the regrouped Summary and breakdown figures |
+| `test-export.ps1` | Export, the CSV's contents, and the fingerprint's response to an edit |
+| `test-validation.ps1` | AT-11, AT-14, AT-16 |
+| `test-nextid.ps1` | The persisted Job ID high-water mark: deleting the top row must not reissue its ID; the mark must survive `RefreshLocations` |
+| `test-import.ps1` | Export All Locations, and Import restoring into origin and into a different room |
+| `test-deletereports.ps1` | Export report (the static-value `.xlsx` snapshot) and the Reports-page bulk delete, including the audit log entry |
+| `filecheck.ps1` | Integrity of the `.xlsx`, `.xlsm` and every backup |
+| `lockcheck.ps1` | Who is holding the `.xlsm` |
+| `xlfnscan.ps1` | Every `_xlfn.` / `_xlws.` occurrence in the package |
+| `prune-backups.ps1` | Keeps the N most recent backups |
+| `diag.ps1` | Ad-hoc diagnostics, driving a `%TEMP%` copy like the test scripts |
+
+**Every test script drives a copy in `%TEMP%`, never `src\PrintCosts.xlsm` directly** — required because `Workbook_Open` does real work on every open (`ProtectAll`, `Invalidate`, `HealButtons`), and because this file is held through a **cloud-backed handle**: AutoSave commits those changes immediately, so `$wb.Saved` reads `True` on the line right after `Open` despite every sheet having just been modified, and the bytes land at `Close`/`Quit` regardless of `Close($false)` or a late `AutoSaveOn = $false`. This is not the sync client — it reproduces with syncing paused and settled. `probe.ps1` and `verify.ps1` sidestep it entirely by opening **read-only**.
+
+**Do not kill Excel while it holds the workbook.** Observed once, not fully explained: an orphaned Excel process being killed was followed by the next open writing a stale cached session over a freshly rebuilt file, reverting it by several builds — suspected to involve the Office document cache. Let scripts quit Excel themselves.
+
+Run the four `test-*.ps1` regression scripts **one at a time**, not in a tight loop — Excel can share one process between scripts, and a later script then reads an earlier one's in-memory state as though it were the build.
+
+---
+
+## 14. Open items
+
+**Resolved:** O1–O6, O8 (delivery automated), O9 (export-based mitigation, §4.3/§10.4), O10 (closed — not a defect: `_xlfn.` prefixes in stored formulas are required, and Excel's runtime-only `_xlfn.*` placeholder names in its `Names` collection are never actually saved).
+
+**Deferred:**
+
+| # | Item |
+|---|---|
+| **O7** | Aggregation granularity for a future *automated* master — job-level, summary-level, or job-level without names. See §12.2–§12.4: a manual, job-level-with-names route already exists via Export All Locations + Import, which somewhat pre-empts the urgency of this decision but does not resolve it for automation |
+
+**New, from this pass (§16):** the phase-8 visual-polish gaps (legend, conditional formatting, currency wiring — §16.2) and the stale in-code version stamp (§16.1) are tracked there rather than as numbered "O" items, since they are implementation debt rather than open design questions.
+
+---
+
+## 15. Traceability
+
+| Acceptance test | Design element | Verified |
+|---|---|---|
+| AT-01 | §5.1 Paper Cost formula; `S_UnitCost` for sheet families | Phase 9 |
+| AT-02 | §5.1 Area formula, roll branch, blank print width | Phase 9 |
+| AT-03 | §5.1 — print width in Area only, never in Paper Cost | By construction |
+| AT-04 | §7.3 width check | Phase 9 |
+| AT-05 | §7.2 dependent list; §7.3 re-edit check | Phase 9 |
+| AT-06 | §7.2 valid printer list from `LOC_Printers` | Phase 9 |
+| AT-07 | §9 AddPrintJob seeds flags from location defaults | Phase 9 |
+| AT-08 | §5 flags are plain row values with no link to the defaults | By construction |
+| AT-09 | §6 snapshot block; no live link from job rows to config | By construction |
+| AT-10 | §8.3 live filter — **within this workbook** (D17) | **Yes — `test-reports.ps1`** |
+| AT-11 | §7.3 student consistency scan (D1, I5) — warns, never blocks | **Yes — `test-validation.ps1`** |
+| AT-12 | §8.3 criteria seeded to array shape; blanks collapse to TRUE | **Yes — `test-reports.ps1`** |
+| AT-13 | §4.2 marker detection, table parking and renaming, code assignment, formula rewrite | **Yes — `test-duplicate.ps1`** |
+| AT-14 | §10.2 confirmation content; `modUtils.DateSerialOf` | **Yes — `test-validation.ps1`** |
+| AT-15 | §9.3 cross-platform strategy; picker render check on Mac | Phase 9 |
+| AT-16 | §3.2 stable IDs; §6.3 inactive-record behaviour | **Yes — `test-validation.ps1`** |
+| — | §10.4 export completeness and fingerprint | **Yes — `test-export.ps1`** |
+| — | §3.2 Job ID high-water mark survives deletion and refresh | **Yes — `test-nextid.ps1`** |
+| — | §10.5 Export All Locations; Import (origin and cross-room) | **Yes — `test-import.ps1`** |
+| — | §10.6 Export report snapshot; Reports-page bulk delete | **Yes — `test-deletereports.ps1`** |
+
+Several acceptance tests are about what happens as a person types, which is worth testing as a person rather than only as a script, and AT-15 needs a Mac — these still need the phase 9 run. Export/Import/NextId/Reports-delete have no numbered acceptance test in the original spec, being design-led additions; they are covered by their own scripts instead.
+
+---
+
+## 16. Known gaps — read this before starting the next phase
+
+### 16.1 The in-code version stamp is stale
+
+`modVersion.APP_VERSION` still reads `"0.7.1"`, and its changelog comment block still only describes the pre-phase-8 review-pass fixes. None of the following, all landed since, are reflected in it: the NextId high-water-mark fix, Export All Locations, Export report snapshot, Import, the Reports rework (rename, extra filters, sort-by-any-column, bulk delete), the Mac OneDrive export-folder fix, or any of the seventeen 2026-09-21 snag-list UI items (password removal, config-input unlocking, freeze-pane changes, tab order, hide/show settings toggle, column/row groups, notes wrap, catalogue row buttons).
+
+**Before the next phase of work, bump `APP_VERSION` and rewrite its changelog comment to describe what actually shipped.** The workbook's own About block and file properties currently under-report the build to anyone who checks them the intended way (§3.5). This document is the interim source of truth for what phase the project is actually at; the in-code constant should be brought back into agreement with it rather than the other way around.
+
+### 16.2 Phase 8's original scope — partially done
+
+Of the three things phase 8 was scoped to add (§11):
+
+1. ~~The Summary legend explaining the four everyday cell states~~ — **not built.**
+2. ~~Conditional formatting for warning (amber fill) and error (red text) states~~ — **not built.** There is still no conditional formatting anywhere in the workbook.
+3. **Currency from the global setting** — **not built.** `modSettings.CurrencySymbol()` exists and correctly reads `SET_CURRENCY`, but nothing calls it: `£` remains hardcoded as `ChrW(163)` in roughly a dozen places across `modReports` and `modExport`. `modSettings.Money()` — the function meant to consume `CurrencySymbol()` — is itself still unreferenced by any caller.
+
+A large amount of *other* visual/UX work has been done since phase 8 was originally scoped — the entire 2026-09-21 snag list (freeze panes, tab order, column groups, hide/show toggle, notes wrap, catalogue buttons, Reports layout) — but none of it touches these three specific items. They remain open exactly as originally scoped.
+
+### 16.3 Other loose ends
+
+- `SET_FOOTER` and `SET_FY_START` are defined names with no code consumer. Decide whether to wire them up or drop them from the settings table.
+- No calendar-style date picker on the Reports date filters (§8.4) — a confirmed platform limitation on desktop Excel, not a bug, but worth remembering if a future Excel release changes this.
+- SETUP.md's "What is not built yet" framing has been kept up to date through the 2026-09-21 commits (it correctly describes Import/Export/NextId/Reports-delete as built) — but cross-check it against this document's §16.1/§16.2 rather than assuming either one alone is complete, since they serve different audiences (procedure vs. architecture) and could drift independently.
+
+---
+
+## Sources
+
+- [Worksheet.Protect method (Excel) — Microsoft Learn](https://learn.microsoft.com/en-us/office/vba/api/excel.worksheet.protect) — `UserInterfaceOnly` is not persisted across save/reopen
+- [Excel for Mac: No ActiveX Support, OLE is Limited — SumProduct](https://sumproduct.com/blog/excel-for-mac-no-activex-support-on-mac-object-linking-and-embedding-ole-is-limited/)
+- [Run-time error 429: ActiveX component can't create object on Mac — Microsoft Q&A](https://learn.microsoft.com/en-us/answers/questions/5407644/im-getting-a-run-time-error-429-activex-component)
+- [Create dependent drop-downs with spill ranges — Excel University](https://www.excel-university.com/create-dependent-drop-downs-with-spill-ranges/)
+- [Dynamic data validation lists with spill ranges — BrainBell](https://brainbell.com/excel/dynamic-list-with-spill-ranges.html)
+- [VSTACK: combine multiple sheets with one formula — Xelplus](https://www.xelplus.com/excel-vstack-function/)
