@@ -162,6 +162,62 @@ Fail:
     ReportError "Delete visible records"
 End Sub
 
+Public Sub btnToggleSettingsSheets()
+    On Error GoTo Fail
+    ToggleConfigSheets
+    Exit Sub
+Fail:
+    ReportError "Hide/show settings sheets"
+End Sub
+
+Public Sub btnAddRowPrinters()
+    On Error GoTo Fail
+    AddCatalogRow "tblPrinters"
+    Exit Sub
+Fail:
+    ReportError "Add row"
+End Sub
+
+Public Sub btnRemoveRowPrinters()
+    On Error GoTo Fail
+    RemoveCatalogRow "tblPrinters"
+    Exit Sub
+Fail:
+    ReportError "Remove row"
+End Sub
+
+Public Sub btnAddRowPapers()
+    On Error GoTo Fail
+    AddCatalogRow "tblPapers"
+    Exit Sub
+Fail:
+    ReportError "Add row"
+End Sub
+
+Public Sub btnRemoveRowPapers()
+    On Error GoTo Fail
+    RemoveCatalogRow "tblPapers"
+    Exit Sub
+Fail:
+    ReportError "Remove row"
+End Sub
+
+Public Sub btnAddRowTechnicians()
+    On Error GoTo Fail
+    AddCatalogRow "tblTechnicians"
+    Exit Sub
+Fail:
+    ReportError "Add row"
+End Sub
+
+Public Sub btnRemoveRowTechnicians()
+    On Error GoTo Fail
+    RemoveCatalogRow "tblTechnicians"
+    Exit Sub
+Fail:
+    ReportError "Remove row"
+End Sub
+
 Private Function RequireLocation() As Boolean
     If TypeOf ActiveSheet Is Worksheet Then
         If IsLocation(ActiveSheet) Then

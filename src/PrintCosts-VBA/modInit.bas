@@ -31,6 +31,7 @@ Public Sub InitialiseWorkbook()
     ' The version rows and the About block likewise. Setup does not stamp the
     ' build date - that is build.ps1's job, via StampBuild.
     EnsureVersionSettings
+    EnsureExportSettings
     WriteAbout
 
     ' Summary and Reports, likewise built here. Their formulas read
@@ -45,14 +46,27 @@ Public Sub InitialiseWorkbook()
             DrawLocationButtons ws
             ConfigValidation ws
             BindColumns ws
+            GroupJobColumns ws
             n = n + 1
         ElseIf StrComp(ws.Name, "Summary", vbTextCompare) = 0 Then
             ' Column O onwards, clear of the A:M report table.
             DrawOne ws, 1, 15, "Refresh Locations", "btnRefreshLocations", 130
             DrawOne ws, 3, 15, "Check workbook", "btnCheckWorkbook", 130
             DrawOne ws, 5, 15, "Go to Settings", "btnGoSettings", 130
+            DrawOne ws, 7, 15, ConfigToggleCaption(), "btnToggleSettingsSheets", 130
         ElseIf StrComp(ws.Name, "Printers", vbTextCompare) = 0 Then
+            DrawOne ws, 4, 1, "Add row", "btnAddRowPrinters", 110
+            DrawOne ws, 4, 3, "Remove row", "btnRemoveRowPrinters", 110
             DrawOne ws, 10, 8, "Select families...", "btnSelectFamilies", 130
+            SetFreeze ws, ""
+        ElseIf StrComp(ws.Name, "Papers", vbTextCompare) = 0 Then
+            DrawOne ws, 4, 1, "Add row", "btnAddRowPapers", 110
+            DrawOne ws, 4, 3, "Remove row", "btnRemoveRowPapers", 110
+            SetFreeze ws, ""
+        ElseIf StrComp(ws.Name, "Print Technicians", vbTextCompare) = 0 Then
+            DrawOne ws, 4, 1, "Add row", "btnAddRowTechnicians", 110
+            DrawOne ws, 4, 3, "Remove row", "btnRemoveRowTechnicians", 110
+            SetFreeze ws, ""
         ElseIf StrComp(ws.Name, "Settings", vbTextCompare) = 0 Then
             DrawOne ws, 2, 20, "Refresh Locations", "btnRefreshLocations", 130
             DrawOne ws, 4, 20, "Check workbook", "btnCheckWorkbook", 130
@@ -60,14 +74,23 @@ Public Sub InitialiseWorkbook()
             DrawOne ws, 8, 20, "About", "btnAbout", 130
             DrawOne ws, 10, 20, "Export All Locations...", "btnExportAll", 130
             DrawOne ws, 12, 20, "Import (choose room)...", "btnImportGlobal", 130
+            SetFreeze ws, ""
         ElseIf StrComp(ws.Name, "Reports", vbTextCompare) = 0 Then
             ' Rows 1-3, column F: clear of the title text (A1:A2) and above
             ' the filter/sort boxes (rows 5+), so both buttons sit inside the
             ' first screenful on any normal window - no scrolling needed.
             DrawOne ws, 1, 6, "Export report...", "btnExportReport", 140
             DrawOne ws, 3, 6, "Delete visible records...", "btnDeleteVisibleReports", 140
+            ' Freezes above the print-job results table (row 15) so its
+            ' header row and the filter/totals area above stay visible while
+            ' scrolling through matches - snag list item 9.
+            SetFreeze ws, "A15"
         End If
     Next ws
+
+    UnlockConfigInputs
+    FormatSettingsNotes
+    ReorderSheetTabs
 
     Invalidate
     ProtectAll
@@ -156,4 +179,223 @@ Private Sub ClearButtons(ByVal ws As Worksheet)
     For i = ws.Buttons.Count To 1 Step -1
         If Left$(ws.Buttons(i).Name, Len(BTN_TAG)) = BTN_TAG Then ws.Buttons(i).Delete
     Next i
+End Sub
+
+' ------------------------------------------------------------- freeze panes ---
+' Freeze panes are a per-window view setting with no non-UI object model
+' property - Excel only exposes it through the active window - so, like
+' ProtectAll re-applying UserInterfaceOnly on every run, it is re-asserted
+' here every setup run rather than trusted to whatever the .xlsx last shipped
+' with. Anchor is the cell that becomes the new top-left of the scrolling
+' area; "" clears any existing freeze instead (snag list item 8, for the
+' Settings/Technicians/Printers/Papers sheets - unneeded visual clutter on
+' sheets that are just a handful of short tables).
+Private Sub SetFreeze(ByVal ws As Worksheet, ByVal Anchor As String)
+    Dim prevWs As Worksheet, prevSel As Range
+
+    On Error Resume Next
+    Set prevWs = ActiveSheet
+    Set prevSel = Selection
+    On Error GoTo 0
+
+    ws.Activate
+    ActiveWindow.FreezePanes = False
+    If Len(Anchor) > 0 Then
+        ws.Range(Anchor).Select
+        ActiveWindow.FreezePanes = True
+    End If
+
+    On Error Resume Next
+    If Not prevWs Is Nothing Then
+        prevWs.Activate
+        If Not prevSel Is Nothing Then prevSel.Select
+    End If
+    On Error GoTo 0
+End Sub
+
+' ------------------------------------------------------------- tab order ---
+' Enforces the tab order the snag list settled on (item 12): Summary,
+' Reports, every print room, then the four configuration sheets in a fixed
+' order. Hidden system sheets (_Data, _Registry, _Audit, _Work, _Picker,
+' _Export) are xlSheetVeryHidden and never show in the tab bar, so their
+' position is left alone.
+Private Sub ReorderSheetTabs()
+    Dim after As Worksheet, ws As Worksheet
+    Dim locs As Collection, v As Variant, nm As Variant
+
+    On Error Resume Next
+    Set after = ThisWorkbook.Worksheets("Reports")
+    On Error GoTo 0
+    If after Is Nothing Then Exit Sub
+
+    Set locs = LocationSheets()
+    For Each v In locs
+        Set ws = v
+        ws.Move After:=after
+        Set after = ws
+    Next v
+
+    For Each nm In ConfigSheetNames()
+        Set ws = Nothing
+        On Error Resume Next
+        Set ws = ThisWorkbook.Worksheets(CStr(nm))
+        On Error GoTo 0
+        If Not ws Is Nothing Then
+            ws.Move After:=after
+            Set after = ws
+        End If
+    Next nm
+End Sub
+
+' -------------------------------------------------------- config sheets ---
+' The four sheets snag list items 6, 8, 12 and 13 all refer to by name.
+' "Print Technicians" is the sheet's real name (ThisWorkbook.cls Case list) -
+' the snag list's "Technicians" is shorthand for it.
+Private Function ConfigSheetNames() As Variant
+    ConfigSheetNames = Array("Print Technicians", "Printers", "Papers", "Settings")
+End Function
+
+' Config sheets ship in the .xlsx with every cell at Excel's default Locked
+' state, so ProtectAll's blanket Contents:=True previously left every table
+' on them uneditable (snag list item 6, corrected from an earlier plan to
+' unprotect the sheets outright: they stay protected, only the cells users
+' fill in unlock). Unlocked here rather than hand-edited into the .xlsx, for
+' the same reproducibility reason EnsureSystemSheets gives for building
+' structure in VBA rather than by hand.
+Private Sub UnlockConfigInputs()
+    UnlockTableBody "tblTechnicians"
+    UnlockTableBody "tblPrinters"
+    UnlockTableBody "tblPapers"
+    UnlockTableBody "tblPaperTypes"
+    UnlockTableBody "tblPaperFamilies"
+    UnlockTableBody "tblStandardSizes"
+    UnlockTableBody "tblConsumables"
+    UnlockSettingsValues
+End Sub
+
+Private Sub UnlockTableBody(ByVal TableName As String)
+    Dim lo As ListObject
+    Set lo = Tbl(TableName)
+    If lo Is Nothing Then Exit Sub
+    If lo.DataBodyRange Is Nothing Then Exit Sub
+    UnlockSheet lo.Parent
+    lo.DataBodyRange.Locked = False
+    RelockSheet lo.Parent
+End Sub
+
+' tblSettings mixes user-editable settings with system-derived rows (schema
+' version, last-refresh stamp, build stamp) whose Notes column is written as
+' "Read-only. ..." (modVersion.EnsureSetting) - that text is the one place
+' the two kinds are already told apart, so it drives which Value cells unlock
+' rather than a second hard-coded list of keys that could drift from it.
+Private Sub UnlockSettingsValues()
+    Dim lo As ListObject, i As Long, notes As String
+    Set lo = Tbl("tblSettings")
+    If lo Is Nothing Then Exit Sub
+    UnlockSheet lo.Parent
+    For i = 1 To lo.ListRows.Count
+        notes = Trim$(CStr(CellIn(lo, i, "Notes").Value))
+        CellIn(lo, i, "Value").Locked = (Left$(notes, 9) = "Read-only")
+    Next i
+    RelockSheet lo.Parent
+End Sub
+
+' Snag list item 16: long notes were clipped to one line. WrapText plus a row
+' AutoFit is enough - the table is narrow and short, so nothing here needs a
+' fixed row height that would break at a different zoom or font.
+Private Sub FormatSettingsNotes()
+    Dim lo As ListObject
+    Set lo = Tbl("tblSettings")
+    If lo Is Nothing Then Exit Sub
+    If lo.DataBodyRange Is Nothing Then Exit Sub
+    UnlockSheet lo.Parent
+    With lo.ListColumns("Notes").DataBodyRange
+        .WrapText = True
+        .EntireRow.AutoFit
+    End With
+    RelockSheet lo.Parent
+End Sub
+
+' --------------------------------------------------- hide/show settings ---
+' Snag list item 13: a Summary-page toggle for the four configuration sheets,
+' xlSheetHidden rather than VeryHidden so a determined user can still reach
+' Unhide by hand - the button is the friendly path, not the only one.
+Public Sub ToggleConfigSheets()
+    Dim hideThem As Boolean, nm As Variant, ws As Worksheet
+    hideThem = Not ConfigSheetsHidden()
+
+    For Each nm In ConfigSheetNames()
+        Set ws = Nothing
+        On Error Resume Next
+        Set ws = ThisWorkbook.Worksheets(CStr(nm))
+        On Error GoTo 0
+        If Not ws Is Nothing Then
+            ws.Visible = IIf(hideThem, xlSheetHidden, xlSheetVisible)
+        End If
+    Next nm
+
+    RelabelConfigToggleButton
+End Sub
+
+' Read from the first configuration sheet found rather than requiring all
+' four to agree, so a sheet renamed or deleted by hand cannot make the button
+' appear stuck.
+Private Function ConfigSheetsHidden() As Boolean
+    Dim nm As Variant, ws As Worksheet
+    For Each nm In ConfigSheetNames()
+        Set ws = Nothing
+        On Error Resume Next
+        Set ws = ThisWorkbook.Worksheets(CStr(nm))
+        On Error GoTo 0
+        If Not ws Is Nothing Then
+            ConfigSheetsHidden = (ws.Visible = xlSheetHidden)
+            Exit Function
+        End If
+    Next nm
+End Function
+
+Private Function ConfigToggleCaption() As String
+    ConfigToggleCaption = IIf(ConfigSheetsHidden(), "Show settings sheets", "Hide settings sheets")
+End Function
+
+' Updates the caption on the Summary sheet's toggle button without a full
+' InitialiseWorkbook rerun, so ToggleConfigSheets can flip label and
+' visibility together.
+Private Sub RelabelConfigToggleButton()
+    Dim ws As Worksheet, i As Long, prefix As String
+    On Error Resume Next
+    Set ws = ThisWorkbook.Worksheets("Summary")
+    On Error GoTo 0
+    If ws Is Nothing Then Exit Sub
+
+    prefix = BTN_TAG & "btnToggleSettingsSheets"
+    For i = 1 To ws.Buttons.Count
+        If Left$(ws.Buttons(i).Name, Len(prefix)) = prefix Then
+            ws.Buttons(i).Caption = ConfigToggleCaption()
+            Exit For
+        End If
+    Next i
+End Sub
+
+' -------------------------------------------------------- column groups ---
+' Snag list item 14: the calculated cost columns collapse together, and so do
+' the S_ snapshot columns - neither is referenced day to day, and grouping
+' lets a user hide the detail without hiding the columns outright.
+Private Sub GroupJobColumns(ByVal ws As Worksheet)
+    Dim lo As ListObject
+    Set lo = JobsTable(ws)
+    If lo Is Nothing Then Exit Sub
+
+    GroupColumnRange lo, "Paper Cost", "Chargeable Cost"
+    GroupColumnRange lo, "S_PrinterID", "S_SchemaVer"
+End Sub
+
+Private Sub GroupColumnRange(ByVal lo As ListObject, ByVal FirstHeader As String, ByVal LastHeader As String)
+    Dim c1 As Long, c2 As Long, ws As Worksheet
+    c1 = ColIdx(lo, FirstHeader)
+    c2 = ColIdx(lo, LastHeader)
+    Set ws = lo.Parent
+    UnlockSheet ws
+    ws.Range(lo.HeaderRowRange.Cells(1, c1), lo.HeaderRowRange.Cells(1, c2)).EntireColumn.Group
+    RelockSheet ws
 End Sub
