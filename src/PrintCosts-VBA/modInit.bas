@@ -53,17 +53,25 @@ Public Sub InitialiseWorkbook()
             DrawOne ws, 1, 15, "Refresh Locations", "btnRefreshLocations", 130
             DrawOne ws, 3, 15, "Check workbook", "btnCheckWorkbook", 130
             DrawOne ws, 5, 15, "Go to Settings", "btnGoSettings", 130
-            DrawOne ws, 7, 15, ConfigToggleCaption(), "btnToggleSettingsSheets", 130
+            ' btnToggleConfigSheets, not btnToggleSettingsSheets: the latter
+            ' is exactly 32 characters with this row/column, which Button.Name
+            ' silently truncates to 31 rather than erroring on (SetButtonName's
+            ' comment) - caught by the length audit that found the Settings
+            ' lookup-table buttons' own truncation.
+            DrawOne ws, 7, 15, ConfigToggleCaption(), "btnToggleConfigSheets", 130
         ElseIf StrComp(ws.Name, "Printers", vbTextCompare) = 0 Then
+            EnsureTableGap ws, "tblPrinters", 6
             DrawOne ws, 4, 1, "Add row", "btnAddRowPrinters", 110
             DrawOne ws, 4, 3, "Remove row", "btnRemoveRowPrinters", 110
-            DrawOne ws, 10, 8, "Select families...", "btnSelectFamilies", 130
+            DrawOne ws, 11, 8, "Select families...", "btnSelectFamilies", 130
             SetFreeze ws, ""
         ElseIf StrComp(ws.Name, "Papers", vbTextCompare) = 0 Then
+            EnsureTableGap ws, "tblPapers", 6
             DrawOne ws, 4, 1, "Add row", "btnAddRowPapers", 110
             DrawOne ws, 4, 3, "Remove row", "btnRemoveRowPapers", 110
             SetFreeze ws, ""
         ElseIf StrComp(ws.Name, "Print Technicians", vbTextCompare) = 0 Then
+            EnsureTableGap ws, "tblTechnicians", 6
             DrawOne ws, 4, 1, "Add row", "btnAddRowTechnicians", 110
             DrawOne ws, 4, 3, "Remove row", "btnRemoveRowTechnicians", 110
             SetFreeze ws, ""
@@ -74,6 +82,28 @@ Public Sub InitialiseWorkbook()
             DrawOne ws, 8, 20, "About", "btnAbout", 130
             DrawOne ws, 10, 20, "Export All Locations...", "btnExportAll", 130
             DrawOne ws, 12, 20, "Import (choose room)...", "btnImportGlobal", 130
+            ' Small +/- buttons above the four lookup tables (snag list item
+            ' 5). Row 4 is already the table's own subtitle ("Paper stock
+            ' types" etc.) on this sheet, unlike the blank row 4 on Printers/
+            ' Papers/Print Technicians, so these sit in row 3 instead rather
+            ' than moving the tables the way EnsureTableGap does for those.
+            '
+            ' "Family"/"Size"/"Consumable" rather than "PaperFamilies"/
+            ' "StandardSizes"/"Consumables": Button.Name silently TRUNCATES
+            ' to 31 characters at 32 and raises 1004 outright at 33+ in this
+            ' Excel/COM automation context (verified directly with a length
+            ' sweep - "pcb_btnRemoveRowConsumables_3_18" was exactly 32 and
+            ' came back with its trailing "8" dropped, not an error, which
+            ' is a worse bug than a clean failure would have been. The other
+            ' three, at 34 each, raised 1004 outright.
+            DrawSmall ws, 3, 6, "+", "btnAddRowPaperTypes", 24
+            DrawSmall ws, 3, 7, "-", "btnRemoveRowPaperTypes", 24
+            DrawSmall ws, 3, 9, "+", "btnAddRowFamily", 24
+            DrawSmall ws, 3, 10, "-", "btnRemoveRowFamily", 24
+            DrawSmall ws, 3, 13, "+", "btnAddRowSize", 24
+            DrawSmall ws, 3, 14, "-", "btnRemoveRowSize", 24
+            DrawSmall ws, 3, 17, "+", "btnAddRowConsumable", 24
+            DrawSmall ws, 3, 18, "-", "btnRemoveRowConsumable", 24
             SetFreeze ws, ""
         ElseIf StrComp(ws.Name, "Reports", vbTextCompare) = 0 Then
             ' Rows 1-3, column F: clear of the title text (A1:A2) and above
@@ -168,10 +198,64 @@ Public Sub DrawOne(ByVal ws As Worksheet, ByVal RowNo As Long, ByVal ColNo As Lo
     Dim b As Button, c As Range
     Set c = ws.Cells(RowNo, ColNo)
     Set b = ws.Buttons.Add(c.Left, c.Top, W, 22)
-    b.Name = BTN_TAG & Macro & "_" & RowNo & "_" & ColNo
+    SetButtonName b, BTN_TAG & Macro & "_" & RowNo & "_" & ColNo
     b.Caption = Caption
     b.OnAction = Macro
     b.Characters.Font.Size = 10
+End Sub
+
+' A compact square button (snag list item 5) - the "+"/"-" row buttons on the
+' Settings sheet's four lookup tables, narrow enough to sit above a table
+' without needing EnsureTableGap's row insert the way the wider text buttons
+' on Printers/Papers/Print Technicians do.
+Public Sub DrawSmall(ByVal ws As Worksheet, ByVal RowNo As Long, ByVal ColNo As Long, ByVal Caption As String, ByVal Macro As String, ByVal W As Single)
+    Dim b As Button, c As Range
+    Set c = ws.Cells(RowNo, ColNo)
+    Set b = ws.Buttons.Add(c.Left, c.Top, W, 16)
+    SetButtonName b, BTN_TAG & Macro & "_" & RowNo & "_" & ColNo
+    b.Caption = Caption
+    b.OnAction = Macro
+    b.Characters.Font.Size = 10
+    b.Characters.Font.Bold = True
+End Sub
+
+' Button.Name silently truncates to 31 characters at exactly 32, and raises
+' 1004 ("Unable to set the Name property of the Button class") at 33+ -
+' verified directly with a length sweep against this Excel/COM automation
+' context. Neither limit is documented anywhere found. That is what caused
+' this to fire for three of the small Settings-lookup-table buttons before
+' their macro names were shortened (DrawSmall's caller comment). The retry
+' below stays as a safety net for a genuinely transient COM rejection - the
+' same class build.ps1's own SaveAs retries for - but it cannot fix a name
+' that is simply too long; that has to be fixed at the call site, and a
+' truncation is not even something this retry could detect, let alone fix.
+Private Sub SetButtonName(ByVal b As Button, ByVal Nm As String)
+    Dim tries As Long
+    For tries = 1 To 5
+        On Error Resume Next
+        Err.Clear
+        b.Name = Nm
+        If Err.Number = 0 Then Exit Sub
+        On Error GoTo 0
+        DoEvents
+    Next tries
+    b.Name = Nm ' final attempt: let a genuine failure raise for real
+End Sub
+
+' The .xlsx ships Printers/Papers/Print Technicians with their table starting
+' at row 5, directly under the row 4 the Add row/Remove row buttons (22px, so
+' taller than the default row height) are drawn on - which visually overlaps
+' the table header. Inserting a row above the table once fixes it without
+' hand-editing the binary .xlsx; checked first (the table's own current row)
+' so re-running setup never shifts an already-shifted table again.
+Private Sub EnsureTableGap(ByVal ws As Worksheet, ByVal TableName As String, ByVal FirstRow As Long)
+    Dim lo As ListObject
+    Set lo = Tbl(TableName)
+    If lo Is Nothing Then Exit Sub
+    If lo.Range.Row >= FirstRow Then Exit Sub
+    UnlockSheet ws
+    ws.Rows(lo.Range.Row).Insert Shift:=xlDown
+    RelockSheet ws
 End Sub
 
 Private Sub ClearButtons(ByVal ws As Worksheet)
@@ -368,7 +452,7 @@ Private Sub RelabelConfigToggleButton()
     On Error GoTo 0
     If ws Is Nothing Then Exit Sub
 
-    prefix = BTN_TAG & "btnToggleSettingsSheets"
+    prefix = BTN_TAG & "btnToggleConfigSheets"
     For i = 1 To ws.Buttons.Count
         If Left$(ws.Buttons(i).Name, Len(prefix)) = prefix Then
             ws.Buttons(i).Caption = ConfigToggleCaption()

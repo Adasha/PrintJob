@@ -120,11 +120,20 @@ End Sub
 ' Claims a staging column for this tag, writing the list into it, and points
 ' the target range's validation at it.
 '
-' Public so modReports can reuse it for the Reports page's Technician/
-' Printer/Paper Stock filters - the same "own staging column per tag" reason
-' this exists at all applies there too: a literal Formula1 list is capped at
-' 255 characters, which a real printer or paper stock list can exceed.
-Public Sub ApplyTo(ByVal ws As Worksheet, ByVal target As Range, ByVal items As Collection, ByVal Tag As String, ByVal Title As String, ByVal Msg As String)
+' Public so modReports can reuse it for the Reports page's Student name/no/
+' Technician/Printer/Paper Stock filters - the same "own staging column per
+' tag" reason this exists at all applies there too: a literal Formula1 list
+' is capped at 255 characters, which a real name or paper stock list can
+' exceed.
+'
+' Strict (default True, unchanged for every existing caller) rejects a typed
+' value that is not on the list. Reports' Student name/no filters pass False:
+' Student name matches on a fragment ("Smith" finds "Jane Smith" - see
+' Criteria's ISNUMBER(SEARCH(...))) and Student no can legitimately be one
+' that has not been logged before, so neither is a genuine "choose one of
+' these" field the way Technician/Printer/Paper Stock are - the list is
+' offered for browsing and autocomplete only, never enforced.
+Public Sub ApplyTo(ByVal ws As Worksheet, ByVal target As Range, ByVal items As Collection, ByVal Tag As String, ByVal Title As String, ByVal Msg As String, Optional ByVal Strict As Boolean = True)
     Dim st As Worksheet, col As Long, i As Long, last As Long, src As String
     If target Is Nothing Then Exit Sub
     Set st = ThisWorkbook.Worksheets(STAGE_SHEET)
@@ -152,7 +161,7 @@ Public Sub ApplyTo(ByVal ws As Worksheet, ByVal target As Range, ByVal items As 
         .IgnoreBlank = True
         .InCellDropdown = True
         .ShowInput = True
-        .ShowError = True
+        .ShowError = Strict
         .InputTitle = Title
         .InputMessage = Msg
         .ErrorTitle = Title

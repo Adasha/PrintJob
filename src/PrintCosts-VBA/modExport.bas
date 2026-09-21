@@ -195,7 +195,7 @@ End Function
 ' what the filters showed at the moment of export, same as modExport's own
 ' CSVs are a snapshot rather than a link back into the workbook.
 Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
-    Const HDR_ROW As Long = 14
+    Const HDR_ROW As Long = 15
     Dim lastCol As Long, rng As Range, block As Variant, n As Long
     Dim path As String, wbOut As Workbook
 
@@ -207,13 +207,13 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
     End If
 
     On Error Resume Next
-    Set rng = repWs.Range("A15").SpillingToRange
+    Set rng = repWs.Range("A16").SpillingToRange
     On Error GoTo 0
     If rng Is Nothing Then
         Say "There is nothing to export.", "The Reports sheet has no results yet."
         Exit Sub
     End If
-    ' A15 may be spilling FILTER's own "no jobs match"/"no jobs recorded"
+    ' A16 may be spilling FILTER's own "no jobs match"/"no jobs recorded"
     ' fallback TEXT rather than real rows - the first cell of a real row is
     ' always a Date/Time serial number, so ISNUMBER is what tells them apart.
     If Not IsNumeric(rng.Cells(1, 1).Value2) Then

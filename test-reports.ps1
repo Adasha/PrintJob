@@ -65,8 +65,8 @@ try {
         Set-Crit $c.Range('B7') $from
         Set-Crit $c.Range('B8') $to
         $xl.CalculateFullRebuild()
-        $jobs = $c.Range('B12').Text
-        $charge = $c.Range('H12').Text
+        $jobs = $c.Range('B13').Text
+        $charge = $c.Range('H13').Text
         $warn = [string]$c.Range('A9').Text
         $line = "  {0,-34} jobs={1,-4} chargeable={2,-10}" -f $label, $jobs, $charge
         if ($warn -ne '') { $line += " WARN: $warn" }
@@ -95,20 +95,20 @@ try {
     Write-Host '  (F5/F6/F7 are now dropdowns - Technician exact-matches recorded jobs, Printer/Paper stock list the whole active catalogue)'
     $c.Range('F5').Value2 = 'J. Okonkwo'
     $xl.CalculateFullRebuild()
-    Write-Host ("  Technician = 'J. Okonkwo': jobs={0}" -f $c.Range('B12').Text)
-    if ([int]$c.Range('B12').Text -eq 0) { Write-Host 'FAIL: expected at least one match on Technician filter'; exit 1 }
+    Write-Host ("  Technician = 'J. Okonkwo': jobs={0}" -f $c.Range('B13').Text)
+    if ([int]$c.Range('B13').Text -eq 0) { Write-Host 'FAIL: expected at least one match on Technician filter'; exit 1 }
     $c.Range('F5').ClearContents() | Out-Null
 
     $c.Range('F6').Value2 = 'Epson SureColor P9500'
     $xl.CalculateFullRebuild()
-    Write-Host ("  Printer = 'Epson SureColor P9500': jobs={0}" -f $c.Range('B12').Text)
-    if ([int]$c.Range('B12').Text -eq 0) { Write-Host 'FAIL: expected at least one match on Printer filter'; exit 1 }
+    Write-Host ("  Printer = 'Epson SureColor P9500': jobs={0}" -f $c.Range('B13').Text)
+    if ([int]$c.Range('B13').Text -eq 0) { Write-Host 'FAIL: expected at least one match on Printer filter'; exit 1 }
     $c.Range('F6').ClearContents() | Out-Null
 
     $c.Range('F8').Value2 = 12
     $xl.CalculateFullRebuild()
-    Write-Host ("  Quantity = 12: jobs={0}" -f $c.Range('B12').Text)
-    if ([int]$c.Range('B12').Text -eq 0) { Write-Host 'FAIL: expected at least one match on Quantity filter'; exit 1 }
+    Write-Host ("  Quantity = 12: jobs={0}" -f $c.Range('B13').Text)
+    if ([int]$c.Range('B13').Text -eq 0) { Write-Host 'FAIL: expected at least one match on Quantity filter'; exit 1 }
     $c.Range('F8').ClearContents() | Out-Null
     $xl.CalculateFullRebuild()
 
@@ -136,10 +136,10 @@ try {
     Write-Host ''
     Write-Host '=== Reports: hidden Job ID correlation column ==='
     if (-not $c.Columns('O').Hidden) { Write-Host 'FAIL: column O (Job ID) should be hidden'; exit 1 }
-    $sp = $c.Range('A15').SpillingToRange
+    $sp = $c.Range('A16').SpillingToRange
     Write-Host ("  results spill: {0} rows x {1} cols" -f $sp.Rows.Count, $sp.Columns.Count)
     $jobIdSample = [string]$sp.Cells(1, 15).Value2
-    Write-Host ("  O15 (Job ID) sample value: '{0}'" -f $jobIdSample)
+    Write-Host ("  O16 (Job ID) sample value: '{0}'" -f $jobIdSample)
     if ($jobIdSample -notmatch '-MAIN-|-ANNEX-') { Write-Host 'FAIL: hidden Job ID column does not look like a Job ID'; exit 1 }
     Write-Host '  OK: Job ID is present as a hidden 15th column'
 
@@ -148,7 +148,7 @@ try {
     $c.Range('B10').Value2 = 'Quantity'
     $c.Range('F10').Value2 = 'Descending'
     $xl.CalculateFullRebuild()
-    $sp = $c.Range('A15').SpillingToRange
+    $sp = $c.Range('A16').SpillingToRange
     $qtys = @()
     for ($r = 1; $r -le $sp.Rows.Count; $r++) { $qtys += [double]$sp.Cells($r, 5).Value2 }
     Write-Host ('  Quantity column, sorted Descending: ' + ($qtys -join ', '))
@@ -163,7 +163,7 @@ try {
 
     Write-Host ''
     Write-Host '=== breakdowns (no criteria) ==='
-    foreach ($addr in 'Q15', 'U15') {
+    foreach ($addr in 'Q16', 'U16') {
         Write-Host ("  {0}:" -f $addr)
         try {
             $sp = $c.Range($addr).SpillingToRange

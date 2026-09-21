@@ -162,7 +162,7 @@ Fail:
     ReportError "Delete visible records"
 End Sub
 
-Public Sub btnToggleSettingsSheets()
+Public Sub btnToggleConfigSheets()
     On Error GoTo Fail
     ToggleConfigSheets
     Exit Sub
@@ -213,6 +213,73 @@ End Sub
 Public Sub btnRemoveRowTechnicians()
     On Error GoTo Fail
     RemoveCatalogRow "tblTechnicians"
+    Exit Sub
+Fail:
+    ReportError "Remove row"
+End Sub
+
+Public Sub btnAddRowPaperTypes()
+    On Error GoTo Fail
+    AddCatalogRow "tblPaperTypes"
+    Exit Sub
+Fail:
+    ReportError "Add row"
+End Sub
+
+Public Sub btnRemoveRowPaperTypes()
+    On Error GoTo Fail
+    RemoveCatalogRow "tblPaperTypes"
+    Exit Sub
+Fail:
+    ReportError "Remove row"
+End Sub
+
+' Named Family/Size, not PaperFamilies/StandardSizes - see the DrawSmall
+' call in modInit.InitialiseWorkbook for why (Button.Name's 32-character
+' limit).
+Public Sub btnAddRowFamily()
+    On Error GoTo Fail
+    AddCatalogRow "tblPaperFamilies"
+    Exit Sub
+Fail:
+    ReportError "Add row"
+End Sub
+
+Public Sub btnRemoveRowFamily()
+    On Error GoTo Fail
+    RemoveCatalogRow "tblPaperFamilies"
+    Exit Sub
+Fail:
+    ReportError "Remove row"
+End Sub
+
+Public Sub btnAddRowSize()
+    On Error GoTo Fail
+    AddCatalogRow "tblStandardSizes"
+    Exit Sub
+Fail:
+    ReportError "Add row"
+End Sub
+
+Public Sub btnRemoveRowSize()
+    On Error GoTo Fail
+    RemoveCatalogRow "tblStandardSizes"
+    Exit Sub
+Fail:
+    ReportError "Remove row"
+End Sub
+
+Public Sub btnAddRowConsumable()
+    On Error GoTo Fail
+    AddCatalogRow "tblConsumables"
+    Exit Sub
+Fail:
+    ReportError "Add row"
+End Sub
+
+Public Sub btnRemoveRowConsumable()
+    On Error GoTo Fail
+    RemoveCatalogRow "tblConsumables"
     Exit Sub
 Fail:
     ReportError "Remove row"

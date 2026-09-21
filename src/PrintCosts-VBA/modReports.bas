@@ -232,23 +232,26 @@ Public Sub BuildReports()
     ws.Range("A9").Font.Bold = True
 
     ' --- totals for the current selection ---------------------------------
-    ws.Range("A11").Value = "Matching"
-    ws.Range("A11").Font.Bold = True
-    TotalCell ws, "B12", "Jobs", "=IFERROR(ROWS(FILTER(" & C("Job ID") & "," & ok & ")),0)"
-    TotalCell ws, "D12", "Gross", "=IFERROR(SUM(FILTER(" & C("Gross Cost") & "," & ok & ")),0)"
-    TotalCell ws, "F12", "Disregarded", "=IFERROR(SUM(FILTER(" & C("Disregarded") & "," & ok & ")),0)"
-    TotalCell ws, "H12", "Chargeable", "=IFERROR(SUM(FILTER(" & C("Chargeable Cost") & "," & ok & ")),0)"
-    ws.Range("D12").NumberFormat = ChrW(163) & "#,##0.00"
-    ws.Range("F12").NumberFormat = ChrW(163) & "#,##0.00"
-    ws.Range("H12").NumberFormat = ChrW(163) & "#,##0.00"
+    ' Row 11 is left blank (snag list item 1) - a gap between the sort
+    ' controls and Matching, matching the gap that already separates the
+    ' totals from the results header below.
+    ws.Range("A12").Value = "Matching"
+    ws.Range("A12").Font.Bold = True
+    TotalCell ws, "B13", "Jobs", "=IFERROR(ROWS(FILTER(" & C("Job ID") & "," & ok & ")),0)"
+    TotalCell ws, "D13", "Gross", "=IFERROR(SUM(FILTER(" & C("Gross Cost") & "," & ok & ")),0)"
+    TotalCell ws, "F13", "Disregarded", "=IFERROR(SUM(FILTER(" & C("Disregarded") & "," & ok & ")),0)"
+    TotalCell ws, "H13", "Chargeable", "=IFERROR(SUM(FILTER(" & C("Chargeable Cost") & "," & ok & ")),0)"
+    ws.Range("D13").NumberFormat = ChrW(163) & "#,##0.00"
+    ws.Range("F13").NumberFormat = ChrW(163) & "#,##0.00"
+    ws.Range("H13").NumberFormat = ChrW(163) & "#,##0.00"
 
     ' --- the records ------------------------------------------------------
     ' Job ID is appended after Notes and hidden - the correlation key that
     ' maps a visible row back to its source location sheet and table row for
     ' the Reports-page delete. Nothing else moves, so existing column
     ' positions are untouched.
-    WriteHeaderRow ws, 14, hdrs
-    ws.Cells(14, UBound(hdrs) - LBound(hdrs) + 2).Value = "Job ID"
+    WriteHeaderRow ws, 15, hdrs
+    ws.Cells(15, UBound(hdrs) - LBound(hdrs) + 2).Value = "Job ID"
 
     ' Sorting: the whole FILTER result is bound to res once via LET, then
     ' re-ordered by whichever column K5 names, found by matching its header
@@ -269,7 +272,7 @@ Public Sub BuildReports()
     f = f & "dir,IF($F$10=""Descending"",-1,1),"
     f = f & "IF(sortIdx=0,res,IFERROR(SORTBY(res,INDEX(res,,sortIdx),dir),res))"
     f = f & "),""No print jobs have been recorded yet."")"
-    ws.Range("A15").Formula2 = f
+    ws.Range("A16").Formula2 = f
     ws.Columns(UBound(hdrs) - LBound(hdrs) + 2).Hidden = True
 
     ws.Range(EXPORT_SIG_CELL).Value = savedSig
@@ -303,21 +306,21 @@ End Sub
 ' spills to a height nobody can predict, so anything below it would be
 ' displaced the moment one more job matched.
 Private Sub BuildBreakdowns(ByVal ws As Worksheet, ByVal ok As String)
-    ws.Range("Q14").Value = "By print room"
-    ws.Range("Q14").Font.Bold = True
-    ws.Range("Q15").Formula2 = GroupFormula(ok, "Location")
+    ws.Range("Q15").Value = "By print room"
+    ws.Range("Q15").Font.Bold = True
+    ws.Range("Q16").Formula2 = GroupFormula(ok, "Location")
 
-    ws.Range("U14").Value = "By paper stock"
-    ws.Range("U14").Font.Bold = True
-    ws.Range("U15").Formula2 = GroupFormula(ok, "Paper Stock")
+    ws.Range("U15").Value = "By paper stock"
+    ws.Range("U15").Font.Bold = True
+    ws.Range("U16").Formula2 = GroupFormula(ok, "Paper Stock")
 
     ' Each block spills as key | Jobs | Gross | Chargeable, so the money
     ' columns are the third and fourth - Jobs is a count and must not be
     ' formatted as currency.
-    ws.Range("R16:R2000").NumberFormat = "#,##0"
-    ws.Range("S16:T2000").NumberFormat = ChrW(163) & "#,##0.00"
-    ws.Range("V16:V2000").NumberFormat = "#,##0"
-    ws.Range("W16:X2000").NumberFormat = ChrW(163) & "#,##0.00"
+    ws.Range("R17:R2000").NumberFormat = "#,##0"
+    ws.Range("S17:T2000").NumberFormat = ChrW(163) & "#,##0.00"
+    ws.Range("V17:V2000").NumberFormat = "#,##0"
+    ws.Range("W17:X2000").NumberFormat = ChrW(163) & "#,##0.00"
 End Sub
 
 ' Group the filtered records by one column. SUMIFS cannot be used here: its
@@ -344,16 +347,16 @@ Private Function GroupFormula(ByVal ok As String, ByVal KeyHeader As String) As 
 End Function
 
 Private Sub FormatReports(ByVal ws As Worksheet)
-    ws.Range("A14:N14").Interior.Color = RGB(222, 232, 244)
-    ws.Range("A15:A2000").NumberFormat = "dd/mm/yyyy hh:mm"
-    ws.Range("E15:G2000").NumberFormat = "#,##0.00"
-    ws.Range("H15:L2000").NumberFormat = ChrW(163) & "#,##0.00"
+    ws.Range("A15:N15").Interior.Color = RGB(222, 232, 244)
+    ws.Range("A16:A2000").NumberFormat = "dd/mm/yyyy hh:mm"
+    ws.Range("E16:G2000").NumberFormat = "#,##0.00"
+    ws.Range("H16:L2000").NumberFormat = ChrW(163) & "#,##0.00"
     ws.Columns("A:N").ColumnWidth = 14
     ws.Columns("B:D").ColumnWidth = 22
     ws.Columns("N").ColumnWidth = 30
     ws.Columns("Q").ColumnWidth = 22
     ws.Columns("U").ColumnWidth = 22
-    ws.Rows(14).Font.Bold = True
+    ws.Rows(15).Font.Bold = True
 End Sub
 
 ' ======================================================== delete visible ===
@@ -375,13 +378,13 @@ Public Sub DeleteVisibleReports()
     End If
 
     On Error Resume Next
-    Set rng = ws.Range("A15").SpillingToRange
+    Set rng = ws.Range("A16").SpillingToRange
     On Error GoTo 0
     If rng Is Nothing Then
         Say "There is nothing to delete.", "The Reports sheet has no results under the current filters."
         Exit Sub
     End If
-    ' A15 may be spilling FILTER's own "no jobs match"/"no jobs recorded"
+    ' A16 may be spilling FILTER's own "no jobs match"/"no jobs recorded"
     ' fallback TEXT rather than real rows - see FilteredSig's own comment.
     If Not IsNumeric(rng.Cells(1, 1).Value2) Then
         Say "There is nothing to delete.", CStr(rng.Cells(1, 1).Value)
@@ -389,8 +392,8 @@ Public Sub DeleteVisibleReports()
     End If
     n = rng.Rows.Count
 
-    locCol = ColByHeader(ws, 14, "Location")
-    jobCol = ColByHeader(ws, 14, "Job ID")
+    locCol = ColByHeader(ws, 15, "Location")
+    jobCol = ColByHeader(ws, 15, "Job ID")
     If locCol = 0 Or jobCol = 0 Then
         Say "The Reports sheet layout looks wrong.", "The Location or Job ID column could not be found.", "Rebuild the report sheets (Refresh Locations), then try again."
         Exit Sub
@@ -584,14 +587,14 @@ Public Function FilteredSig(ByVal ws As Worksheet) As String
     Dim rng As Range, n As Long, cellCount As Double, chg As Double, last As Double, bad As String
 
     On Error Resume Next
-    Set rng = ws.Range("A15").SpillingToRange
+    Set rng = ws.Range("A16").SpillingToRange
     On Error GoTo 0
     If rng Is Nothing Then
         FilteredSig = "empty"
         Exit Function
     End If
 
-    ' A15 may be spilling the "no jobs match"/"no jobs recorded" fallback
+    ' A16 may be spilling the "no jobs match"/"no jobs recorded" fallback
     ' TEXT rather than real rows. Row count alone reads 1 either way, but the
     ' first cell of a real row is always a Date/Time serial number, so
     ' ISNUMBER is what actually tells the two apart.
@@ -717,6 +720,14 @@ End Sub
 ' too, so a one-time snapshot taken only at build time would read empty on
 ' a fresh workbook and go stale the moment a job is added anywhere.
 Public Sub RefreshReportFilterLists(ByVal ws As Worksheet)
+    ' Student name/no (snag list item 3): a dropdown of what has been
+    ' recorded, for browsing and autocomplete - Strict:=False so it never
+    ' blocks a fragment search or a number not yet logged.
+    ApplyTo ws, ws.Range("B5"), DistinctValues("Student Name"), "REP|StudentName", _
+        "Student name", "Pick a recorded name, or type any text - part of a name is enough.", Strict:=False
+    ApplyTo ws, ws.Range("B6"), DistinctValues("Student No"), "REP|StudentNo", _
+        "Student number", "Pick a recorded number, or type one that hasn't been logged yet.", Strict:=False
+
     ApplyTo ws, ws.Range("F5"), DistinctValues("Technician"), "REP|Technician", _
         "Technician", "Choose a technician, or leave blank to include all."
     ApplyTo ws, ws.Range("F6"), AllActivePrinters(), "REP|Printer", _
