@@ -244,3 +244,35 @@ Public Function CurrentUser() As String
     CurrentUser = Application.UserName
     If Len(Trim$(CurrentUser)) = 0 Then CurrentUser = "unknown"
 End Function
+
+' A text-sorted copy of a Collection. An insertion sort is plenty here - every
+' caller is a catalogue list numbering in the tens, not thousands.
+Public Function SortedTextCollection(ByVal src As Collection) As Collection
+    Dim vals() As String, n As Long, i As Long, j As Long, tmp As String
+    Dim out As New Collection
+
+    n = src.Count
+    If n = 0 Then
+        Set SortedTextCollection = out
+        Exit Function
+    End If
+
+    ReDim vals(1 To n)
+    For i = 1 To n
+        vals(i) = CStr(src(i))
+    Next i
+    For i = 2 To n
+        tmp = vals(i)
+        j = i - 1
+        Do While j >= 1
+            If StrComp(vals(j), tmp, vbTextCompare) <= 0 Then Exit Do
+            vals(j + 1) = vals(j)
+            j = j - 1
+        Loop
+        vals(j + 1) = tmp
+    Next i
+    For i = 1 To n
+        out.Add vals(i)
+    Next i
+    Set SortedTextCollection = out
+End Function

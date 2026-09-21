@@ -166,3 +166,97 @@ Public Function ActiveTechnicians() As Collection
     Next i
     Set ActiveTechnicians = out
 End Function
+
+' Every active printer/paper stock DEFINED in the catalogue, regardless of
+' whether it has been used in a job yet - for the Reports page filters (snag
+' list item 4), which deliberately do not restrict one by the other the way
+' StocksFor does for job entry. Sorted, unlike PrintersFor/StocksFor, because
+' nothing else about those two orders it for a caller and a filter dropdown
+' is read by a person.
+Public Function AllActivePrinters() As Collection
+    Dim out As New Collection, k As Variant, p As clsPrinterDef
+    LoadCatalog
+    For Each k In mPrinters.Keys
+        Set p = mPrinters.Obj(CStr(k))
+        If p.Active Then out.Add p.Model
+    Next k
+    Set AllActivePrinters = SortedTextCollection(out)
+End Function
+
+Public Function AllActiveStocks() As Collection
+    Dim out As New Collection, k As Variant, s As clsStock
+    LoadCatalog
+    For Each k In mStocks.Keys
+        Set s = mStocks.Obj(CStr(k))
+        If s.Active Then out.Add s.Description
+    Next k
+    Set AllActiveStocks = SortedTextCollection(out)
+End Function
+
+' ---------------------------------------------------- catalogue row edit ---
+' Add/remove a row on one of the catalogue tables - Printers, Papers, Print
+' Technicians (snag list item 17). Mirrors modJobs.AddPrintJob/RemoveRow:
+' ListRows.Add keeps the new row's formatting and validation, because an
+' Excel Table extends both automatically, and removing asks first and shows
+' what is about to go - the same "never a bare are you sure" rule spec 10.12
+' sets for job rows.
+'
+' Deleting a catalogue row never touches a job already recorded against it:
+' every job snapshots the price it was costed at (the S_* columns), which is
+' the whole point of the snapshot - see modExport's "content is the
+' irreversible decision" note.
+Public Sub AddCatalogRow(ByVal TableName As String)
+    Dim lo As ListObject, r As ListRow, ws As Worksheet
+    Set lo = Tbl(TableName)
+    If lo Is Nothing Then Exit Sub
+    Set ws = lo.Parent
+
+    AppOff
+    UnlockSheet ws
+    If lo.ListRows.Count = 1 And IsBlankRow(lo, 1) Then
+        Set r = lo.ListRows(1)
+    Else
+        Set r = lo.ListRows.Add
+    End If
+    RelockSheet ws
+    Invalidate
+    AppOn
+
+    r.Range.Cells(1, 1).Select
+End Sub
+
+Public Sub RemoveCatalogRow(ByVal TableName As String)
+    Dim lo As ListObject, ws As Worksheet, n As Long, c As Range
+    Dim detail As String, i As Long
+
+    Set lo = Tbl(TableName)
+    If lo Is Nothing Then Exit Sub
+    Set ws = lo.Parent
+    If lo.DataBodyRange Is Nothing Then
+        Say "There is nothing to remove.", "'" & TableName & "' has no rows."
+        Exit Sub
+    End If
+
+    Set c = Application.Intersect(Selection.Cells(1, 1).EntireRow, lo.DataBodyRange)
+    If c Is Nothing Then
+        Say "No row is selected.", "This command works on the row the cursor is in.", "Click any cell in the row you want to remove, then try again."
+        Exit Sub
+    End If
+    n = c.Row - lo.DataBodyRange.Row + 1
+
+    For i = 1 To lo.ListColumns.Count
+        If i > 1 Then detail = detail & "  "
+        detail = detail & lo.ListColumns(i).Name & ": " & CStr(lo.DataBodyRange.Cells(n, i).Value)
+    Next i
+
+    If Not Ask("Remove this row?" & vbCrLf & vbCrLf & detail & vbCrLf & vbCrLf & _
+        "Print jobs already recorded against it keep their frozen prices and are not affected. This cannot be undone.", _
+        "Remove row") Then Exit Sub
+
+    AppOff
+    UnlockSheet ws
+    lo.ListRows(n).Delete
+    RelockSheet ws
+    Invalidate
+    AppOn
+End Sub

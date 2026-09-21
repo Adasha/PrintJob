@@ -16,7 +16,7 @@ $wb = $null
 try {
     $wb = $xl.Workbooks.Open($f)
     $c = $wb.Worksheets('Cost Calculations')
-    $c.Unprotect('printlog')
+    $c.Unprotect()
 
     $orig = $c.Range('Q15').Formula2
     Write-Host '--- Q15 as written ---'

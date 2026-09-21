@@ -60,10 +60,10 @@ try {
             }
             $cell.Value2 = [string]$v
         }
-        Set-Crit $c.Range('C5') $name
-        Set-Crit $c.Range('C6') $num
-        Set-Crit $c.Range('C7') $from
-        Set-Crit $c.Range('C8') $to
+        Set-Crit $c.Range('B5') $name
+        Set-Crit $c.Range('B6') $num
+        Set-Crit $c.Range('B7') $from
+        Set-Crit $c.Range('B8') $to
         $xl.CalculateFullRebuild()
         $jobs = $c.Range('B12').Text
         $charge = $c.Range('H12').Text
@@ -88,40 +88,40 @@ try {
     Try-Criteria 'Nobody' '' '' ''                'no matches'
     Try-Criteria '' '' '16/09/2026' ''            'from date as TEXT (robustness)'
 
-    $c.Range('C5:C8').ClearContents() | Out-Null
+    $c.Range('B5:B8').ClearContents() | Out-Null
 
     Write-Host ''
     Write-Host '=== Reports: new filters (Technician / Printer / Paper Stock / Quantity) ==='
-    Write-Host '  (G5/G6/G7 are now dropdowns - exact match against the staged distinct-value list)'
-    $c.Range('G5').Value2 = 'J. Okonkwo'
+    Write-Host '  (F5/F6/F7 are now dropdowns - Technician exact-matches recorded jobs, Printer/Paper stock list the whole active catalogue)'
+    $c.Range('F5').Value2 = 'J. Okonkwo'
     $xl.CalculateFullRebuild()
     Write-Host ("  Technician = 'J. Okonkwo': jobs={0}" -f $c.Range('B12').Text)
     if ([int]$c.Range('B12').Text -eq 0) { Write-Host 'FAIL: expected at least one match on Technician filter'; exit 1 }
-    $c.Range('G5').ClearContents() | Out-Null
+    $c.Range('F5').ClearContents() | Out-Null
 
-    $c.Range('G6').Value2 = 'Epson SureColor P9500'
+    $c.Range('F6').Value2 = 'Epson SureColor P9500'
     $xl.CalculateFullRebuild()
     Write-Host ("  Printer = 'Epson SureColor P9500': jobs={0}" -f $c.Range('B12').Text)
     if ([int]$c.Range('B12').Text -eq 0) { Write-Host 'FAIL: expected at least one match on Printer filter'; exit 1 }
-    $c.Range('G6').ClearContents() | Out-Null
+    $c.Range('F6').ClearContents() | Out-Null
 
-    $c.Range('G8').Value2 = 12
+    $c.Range('F8').Value2 = 12
     $xl.CalculateFullRebuild()
     Write-Host ("  Quantity = 12: jobs={0}" -f $c.Range('B12').Text)
     if ([int]$c.Range('B12').Text -eq 0) { Write-Host 'FAIL: expected at least one match on Quantity filter'; exit 1 }
-    $c.Range('G8').ClearContents() | Out-Null
+    $c.Range('F8').ClearContents() | Out-Null
     $xl.CalculateFullRebuild()
 
     Write-Host ''
     Write-Host '=== Reports: dropdown/date-picker UI controls ==='
-    foreach ($addr in 'G5', 'G6', 'G7', 'K5', 'K6') {
+    foreach ($addr in 'F5', 'F6', 'F7', 'B10', 'F10') {
         $t = $c.Range($addr).Validation.Type
         Write-Host ("  {0} validation type: {1} (3 = list/dropdown)" -f $addr, $t)
         if ($t -ne 3) { Write-Host "FAIL: $addr should be a list dropdown"; exit 1 }
     }
-    foreach ($addr in 'C7', 'C8') {
+    foreach ($addr in 'B7', 'B8') {
         $t = $c.Range($addr).Validation.Type
-        Write-Host ("  {0} validation type: {1} (4 = date, gives the native calendar picker)" -f $addr, $t)
+        Write-Host ("  {0} validation type: {1} (4 = date; the native calendar picker is web-only and does not appear on desktop Excel)" -f $addr, $t)
         if ($t -ne 4) { Write-Host "FAIL: $addr should be Date-type validation"; exit 1 }
     }
     Write-Host '  OK: Technician/Printer/Paper Stock/Sort by/Sort direction are dropdowns; From/To date use Date validation'
@@ -145,8 +145,8 @@ try {
 
     Write-Host ''
     Write-Host '=== Reports: sort by column ==='
-    $c.Range('K5').Value2 = 'Quantity'
-    $c.Range('K6').Value2 = 'Descending'
+    $c.Range('B10').Value2 = 'Quantity'
+    $c.Range('F10').Value2 = 'Descending'
     $xl.CalculateFullRebuild()
     $sp = $c.Range('A15').SpillingToRange
     $qtys = @()
@@ -157,7 +157,8 @@ try {
     for ($i = 0; $i -lt $qtys.Count; $i++) { if ($qtys[$i] -ne $sortedDesc[$i]) { $matches = $false } }
     if (-not $matches) { Write-Host 'FAIL: results were not sorted by Quantity Descending'; exit 1 }
     Write-Host '  OK: SORTBY reordered the results as requested'
-    $c.Range('K5:K6').ClearContents() | Out-Null
+    $c.Range('B10').ClearContents() | Out-Null
+    $c.Range('F10').ClearContents() | Out-Null
     $xl.CalculateFullRebuild()
 
     Write-Host ''

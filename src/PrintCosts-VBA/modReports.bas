@@ -125,8 +125,8 @@ Private Function Criteria() As String
     ' of TRUE the right height, and every criterion below multiplies into it.
     s = "(" & C("Job ID") & "<>"""")"
 
-    s = s & "*IF($C$5="""",TRUE,ISNUMBER(SEARCH($C$5," & C("Student Name") & ")))"
-    s = s & "*IF($C$6="""",TRUE,TRIM(" & C("Student No") & "&"""")=TRIM($C$6&""""))"
+    s = s & "*IF($B$5="""",TRUE,ISNUMBER(SEARCH($B$5," & C("Student Name") & ")))"
+    s = s & "*IF($B$6="""",TRUE,TRIM(" & C("Student No") & "&"""")=TRIM($B$6&""""))"
 
     ' Dates are coerced with *1 on BOTH sides. A user typing 16/09/2026 into
     ' an unformatted cell can leave text there, and number >= text compares as
@@ -136,23 +136,23 @@ Private Function Criteria() As String
     '
     ' The column holds date AND time, so the end test is < end+1: otherwise a
     ' job logged at 16:30 on the closing date falls outside its own range.
-    s = s & "*IF($C$7="""",TRUE,IF(ISERROR($C$7*1),TRUE," & _
-        "IFERROR(" & C("Date/Time") & "*1,0)>=$C$7*1))"
-    s = s & "*IF($C$8="""",TRUE,IF(ISERROR($C$8*1),TRUE," & _
-        "IFERROR(" & C("Date/Time") & "*1,0)<$C$8*1+1))"
+    s = s & "*IF($B$7="""",TRUE,IF(ISERROR($B$7*1),TRUE," & _
+        "IFERROR(" & C("Date/Time") & "*1,0)>=$B$7*1))"
+    s = s & "*IF($B$8="""",TRUE,IF(ISERROR($B$8*1),TRUE," & _
+        "IFERROR(" & C("Date/Time") & "*1,0)<$B$8*1+1))"
 
     ' Technician, Printer and Paper Stock are dropdowns (RefreshReportFilterLists),
     ' not free text, so an exact match is what "choose one from the list"
     ' means - unlike Student name, there is no fragment to search for.
-    s = s & "*IF($G$5="""",TRUE," & C("Technician") & "=$G$5)"
-    s = s & "*IF($G$6="""",TRUE," & C("Printer") & "=$G$6)"
-    s = s & "*IF($G$7="""",TRUE," & C("Paper Stock") & "=$G$7)"
+    s = s & "*IF($F$5="""",TRUE," & C("Technician") & "=$F$5)"
+    s = s & "*IF($F$6="""",TRUE," & C("Printer") & "=$F$6)"
+    s = s & "*IF($F$7="""",TRUE," & C("Paper Stock") & "=$F$7)"
 
     ' Quantity: exact match, blank ignored, *1-coerced the same way the date
     ' boxes are so a value left as text by an unformatted cell is treated as
     ' no filter rather than as a quantity of zero.
-    s = s & "*IF($G$8="""",TRUE,IF(ISERROR($G$8*1),TRUE," & _
-        "IFERROR(" & C("Quantity") & "*1,0)=$G$8*1))"
+    s = s & "*IF($F$8="""",TRUE,IF(ISERROR($F$8*1),TRUE," & _
+        "IFERROR(" & C("Quantity") & "*1,0)=$F$8*1))"
 
     Criteria = s
 End Function
@@ -199,26 +199,33 @@ Public Sub BuildReports()
     ws.Range("A2").Value = "Find and filter print jobs across every room in this workbook. Results update as you type - " & _
         "there is no search button. Leave a box empty to ignore it."
 
-    CritCell ws, "A5", "C5", "Student name", "Part of a name is enough - ""Smith"" finds ""Jane Smith""."
-    CritCell ws, "A6", "C6", "Student number", "Matched exactly."
-    CritCell ws, "A7", "C7", "From date", "Pick a date, or leave blank for no start date."
-    CritCell ws, "A8", "C8", "To date", "Jobs logged at any time on this date are included."
-    ws.Range("C7:C8").NumberFormat = "dd/mm/yyyy"
-    AddDateValidation ws.Range("C7"), "From date", "Leave blank for no start date."
-    AddDateValidation ws.Range("C8"), "To date", "Jobs logged at any time on this date are included."
+    ' Label | input | hint | gap, in that order (snag list item 2) - the
+    ' input sits immediately right of its label, and the unused column at the
+    ' end of each group is what separates it from the next.
+    CritCell ws, "A5", "B5", "Student name", "Part of a name is enough - ""Smith"" finds ""Jane Smith""."
+    CritCell ws, "A6", "B6", "Student number", "Matched exactly."
+    CritCell ws, "A7", "B7", "From date", "Pick a date, or leave blank for no start date."
+    CritCell ws, "A8", "B8", "To date", "Jobs logged at any time on this date are included."
+    ws.Range("B7:B8").NumberFormat = "dd/mm/yyyy"
+    AddDateValidation ws.Range("B7"), "From date", "Leave blank for no start date."
+    AddDateValidation ws.Range("B8"), "To date", "Jobs logged at any time on this date are included."
 
-    CritCell ws, "E5", "G5", "Technician", "Choose from the list, or leave blank for all."
-    CritCell ws, "E6", "G6", "Printer", "Choose from the list, or leave blank for all."
-    CritCell ws, "E7", "G7", "Paper stock", "Choose from the list, or leave blank for all."
-    CritCell ws, "E8", "G8", "Quantity", "Matched exactly."
+    CritCell ws, "E5", "F5", "Technician", "Choose from the list, or leave blank for all."
+    CritCell ws, "E6", "F6", "Printer", "Choose from the list, or leave blank for all."
+    CritCell ws, "E7", "F7", "Paper stock", "Choose from the list, or leave blank for all."
+    CritCell ws, "E8", "F8", "Quantity", "Matched exactly."
 
-    CritCell ws, "I5", "K5", "Sort by", "Leave blank for no sorting."
-    CritCell ws, "I6", "K6", "Sort direction", "Ascending is the default."
-    AddList ws.Range("K5"), QuotedList(hdrs), "Sort by", "Which column to sort the results by."
-    AddList ws.Range("K6"), """Ascending"",""Descending""", "Sort direction", "Which way to sort."
+    ' Sort by/direction sit below the filters, above the totals row (snag list
+    ' item 3) rather than beside the Technician/Printer/Paper/Quantity group -
+    ' row 9 is the "name and number don't match" warning below, so this is the
+    ' one free row between the filters and Matching.
+    CritCell ws, "A10", "B10", "Sort by", "Leave blank for no sorting."
+    CritCell ws, "E10", "F10", "Sort direction", "Ascending is the default."
+    AddList ws.Range("B10"), QuotedList(hdrs), "Sort by", "Which column to sort the results by."
+    AddList ws.Range("F10"), """Ascending"",""Descending""", "Sort direction", "Which way to sort."
 
     ' Spec 14.1: both criteria given, neither matching the other.
-    ws.Range("A9").Formula2 = "=IF(OR($C$5="""",$C$6=""""),""""," & _
+    ws.Range("A9").Formula2 = "=IF(OR($B$5="""",$B$6=""""),""""," & _
         "IF(IFERROR(ROWS(FILTER(" & C("Job ID") & "," & ok & ")),0)=0," & _
         """That name and that number do not appear together on any record - check both."",""""))"
     ws.Range("A9").Font.Color = RGB(176, 0, 32)
@@ -258,8 +265,8 @@ Public Sub BuildReports()
         "," & C("Disregarded") & "," & C("Chargeable Cost") & "," & C("Technician") & _
         "," & C("Notes") & "," & C("Job ID") & ")," & ok & ",""No print jobs match those criteria.""),"
     f = f & "hdrs,{" & QuotedList(hdrs) & "},"
-    f = f & "sortIdx,IFERROR(MATCH($K$5,hdrs,0),0),"
-    f = f & "dir,IF($K$6=""Descending"",-1,1),"
+    f = f & "sortIdx,IFERROR(MATCH($B$10,hdrs,0),0),"
+    f = f & "dir,IF($F$10=""Descending"",-1,1),"
     f = f & "IF(sortIdx=0,res,IFERROR(SORTBY(res,INDEX(res,,sortIdx),dir),res))"
     f = f & "),""No print jobs have been recorded yet."")"
     ws.Range("A15").Formula2 = f
@@ -282,6 +289,13 @@ Public Sub BuildReports()
     ' with a bare 1004 on the now-protected cells.
     RefreshReportFilterLists ws
 
+    ' Row group (snag list item 15): the whole filter block - both criteria
+    ' groups, the name/number warning and the sort controls - collapses
+    ' together, so a user who has already set filters can hide the controls
+    ' without losing them. Grouping needs the sheet unprotected, same reason
+    ' RefreshReportFilterLists' own ApplyTo calls do their own Unlock/Relock.
+    UnlockSheet ws
+    ws.Rows("5:10").Group
     RelockSheet ws
 End Sub
 
@@ -650,13 +664,21 @@ Private Sub AddList(ByVal target As Range, ByVal QuotedItems As String, ByVal Ti
     End With
 End Sub
 
-' A cell with Date-type validation gets Excel's own calendar picker (the
-' small icon that appears on selection, in Excel for Microsoft 365) with no
-' ActiveX involved - consistent with modPicker's Mac-safe, no-ActiveX rule.
-' Validation only fires on manual entry, never on a value set from VBA/COM,
-' so this adds a UI convenience without narrowing what modImport or a test
-' script can write, and the Criteria() formula's own tolerance for a text
-' date left by an unformatted cell is still needed and unchanged.
+' Date-type validation, range-checked on manual entry, with no ActiveX
+' involved - consistent with modPicker's Mac-safe, no-ActiveX rule. Validation
+' only fires on manual entry, never on a value set from VBA/COM, so this adds
+' a UI convenience without narrowing what modImport or a test script can
+' write, and the Criteria() formula's own tolerance for a text date left by an
+' unformatted cell is still needed and unchanged.
+'
+' This was written expecting Date validation to also draw Excel's small
+' calendar icon on selection, the way it does in Excel for the web. Checked
+' against the 2026-09-21 snag list item 5 report (no icon on the latest
+' Excel, Windows or Mac): that icon has only ever shipped to Excel for the
+' web, with no announced desktop date, so its absence here is a platform gap
+' rather than a bug. A custom worksheet-based picker (the same no-ActiveX
+' pattern modPicker.bas uses for the printer/paper multi-select) would give
+' desktop Excel a working calendar, but was deferred rather than built.
 '
 ' The lower bound is a real DATE() formula, not a literal date string - a
 ' string like "01/01/2000" is read back through the machine's locale, the
@@ -675,11 +697,18 @@ Private Sub AddDateValidation(ByVal target As Range, ByVal Title As String, ByVa
     End With
 End Sub
 
-' Technician/Printer/Paper Stock dropdowns, sourced from what has actually
-' been recorded (the consolidated _Data range) rather than the current
-' Papers/Printers/Technicians catalogue - so a job against a since-renamed
-' or deactivated printer or a technician no longer active is still findable,
-' and every choice offered is guaranteed to match at least one record.
+' Technician dropdown, sourced from what has actually been recorded (the
+' consolidated _Data range) rather than the current Technicians catalogue -
+' so a job against a technician no longer active is still findable, and
+' every choice offered is guaranteed to match at least one record.
+'
+' Printer and Paper Stock are different (snag list item 4): they list every
+' active printer/stock DEFINED in the catalogue, not just what has been used
+' yet, so a printer or stock added today is immediately choosable here. The
+' two lists are independent - deliberately not cross-filtered by printer
+' compatibility the way BindStockRange does for job entry - so picking an
+' incompatible pair just matches no rows, same as any other filter combination
+' that matches nothing.
 '
 ' Public, and also called from modRegistry.RefreshLocations after it
 ' rewrites _Data - not just from here. _Data does not exist yet the first
@@ -688,11 +717,11 @@ End Sub
 ' too, so a one-time snapshot taken only at build time would read empty on
 ' a fresh workbook and go stale the moment a job is added anywhere.
 Public Sub RefreshReportFilterLists(ByVal ws As Worksheet)
-    ApplyTo ws, ws.Range("G5"), DistinctValues("Technician"), "REP|Technician", _
+    ApplyTo ws, ws.Range("F5"), DistinctValues("Technician"), "REP|Technician", _
         "Technician", "Choose a technician, or leave blank to include all."
-    ApplyTo ws, ws.Range("G6"), DistinctValues("Printer"), "REP|Printer", _
+    ApplyTo ws, ws.Range("F6"), AllActivePrinters(), "REP|Printer", _
         "Printer", "Choose a printer, or leave blank to include all."
-    ApplyTo ws, ws.Range("G7"), DistinctValues("Paper Stock"), "REP|Paper stock", _
+    ApplyTo ws, ws.Range("F7"), AllActiveStocks(), "REP|Paper stock", _
         "Paper stock", "Choose a paper stock, or leave blank to include all."
 End Sub
 
