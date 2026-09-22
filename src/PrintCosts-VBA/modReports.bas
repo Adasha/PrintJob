@@ -276,8 +276,14 @@ Public Sub BuildReports()
     ' Label | input | hint | gap, in that order (snag list item 2) - the
     ' input sits immediately right of its label, and the unused column at the
     ' end of each group is what separates it from the next.
-    CritCell ws, "A5", "B5", "Student name", "Part of a name is enough - ""Smith"" finds ""Jane Smith""."
-    CritCell ws, "A6", "B6", "Student number", "Matched exactly."
+    ' "Student/Department" labels (snag 4b, 2026-09-22): Student Name/No is
+    ' also used free-text for department charging (D19) - the underlying
+    ' column headers stay "Student Name"/"Student No" (renaming those would
+    ' break every header-name lookup that already reads them, for no real
+    ' capability gained), but the on-screen wording someone actually reads
+    ' here reads sensibly either way.
+    CritCell ws, "A5", "B5", "Student/Department name", "Part of a name is enough - ""Smith"" finds ""Jane Smith""."
+    CritCell ws, "A6", "B6", "Student/Department number", "Matched exactly."
     CritCell ws, "A7", "B7", "From date", "Pick a date, or leave blank for no start date."
     CritCell ws, "A8", "B8", "To date", "Jobs logged at any time on this date are included."
     ws.Range("B7:B8").NumberFormat = "dd/mm/yyyy"
@@ -294,8 +300,8 @@ Public Sub BuildReports()
     ' reveal, not opt out). Row 9, columns E onward: A9 is the disjoint-
     ' criteria warning below, which only ever fires in columns A:D, so E9
     ' is free within the same filter block without needing to resize it.
-    CritCell ws, "E9", "F9", "Show student name/no", "Yes shows them in the results and any export. No (the default) blanks them, for data protection."
-    AddList ws.Range("F9"), """Yes"",""No""", "Show student name/no", "Yes shows them in the results and any export. No blanks them."
+    CritCell ws, "E9", "F9", "Show student/department name/no", "Yes shows them in the results and any export. No (the default) blanks them, for data protection."
+    AddList ws.Range("F9"), """Yes"",""No""", "Show student/department name/no", "Yes shows them in the results and any export. No blanks them."
     If Len(Trim$(CStr(ws.Range("F9").Value))) = 0 Then ws.Range("F9").Value = "No"
 
     ' Sort by/direction sit below the filters, above the totals row (snag list
@@ -941,9 +947,9 @@ Public Sub RefreshReportFilterLists(ByVal ws As Worksheet)
     ' recorded, for browsing and autocomplete - Strict:=False so it never
     ' blocks a fragment search or a number not yet logged.
     ApplyTo ws, ws.Range("B5"), DistinctValues("Student Name"), "REP|StudentName", _
-        "Student name", "Pick a recorded name, or type any text - part of a name is enough.", Strict:=False
+        "Student/Department name", "Pick a recorded name, or type any text - part of a name is enough.", Strict:=False
     ApplyTo ws, ws.Range("B6"), DistinctValues("Student No"), "REP|StudentNo", _
-        "Student number", "Pick a recorded number, or type one that hasn't been logged yet.", Strict:=False
+        "Student/Department number", "Pick a recorded number, or type one that hasn't been logged yet.", Strict:=False
 
     ApplyTo ws, ws.Range("F5"), DistinctValues("Technician"), "REP|Technician", _
         "Technician", "Choose a technician, or leave blank to include all."

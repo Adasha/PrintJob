@@ -23,6 +23,20 @@ Option Explicit
 ' acceptance passes at the end of the sequence.
 
 Public Const APP_NAME As String = "Print Cost Management"
+' 0.9.10 - Department/"charge to" terminology (snag 4b, D19): free text,
+' no new catalogue table, per the user's own decision on review. The
+' Student Name/No columns already accept anything typed into them (D1 -
+' no authoritative student list, cross-checked only for consistency) - a
+' department name behaves identically with no code change needed. Only the
+' user-facing WORDING that names the field got a light "Student/
+' Department" pass: the Reports filter labels and autocomplete titles, the
+' "Show student/department name/no" toggle, the Remove-row confirmation
+' ("Student/Department: "), the name/number consistency warning, and the
+' About blurb. The underlying column headers stay "Student Name"/"Student
+' No" deliberately - renaming those would break every header-name lookup
+' that already reads them (§5, §8.3, §10.4 of the architecture doc) for no
+' real capability gained.
+'
 ' 0.9.9 - Full workbook backup/restore (snag 4a). New modBackup.bas: Backup
 ' workbook writes one CSV per catalogue table (Technicians, Printers,
 ' Papers, the four Settings-page lookup tables, and Settings itself)
@@ -324,7 +338,7 @@ Public Const APP_NAME As String = "Print Cost Management"
 ' A patch increment, not a phase: the phase digit still reads 7 because phase
 ' 8 has not been built. The revision digit is what "0.<phase>.<revision>"
 ' exists for.
-Public Const APP_VERSION As String = "0.9.9"
+Public Const APP_VERSION As String = "0.9.10"
 Public Const APP_AUTHOR As String = "Adam Shailer"
 
 Public Function VersionString() As String
@@ -452,7 +466,7 @@ Public Sub WriteAbout()
     Lbl ws, r + 4, "Built", "=TEXT(SET_BUILT,""dd/mm/yyyy hh:mm"")"
     Lbl ws, r + 5, "Built by", "=SET_BUILT_BY"
 
-    ws.Cells(r + 7, 1).Value = "Logs print output and cost per student across the university's print bureaux. " & _
+    ws.Cells(r + 7, 1).Value = "Logs print output and cost per student or department across the university's print bureaux. " & _
         "Each record freezes the prices it was costed at, so changing a paper or consumable price " & _
         "never alters what has already been charged."
     ws.Cells(r + 8, 1).Value = "Version numbering is 0.<build phase>.<revision>, tracking the build sequence " & _

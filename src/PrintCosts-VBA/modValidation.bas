@@ -179,7 +179,10 @@ Public Sub CheckStudent(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal n A
 
     other = FindConflict(no, nm, CStr(CellIn(lo, n, "Job ID").Value))
     If Len(other) > 0 Then
-        Say "Student number " & no & " has been logged before under a different name.", "Earlier records show it as '" & other & "'; this row says '" & nm & "'.", "If this is the same person under a new name, carry on. If it is a typo, " & "correct it now - the student cost report matches on both fields."
+        ' "Student/department" (snag 4b): Student Name/No is also used
+        ' free-text for department charging (D19) - the wording here just
+        ' needs to read sensibly either way, not the underlying field.
+        Say "Student/department number " & no & " has been logged before under a different name.", "Earlier records show it as '" & other & "'; this row says '" & nm & "'.", "If this is the same person (or department) under a new name, carry on. If it is a typo, " & "correct it now - the cost report matches on both fields."
     End If
 End Sub
 
