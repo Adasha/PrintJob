@@ -22,11 +22,16 @@ Option Explicit
 '
 ' Only the input and snapshot columns are written - Job ID, Date/Time,
 ' Student Name, Student No, Technician, Printer, Paper Stock, Unit, Quantity,
-' Print Width mm, Disregard Paper, Disregard Consumable, Notes, and every S_*
-' column. The calculated columns (Area m2, Paper Cost, Consumable Cost, Gross
-' Cost, Disregarded, Chargeable Cost) and Status are left alone - the job
-' table's own per-row formulas reproduce the historical figures exactly from
-' the snapshot, the same way a locally entered job does.
+' Print Width mm, Disregard Paper, Disregard Consumable, Paid, Notes, and
+' every S_* column. The calculated columns (Area m2, Paper Cost, Consumable
+' Cost, Gross Cost, Disregarded, Chargeable Cost) and Status are left alone -
+' the job table's own per-row formulas reproduce the historical figures
+' exactly from the snapshot, the same way a locally entered job does.
+'
+' A file exported before 2026-09-22 (schema 1.0) has no Paid column at all -
+' WriteImportedRow reads it the same way as every other field and gets back
+' Empty, which writes as blank, which every consumer already treats as "not
+' paid" (modUtils.SCHEMA_VER's 1.1 comment). No migration step needed.
 '
 ' All writes happen with EnableEvents False, same as every other write this
 ' workbook makes to its own sheets, so imported rows bypass Worksheet_Change
@@ -219,6 +224,11 @@ Private Sub WriteImportedRow(ByVal lo As ListObject, ByVal RowNo As Long, ByVal 
     WriteNum lo, RowNo, "Print Width mm", d
     WriteText lo, RowNo, "Disregard Paper", d
     WriteText lo, RowNo, "Disregard Consumable", d
+    ' Missing from a file exported before 2026-09-22 (schema 1.0) - d.Item
+    ' returns Empty for a key the source file never had, so this writes blank
+    ' rather than erroring, and blank reads as "not paid" everywhere else
+    ' (Summary/Reports totals, modInit.EnsurePaidColumn's own new rows).
+    WriteText lo, RowNo, "Paid", d
     WriteText lo, RowNo, "Notes", d
     WriteText lo, RowNo, "S_PrinterID", d
     WriteText lo, RowNo, "S_StockID", d

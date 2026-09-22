@@ -68,6 +68,12 @@ Public Sub BuildSummary()
     TotalCell ws, "D6", "Gross", "=IFERROR(SUM(" & C("Gross Cost") & "),0)"
     TotalCell ws, "F6", "Disregarded", "=IFERROR(SUM(" & C("Disregarded") & "),0)"
     TotalCell ws, "H6", "Chargeable", "=IFERROR(SUM(" & C("Chargeable Cost") & "),0)"
+    ' Snag list item 1c: the chargeable total split by paid status. Paid is
+    ' "total minus paid" rather than a separate <>"Yes" SUMIFS, so the two
+    ' always reconcile exactly to Chargeable by construction - a blank Paid
+    ' (a job that predates the column) falls into Unpaid either way.
+    TotalCell ws, "J6", "Paid", "=IFERROR(SUMIFS(" & C("Chargeable Cost") & "," & C("Paid") & ",""Yes""),0)"
+    TotalCell ws, "L6", "Unpaid", "=IFERROR(SUM(" & C("Chargeable Cost") & ")-SUMIFS(" & C("Chargeable Cost") & "," & C("Paid") & ",""Yes""),0)"
 
     ' --- headers -----------------------------------------------------------
     WriteHeaderRow ws, 9, Array("Location", "Printer", "Paper stock", "Type", "Family", "Unit", _
@@ -107,6 +113,8 @@ Private Sub FormatSummary(ByVal ws As Worksheet)
     ws.Range("D6").NumberFormat = CurrencyFormatCode()
     ws.Range("F6").NumberFormat = CurrencyFormatCode()
     ws.Range("H6").NumberFormat = CurrencyFormatCode()
+    ws.Range("J6").NumberFormat = CurrencyFormatCode()
+    ws.Range("L6").NumberFormat = CurrencyFormatCode()
     ws.Columns("A:N").ColumnWidth = 14
     ws.Columns("A:C").ColumnWidth = 24
     ws.Rows(9).Font.Bold = True
@@ -305,9 +313,18 @@ Public Sub BuildReports()
     TotalCell ws, "D13", "Gross", "=IFERROR(SUM(FILTER(" & C("Gross Cost") & "," & ok & ")),0)"
     TotalCell ws, "F13", "Disregarded", "=IFERROR(SUM(FILTER(" & C("Disregarded") & "," & ok & ")),0)"
     TotalCell ws, "H13", "Chargeable", "=IFERROR(SUM(FILTER(" & C("Chargeable Cost") & "," & ok & ")),0)"
+    ' Snag list item 1c: the matching chargeable total split by paid status,
+    ' same "total minus paid" reconciliation as Summary's J6/L6 - a blank
+    ' Paid (a job that predates the column) falls into Unpaid either way.
+    Dim paidOk As String
+    paidOk = ok & "*(" & C("Paid") & "=""Yes"")"
+    TotalCell ws, "J13", "Paid", "=IFERROR(SUM(FILTER(" & C("Chargeable Cost") & "," & paidOk & ")),0)"
+    TotalCell ws, "L13", "Unpaid", "=IFERROR(SUM(FILTER(" & C("Chargeable Cost") & "," & ok & "))-SUM(FILTER(" & C("Chargeable Cost") & "," & paidOk & ")),0)"
     ws.Range("D13").NumberFormat = CurrencyFormatCode()
     ws.Range("F13").NumberFormat = CurrencyFormatCode()
     ws.Range("H13").NumberFormat = CurrencyFormatCode()
+    ws.Range("J13").NumberFormat = CurrencyFormatCode()
+    ws.Range("L13").NumberFormat = CurrencyFormatCode()
 
     ' --- the records ------------------------------------------------------
     ' Job ID is appended after Notes and hidden - the correlation key that

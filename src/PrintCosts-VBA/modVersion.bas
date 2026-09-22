@@ -23,6 +23,28 @@ Option Explicit
 ' acceptance passes at the end of the sequence.
 
 Public Const APP_NAME As String = "Print Cost Management"
+' 0.9.2 - Paid job-row column and the column-grouping fix (snags 1c, 1d):
+'
+'   - A new Paid (Yes/No) column, right after Chargeable Cost. The first
+'     genuine job-row column change since inception, so SCHEMA_VER (modUtils)
+'     moves 1.0 -> 1.1 - which surfaced that SET_SCHEMA had shipped as a
+'     static value in PrintCosts.xlsx with no code keeping it in sync with
+'     the constant, the same drift that caught APP_VERSION out below. Fixed:
+'     modVersion.EnsureSchemaSetting now stamps SET_SCHEMA from SCHEMA_VER on
+'     every setup run, same as EnsureVersionSettings already does for
+'     APP_VER. Existing rows are left blank rather than force-set to "No" -
+'     blank already reads as unpaid everywhere (Summary/Reports totals,
+'     export, import).
+'   - modInit.GroupJobColumns's cost-column group ran one column too far
+'     (Paper Cost through Chargeable Cost itself), so collapsing it hid the
+'     one figure a collapsed view most needs to keep showing. Now runs
+'     Paper Cost through Disregarded only; Chargeable Cost and the new Paid
+'     column stay outside it, always visible.
+'   - Summary and Reports both split their Chargeable total into Paid/
+'     Unpaid, Unpaid computed as "filtered Chargeable minus Paid" rather
+'     than a second criteria expression, so the two figures can never drift
+'     apart from the total they came from.
+'
 ' 0.9.1 - batch default Technician/Printer/Paper selectors (snag 1b): three
 ' cells above the toolbar (row 9) pre-fill Technician/Printer/Paper Stock on
 ' every subsequently added job until Clear defaults empties them, using the
@@ -142,7 +164,7 @@ Public Const APP_NAME As String = "Print Cost Management"
 ' A patch increment, not a phase: the phase digit still reads 7 because phase
 ' 8 has not been built. The revision digit is what "0.<phase>.<revision>"
 ' exists for.
-Public Const APP_VERSION As String = "0.9.1"
+Public Const APP_VERSION As String = "0.9.2"
 Public Const APP_AUTHOR As String = "Adam Shailer"
 
 Public Function VersionString() As String
@@ -183,6 +205,21 @@ Public Sub EnsureVersionSettings()
     EnsureSetting "BUILT", "Built", "Read-only. When this file was produced."
     EnsureSetting "BUILT_BY", "Built by", "Read-only."
     SetSetting "APP_VER", APP_VERSION
+End Sub
+
+' Stamps SET_SCHEMA from modUtils.SCHEMA_VER on every setup run, the same
+' reasoning as APP_VER above: the code in the workbook IS its schema, so a
+' value that only ever shipped statically in PrintCosts.xlsx has no way to
+' stay in sync with it otherwise - exactly the drift that caught out
+' APP_VERSION for thirteen commits before this file's own §16.1. SCHEMA had
+' never needed this before 2026-09-22 (design 3.3): no job-row column had
+' ever changed since inception, so the shipped static value was never wrong.
+' The Paid column (snag list item 1c) is the first real bump, and is what
+' surfaced the gap - fixed here rather than hand-editing the .xlsx, for the
+' same reproducibility reason every other self-provisioned setting exists.
+Public Sub EnsureSchemaSetting()
+    EnsureSetting "SCHEMA", "Data schema version", "Read-only. The shape of the stored job-row columns; changes only when one is added, removed or renamed."
+    SetSetting "SCHEMA", SCHEMA_VER
 End Sub
 
 ' Public: modExport.EnsureExportSettings reuses this for the same reason

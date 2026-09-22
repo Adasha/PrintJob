@@ -29,6 +29,10 @@ Public Sub AddPrintJob(ByVal ws As Worksheet)
     CellIn(lo, n, "Disregard Paper").Value = DefaultOrNo(ws, "LOC_DefDisPaper")
     CellIn(lo, n, "Disregard Consumable").Value = DefaultOrNo(ws, "LOC_DefDisCons")
 
+    ' Snag list item 1c: no location default for Paid, unlike the disregard
+    ' flags above - every new job simply starts unpaid.
+    CellIn(lo, n, "Paid").Value = "No"
+
     ' Spec 1b: the batch defaults above the toolbar seed Technician/Printer/
     ' Paper Stock too, same copy-not-reference principle - changing a default
     ' afterwards never touches a job already added from it.

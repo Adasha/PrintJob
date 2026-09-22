@@ -6,8 +6,8 @@
 
 **Current state, as verified against the actual VBA source on 2026-09-22:**
 
-- Workbook version reported in-code: `0.9.1` (`modVersion.APP_VERSION`) — `0.8.0` reflected the NextId fix, Export/Import, the Reports rework and the 2026-09-21 snag list; `0.8.1` closed out phase 8's own original scope (§16.1); `0.9.0` began phase 9, the 2026-09-22 post-phase-8 snag list, and `0.9.1` is that phase's second package — see §16.4.
-- Data schema version: `1.0` (`modUtils.SCHEMA_VER`), unchanged since inception so far — none of the 0.8.x work touched a job-row column; phase 9's Paid column (snag 1c, not yet built) will be the first to bump it.
+- Workbook version reported in-code: `0.9.2` (`modVersion.APP_VERSION`) — `0.8.0` reflected the NextId fix, Export/Import, the Reports rework and the 2026-09-21 snag list; `0.8.1` closed out phase 8's own original scope (§16.1); `0.9.0`–`0.9.2` are phase 9's packages so far — see §16.4.
+- Data schema version: `1.1` (`modUtils.SCHEMA_VER`) — unchanged since inception through every 0.8.x release; bumped for the first time by phase 9's Paid column (snag 1c, §5), which also surfaced and fixed a gap in how `SET_SCHEMA` stayed in sync with the constant (§3.3, §3.5).
 - Everything in the original design document's phases 1–7 is built and verified.
 - Phase 8's original scope (visual polish) is **fully built** — see §16.2.
 - The "larger changes" plan (`snaglist-stage7handoff.txt`: NextId fix, Import/Export rework, Reports rework, bulk delete) is **fully built**.
@@ -115,7 +115,7 @@ Current mechanism (`modRegistry.NextJobId`, `modRegistry.bas:570`):
 
 Each setting is exposed as a workbook-scoped defined name so formulas and VBA reference meaning rather than cell addresses: `SET_SITE_ID`, `SET_SITE_NAME`, `SET_ORG`, `SET_DEPT`, `SET_CURRENCY`, `SET_ROUND_DP`, `SET_FOOTER`, `SET_FY_START`, `SET_EXPORT_FOLDER`, plus read-only `SET_SCHEMA`, `SET_LASTREF`, `SET_APP_VER`, `SET_BUILT`, `SET_BUILT_BY`.
 
-`modSettings` addresses every setting as `SET_<KEY>`, so the defined name — not the row — is what makes an entry a real setting. Settings that don't ship in the `.xlsx` are self-provisioned by VBA via `modVersion.EnsureSetting`: `APP_VER`/`BUILT`/`BUILT_BY` (`modVersion.EnsureVersionSettings`) and `EXPORT_FOLDER` (`modExport.EnsureExportSettings`, called from `modInit.InitialiseWorkbook`). The rest — `SITE_ID`, `SITE_NAME`, `ORG`, `DEPT`, `ROUND_DP`, `CURRENCY`, `SCHEMA` — ship directly in `PrintCosts.xlsx`.
+`modSettings` addresses every setting as `SET_<KEY>`, so the defined name — not the row — is what makes an entry a real setting. Settings that don't ship in the `.xlsx` are self-provisioned by VBA via `modVersion.EnsureSetting`: `APP_VER`/`BUILT`/`BUILT_BY` (`modVersion.EnsureVersionSettings`), `SCHEMA` (`modVersion.EnsureSchemaSetting`, new 2026-09-22 — see §5's Paid column note for why) and `EXPORT_FOLDER` (`modExport.EnsureExportSettings`, called from `modInit.InitialiseWorkbook`). The rest — `SITE_ID`, `SITE_NAME`, `ORG`, `DEPT`, `ROUND_DP`, `CURRENCY` — ship directly in `PrintCosts.xlsx`.
 
 **Print Technicians** — `tblTechnicians`: TechID, Name, Department, Active.
 **Printers** — `tblPrinters`: PrinterID, Model, Consumable type, **Cost per m2**, Supported families, Active.
@@ -155,7 +155,7 @@ The shipped `.xlsx` predates the export and NextId-fix features, so these column
 
 The schema version is load-bearing: it is what an importer or aggregator checks before reading records, and what a job row carries so its origin is recoverable. Conflating the two would force a schema bump on every cosmetic change and make that check meaningless.
 
-**What bumps the schema version.** Adding, removing or renaming a column bumps it. **Reordering columns does not** — exports carry a header row and are read by column *name*. The case the number cannot protect against is a column whose *meaning* changes while its name stays the same; that is a discipline, not a mechanism. The `Job ID HWM` registry column and the `EXPORT_FOLDER` setting are new, but neither is a job-row column, so neither touched `SCHEMA_VER`.
+**What bumps the schema version.** Adding, removing or renaming a column bumps it. **Reordering columns does not** — exports carry a header row and are read by column *name*. The case the number cannot protect against is a column whose *meaning* changes while its name stays the same; that is a discipline, not a mechanism. The `Job ID HWM` registry column and the `EXPORT_FOLDER` setting are new, but neither is a job-row column, so neither touched `SCHEMA_VER`. **The Paid column (2026-09-22, §5) is the first one that did** — `1.0` → `1.1` — and it surfaced that `SET_SCHEMA` had no code path keeping it in sync with the constant (fixed, `modVersion.EnsureSchemaSetting`, §3.3).
 
 **Numbering is `0.<phase>.<revision>`.** It reaches `1.0.0` when acceptance passes. Bumped to `0.8.0` on 2026-09-21 (§16.1) to reflect the NextId fix, Export All Locations, Import, the Reports rework and the full snag list — a phase-digit move, not a revision, because that batch is real new functionality rather than fixes with no behaviour change.
 
@@ -260,12 +260,19 @@ Any location with unexported changes is named in the refresh message. `Last expo
 | 13 | Disregard Consumable | input | Yes/No, seeded from location default |
 | 14 | Area m2 | calc | Printed area |
 | 15–19 | Paper Cost, Consumable Cost, Gross Cost, Disregarded, Chargeable Cost | calc | §5.1 |
-| 20 | Notes | input | Optional |
-| 21 | H_Issues | calc | Hidden working column behind Status |
+| 20 | **Paid** | **input** | **Yes/No, blank on rows that predate it (2026-09-22 snag list item 1c) — see below** |
+| 21 | Notes | input | Optional |
+| 22 | H_Issues | calc | Hidden working column behind Status |
 
-**Snapshot block (22–33)** — locked, grey, collapsed group headed *Historical record — do not edit*: `S_PrinterID`, `S_StockID`, `S_TechID`, `S_Family`, `S_Measure`, `S_UnitCost`, `S_StockWidth_mm`, `S_SheetHeight_mm`, `S_ConsRate`, `S_StampedAt`, `S_StampedBy`, `S_SchemaVer`.
+**Snapshot block (23–34)** — locked, grey, collapsed group headed *Historical record — do not edit*: `S_PrinterID`, `S_StockID`, `S_TechID`, `S_Family`, `S_Measure`, `S_UnitCost`, `S_StockWidth_mm`, `S_SheetHeight_mm`, `S_ConsRate`, `S_StampedAt`, `S_StampedBy`, `S_SchemaVer`.
 
 Column *order* is not load-bearing anywhere: formulas use structured references, VBA resolves columns by header name, reports resolve `_Data` by header name (§6.2), imports write by header name (§10.5), and exports carry a header row read by name (§10.4). Reordering is free and does not bump the schema version.
+
+**Paid (snag 1c, 2026-09-22) — the first real schema bump since inception.** Whether a chargeable cost has been settled — Yes/No, no location default (unlike Disregard Paper/Consumable, every new job just starts unpaid). Added via `modInit.EnsurePaidColumn` (`ListColumns.Add` at a fixed position right after Chargeable Cost, checked-first so it's idempotent), not shipped in the `.xlsx` — the same "build it in VBA, not by hand" reasoning as `_Registry`/`_Audit`/`_Data` (§3.4). **Existing rows are left blank, deliberately not force-set to "No"**: blank means "not recorded either way" for a job that predates the column, and every consumer (Summary/Reports totals, export, import) already treats blank the same as "No" rather than requiring a value, so no backfill or migration step was needed.
+
+Because this adds a genuine job-row column, `modUtils.SCHEMA_VER` moves from `1.0` to `1.1` — the first change since inception (§3.5's "adding a column bumps the schema version" rule, never previously exercised). This surfaced a real gap: `SET_SCHEMA` had shipped as a **static value directly in `PrintCosts.xlsx`** (§3.3) with no code path keeping it in sync with the constant, unlike `SET_APP_VER` which `modVersion.EnsureVersionSettings` stamps from `APP_VERSION` on every setup run — exactly the kind of drift §16.1 caught `APP_VERSION` itself in for thirteen commits. Fixed the same way: `modVersion.EnsureSchemaSetting` (new, called from `InitialiseWorkbook` alongside `EnsureVersionSettings`) now stamps `SET_SCHEMA` from `SCHEMA_VER` every run, so `SET_SCHEMA` can never again silently disagree with the code that actually enforces the shape.
+
+Both **Summary** and **Reports** split their Chargeable total by paid status (Summary `J6`/`L6`, Reports "Matching" `J13`/`L13`) — Paid is `SUM` of Chargeable Cost where `Paid="Yes"`; Unpaid is the filtered Chargeable total *minus* that Paid figure, rather than a separate `<>"Yes"` criteria, so the two always reconcile exactly to Chargeable by construction and a blank Paid falls into Unpaid either way.
 
 ### 5.1 Formulas
 
@@ -866,6 +873,8 @@ Four groups of changes, delivered as a sequence of small, individually-verified,
 **Package 1 — bidirectional Printer/Paper Stock dropdowns (snag 1a) — built.** See §7.2's rewrite above for the design. `modCatalog.PrintersForStock` (new, the reverse of `StocksFor`), `modLists.BindPrinterRange`/`BindStockRange`/`AutoFillIfSingle`/`GroupCell` (rewritten/new), `modValidation.OnPrinterChanged`/`OnStockChanged` (now symmetric), `modJobs.AddPrintJob` (binds both cells on a new row, not just Paper Stock). Verified by new `test-dropdowns.ps1`, plus a full run of every pre-existing `test-*.ps1` regression script to confirm nothing else moved.
 
 **Package 2 — batch default Technician/Printer/Paper selectors (snag 1b) — built.** See §4.1's new row for the design. `modInit.EnsureJobDefaults`/`EnsureLocName`/`StyleInputCell` (new), `modLists.BindDefaultCells` (new, reuses Package 1's `BindStockRange`/`BindPrinterRange`), `modValidation.OnDefaultCellChanged` (new, mirrors `OnPrinterChanged`/`OnStockChanged`), `modJobs.CopyDefault`/`ClearDefaults` (new), `modMain.btnClearDefaults` (new), `modRegistry.RefreshLocations` (now also calls `EnsureJobDefaults` per location, alongside `BindColumns`). Verified by new `test-defaults.ps1`, plus the full regression suite again.
+
+**Packages 3+4 — Paid column and the column-grouping fix (snags 1c, 1d) — built.** See §5 for the Paid column design and §3.3/§3.5 for the `SET_SCHEMA` self-provisioning fix it surfaced. `modUtils.SCHEMA_VER` → `1.1`; `modVersion.EnsureSchemaSetting` (new); `modInit.EnsurePaidColumn` (new, `ListColumns.Add` at a fixed position, idempotent), `modInit.GroupJobColumns`/`GroupColumnRange`/`UngroupColumnRange` (the cost-column group now runs Paper Cost→Disregarded only, ungrouping the old wider span first so re-running setup against a pre-fix workbook actually clears it rather than layering outlines); `modJobs.AddPrintJob` (seeds `Paid = "No"` on new rows); `modExport.ExportColumns`/`modImport.WriteImportedRow` (both carry Paid through; a pre-2026-09-22 import file without the column reads back as blank, which every consumer already treats as unpaid); `modReports.BuildSummary`/`BuildReports` (Chargeable total split into Paid/Unpaid on both sheets, `Unpaid = filtered Chargeable − Paid` so the two always reconcile exactly by construction rather than by a second, potentially-drifting criteria expression). Verified by new `test-paid.ps1` (14 checks: column position and validation, blank-not-backfilled existing rows, new-row default, both sheets' totals reconciling, and the group boundary), plus the full regression suite again.
 
 ---
 

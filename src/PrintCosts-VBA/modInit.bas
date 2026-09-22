@@ -31,6 +31,7 @@ Public Sub InitialiseWorkbook()
     ' The version rows and the About block likewise. Setup does not stamp the
     ' build date - that is build.ps1's job, via StampBuild.
     EnsureVersionSettings
+    EnsureSchemaSetting
     EnsureExportSettings
     WriteAbout
 
@@ -46,6 +47,7 @@ Public Sub InitialiseWorkbook()
             DrawLocationButtons ws
             ConfigValidation ws
             EnsureJobDefaults ws
+            EnsurePaidColumn ws
             BindColumns ws
             GroupJobColumns ws
             ApplyStatusFormat ws
@@ -243,6 +245,50 @@ Private Sub StyleInputCell(ByVal target As Range)
     target.Interior.Color = RGB(255, 255, 255)
     target.Borders(xlEdgeLeft).Color = RGB(46, 100, 168)
     target.Borders(xlEdgeLeft).Weight = xlMedium
+End Sub
+
+' -------------------------------------------------------------- Paid col ---
+' Snag list item 1c: a genuine new job-row column (SCHEMA_VER bumped to 1.1,
+' modUtils), so this only ever ADDS the column - it never runs against a
+' sheet that already has it (checked first, so re-running setup is still
+' idempotent). Positioned right after Chargeable Cost, ahead of Notes and the
+' locked snapshot block - column order isn't load-bearing anywhere (§5.1),
+' every consumer resolves it by header name.
+'
+' Left blank on existing rows deliberately, not force-defaulted to "No": a
+' blank Paid means "not recorded either way" for a job that predates the
+' column, and every consumer (Summary/Reports totals, export, import) treats
+' blank the same as "No" rather than requiring a value. New rows still
+' default to "No" explicitly - modJobs.AddPrintJob, same as the disregard
+' flags.
+Public Sub EnsurePaidColumn(ByVal ws As Worksheet)
+    Dim lo As ListObject, lc As ListColumn, i As Long
+    Set lo = JobsTable(ws)
+    If lo Is Nothing Then Exit Sub
+
+    For i = 1 To lo.ListColumns.Count
+        If StrComp(lo.ListColumns(i).Name, "Paid", vbTextCompare) = 0 Then Exit Sub
+    Next i
+
+    UnlockSheet ws
+    Set lc = lo.ListColumns.Add(ColIdx(lo, "Chargeable Cost") + 1)
+    lc.Name = "Paid"
+    If Not lc.DataBodyRange Is Nothing Then
+        StyleInputCell lc.DataBodyRange
+        With lc.DataBodyRange.Validation
+            .Delete
+            .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Formula1:="Yes,No"
+            .IgnoreBlank = True
+            .InCellDropdown = True
+            .ShowInput = True
+            .ShowError = True
+            .InputTitle = "Paid"
+            .InputMessage = "Whether this chargeable cost has been paid. Blank means not recorded either way and counts as unpaid in totals."
+            .ErrorTitle = "Paid"
+            .ErrorMessage = "Choose Yes or No."
+        End With
+    End If
+    RelockSheet ws
 End Sub
 
 Private Function CountButtons() As Long
@@ -531,7 +577,19 @@ Private Sub GroupJobColumns(ByVal ws As Worksheet)
     Set lo = JobsTable(ws)
     If lo Is Nothing Then Exit Sub
 
-    GroupColumnRange lo, "Paper Cost", "Chargeable Cost"
+    ' Clear whatever grouping already exists on the old (wrong) span first -
+    ' re-running this against a workbook built before the 2026-09-22 fix
+    ' would otherwise leave Chargeable Cost nested in both the old and new
+    ' outline. Harmless no-op on a workbook that never had the old group.
+    UngroupColumnRange lo, "Paper Cost", "Chargeable Cost"
+
+    ' Paper Cost, Consumable Cost, Gross Cost and Disregarded collapse
+    ' together; Chargeable Cost and Paid stay outside the group and always
+    ' visible even when it's collapsed (2026-09-22 snag list item 1d - the
+    ' previous range ran one column too far, to Chargeable Cost itself,
+    ' which hid the one cost figure a collapsed view most needs to keep
+    ' showing).
+    GroupColumnRange lo, "Paper Cost", "Disregarded"
     GroupColumnRange lo, "S_PrinterID", "S_SchemaVer"
 End Sub
 
@@ -542,6 +600,22 @@ Private Sub GroupColumnRange(ByVal lo As ListObject, ByVal FirstHeader As String
     Set ws = lo.Parent
     UnlockSheet ws
     ws.Range(lo.HeaderRowRange.Cells(1, c1), lo.HeaderRowRange.Cells(1, c2)).EntireColumn.Group
+    RelockSheet ws
+End Sub
+
+Private Sub UngroupColumnRange(ByVal lo As ListObject, ByVal FirstHeader As String, ByVal LastHeader As String)
+    Dim c1 As Long, c2 As Long, ws As Worksheet
+    c1 = ColIdx(lo, FirstHeader)
+    c2 = ColIdx(lo, LastHeader)
+    Set ws = lo.Parent
+    UnlockSheet ws
+    ' Ungroup raises 1004 outright when the range was never grouped (the
+    ' ordinary case on a fresh build, which never had the old wider group to
+    ' begin with) - expected and harmless, so this is the one place a bare
+    ' On Error Resume Next is warranted rather than a real failure to report.
+    On Error Resume Next
+    ws.Range(lo.HeaderRowRange.Cells(1, c1), lo.HeaderRowRange.Cells(1, c2)).EntireColumn.Ungroup
+    On Error GoTo 0
     RelockSheet ws
 End Sub
 
