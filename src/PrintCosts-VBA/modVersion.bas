@@ -23,6 +23,20 @@ Option Explicit
 ' acceptance passes at the end of the sequence.
 
 Public Const APP_NAME As String = "Print Cost Management"
+' 0.9.5 - spotted while visually checking 0.9.4's fix: two extra column
+' groups next to the cost group, one of them hiding a genuine bug.
+' GroupJobColumns used to ALSO group S_PrinterID->S_SchemaVer, on top of
+' the grouping PrintCosts.xlsx already ships for that exact span - nesting
+' a second outline level over the first rather than reusing it. Visibly:
+' two unwanted extra groups cluttering the outline pane next to the one
+' group that matters day to day. Substantively: Notes ended up hidden - a
+' genuine input column, never meant to be, silently swept into the
+' snapshot block's hidden state as a side effect of EnsurePaidColumn (0.9.2)
+' inserting Paid directly next to it. modInit.FlattenOutline (new) resets
+' Notes->S_SchemaVer to outline level 1 outright rather than re-grouping
+' it, and explicitly un-hides Notes; H_Issues/the snapshot columns keep
+' their own .Hidden state exactly as before.
+'
 ' 0.9.4 - two bugs found testing 0.9.3's reduced-clutter view, both fixed
 ' the same day:
 '
@@ -206,7 +220,7 @@ Public Const APP_NAME As String = "Print Cost Management"
 ' A patch increment, not a phase: the phase digit still reads 7 because phase
 ' 8 has not been built. The revision digit is what "0.<phase>.<revision>"
 ' exists for.
-Public Const APP_VERSION As String = "0.9.4"
+Public Const APP_VERSION As String = "0.9.5"
 Public Const APP_AUTHOR As String = "Adam Shailer"
 
 Public Function VersionString() As String

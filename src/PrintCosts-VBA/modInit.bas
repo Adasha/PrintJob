@@ -759,7 +759,20 @@ Private Sub GroupJobColumns(ByVal ws As Worksheet)
     ' which hid the one cost figure a collapsed view most needs to keep
     ' showing).
     GroupColumnRange lo, "Paper Cost", "Disregarded"
-    GroupColumnRange lo, "S_PrinterID", "S_SchemaVer"
+
+    ' Notes through S_SchemaVer: flattened to NO grouping at all (2026-09-22),
+    ' not re-grouped - this used to also GroupColumnRange S_PrinterID through
+    ' S_SchemaVer, but PrintCosts.xlsx already ships that whole span
+    ' (H_Issues onward) pre-grouped and hidden, so the explicit re-group
+    ' nested a SECOND outline level on top of it - one clean lvl-2 span
+    ' became a stray lvl-2 group over Notes+H_Issues (Notes wrongly pulled
+    ' in and hidden - see below) plus a separate lvl-3 group over most of
+    ' the snapshot block, two extra collapsible groups cluttering the
+    ' outline pane right next to the one cost group that matters day to
+    ' day. Flattening removes the outline controls entirely; H_Issues and
+    ' the snapshot columns stay invisible regardless, via their own
+    ' .Hidden state (§3.4/§5), which needs no outline group to hold it.
+    FlattenOutline lo, "Notes", "S_SchemaVer"
 End Sub
 
 Private Sub GroupColumnRange(ByVal lo As ListObject, ByVal FirstHeader As String, ByVal LastHeader As String)
@@ -785,6 +798,28 @@ Private Sub UngroupColumnRange(ByVal lo As ListObject, ByVal FirstHeader As Stri
     On Error Resume Next
     ws.Range(lo.HeaderRowRange.Cells(1, c1), lo.HeaderRowRange.Cells(1, c2)).EntireColumn.Ungroup
     On Error GoTo 0
+    RelockSheet ws
+End Sub
+
+' Sets OutlineLevel back to 1 (no grouping at all) across the given span,
+' regardless of what it was before - a single deterministic reset rather
+' than a bare .Ungroup, which only removes one level at a time and would
+' leave a doubly-nested span (2026-09-22's bug, see GroupJobColumns) still
+' one level deep. Also resets Notes specifically back to visible: it's a
+' genuine input column, not part of the historical/snapshot block, and can
+' end up swept into H_Issues/the snapshot block's hidden state as a side
+' effect of where Paid gets inserted right next to it (EnsurePaidColumn).
+' Every OTHER column in the span keeps whatever .Hidden state it already
+' has - H_Issues and the snapshot columns ship hidden in PrintCosts.xlsx
+' (§3.4/§5) and that is untouched here, on purpose.
+Private Sub FlattenOutline(ByVal lo As ListObject, ByVal FirstHeader As String, ByVal LastHeader As String)
+    Dim c1 As Long, c2 As Long, ws As Worksheet
+    c1 = ColIdx(lo, FirstHeader)
+    c2 = ColIdx(lo, LastHeader)
+    Set ws = lo.Parent
+    UnlockSheet ws
+    ws.Range(lo.HeaderRowRange.Cells(1, c1), lo.HeaderRowRange.Cells(1, c2)).EntireColumn.OutlineLevel = 1
+    lo.ListColumns(FirstHeader).Range.EntireColumn.Hidden = False
     RelockSheet ws
 End Sub
 
