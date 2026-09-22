@@ -198,9 +198,10 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
     Const HDR_ROW As Long = 15
     Dim lastCol As Long, rng As Range, block As Variant, n As Long
     Dim path As String, wbOut As Workbook
+    Dim promoted As Collection, header As Variant, full As Variant, tableHeaderRow As Long
 
     On Error GoTo Fail
-    lastCol = LastVisibleColumn(repWs, HDR_ROW)
+    lastCol = LastHeaderColumn(repWs, HDR_ROW)
     If lastCol = 0 Then
         Say "There is nothing to export.", "No result columns were found on the Reports sheet."
         Exit Sub
@@ -223,6 +224,16 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
     n = rng.Rows.Count
 
     block = SnapshotBlock(repWs, rng, HDR_ROW, lastCol, n)
+    ' Snag list items 2b/2c: a field that holds the SAME value on every
+    ' exported row is a fact about the whole report, not a per-row detail -
+    ' promoted into the header block and dropped from the table so the file
+    ' reads as "this report is about X" rather than repeating X down a whole
+    ' column. Live-sheet-only per the user's own answer on review: this
+    ' happens here, at export time, never to the Reports sheet itself.
+    block = PromoteUniformColumns(block, promoted)
+    header = SnapshotHeaderBlock(repWs, rng, n, promoted)
+    full = CombineBlocks(header, block)
+    tableHeaderRow = UBound(header, 1) + 2   ' + 1 blank separator + 1 to reach the header row itself
 
     path = ReportSnapshotPath()
     If Len(path) = 0 Then
@@ -236,9 +247,11 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
     AppOff
     Set wbOut = Application.Workbooks.Add
     With wbOut.Worksheets(1)
-        .Range(.Cells(1, 1), .Cells(UBound(block, 1), UBound(block, 2))).Value = block
-        .Rows(1).Font.Bold = True
-        .Rows(1).Interior.Color = RGB(222, 232, 244)
+        .Range(.Cells(1, 1), .Cells(UBound(full, 1), UBound(full, 2))).Value = full
+        .Range(.Cells(1, 1), .Cells(1, 2)).Font.Bold = True
+        .Range(.Cells(1, 1), .Cells(1, 2)).Font.Size = 14
+        .Rows(tableHeaderRow).Font.Bold = True
+        .Rows(tableHeaderRow).Interior.Color = RGB(222, 232, 244)
         FormatSnapshotColumns wbOut.Worksheets(1), block
         .Columns.AutoFit
     End With
@@ -265,17 +278,203 @@ Fail:
     ReportError "Export report"
 End Sub
 
-' The last column with a header, skipping the hidden Job ID column at the
-' end - an internal correlation key, not part of the human-facing archive.
-Private Function LastVisibleColumn(ByVal ws As Worksheet, ByVal HdrRow As Long) As Long
-    Dim c As Long, last As Long
+' The last column with a header, excluding the trailing Job ID correlation
+' column - an internal key, not part of the human-facing archive.
+'
+' Deliberately NOT filtered by Hidden (renamed from LastVisibleColumn,
+' 2026-09-22, snag list items 2b/2c): the Reports sheet's minimum-columns
+' view (2d) now hides several columns - Printer, Technician among them - that
+' are still needed here as PromoteUniformColumns candidates. The old
+' Hidden-filtered version silently truncated every export at the last
+' visible column, dropping Technician and Notes from the file entirely
+' without any error - found while building the promotion logic, not
+' reported by a user, since nothing about a short file looks wrong until you
+' already know a column is missing.
+Private Function LastHeaderColumn(ByVal ws As Worksheet, ByVal HdrRow As Long) As Long
+    Dim c As Long, last As Long, hdr As String
     c = 1
     Do While Len(Trim$(CStr(ws.Cells(HdrRow, c).Value))) > 0
-        If Not ws.Columns(c).Hidden Then last = c
+        hdr = CStr(ws.Cells(HdrRow, c).Value)
+        If StrComp(hdr, "Job ID", vbTextCompare) <> 0 Then last = c
         c = c + 1
         If c > 100 Then Exit Do
     Loop
-    LastVisibleColumn = last
+    LastHeaderColumn = last
+End Function
+
+' Header candidates for single-value promotion (2b/2c). Student name/no are
+' included even though the 2a toggle usually blanks them - when the toggle is
+' off every value is blank, so PromoteUniformColumns' own "at least one
+' non-blank value" rule already leaves them alone with no special-casing
+' needed here.
+Private Function CandidatePromotionHeaders() As Variant
+    CandidatePromotionHeaders = Array("Student name", "Student no", "Location", _
+        "Printer", "Paper stock", "Technician")
+End Function
+
+Private Function IsPromotionCandidate(ByVal Header As String, ByVal candidates As Variant) As Boolean
+    Dim i As Long
+    For i = LBound(candidates) To UBound(candidates)
+        If StrComp(Header, CStr(candidates(i)), vbTextCompare) = 0 Then
+            IsPromotionCandidate = True
+            Exit Function
+        End If
+    Next i
+End Function
+
+' Scans BLOCK (header row 1, data rows 2..) for candidate columns whose
+' non-blank values are all identical, and lifts each one out: added to
+' Promoted as a "Header: Value" line for the header block, and dropped from
+' the returned table so the gap closes rather than leaving an empty column.
+' A candidate column with no non-blank values at all is left exactly where
+' it is - there is nothing true to state about it, and removing an
+' all-blank column would look like data loss rather than tidying.
+Private Function PromoteUniformColumns(ByVal block As Variant, ByRef promoted As Collection) As Variant
+    Dim candidates As Variant, c As Long, r As Long
+    Dim hdr As String, v As String, uniform As String
+    Dim rows As Long, cols As Long, keep() As Boolean, nKeep As Long, outCol As Long
+    Dim hasValue As Boolean, mismatch As Boolean
+    Dim out() As Variant
+
+    Set promoted = New Collection
+    candidates = CandidatePromotionHeaders()
+    rows = UBound(block, 1)
+    cols = UBound(block, 2)
+    ReDim keep(1 To cols)
+    For c = 1 To cols
+        keep(c) = True
+    Next c
+
+    For c = 1 To cols
+        hdr = CStr(block(1, c))
+        If IsPromotionCandidate(hdr, candidates) Then
+            hasValue = False
+            mismatch = False
+            uniform = ""
+            For r = 2 To rows
+                v = Trim$(CStr(block(r, c)))
+                If Len(v) > 0 Then
+                    If Not hasValue Then
+                        uniform = v
+                        hasValue = True
+                    ElseIf StrComp(v, uniform, vbBinaryCompare) <> 0 Then
+                        mismatch = True
+                        Exit For
+                    End If
+                End If
+            Next r
+            If hasValue And Not mismatch Then
+                promoted.Add hdr & ": " & uniform
+                keep(c) = False
+            End If
+        End If
+    Next c
+
+    nKeep = 0
+    For c = 1 To cols
+        If keep(c) Then nKeep = nKeep + 1
+    Next c
+    If nKeep = cols Then
+        PromoteUniformColumns = block
+        Exit Function
+    End If
+
+    ReDim out(1 To rows, 1 To nKeep)
+    For r = 1 To rows
+        outCol = 0
+        For c = 1 To cols
+            If keep(c) Then
+                outCol = outCol + 1
+                out(r, outCol) = block(r, c)
+            End If
+        Next c
+    Next r
+    PromoteUniformColumns = out
+End Function
+
+' The metadata block written above the results table: what report this is,
+' what schema/site it came from, the date range covered, when it was made,
+' how many rows, then one line per field PromoteUniformColumns lifted out.
+Private Function SnapshotHeaderBlock(ByVal repWs As Worksheet, ByVal rng As Range, _
+                                     ByVal n As Long, ByVal promoted As Collection) As Variant
+    Const FIXED As Long = 7
+    Dim a() As Variant, r As Long, item As Variant
+
+    ReDim a(1 To FIXED + promoted.Count, 1 To 2)
+    a(1, 1) = "Print job report"
+    a(2, 1) = "Schema version": a(2, 2) = SCHEMA_VER
+    a(3, 1) = "Site ID":        a(3, 2) = SettingText("SITE_ID", "SITE")
+    a(4, 1) = "Site name":      a(4, 2) = SettingText("SITE_NAME")
+    a(5, 1) = "Date range":     a(5, 2) = DateRangeText(repWs, rng)
+    a(6, 1) = "Generated":      a(6, 2) = Format$(Now, "yyyy-mm-dd hh:nn:ss")
+    a(7, 1) = "Rows":           a(7, 2) = n
+
+    r = FIXED
+    For Each item In promoted
+        r = r + 1
+        a(r, 1) = CStr(item)
+    Next item
+
+    SnapshotHeaderBlock = a
+End Function
+
+' The From/To filter boxes (B7/B8) name the range the user actually asked
+' for, so they win when set - even a one-sided filter ("From 01/01/2026,
+' no end") is more informative than a min/max over whatever happened to
+' match. Only once neither is set does this fall back to the actual spread
+' of the exported rows' own Date/Time column.
+Private Function DateRangeText(ByVal repWs As Worksheet, ByVal rng As Range) As String
+    Dim fromD As Variant, toD As Variant, minD As Double, maxD As Double
+
+    fromD = repWs.Range("B7").Value
+    toD = repWs.Range("B8").Value
+    If IsDate(fromD) Or IsDate(toD) Then
+        If IsDate(fromD) And IsDate(toD) Then
+            DateRangeText = Format$(CDate(fromD), "dd/mm/yyyy") & " to " & Format$(CDate(toD), "dd/mm/yyyy")
+        ElseIf IsDate(fromD) Then
+            DateRangeText = "From " & Format$(CDate(fromD), "dd/mm/yyyy")
+        Else
+            DateRangeText = "Up to " & Format$(CDate(toD), "dd/mm/yyyy")
+        End If
+        Exit Function
+    End If
+
+    minD = Application.WorksheetFunction.Min(rng.Columns(1))
+    maxD = Application.WorksheetFunction.Max(rng.Columns(1))
+    If Format$(CDate(minD), "yyyy-mm-dd") = Format$(CDate(maxD), "yyyy-mm-dd") Then
+        DateRangeText = Format$(CDate(minD), "dd/mm/yyyy")
+    Else
+        DateRangeText = Format$(CDate(minD), "dd/mm/yyyy") & " to " & Format$(CDate(maxD), "dd/mm/yyyy")
+    End If
+End Function
+
+' Stacks the header block above the results table with one blank row between
+' them, widening to whichever of the two is wider (the header block is only
+' ever two columns; the table is usually more) so neither side is clipped.
+Private Function CombineBlocks(ByVal top As Variant, ByVal bottom As Variant) As Variant
+    Dim topRows As Long, topCols As Long, botRows As Long, botCols As Long
+    Dim w As Long, r As Long, c As Long
+    Dim out() As Variant
+
+    topRows = UBound(top, 1)
+    topCols = UBound(top, 2)
+    botRows = UBound(bottom, 1)
+    botCols = UBound(bottom, 2)
+    w = topCols
+    If botCols > w Then w = botCols
+
+    ReDim out(1 To topRows + 1 + botRows, 1 To w)
+    For r = 1 To topRows
+        For c = 1 To topCols
+            out(r, c) = top(r, c)
+        Next c
+    Next r
+    For r = 1 To botRows
+        For c = 1 To botCols
+            out(topRows + 1 + r, c) = bottom(r, c)
+        Next c
+    Next r
+    CombineBlocks = out
 End Function
 
 Private Function SnapshotBlock(ByVal ws As Worksheet, ByVal rng As Range, _

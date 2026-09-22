@@ -23,6 +23,34 @@ Option Explicit
 ' acceptance passes at the end of the sequence.
 
 Public Const APP_NAME As String = "Print Cost Management"
+' 0.9.7 - Export report's header block and single-value promotion (snags
+' 2b, 2c). modExport.ExportReportSnapshot's .xlsx archive now opens with a
+' metadata block - report title, schema version, site ID/name, the date
+' range covered (the From/To filter boxes when set, else the actual spread
+' of the exported rows' own Date/Time column), a generated-at timestamp and
+' the row count - then a blank row, then the results table. Live Reports
+' sheet untouched throughout, per the user's own review answer: this is
+' export-time-only.
+'
+' Single-value promotion: any of Student name, Student no, Location,
+' Printer, Paper stock, Technician that holds the SAME non-blank value on
+' every exported row is lifted into the header block as a "Header: Value"
+' line and dropped from the table, so filtering a report down to one
+' printer (say) states that once at the top instead of repeating it down an
+' entire column. A candidate column with no non-blank values at all (e.g.
+' Student name/no when the 2a toggle is off) is left alone untouched -
+' there is nothing true to promote.
+'
+' One real bug found building this: LastVisibleColumn (renamed
+' LastHeaderColumn) filtered its column bound by .Hidden, which was
+' harmless when only the trailing Job ID column was ever hidden - but 2d's
+' minimum-columns view (0.9.6) now hides Printer and Technician among
+' others, so the OLD function silently truncated every export at the last
+' VISIBLE column, dropping Technician and Notes from the file entirely with
+' no error. The promotion logic needs those hidden columns' values to check
+' for uniformity, so the bound is now by header name (stop before the
+' trailing "Job ID") rather than by Hidden state.
+'
 ' 0.9.6 - Reports student name/no toggle and minimum-columns view (snags
 ' 2a, 2d): a Yes/No toggle at F9 (default No) blanks Student Name/No in the
 ' results table and any export, satisfying data protection; Student Name/
@@ -262,7 +290,7 @@ Public Const APP_NAME As String = "Print Cost Management"
 ' A patch increment, not a phase: the phase digit still reads 7 because phase
 ' 8 has not been built. The revision digit is what "0.<phase>.<revision>"
 ' exists for.
-Public Const APP_VERSION As String = "0.9.6"
+Public Const APP_VERSION As String = "0.9.7"
 Public Const APP_AUTHOR As String = "Adam Shailer"
 
 Public Function VersionString() As String
