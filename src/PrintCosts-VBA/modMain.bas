@@ -87,6 +87,14 @@ Fail:
     ReportError "Clear defaults"
 End Sub
 
+Public Sub btnToggleReducedView()
+    On Error GoTo Fail
+    ToggleReducedView
+    Exit Sub
+Fail:
+    ReportError "Reduce clutter"
+End Sub
+
 Public Sub btnCheckSheet()
     On Error GoTo Fail
     If Not RequireLocation Then Exit Sub

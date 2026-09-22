@@ -23,6 +23,18 @@ Option Explicit
 ' acceptance passes at the end of the sequence.
 
 Public Const APP_NAME As String = "Print Cost Management"
+' 0.9.3 - reduced-clutter view toggle (snag 1e): a workbook-wide (not
+' per-sheet) toggle hiding Status, Job ID, Printer, Area m2, Disregard Paper
+' and Disregard Consumable on every location sheet at once, driven by two
+' self-provisioned settings (SET_LOC_REDUCED_VIEW, SET_LOC_REDUCED_COLUMNS)
+' rather than a hard-coded list, so the shortlist can change without a
+' rebuild. modInit.ApplyColumnVisibility is the general "hide/show exactly
+' these headers, touch nothing else" primitive underneath - deliberately not
+' a blanket show-everything-then-hide-the-list reset, since H_Issues is
+' hidden permanently and must never be touched by this. Same primitive gets
+' reused by the Reports page's own fixed minimum-columns view once that
+' lands (snag 2d).
+'
 ' 0.9.2 - Paid job-row column and the column-grouping fix (snags 1c, 1d):
 '
 '   - A new Paid (Yes/No) column, right after Chargeable Cost. The first
@@ -164,7 +176,7 @@ Public Const APP_NAME As String = "Print Cost Management"
 ' A patch increment, not a phase: the phase digit still reads 7 because phase
 ' 8 has not been built. The revision digit is what "0.<phase>.<revision>"
 ' exists for.
-Public Const APP_VERSION As String = "0.9.2"
+Public Const APP_VERSION As String = "0.9.3"
 Public Const APP_AUTHOR As String = "Adam Shailer"
 
 Public Function VersionString() As String

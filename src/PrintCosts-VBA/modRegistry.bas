@@ -69,6 +69,7 @@ Public Sub RefreshLocations()
         FixButtons ws
         EnsureJobDefaults ws
         BindColumns ws
+        ApplyReducedView ws
         ProtectSheet ws
         n = n + 1
     Next v

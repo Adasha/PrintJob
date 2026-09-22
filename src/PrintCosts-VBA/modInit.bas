@@ -13,6 +13,17 @@ Option Explicit
 
 Private Const BTN_TAG As String = "pcb_"
 
+' Snag list item 1e's reduced-clutter view: the default hidden-column list,
+' used to seed the SET_LOC_REDUCED_COLUMNS setting the first time and as the
+' fallback if that setting is ever cleared. Declared here with this module's
+' other module-level constant (BTN_TAG) rather than down by the code that
+' uses it - every other module in this project keeps its Const/Dim
+' declarations clustered at the top, and a module-level Const declared after
+' a Sub/Function has already appeared in the source left this workbook
+' failing to compile ("Variable not defined") even though the declaration
+' itself was syntactically fine on its own.
+Private Const REDUCED_COLUMNS_DEFAULT As String = "Status;Job ID;Printer;Area m2;Disregard Paper;Disregard Consumable"
+
 ' Set by a setup run and consumed by the message Refresh Locations shows, so a
 ' full setup can say how many buttons it drew without a second dialog.
 Public gButtonsDrawn As Long
@@ -33,6 +44,7 @@ Public Sub InitialiseWorkbook()
     EnsureVersionSettings
     EnsureSchemaSetting
     EnsureExportSettings
+    EnsureReducedViewSettings
     WriteAbout
 
     ' Summary and Reports, likewise built here. Their formulas read
@@ -51,6 +63,7 @@ Public Sub InitialiseWorkbook()
             BindColumns ws
             GroupJobColumns ws
             ApplyStatusFormat ws
+            ApplyReducedView ws
             n = n + 1
         ElseIf StrComp(ws.Name, "Summary", vbTextCompare) = 0 Then
             ' Column O onwards, clear of the A:M report table.
@@ -165,6 +178,11 @@ Private Sub DrawLocationButtons(ByVal ws As Worksheet)
     ' Batch defaults toolbar (row 9, snag list item 1b) - clear sits to the
     ' right of the three default cells (columns A-F), clear of both.
     DrawOne ws, 9, 9, "Clear defaults", "btnClearDefaults", 110
+
+    ' Reduced-clutter view toggle (row 9, snag list item 1e) - further right
+    ' again, clear of Clear defaults. Caption read fresh from the current
+    ' setting each time this runs, same as ConfigToggleCaption's button does.
+    DrawOne ws, 9, 13, ReducedViewCaption(), "btnToggleReducedView", 130
 End Sub
 
 ' Yes/No validation on the two location defaults (spec 9.2). These seed each
@@ -563,6 +581,92 @@ Private Sub RelabelConfigToggleButton()
     For i = 1 To ws.Buttons.Count
         If Left$(ws.Buttons(i).Name, Len(prefix)) = prefix Then
             ws.Buttons(i).Caption = ConfigToggleCaption()
+            Exit For
+        End If
+    Next i
+End Sub
+
+' ------------------------------------------------------ reduced-clutter ---
+' Snag list item 1e: a workbook-wide toggle (not per-sheet - simpler, and it
+' means every location sheet stays in the same state as every other rather
+' than risking drift) that hides a short list of columns most day-to-day
+' entry doesn't need. The list itself lives in a SETTING rather than a VBA
+' constant (REDUCED_COLUMNS_DEFAULT, declared with this module's other
+' constants at the top), so it can be edited without a rebuild if the
+' shortlist changes later - the snag list's own "keep it flexible".
+Private Sub EnsureReducedViewSettings()
+    Dim c As Range
+    Set c = EnsureSetting("LOC_REDUCED_VIEW", "Reduced location view", "Yes hides the columns named in the setting below on every location sheet (toggled by the button on each one). No shows every column.")
+    If Len(Trim$(CStr(c.Value))) = 0 Then c.Value = "No"
+    Set c = EnsureSetting("LOC_REDUCED_COLUMNS", "Reduced view - hidden columns", "Semicolon-separated column headers hidden by the reduced view above. Edit this list to change which columns it hides - no rebuild needed.")
+    If Len(Trim$(CStr(c.Value))) = 0 Then c.Value = REDUCED_COLUMNS_DEFAULT
+End Sub
+
+Private Function ReducedViewOn() As Boolean
+    ReducedViewOn = (StrComp(SettingText("LOC_REDUCED_VIEW", "No"), "Yes", vbTextCompare) = 0)
+End Function
+
+Private Function ReducedViewCaption() As String
+    ReducedViewCaption = IIf(ReducedViewOn(), "Show all columns", "Reduce clutter")
+End Function
+
+' Applies the CURRENT setting to one location sheet's table - called on
+' every InitialiseWorkbook/RefreshLocations run (so a freshly duplicated
+' sheet, or one predating the feature, always ends up in sync) and again
+' from ToggleReducedView for every location sheet at once.
+Public Sub ApplyReducedView(ByVal ws As Worksheet)
+    Dim lo As ListObject
+    Set lo = JobsTable(ws)
+    If lo Is Nothing Then Exit Sub
+    ApplyColumnVisibility lo, SplitList(SettingText("LOC_REDUCED_COLUMNS", REDUCED_COLUMNS_DEFAULT)), ReducedViewOn()
+End Sub
+
+' Hides or shows exactly the named columns, by header, and touches nothing
+' else - some columns (H_Issues) are hidden permanently, shipped that way in
+' the .xlsx and never toggled by this or any other code, so this must never
+' do a blanket "show everything then hide the list" reset. A header not
+' currently on the table (a typo in the setting, say) is skipped rather than
+' raising, since ColIdx would otherwise abort the whole pass over one bad
+' name. Public: modReports.BuildReports reuses this for the Reports page's
+' own fixed minimum-columns view (snag list item 2d).
+Public Sub ApplyColumnVisibility(ByVal lo As ListObject, ByVal Headers As Variant, ByVal Hide As Boolean)
+    Dim ws As Worksheet, i As Long, col As Long
+    Set ws = lo.Parent
+    UnlockSheet ws
+    For i = LBound(Headers) To UBound(Headers)
+        col = 0
+        On Error Resume Next
+        col = ColIdx(lo, Trim$(CStr(Headers(i))))
+        On Error GoTo 0
+        If col > 0 Then lo.ListColumns(col).Range.EntireColumn.Hidden = Hide
+    Next i
+    RelockSheet ws
+End Sub
+
+' modMain.btnToggleReducedView's target. Flips the setting once, then
+' re-applies it to every location sheet and relabels every toggle button in
+' one pass, so all of them change state together rather than one at a time.
+Public Sub ToggleReducedView()
+    Dim reduceIt As Boolean, ws As Worksheet
+    reduceIt = Not ReducedViewOn()
+    SetSetting "LOC_REDUCED_VIEW", IIf(reduceIt, "Yes", "No")
+
+    AppOff
+    For Each ws In ThisWorkbook.Worksheets
+        If IsLocation(ws) Then
+            ApplyReducedView ws
+            RelabelReducedViewButton ws
+        End If
+    Next ws
+    AppOn
+End Sub
+
+Private Sub RelabelReducedViewButton(ByVal ws As Worksheet)
+    Dim i As Long, prefix As String
+    prefix = BTN_TAG & "btnToggleReducedView"
+    For i = 1 To ws.Buttons.Count
+        If Left$(ws.Buttons(i).Name, Len(prefix)) = prefix Then
+            ws.Buttons(i).Caption = ReducedViewCaption()
             Exit For
         End If
     Next i
