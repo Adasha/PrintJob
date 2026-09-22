@@ -105,6 +105,8 @@ Public Sub InitialiseWorkbook()
             DrawOne ws, 8, 20, "About", "btnAbout", 130
             DrawOne ws, 10, 20, "Export All Locations...", "btnExportAll", 130
             DrawOne ws, 12, 20, "Import (choose room)...", "btnImportGlobal", 130
+            DrawOne ws, 14, 20, "Backup workbook...", "btnBackupWorkbook", 130
+            DrawOne ws, 16, 20, "Restore workbook...", "btnRestoreWorkbook", 130
             ' Small +/- buttons above the four lookup tables (snag list item
             ' 5). Row 4 is already the table's own subtitle ("Paper stock
             ' types" etc.) on this sheet, unlike the blank row 4 on Printers/

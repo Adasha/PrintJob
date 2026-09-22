@@ -69,6 +69,22 @@ Fail:
     ReportError "Import"
 End Sub
 
+Public Sub btnBackupWorkbook()
+    On Error GoTo Fail
+    BackupAll
+    Exit Sub
+Fail:
+    ReportError "Backup workbook"
+End Sub
+
+Public Sub btnRestoreWorkbook()
+    On Error GoTo Fail
+    RestoreWorkbook
+    Exit Sub
+Fail:
+    ReportError "Restore workbook"
+End Sub
+
 Public Sub btnClearAll()
     On Error GoTo Fail
     If Not RequireLocation Then Exit Sub

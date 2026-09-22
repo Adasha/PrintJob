@@ -6,7 +6,7 @@
 
 **Current state, as verified against the actual VBA source on 2026-09-22:**
 
-- Workbook version reported in-code: `0.9.8` (`modVersion.APP_VERSION`) — `0.8.0` reflected the NextId fix, Export/Import, the Reports rework and the 2026-09-21 snag list; `0.8.1` closed out phase 8's own original scope (§16.1); `0.9.0`–`0.9.8` are phase 9's packages so far — see §16.4.
+- Workbook version reported in-code: `0.9.9` (`modVersion.APP_VERSION`) — `0.8.0` reflected the NextId fix, Export/Import, the Reports rework and the 2026-09-21 snag list; `0.8.1` closed out phase 8's own original scope (§16.1); `0.9.0`–`0.9.9` are phase 9's packages so far — see §16.4.
 - Data schema version: `1.1` (`modUtils.SCHEMA_VER`) — unchanged since inception through every 0.8.x release; bumped for the first time by phase 9's Paid column (snag 1c, §5), which also surfaced and fixed a gap in how `SET_SCHEMA` stayed in sync with the constant (§3.3, §3.5).
 - Everything in the original design document's phases 1–7 is built and verified.
 - Phase 8's original scope (visual polish) is **fully built** — see §16.2.
@@ -488,7 +488,7 @@ They cannot use `SUMIFS` for the breakdowns below — its arguments must be rang
 | Sheet | Buttons |
 |---|---|
 | Summary | Refresh Locations, Check workbook, **Hide/Show settings sheets** (Go to Settings removed, 2026-09-22 — see §16.4) |
-| Settings | Refresh Locations, Check workbook, Re-stamp prices…, About |
+| Settings | Refresh Locations, Check workbook, Re-stamp prices…, About, Export All Locations…, Import (choose room)…, **Backup workbook…**, **Restore workbook…** (§10.7) |
 | Each location | Add Print Job, Now, Remove Row, Select printers…, Check this sheet, Clear All, Export…, Import…, **Clear defaults**, **Reduce clutter / Show all columns** (row 9, §4.1) |
 | Printers | Select families… |
 | Reports | **Export report…**, **Delete visible records…** |
@@ -548,6 +548,7 @@ Settings keeps its own copies deliberately: it is where someone lands when confi
 - **Quiet mode.** `modUtils.SetQuiet` switches `Say` from `MsgBox` to collecting messages for `QuietLog`, and makes `Ask` return **False**. A script driving the workbook over COM has nobody to dismiss a dialog, and one `MsgBox` hangs the run indefinitely. `Ask` returning False is deliberate: an unattended run must never confirm a destructive operation on the user's behalf — and it has a second use, since it lets a test read a destructive command's confirmation text while guaranteeing the command aborts.
 - **Show what's about to be lost, before losing it.** `RemoveRow`, `ClearAll`, config-row removal (§3.3), Import's overwrite count (§10.5) and Reports' bulk delete (§10.6) all confirm with the specific record count (and, where relevant, a per-location breakdown) rather than a bare "Are you sure?".
 - **Read `Err.Number`/`Err.Description` first thing in a handler.** Every form of `On Error` resets the `Err` object, so reading it after any cleanup step (e.g. reprotecting a sheet) loses the description of what actually went wrong.
+- **VBA's `And`/`Or` do not short-circuit - both operands are always evaluated.** `If lo.ListRows.Count = 1 And IsBlankRow(lo, 1) Then` (a pattern used in five modules - `modJobs`, `modImport`, `modCatalog`, `modSnapshot`, and 2026-09-22's `modBackup`) still calls `IsBlankRow(lo, 1)`, which indexes `ListRows(1)`, even when `Count = 1` has already evaluated to `False` - there is no early exit the way there would be in most other languages. Harmless while `Count >= 1` (index 1 is always in range then), but "Subscript out of range" the moment `Count = 0`, a state nothing in ordinary use ever produced until restoring a backup into a table emptied down to zero rows (§10.7) reached it for the first time. Fixed at the root: `modUtils.IsBlankRow` now returns `False` for a row number outside the table's current range instead of indexing blindly, protecting every call site rather than restructuring each one's `If` around the non-short-circuiting operator.
 - **`Any` is a reserved VBA token even outside a `Declare` statement.** `Dim any As Boolean` (`modExport.PromoteUniformColumns`, 2026-09-22) compiled invisibly as valid-looking source and imported without error, then broke the whole module with a bare "Compile error: Syntax error" and no line number — the same class of confusing, hard-to-spot compile failure as the module-level `Const`-placement bug above, just a different trigger. Diagnosed the same way: the VBE's blocking dialog read via Win32 window text, since the COM call hangs rather than raising. Renamed to `hasValue`; the fix generalises to avoid `Any` (and, on the same reasoning, other `Declare`-only contextual keywords) as an ordinary identifier anywhere in this project, not just here.
 
 ### 9.3 Cross-platform strategy
@@ -717,6 +718,39 @@ Any of **Student name, Student no, Location, Printer, Paper stock, Technician** 
 **Audit.** Logged to `tblAudit` as `Delete visible (Reports)`.
 
 **Verified** by `test-deletereports.ps1`, alongside the Export report snapshot itself.
+
+### 10.7 Full workbook backup / restore — built (snag list item 4a)
+
+The ad-hoc "get me back to where I was" path, distinct from the two artefacts above: not a per-location CSV (§10.4), not a filtered Reports snapshot (§10.4's Export report), but every catalogue/configuration table plus every location's job records, in one pass, sharing one timestamp. New module `modBackup.bas`. Buttons on Settings: **Backup workbook...** / **Restore workbook...** (rows 14/16, column T, alongside the existing Export All Locations / Import commands).
+
+**Backup All** (`modBackup.BackupAll`): runs the existing `ExportAllLocations` unchanged (own summary dialog) for job records, then writes one CSV per catalogue table — `tblTechnicians`, `tblPrinters`, `tblPapers`, the four Settings-page lookup tables (`tblPaperTypes`, `tblStandardSizes`, `tblPaperFamilies`, `tblConsumables`), and `tblSettings` itself (one of the eight, not a separate mechanism — `modUtils.Tbl` finds it on the Settings sheet the same way it finds the other three lookup tables there). Named `PrintCosts-<SITE>-CATALOG-<TableName>-yyyymmdd-hhmm.csv`, written to the same resolved `ExportFolder()` (now `Public`, reused unchanged rather than re-deriving the OneDrive-URL resolution logic — §10.4's own env-var gotcha lives there, and duplicating it would risk drifting out of sync).
+
+**Deliberate reuse over a second CSV format.** A catalogue CSV's header block is padded to the same eight rows `modExport.BuildBlock` uses for a per-location job export (title/schema/site/generated/rows, then a deliberately blank row 8), so the table header always lands on row 9 and data on row 10 — exactly where `modImport.ReadImportRows`'s own hardcoded row numbers already look. Restore therefore reads catalogue rows with the **same, unmodified, already-tested function** that reads job rows; no second CSV parser exists in this workbook.
+
+**Restore Workbook** (`modBackup.RestoreWorkbook`): the user picks **any one file** from a backup via `Application.GetOpenFilename` (the same Mac-safe picker `modImport.PickImportFile` already uses — never `Application.FileDialog`, §9.3). Every sibling file sharing the same trailing `-yyyymmdd-hhmm.csv` in the same folder is found and classified by filename — safe here specifically because this module wrote every filename it will ever read back, unlike an arbitrary file. A preview (row counts per table, per location) is shown before confirming; **"This cannot be undone."**
+
+**Conflict handling — the same rule as Import, generalised.** Each catalogue table has a stable key column used for overwrite-vs-append matching, exactly mirroring Job ID's role for job rows:
+
+| Table | Key column |
+|---|---|
+| `tblTechnicians` | TechID |
+| `tblPrinters` | PrinterID |
+| `tblPapers` | StockID |
+| `tblPaperTypes` | Paper type |
+| `tblStandardSizes` | Size name |
+| `tblPaperFamilies` | Family |
+| `tblConsumables` | Consumable type |
+| `tblSettings` | Key |
+
+The four Settings-page lookup tables have no synthetic ID (§3.3) — their natural-key text column is already what every lookup in this workbook treats as their identity (`modCatalog`'s own dictionaries are keyed the same way), so reusing it here assumes nothing new. A column currently holding a **formula** (`tblPapers`' Measure/Cost unit) is left alone on restore — checked by `.HasFormula`, not a hardcoded per-table column list, so a future calculated column added to any catalogue table is protected automatically without a matching code change. A value that parses as a number is written as one (locale-aware `CDbl`, not text that merely looks numeric), so cost/width/height columns stay usable by downstream formulas.
+
+**Settings rows marked "Read-only" are skipped on restore.** `APP_VER`/`SCHEMA`/`BUILT`/`BUILT_BY`/`LASTREF` describe the *current* build (the same "Read-only" convention `modInit.UnlockSettingsValues` already reads from each row's own Notes column) — rewinding them to a backup's old values would make the workbook misreport its own version and schema, which nothing else about a restore should touch.
+
+**Location job records reuse `modImport.ApplyImportConfirmed` unchanged**, one call per location file found — same "existing Job ID: overwrite, new Job ID: append" rule, same audit trail, same post-import `CheckSheet` sweep. The location a file belongs to is read from its own header block (`modExport.BuildBlock`'s "Location code" line, row 5) rather than parsed from the filename, so a restore does not depend on assumptions about what characters a site ID or location code might contain.
+
+**A genuine, previously-latent bug found building this — worth its own note in §9.2: VBA's `And` does not short-circuit.** `If lo.ListRows.Count = 1 And IsBlankRow(lo, 1) Then` — copied from the existing pattern already used by `modJobs`, `modImport`, `modCatalog` and `modSnapshot` — evaluates **both** operands regardless of the first, so `IsBlankRow(lo, 1)` still ran, and raised "Subscript out of range" calling `ListRows(1)` on a table with **zero** rows, even though the left operand (`Count = 1`) had already failed and should have made the right operand irrelevant. Dormant for the whole life of this project so far: nothing in ordinary use ever leaves a table at genuinely zero rows (`ClearAll` and friends always leave the one blank templated row) — restoring a backup into a catalogue table someone had emptied by hand is the first code path to actually reach that state. Fixed at the root rather than at each of the five call sites: `modUtils.IsBlankRow` now returns `False` (not an error) for a row number outside the table's current range, which is what "is this specific row blank" should mean for a row that does not exist.
+
+**Verified** by new `test-backup.ps1`: backs up a populated copy, empties a second copy's Printers table and one location's job table entirely (a genuinely destructive corruption, not a partial one — this is exactly what surfaced the bug above), restores from the first copy's backup, and confirms row counts match the original, an untouched table (Papers) is unaffected, the audit log records the restore, and running the same restore a second time is idempotent (no duplicate rows).
 
 ---
 
@@ -937,6 +971,8 @@ Also found and fixed a **test-script bug, not a product bug**, that looked exact
 Verified by new `test-reportsnapshot.ps1` (header-block field presence, promotion firing on a single-printer filter and correctly *not* firing unfiltered, all 17 columns present when nothing promotes) and the existing `test-deletereports.ps1`, plus the full regression suite.
 
 **Package 7 — Summary sheet fixes (snags 3a, 3b) — built.** See §8.2's `ToggleConfigSheets` update and §8.5's command table for the full account. `modInit.ToggleConfigSheets` now captures the `Summary` worksheet before hiding/showing the four configuration sheets and re-activates it unconditionally afterward, rather than relying on Summary having stayed active the whole time — a no-op in the ordinary click-the-button case, a real fix for any path that leaves a different sheet active first. The "Go to Settings" button is removed outright (`modMain.btnGoSettings` deleted, its `DrawOne` call on Summary removed, `modInit.ToggleConfigSheets`'s own button shifted up to fill the row) rather than made target-aware — with four configuration sheets and no way to tell which one a task needs, it could only ever jump to one of them, and Hide/Show settings sheets plus Excel's own tabs already reach all four once visible. Verified by the full regression suite (no dedicated script: both changes are either a pure no-op in the tested path or a removal with nothing left to assert).
+
+**Package 8 — Full workbook backup/restore (snag 4a) — built.** See §10.7 for the full account. New `modBackup.bas`, two new Settings buttons. Backs up every catalogue table (Technicians, Printers, Papers, the four Settings-page lookup tables, Settings itself) alongside the existing per-location job exports, reusing `modImport.ReadImportRows` unmodified for the read side by shaping catalogue CSVs with the same eight-row header block a job export uses. Restore applies the whole set back — overwrite-by-stable-key for catalogue rows (a per-table key map, §10.7), `modImport.ApplyImportConfirmed` unchanged for job records, Settings' own "Read-only" rows skipped so a restore cannot make the workbook misreport its current build. **Found and fixed a genuine, previously-latent bug in the process** — VBA's `And` does not short-circuit, so a `Count = 1 And IsBlankRow(...)` pattern already used in four other modules could raise "Subscript out of range" on a table emptied to zero rows; fixed at the root in `modUtils.IsBlankRow` (§9.2), protecting every call site, not just the new one. Verified by new `test-backup.ps1`: backup a populated copy, empty a second copy's Printers table and one location's jobs completely, restore, confirm an exact match plus idempotency on a second restore.
 
 ---
 

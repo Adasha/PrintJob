@@ -602,7 +602,11 @@ End Function
 '
 ' A local path is returned unchanged, which is the Mac case and the ordinary
 ' Windows case. A URL is mapped back onto the local OneDrive root.
-Private Function ExportFolder() As String
+' Public (2026-09-22, snag 4a): modBackup.BackupAll needs the same resolved
+' folder for its catalogue-table CSVs as the per-location exports already
+' use, and the OneDrive-URL resolution logic below is exactly the kind of
+' thing that must never be duplicated (§9.3's own env-var gotcha lives here).
+Public Function ExportFolder() As String
     Dim custom As String, p As String
     custom = Trim$(SettingText("EXPORT_FOLDER"))
     If Len(custom) > 0 Then

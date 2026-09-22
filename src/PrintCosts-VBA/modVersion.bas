@@ -23,6 +23,27 @@ Option Explicit
 ' acceptance passes at the end of the sequence.
 
 Public Const APP_NAME As String = "Print Cost Management"
+' 0.9.9 - Full workbook backup/restore (snag 4a). New modBackup.bas: Backup
+' workbook writes one CSV per catalogue table (Technicians, Printers,
+' Papers, the four Settings-page lookup tables, and Settings itself)
+' alongside the existing per-location job exports, all sharing one
+' timestamp; Restore workbook reads any one file from a backup back in,
+' finds every sibling sharing the same timestamp, and applies the whole
+' set - overwrite-by-stable-key for catalogue rows (mirroring Import's own
+' Job ID rule), and modImport.ApplyImportConfirmed unchanged for job
+' records. Two new Settings buttons: "Backup workbook..." / "Restore
+' workbook...".
+'
+' One genuine, previously-latent bug found and fixed at the root: VBA's And
+' does not short-circuit, so `Count = 1 And IsBlankRow(lo, 1)` - a pattern
+' already used in four other modules - still called IsBlankRow (indexing
+' ListRows(1)) even when Count had already evaluated to 0, raising
+' "Subscript out of range". Dormant until now because nothing in ordinary
+' use ever left a table at genuinely zero rows; restoring into a table
+' emptied by hand is the first path to actually hit it. modUtils.IsBlankRow
+' now returns False for an out-of-range row instead of indexing blindly,
+' fixing every call site at once.
+'
 ' 0.9.8 - Summary sheet fixes (snags 3a, 3b). ToggleConfigSheets (the
 ' Hide/Show settings sheets button) now captures the Summary worksheet
 ' explicitly and re-activates it unconditionally after hiding/showing the
@@ -303,7 +324,7 @@ Public Const APP_NAME As String = "Print Cost Management"
 ' A patch increment, not a phase: the phase digit still reads 7 because phase
 ' 8 has not been built. The revision digit is what "0.<phase>.<revision>"
 ' exists for.
-Public Const APP_VERSION As String = "0.9.8"
+Public Const APP_VERSION As String = "0.9.9"
 Public Const APP_AUTHOR As String = "Adam Shailer"
 
 Public Function VersionString() As String

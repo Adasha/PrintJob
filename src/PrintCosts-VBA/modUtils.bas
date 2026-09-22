@@ -155,7 +155,19 @@ Public Function RowCount(ByVal lo As ListObject) As Long
     End If
 End Function
 
+' A row that does not exist is not a blank row - False, not an error. Every
+' call site in this project (modJobs, modImport, modCatalog, modSnapshot,
+' modBackup) guards this with `lo.ListRows.Count = 1 And IsBlankRow(lo, 1)`,
+' and VBA's And does NOT short-circuit: both operands are evaluated
+' regardless of the first, so IsBlankRow(lo, 1) still ran - and raised
+' "Subscript out of range" - even when Count was 0 and the left operand had
+' already failed. Dormant for years because nothing in ordinary use ever
+' left a table at genuinely zero rows (ClearAll and friends always leave the
+' one blank templated row); found 2026-09-22 restoring a workbook backup
+' into a catalogue table emptied down to zero rows by hand (modBackup,
+' snag 4a) - the first code path in this project to actually hit that state.
 Public Function IsBlankRow(ByVal lo As ListObject, ByVal RowNo As Long) As Boolean
+    If RowNo < 1 Or RowNo > lo.ListRows.Count Then Exit Function
     IsBlankRow = (Application.WorksheetFunction.CountA(lo.ListRows(RowNo).Range) = 0)
 End Function
 
