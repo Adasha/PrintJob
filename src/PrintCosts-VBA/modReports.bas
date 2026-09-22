@@ -231,10 +231,12 @@ End Function
 
 ' The sortable columns, in results-table order (Job ID excluded - it is a
 ' hidden correlation column, not something offered in the sort-by list).
+' Student name/no and Paid added 2026-09-22 (snag list items 2a, 2d).
 Private Function ResultHeaders() As Variant
-    ResultHeaders = Array("Date/Time", "Location", "Printer", "Paper stock", _
+    ResultHeaders = Array("Date/Time", "Location", "Student name", "Student no", _
+                          "Printer", "Paper stock", _
                           "Quantity", "Unit", "Area m2", "Paper cost", _
-                          "Consumable cost", "Gross", "Disregarded", "Chargeable", _
+                          "Consumable cost", "Gross", "Disregarded", "Chargeable", "Paid", _
                           "Technician", "Notes")
 End Function
 
@@ -287,6 +289,15 @@ Public Sub BuildReports()
     CritCell ws, "E7", "F7", "Paper stock", "Choose from the list, or leave blank for all."
     CritCell ws, "E8", "F8", "Quantity", "Matched exactly."
 
+    ' Snag list item 2a: student name/number are not shown or exported
+    ' unless switched on - defaults to No (data protection: opt in to
+    ' reveal, not opt out). Row 9, columns E onward: A9 is the disjoint-
+    ' criteria warning below, which only ever fires in columns A:D, so E9
+    ' is free within the same filter block without needing to resize it.
+    CritCell ws, "E9", "F9", "Show student name/no", "Yes shows them in the results and any export. No (the default) blanks them, for data protection."
+    AddList ws.Range("F9"), """Yes"",""No""", "Show student name/no", "Yes shows them in the results and any export. No blanks them."
+    If Len(Trim$(CStr(ws.Range("F9").Value))) = 0 Then ws.Range("F9").Value = "No"
+
     ' Sort by/direction sit below the filters, above the totals row (snag list
     ' item 3) rather than beside the Technician/Printer/Paper/Quantity group -
     ' row 9 is the "name and number don't match" warning below, so this is the
@@ -307,24 +318,47 @@ Public Sub BuildReports()
     ' Row 11 is left blank (snag list item 1) - a gap between the sort
     ' controls and Matching, matching the gap that already separates the
     ' totals from the results header below.
+    '
+    ' Snag list item 2d hides several results columns by default (§8.3) -
+    ' hiding a column hides the WHOLE column, every row, so a totals cell
+    ' sharing a column with a hidden results column would display blank,
+    ' the same class of bug §4.1's 2026-09-22 fix found on the location
+    ' sheets. Rather than relocate the whole "Matching" block, each metric's
+    ' label now sits directly ABOVE its value (row 12/13, same column)
+    ' instead of to its left (MatchTotal, below), and both land only on
+    ' columns the minimum-columns view never hides: B, C, D, F, N, O -
+    ' Location/Student Name/Student No/Paper Stock/Chargeable Cost/Paid's
+    ' own columns, reused here purely because they're guaranteed visible,
+    ' not because a total means the same thing as whatever heads that
+    ' column further down the sheet. When the hidden columns between them
+    ' collapse (the default state), B/C/D/F/N/O end up rendering adjacent
+    ' anyway, so nothing looks gapped in the common case.
     ws.Range("A12").Value = "Matching"
     ws.Range("A12").Font.Bold = True
-    TotalCell ws, "B13", "Jobs", "=IFERROR(ROWS(FILTER(" & C("Job ID") & "," & ok & ")),0)"
-    TotalCell ws, "D13", "Gross", "=IFERROR(SUM(FILTER(" & C("Gross Cost") & "," & ok & ")),0)"
-    TotalCell ws, "F13", "Disregarded", "=IFERROR(SUM(FILTER(" & C("Disregarded") & "," & ok & ")),0)"
-    TotalCell ws, "H13", "Chargeable", "=IFERROR(SUM(FILTER(" & C("Chargeable Cost") & "," & ok & ")),0)"
+    MatchTotal ws, "B", "Jobs", "=IFERROR(ROWS(FILTER(" & C("Job ID") & "," & ok & ")),0)"
+    MatchTotal ws, "C", "Gross", "=IFERROR(SUM(FILTER(" & C("Gross Cost") & "," & ok & ")),0)"
+    MatchTotal ws, "D", "Disregarded", "=IFERROR(SUM(FILTER(" & C("Disregarded") & "," & ok & ")),0)"
+    MatchTotal ws, "F", "Chargeable", "=IFERROR(SUM(FILTER(" & C("Chargeable Cost") & "," & ok & ")),0)"
     ' Snag list item 1c: the matching chargeable total split by paid status,
     ' same "total minus paid" reconciliation as Summary's J6/L6 - a blank
     ' Paid (a job that predates the column) falls into Unpaid either way.
+    ' FILTER's third (if_empty) argument matters here specifically: with
+    ' nothing yet marked Paid, paidOk matches zero rows, and a plain
+    ' FILTER(array, all-false) raises #CALC! rather than returning an empty
+    ' array - which would otherwise poison the whole subtraction below (an
+    ' error on EITHER side of a "-" makes the whole expression an error) and
+    ' get masked by the outer IFERROR into a false "0", not the real total.
+    ' Found by testing the everyday "nothing paid yet" case, not just the
+    ' "one row marked Yes" case test-paid.ps1 already covered.
     Dim paidOk As String
     paidOk = ok & "*(" & C("Paid") & "=""Yes"")"
-    TotalCell ws, "J13", "Paid", "=IFERROR(SUM(FILTER(" & C("Chargeable Cost") & "," & paidOk & ")),0)"
-    TotalCell ws, "L13", "Unpaid", "=IFERROR(SUM(FILTER(" & C("Chargeable Cost") & "," & ok & "))-SUM(FILTER(" & C("Chargeable Cost") & "," & paidOk & ")),0)"
+    MatchTotal ws, "N", "Paid", "=IFERROR(SUM(FILTER(" & C("Chargeable Cost") & "," & paidOk & ",0)),0)"
+    MatchTotal ws, "O", "Unpaid", "=IFERROR(SUM(FILTER(" & C("Chargeable Cost") & "," & ok & ",0))-SUM(FILTER(" & C("Chargeable Cost") & "," & paidOk & ",0)),0)"
+    ws.Range("C13").NumberFormat = CurrencyFormatCode()
     ws.Range("D13").NumberFormat = CurrencyFormatCode()
     ws.Range("F13").NumberFormat = CurrencyFormatCode()
-    ws.Range("H13").NumberFormat = CurrencyFormatCode()
-    ws.Range("J13").NumberFormat = CurrencyFormatCode()
-    ws.Range("L13").NumberFormat = CurrencyFormatCode()
+    ws.Range("N13").NumberFormat = CurrencyFormatCode()
+    ws.Range("O13").NumberFormat = CurrencyFormatCode()
 
     ' --- the records ------------------------------------------------------
     ' Job ID is appended after Notes and hidden - the correlation key that
@@ -342,11 +376,53 @@ Public Sub BuildReports()
     ' when there is nothing to sort - SORTBY on that text would otherwise
     ' error and the outer IFERROR would show the wrong one of the two
     ' messages.
+    ' Student Name/No (snag 2a): the toggle at F9 blanks the VALUES, not
+    ' just the column - satisfies data protection even if someone unhides
+    ' the column, since there is nothing behind it to reveal. ExportReport
+    ' Snapshot copies these live values as-is, so the toggle is respected
+    ' by the export automatically with no separate export-side logic.
+    '
+    ' Built with Chr(34) for the formula's own empty-string literal rather
+    ' than hand-counting doubled quotes in a VBA string literal - a single
+    ' wrong quote count here is a silent formula-text bug, not a compile
+    ' error, so it is worth avoiding the manual counting entirely.
+    '
+    ' IF($F$9="Yes", <column array>, "") is NOT the same as an elementwise
+    ' per-row blank - the CONDITION here is a bare scalar (one toggle cell),
+    ' so with F9="No" the whole IF collapses to the single scalar "" rather
+    ' than a column of blanks the same height as every other HSTACK
+    ' argument. HSTACK does not broadcast a scalar against a column
+    ' (modRegistry's own §7.1 comment already names this trap for the
+    ' consolidated-range formula) - the visible symptom here was rows
+    ' beyond the first silently showing FILTER's "no data" fallback text
+    ' instead of real job data. Fixed by nesting the toggle INSIDE an outer
+    ' IF whose own condition (Job ID <> "") is already a real per-row array
+    ' - once the outer IF is evaluating elementwise, the inner one is too,
+    ' so $F$9="Yes" correctly re-tests against the SAME scalar for every
+    ' row while Student Name/No resolve per row as normal.
+    Dim q As String, studentOn As String, rowShape As String, sName As String, sNo As String
+    q = Chr(34)
+    studentOn = "$F$9=" & q & "Yes" & q
+    rowShape = C("Job ID") & "<>" & q & q
+    sName = "IF(" & rowShape & ",IF(" & studentOn & "," & C("Student Name") & "," & q & q & ")," & q & q & ")"
+    sNo = "IF(" & rowShape & ",IF(" & studentOn & "," & C("Student No") & "," & q & q & ")," & q & q & ")"
+
+    ' A row that predates the Paid column (§5, blank Paid counts as unpaid)
+    ' reads back from INDEX as the NUMBER 0, not an empty string - the
+    ' classic "reference to a genuinely blank cell returns 0" Excel
+    ' behaviour - so the results table would otherwise display a literal
+    ' "0" for those rows. &"" does NOT fix this (0&"" is still the text
+    ' "0", just stringified) - Paid only ever legitimately holds "Yes",
+    ' "No" or blank, never a real 0, so testing for =0 specifically catches
+    ' exactly the phantom-zero case and nothing else.
+    Dim paidText As String
+    paidText = "IF(" & C("Paid") & "=0," & q & q & "," & C("Paid") & ")"
+
     f = "=IFERROR(LET(" & _
-        "res,FILTER(HSTACK(" & C("Date/Time") & "," & C("Location") & "," & C("Printer") & _
-        "," & C("Paper Stock") & "," & C("Quantity") & "," & C("Unit") & "," & C("Area m2") & _
+        "res,FILTER(HSTACK(" & C("Date/Time") & "," & C("Location") & "," & sName & "," & sNo & _
+        "," & C("Printer") & "," & C("Paper Stock") & "," & C("Quantity") & "," & C("Unit") & "," & C("Area m2") & _
         "," & C("Paper Cost") & "," & C("Consumable Cost") & "," & C("Gross Cost") & _
-        "," & C("Disregarded") & "," & C("Chargeable Cost") & "," & C("Technician") & _
+        "," & C("Disregarded") & "," & C("Chargeable Cost") & "," & paidText & "," & C("Technician") & _
         "," & C("Notes") & "," & C("Job ID") & ")," & ok & ",""No print jobs match those criteria.""),"
     f = f & "hdrs,{" & QuotedList(hdrs) & "},"
     f = f & "sortIdx,IFERROR(MATCH($B$10,hdrs,0),0),"
@@ -365,6 +441,15 @@ Public Sub BuildReports()
 
     BuildBreakdowns ws, ok
     FormatReports ws
+
+    ' Snag list item 2d: the results table keeps every column, but only the
+    ' documented minimum stays visible by default - the rest are hidden
+    ' (never removed), reusing the exact same technique as the location
+    ' sheets' reduced-clutter view (modInit.ApplyColumnVisibility) even
+    ' though this table isn't a ListObject, so that function can't be
+    ' called directly. Not a user-facing toggle here, per the snag list's
+    ' own note that customising which columns show is a future enhancement.
+    ApplyReportsMinimumColumns ws, hdrs
 
     ' Last, deliberately. ApplyTo (called from RefreshReportFilterLists) does
     ' its own Unlock/RelockSheet on ws as a self-contained operation - called
@@ -386,22 +471,28 @@ End Sub
 ' Breakdowns sit to the RIGHT of the record list, not beneath it. The list
 ' spills to a height nobody can predict, so anything below it would be
 ' displaced the moment one more job matched.
+'
+' Shifted from Q/U to T/X on 2026-09-22 (snag 2a/2d): the results table grew
+' from 14 to 17 columns (Student Name/No added, Paid added), so the old Q15
+' start now sits inside the table itself (Notes lands on Q). The +3 shift
+' preserves the exact same relative gaps this had before (one blank column
+' after the hidden Job ID column, then straight into "By print room").
 Private Sub BuildBreakdowns(ByVal ws As Worksheet, ByVal ok As String)
-    ws.Range("Q15").Value = "By print room"
-    ws.Range("Q15").Font.Bold = True
-    ws.Range("Q16").Formula2 = GroupFormula(ok, "Location")
+    ws.Range("T15").Value = "By print room"
+    ws.Range("T15").Font.Bold = True
+    ws.Range("T16").Formula2 = GroupFormula(ok, "Location")
 
-    ws.Range("U15").Value = "By paper stock"
-    ws.Range("U15").Font.Bold = True
-    ws.Range("U16").Formula2 = GroupFormula(ok, "Paper Stock")
+    ws.Range("X15").Value = "By paper stock"
+    ws.Range("X15").Font.Bold = True
+    ws.Range("X16").Formula2 = GroupFormula(ok, "Paper Stock")
 
     ' Each block spills as key | Jobs | Gross | Chargeable, so the money
     ' columns are the third and fourth - Jobs is a count and must not be
     ' formatted as currency.
-    ws.Range("R17:R2000").NumberFormat = "#,##0"
-    ws.Range("S17:T2000").NumberFormat = CurrencyFormatCode()
-    ws.Range("V17:V2000").NumberFormat = "#,##0"
-    ws.Range("W17:X2000").NumberFormat = CurrencyFormatCode()
+    ws.Range("U17:U2000").NumberFormat = "#,##0"
+    ws.Range("V17:W2000").NumberFormat = CurrencyFormatCode()
+    ws.Range("Y17:Y2000").NumberFormat = "#,##0"
+    ws.Range("Z17:AA2000").NumberFormat = CurrencyFormatCode()
 End Sub
 
 ' Group the filtered records by one column. SUMIFS cannot be used here: its
@@ -427,16 +518,21 @@ Private Function GroupFormula(ByVal ok As String, ByVal KeyHeader As String) As 
     GroupFormula = s
 End Function
 
+' Column letters below reflect the 2026-09-22 layout: A Date/Time, B
+' Location, C Student Name, D Student No, E Printer, F Paper Stock, G
+' Quantity, H Unit, I Area m2, J Paper Cost, K Consumable Cost, L Gross
+' Cost, M Disregarded, N Chargeable Cost, O Paid, P Technician, Q Notes,
+' (R Job ID, hidden).
 Private Sub FormatReports(ByVal ws As Worksheet)
-    ws.Range("A15:N15").Interior.Color = RGB(222, 232, 244)
+    ws.Range("A15:Q15").Interior.Color = RGB(222, 232, 244)
     ws.Range("A16:A2000").NumberFormat = "dd/mm/yyyy hh:mm"
-    ws.Range("E16:G2000").NumberFormat = "#,##0.00"
-    ws.Range("H16:L2000").NumberFormat = CurrencyFormatCode()
-    ws.Columns("A:N").ColumnWidth = 14
-    ws.Columns("B:D").ColumnWidth = 22
-    ws.Columns("N").ColumnWidth = 30
-    ws.Columns("Q").ColumnWidth = 22
-    ws.Columns("U").ColumnWidth = 22
+    ws.Range("G16:I2000").NumberFormat = "#,##0.00"
+    ws.Range("J16:N2000").NumberFormat = CurrencyFormatCode()
+    ws.Columns("A:Q").ColumnWidth = 14
+    ws.Columns("B:F").ColumnWidth = 22
+    ws.Columns("Q").ColumnWidth = 30
+    ws.Columns("T").ColumnWidth = 22
+    ws.Columns("X").ColumnWidth = 22
     ws.Rows(15).Font.Bold = True
 End Sub
 
@@ -590,6 +686,35 @@ Private Function ColByHeader(ByVal ws As Worksheet, ByVal HdrRow As Long, ByVal 
     Next c
 End Function
 
+' Snag list item 2d's minimum-columns view: hides every results column
+' except this documented set, by header text against row 15 - the same
+' "hide by name, touch nothing else" technique modInit.ApplyColumnVisibility
+' uses for the location sheets' reduced-clutter view, reimplemented here
+' rather than called directly because the results table is a spilled array
+' with a header row, not an Excel Table/ListObject. The list itself is a
+' fixed array, not a setting - unlike the location-sheet version, this one
+' isn't user-facing yet (documented future enhancement, not built now).
+Private Sub ApplyReportsMinimumColumns(ByVal ws As Worksheet, ByVal hdrs As Variant)
+    Dim keep As Variant, i As Long, j As Long, c As Long, keepIt As Boolean
+    keep = Array("Date/Time", "Location", "Student name", "Student no", "Paper stock", "Chargeable", "Paid")
+
+    UnlockSheet ws
+    For i = LBound(hdrs) To UBound(hdrs)
+        c = ColByHeader(ws, 15, CStr(hdrs(i)))
+        If c > 0 Then
+            keepIt = False
+            For j = LBound(keep) To UBound(keep)
+                If StrComp(CStr(hdrs(i)), CStr(keep(j)), vbTextCompare) = 0 Then
+                    keepIt = True
+                    Exit For
+                End If
+            Next j
+            ws.Columns(c).Hidden = Not keepIt
+        End If
+    Next i
+    RelockSheet ws
+End Sub
+
 ' ============================================================== helpers ===
 Private Function SheetNamed(ByVal Nm As String, ByVal Position As Long) As Worksheet
     Dim ws As Worksheet
@@ -635,6 +760,17 @@ Private Sub TotalCell(ByVal ws As Worksheet, ByVal ValueAddr As String, ByVal La
     lab.HorizontalAlignment = xlRight
     ws.Range(ValueAddr).Formula2 = f
     ws.Range(ValueAddr).Font.Bold = True
+End Sub
+
+' Reports' own "Matching" totals (BuildReports): label directly above its
+' value, same column, rather than TotalCell's label-to-the-left - see that
+' call site's 2026-09-22 comment for why (a shared-column collision with
+' the results table's hideable columns, §8.3).
+Private Sub MatchTotal(ByVal ws As Worksheet, ByVal ColLetter As String, ByVal Label As String, ByVal f As String)
+    ws.Range(ColLetter & "12").Value = Label
+    ws.Range(ColLetter & "12").Font.Bold = True
+    ws.Range(ColLetter & "13").Formula2 = f
+    ws.Range(ColLetter & "13").Font.Bold = True
 End Sub
 
 Private Sub CritCell(ByVal ws As Worksheet, ByVal LabelAddr As String, ByVal InputAddr As String, _

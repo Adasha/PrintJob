@@ -23,6 +23,48 @@ Option Explicit
 ' acceptance passes at the end of the sequence.
 
 Public Const APP_NAME As String = "Print Cost Management"
+' 0.9.6 - Reports student name/no toggle and minimum-columns view (snags
+' 2a, 2d): a Yes/No toggle at F9 (default No) blanks Student Name/No in the
+' results table and any export, satisfying data protection; Student Name/
+' No and Paid added to the results table; only seven columns (Date/Time,
+' Location, Student Name, Student No, Paper stock, Chargeable, Paid) stay
+' visible by default, the rest hidden via modReports.ApplyReportsMinimum
+' Columns (not user-facing yet - documented future enhancement).
+'
+' Four real bugs found and fixed while testing edge cases (blank-everything,
+' nothing-paid-yet), not just the happy path:
+'   - The relaid-out "Matching" totals row (MatchTotal, label above value
+'     rather than to its left) initially still shared columns with newly-
+'     hidden results columns, so several totals displayed blank - same
+'     class of bug as the location-sheet header-block collision, now fixed
+'     by only ever using columns the minimum-columns view never hides.
+'   - SUM(FILTER(...))-SUM(FILTER(...)) for the Unpaid total returned 0
+'     whenever nothing was marked Paid yet - FILTER with zero matches
+'     raises #CALC!, which poisons the whole subtraction and gets masked
+'     by the outer IFERROR into a false 0. Fixed with FILTER's own
+'     [if_empty] third argument.
+'   - IF($F$9="Yes", <column array>, "") broke every results row past the
+'     first once the toggle was off: the condition is a scalar (one toggle
+'     cell), so the IF collapses to the bare scalar "" rather than a
+'     column of blanks - HSTACK does not broadcast a scalar against a
+'     column, the exact trap _Data's own consolidated-range formula (§7.1)
+'     already had to work around, met again in a new place. Fixed by
+'     nesting the toggle inside an outer IF whose own condition is already
+'     a genuine per-row array.
+'   - Paid displayed a literal "0" for any row that predates the column
+'     (blank Paid counts as unpaid, design 5) - INDEX on a truly blank
+'     cell returns the number 0, and &"" does not fix an already-numeric
+'     0 (0&"" is still the text "0"). Fixed by testing for that specific
+'     value, safe here since Paid never legitimately holds a real 0.
+'
+' Also found (and fixed) a TEST-SCRIPT bug that looked exactly like
+' intermittent COM automation flakiness: a PowerShell [char] handed to
+' Excel's COM Columns(...) indexer is read by its ORDINAL VALUE, not as a
+' one-letter column reference - .ToString() first fixes it. Cost real
+' debugging time because the symptom (a genuinely hidden column reading
+' back as visible) is indistinguishable from a real settling/timing issue
+' until compared side by side against the literal column letter.
+'
 ' 0.9.5 - spotted while visually checking 0.9.4's fix: two extra column
 ' groups next to the cost group, one of them hiding a genuine bug.
 ' GroupJobColumns used to ALSO group S_PrinterID->S_SchemaVer, on top of
@@ -220,7 +262,7 @@ Public Const APP_NAME As String = "Print Cost Management"
 ' A patch increment, not a phase: the phase digit still reads 7 because phase
 ' 8 has not been built. The revision digit is what "0.<phase>.<revision>"
 ' exists for.
-Public Const APP_VERSION As String = "0.9.5"
+Public Const APP_VERSION As String = "0.9.6"
 Public Const APP_AUTHOR As String = "Adam Shailer"
 
 Public Function VersionString() As String

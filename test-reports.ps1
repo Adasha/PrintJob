@@ -26,6 +26,36 @@ try {
     $s = $wb.Worksheets('Summary')
     $c = $wb.Worksheets('Reports')
 
+    # Reports' results columns moved on 2026-09-22 (Student Name/No and Paid
+    # added, snag list items 2a/2d) - found by header (row 15) rather than
+    # hardcoded, so this test doesn't go stale again the next time a column
+    # is added.
+    function ReportsCol($header) {
+        for ($col = 1; $col -le 30; $col++) {
+            if ([string]$c.Cells(15, $col).Text -eq $header) { return $col }
+        }
+        return 0
+    }
+
+    Write-Host '=== Reports: hidden Job ID correlation column ==='
+    $jobIdCol = ReportsCol 'Job ID'
+    if ($jobIdCol -eq 0) { Write-Host 'FAIL: no Job ID header found on row 15'; exit 1 }
+    # [char] on its own is a .NET Char, and Excel's COM Columns(...) indexer
+    # silently takes THAT as a numeric column index (its ordinal value, e.g.
+    # 82 for 'R') rather than the single-letter column reference it looks
+    # like - .ToString() forces it to a real string first. Found by
+    # comparing Columns($jobIdColLetter) against the literal Columns('R')
+    # side by side: same column, different (wrong) answer without this cast.
+    $jobIdColLetter = ([char](64 + $jobIdCol)).ToString()
+    if (-not $c.Columns($jobIdColLetter).Hidden) { Write-Host "FAIL: column $jobIdColLetter (Job ID) should be hidden"; exit 1 }
+    $sp = $c.Range('A16').SpillingToRange
+    Write-Host ("  results spill: {0} rows x {1} cols" -f $sp.Rows.Count, $sp.Columns.Count)
+    $jobIdSample = [string]$sp.Cells(1, $jobIdCol).Value2
+    Write-Host ("  {0}16 (Job ID) sample value: '{1}'" -f $jobIdColLetter, $jobIdSample)
+    if ($jobIdSample -notmatch '-MAIN-|-ANNEX-') { Write-Host 'FAIL: hidden Job ID column does not look like a Job ID'; exit 1 }
+    Write-Host "  OK: Job ID is present as a hidden column ($jobIdColLetter)"
+
+    Write-Host ''
     Write-Host '=== Summary (Location x Printer x Paper Stock) ==='
     Write-Host ("  A10 formula length: {0} chars" -f $s.Range('A10').Formula2.Length)
     try {
@@ -66,7 +96,12 @@ try {
         Set-Crit $c.Range('B8') $to
         $xl.CalculateFullRebuild()
         $jobs = $c.Range('B13').Text
-        $charge = $c.Range('H13').Text
+        # "Matching" totals moved from a label-left-of-value row (B/D/F/H/J/L)
+        # to a label-above-value layout (row 12/13, same column) on
+        # 2026-09-22 - the six metrics only ever sit on columns the
+        # minimum-columns view (snag 2d) never hides, so Chargeable is F13
+        # now, not H13.
+        $charge = $c.Range('F13').Text
         $warn = [string]$c.Range('A9').Text
         $line = "  {0,-34} jobs={1,-4} chargeable={2,-10}" -f $label, $jobs, $charge
         if ($warn -ne '') { $line += " WARN: $warn" }
@@ -134,23 +169,14 @@ try {
     }
 
     Write-Host ''
-    Write-Host '=== Reports: hidden Job ID correlation column ==='
-    if (-not $c.Columns('O').Hidden) { Write-Host 'FAIL: column O (Job ID) should be hidden'; exit 1 }
-    $sp = $c.Range('A16').SpillingToRange
-    Write-Host ("  results spill: {0} rows x {1} cols" -f $sp.Rows.Count, $sp.Columns.Count)
-    $jobIdSample = [string]$sp.Cells(1, 15).Value2
-    Write-Host ("  O16 (Job ID) sample value: '{0}'" -f $jobIdSample)
-    if ($jobIdSample -notmatch '-MAIN-|-ANNEX-') { Write-Host 'FAIL: hidden Job ID column does not look like a Job ID'; exit 1 }
-    Write-Host '  OK: Job ID is present as a hidden 15th column'
-
-    Write-Host ''
     Write-Host '=== Reports: sort by column ==='
     $c.Range('B10').Value2 = 'Quantity'
     $c.Range('F10').Value2 = 'Descending'
     $xl.CalculateFullRebuild()
     $sp = $c.Range('A16').SpillingToRange
+    $qtyCol = ReportsCol 'Quantity'
     $qtys = @()
-    for ($r = 1; $r -le $sp.Rows.Count; $r++) { $qtys += [double]$sp.Cells($r, 5).Value2 }
+    for ($r = 1; $r -le $sp.Rows.Count; $r++) { $qtys += [double]$sp.Cells($r, $qtyCol).Value2 }
     Write-Host ('  Quantity column, sorted Descending: ' + ($qtys -join ', '))
     $sortedDesc = $qtys | Sort-Object -Descending
     $matches = $true
@@ -163,7 +189,10 @@ try {
 
     Write-Host ''
     Write-Host '=== breakdowns (no criteria) ==='
-    foreach ($addr in 'Q16', 'U16') {
+    # Shifted from Q16/U16 to T16/X16 on 2026-09-22 - the results table grew
+    # by 3 columns (Student Name/No, Paid), which pushed the old Q15 start
+    # into the table itself.
+    foreach ($addr in 'T16', 'X16') {
         Write-Host ("  {0}:" -f $addr)
         try {
             $sp = $c.Range($addr).SpillingToRange
