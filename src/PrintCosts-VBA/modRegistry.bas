@@ -67,6 +67,7 @@ Public Sub RefreshLocations()
         problems = problems & AssignCode(ws, codes)
         NameJobTable ws, CStr(codes.Item("#" & ws.Name))
         FixButtons ws
+        EnsureJobDefaults ws
         BindColumns ws
         ProtectSheet ws
         n = n + 1

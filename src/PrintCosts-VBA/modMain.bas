@@ -78,6 +78,15 @@ Fail:
     ReportError "Clear All"
 End Sub
 
+Public Sub btnClearDefaults()
+    On Error GoTo Fail
+    If Not RequireLocation Then Exit Sub
+    ClearDefaults ActiveSheet
+    Exit Sub
+Fail:
+    ReportError "Clear defaults"
+End Sub
+
 Public Sub btnCheckSheet()
     On Error GoTo Fail
     If Not RequireLocation Then Exit Sub

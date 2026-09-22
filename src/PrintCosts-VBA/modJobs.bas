@@ -29,6 +29,13 @@ Public Sub AddPrintJob(ByVal ws As Worksheet)
     CellIn(lo, n, "Disregard Paper").Value = DefaultOrNo(ws, "LOC_DefDisPaper")
     CellIn(lo, n, "Disregard Consumable").Value = DefaultOrNo(ws, "LOC_DefDisCons")
 
+    ' Spec 1b: the batch defaults above the toolbar seed Technician/Printer/
+    ' Paper Stock too, same copy-not-reference principle - changing a default
+    ' afterwards never touches a job already added from it.
+    CopyDefault ws, "LOC_DefTech", CellIn(lo, n, "Technician")
+    CopyDefault ws, "LOC_DefPrinter", CellIn(lo, n, "Printer")
+    CopyDefault ws, "LOC_DefPaper", CellIn(lo, n, "Paper Stock")
+
     CellIn(lo, n, "S_SchemaVer").Value = SCHEMA_VER
     RelockSheet ws
     BindStockCell ws, lo, n
@@ -43,6 +50,30 @@ Private Function DefaultOrNo(ByVal ws As Worksheet, ByVal RefName As String) As 
     v = LocValue(ws, RefName)
     If StrComp(v, "Yes", vbTextCompare) = 0 Then DefaultOrNo = "Yes" Else DefaultOrNo = "No"
 End Function
+
+Private Sub CopyDefault(ByVal ws As Worksheet, ByVal RefName As String, ByVal target As Range)
+    Dim v As String
+    v = LocValue(ws, RefName)
+    If Len(v) > 0 Then target.Value = v
+End Sub
+
+' Snag list item 1b's Clear button: empties the three batch-default cells for
+' the next batch of jobs, without touching any job already added from them
+' (spec 9.2/10.10's copy-not-reference principle already guarantees that).
+Public Sub ClearDefaults(ByVal ws As Worksheet)
+    AppOff
+    UnlockSheet ws
+    Dim c As Range
+    Set c = LocRange(ws, "LOC_DefTech")
+    If Not c Is Nothing Then c.ClearContents
+    Set c = LocRange(ws, "LOC_DefPrinter")
+    If Not c Is Nothing Then c.ClearContents
+    Set c = LocRange(ws, "LOC_DefPaper")
+    If Not c Is Nothing Then c.ClearContents
+    RelockSheet ws
+    BindDefaultCells ws
+    AppOn
+End Sub
 
 Private Function NewJobId(ByVal ws As Worksheet, ByVal lo As ListObject) As String
     ' <SITE>-<LOCATION>-00001. The site component matters because records from

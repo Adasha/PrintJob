@@ -45,6 +45,7 @@ Public Sub InitialiseWorkbook()
         If IsLocation(ws) Then
             DrawLocationButtons ws
             ConfigValidation ws
+            EnsureJobDefaults ws
             BindColumns ws
             GroupJobColumns ws
             ApplyStatusFormat ws
@@ -158,6 +159,10 @@ Private Sub DrawLocationButtons(ByVal ws As Worksheet)
         End With
     Next c
     ws.Cells(10, 13).ClearContents
+
+    ' Batch defaults toolbar (row 9, snag list item 1b) - clear sits to the
+    ' right of the three default cells (columns A-F), clear of both.
+    DrawOne ws, 9, 9, "Clear defaults", "btnClearDefaults", 110
 End Sub
 
 ' Yes/No validation on the two location defaults (spec 9.2). These seed each
@@ -183,6 +188,61 @@ Private Sub AddYesNo(ByVal target As Range, ByVal Title As String, ByVal Msg As 
         .ErrorTitle = Title
         .ErrorMessage = "Choose Yes or No."
     End With
+End Sub
+
+' ----------------------------------------------------- batch defaults ---
+' Snag list item 1b: three cells above the toolbar (row 9 - the config block
+' ends at row 8, the toolbar starts at row 10) let a technician set a
+' Technician/Printer/Paper Stock once and have every subsequently added job
+' pre-filled from them (modJobs.AddPrintJob), until Clear defaults empties
+' them again (modJobs.ClearDefaults). Self-provisioned here rather than
+' shipped in the .xlsx - same reasoning as LOC_Export (modExport): a
+' sheet-scoped name copies cleanly with a duplicated sheet, and re-adding it
+' every run means an older location sheet picks the feature up without hand
+' surgery.
+' Public: modRegistry.RefreshLocations also calls this for every location on
+' every refresh, alongside BindColumns - the same "rebuild dependent
+' dropdowns, self-heal an old sheet, re-point a duplicated one" reasoning
+' RefreshExportStatus/EnsureExportName already applies to LOC_Export.
+Public Sub EnsureJobDefaults(ByVal ws As Worksheet)
+    UnlockSheet ws
+    ws.Range("A9").Value = "Default: technician"
+    ws.Range("A9").Font.Bold = True
+    ws.Range("C9").Value = "Default: printer"
+    ws.Range("C9").Font.Bold = True
+    ws.Range("E9").Value = "Default: paper"
+    ws.Range("E9").Font.Bold = True
+
+    EnsureLocName ws, "LOC_DefTech", "$B$9"
+    EnsureLocName ws, "LOC_DefPrinter", "$D$9"
+    EnsureLocName ws, "LOC_DefPaper", "$F$9"
+
+    StyleInputCell ws.Range("B9")
+    StyleInputCell ws.Range("D9")
+    StyleInputCell ws.Range("F9")
+    RelockSheet ws
+
+    ' Both directions of spec 1a's filtering apply here too (spec 1b: "these
+    ' selectors should implement the same filtering and autofill principles
+    ' as the table cells").
+    BindDefaultCells ws
+End Sub
+
+Private Sub EnsureLocName(ByVal ws As Worksheet, ByVal Nm As String, ByVal Addr As String)
+    On Error Resume Next
+    ws.Names(Nm).Delete
+    On Error GoTo 0
+    ws.Names.Add Name:=Nm, RefersTo:="='" & ws.Name & "'!" & Addr
+End Sub
+
+' Same white-fill, blue-left-border treatment every unlocked input cell gets
+' elsewhere (§11's visual design table; modReports.CritCell is the same
+' pattern for the Reports page's own filter cells).
+Private Sub StyleInputCell(ByVal target As Range)
+    target.Locked = False
+    target.Interior.Color = RGB(255, 255, 255)
+    target.Borders(xlEdgeLeft).Color = RGB(46, 100, 168)
+    target.Borders(xlEdgeLeft).Weight = xlMedium
 End Sub
 
 Private Function CountButtons() As Long

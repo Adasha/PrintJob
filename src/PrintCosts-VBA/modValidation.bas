@@ -11,6 +11,12 @@ Option Explicit
 ' Called from Workbook_SheetChange. Returns True if it changed the cell.
 Public Function OnCellChanged(ByVal ws As Worksheet, ByVal Target As Range) As Boolean
     Dim lo As ListObject, n As Long, hdr As String
+
+    ' The batch-default cells above the toolbar (spec 1b) aren't part of the
+    ' job table, but need the same AT-05 compatibility check and
+    ' bidirectional rebind as a table row's own Printer/Paper Stock (spec 1a).
+    If OnDefaultCellChanged(ws, Target) Then Exit Function
+
     Set lo = JobsTable(ws)
     If lo Is Nothing Then Exit Function
     If lo.DataBodyRange Is Nothing Then Exit Function
@@ -32,6 +38,46 @@ Public Function OnCellChanged(ByVal ws As Worksheet, ByVal Target As Range) As B
         Case "Technician"
             StampRow ws, n
     End Select
+End Function
+
+' Mirrors OnPrinterChanged/OnStockChanged for the two default cells above the
+' toolbar (spec 1b) - same AT-05 compatibility check, same bidirectional
+' rebind, just addressed by name instead of by table row. Returns True when
+' Target was one of the default cells, so OnCellChanged can skip the
+' table-row handling entirely (they are never both true for the same edit).
+Private Function OnDefaultCellChanged(ByVal ws As Worksheet, ByVal Target As Range) As Boolean
+    Dim prnCell As Range, stkCell As Range, model As String, stk As String
+    Dim s As clsStock, p As clsPrinterDef, changedPrinter As Boolean
+
+    If Target.Cells.Count > 1 Then Exit Function
+    Set prnCell = LocRange(ws, "LOC_DefPrinter")
+    Set stkCell = LocRange(ws, "LOC_DefPaper")
+    If prnCell Is Nothing Or stkCell Is Nothing Then Exit Function
+
+    If Not Application.Intersect(Target, prnCell) Is Nothing Then
+        changedPrinter = True
+    ElseIf Application.Intersect(Target, stkCell) Is Nothing Then
+        Exit Function
+    End If
+    OnDefaultCellChanged = True
+
+    model = CStr(prnCell.Value)
+    stk = CStr(stkCell.Value)
+    If Len(model) > 0 And Len(stk) > 0 Then
+        If Not Compatible(model, stk) Then
+            Set s = Stock(stk)
+            Set p = Prn(model)
+            If changedPrinter Then
+                stkCell.ClearContents
+                Say "'" & stk & "' cannot be used on " & model & ".", "That printer does not support the " & s.Family & " paper family.", "The default paper stock has been cleared."
+            Else
+                prnCell.ClearContents
+                Say "'" & stk & "' cannot be used on " & model & ".", "That stock is in the " & s.Family & " family, which this printer does not support.", "The default printer has been cleared."
+            End If
+        End If
+    End If
+
+    BindDefaultCells ws
 End Function
 
 ' Either field can drive the other now (spec 1a). Both handlers end by

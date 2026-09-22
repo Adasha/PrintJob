@@ -23,6 +23,17 @@ Option Explicit
 ' acceptance passes at the end of the sequence.
 
 Public Const APP_NAME As String = "Print Cost Management"
+' 0.9.1 - batch default Technician/Printer/Paper selectors (snag 1b): three
+' cells above the toolbar (row 9) pre-fill Technician/Printer/Paper Stock on
+' every subsequently added job until Clear defaults empties them, using the
+' same copy-not-reference principle as the existing disregard-cost defaults
+' (AT-07/AT-08) and the same bidirectional filtering/autofill as 0.9.0's
+' table-cell dropdowns. modInit.EnsureJobDefaults self-provisions the three
+' named cells (LOC_DefTech/LOC_DefPrinter/LOC_DefPaper), same pattern as
+' LOC_Export; modLists.BindDefaultCells and modValidation.OnDefaultCellChanged
+' reuse 0.9.0's binding/compatibility-check machinery rather than duplicating
+' it.
+'
 ' 0.9.0 - phase 9 begins: the 2026-09-22 post-phase-8 snag list. Real new
 ' functionality, not just fixes, so the phase digit moves again:
 '
@@ -131,7 +142,7 @@ Public Const APP_NAME As String = "Print Cost Management"
 ' A patch increment, not a phase: the phase digit still reads 7 because phase
 ' 8 has not been built. The revision digit is what "0.<phase>.<revision>"
 ' exists for.
-Public Const APP_VERSION As String = "0.9.0"
+Public Const APP_VERSION As String = "0.9.1"
 Public Const APP_AUTHOR As String = "Adam Shailer"
 
 Public Function VersionString() As String

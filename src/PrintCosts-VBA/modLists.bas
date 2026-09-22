@@ -121,6 +121,22 @@ Public Sub BindPrinterCell(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal 
     BindPrinterRange ws, CellIn(lo, RowNo, "Printer"), Trim$(CStr(CellIn(lo, RowNo, "Paper Stock").Value))
 End Sub
 
+' Binds the three batch-default cells above the toolbar (spec 1b), using the
+' same bidirectional filtering/autofill as the table's own Printer/Paper
+' Stock columns (spec 1a) - a single conceptual "row" rather than a whole
+' table column, since there's only ever one of each.
+Public Sub BindDefaultCells(ByVal ws As Worksheet)
+    Dim techCell As Range, prnCell As Range, stkCell As Range
+    Set techCell = LocRange(ws, "LOC_DefTech")
+    Set prnCell = LocRange(ws, "LOC_DefPrinter")
+    Set stkCell = LocRange(ws, "LOC_DefPaper")
+    If techCell Is Nothing Or prnCell Is Nothing Or stkCell Is Nothing Then Exit Sub
+
+    ApplyTo ws, techCell, ActiveTechnicians(), "TEC", "Default technician", "Pre-fills each new print job's Technician until Clear defaults is used."
+    BindStockRange ws, stkCell, Trim$(CStr(prnCell.Value))
+    BindPrinterRange ws, prnCell, Trim$(CStr(stkCell.Value))
+End Sub
+
 ' Paper Stock choices: every active stock compatible with some printer
 ' permitted at this location when Printer is blank, or narrowed to what the
 ' row's own Printer supports once it's chosen (spec 1a). Never locked - the

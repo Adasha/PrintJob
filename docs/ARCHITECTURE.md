@@ -6,7 +6,7 @@
 
 **Current state, as verified against the actual VBA source on 2026-09-22:**
 
-- Workbook version reported in-code: `0.9.0` (`modVersion.APP_VERSION`) — `0.8.0` reflected the NextId fix, Export/Import, the Reports rework and the 2026-09-21 snag list; `0.8.1` closed out phase 8's own original scope (§16.1); `0.9.0` begins phase 9, the 2026-09-22 post-phase-8 snag list (§16.4).
+- Workbook version reported in-code: `0.9.1` (`modVersion.APP_VERSION`) — `0.8.0` reflected the NextId fix, Export/Import, the Reports rework and the 2026-09-21 snag list; `0.8.1` closed out phase 8's own original scope (§16.1); `0.9.0` began phase 9, the 2026-09-22 post-phase-8 snag list, and `0.9.1` is that phase's second package — see §16.4.
 - Data schema version: `1.0` (`modUtils.SCHEMA_VER`), unchanged since inception so far — none of the 0.8.x work touched a job-row column; phase 9's Paid column (snag 1c, not yet built) will be the first to bump it.
 - Everything in the original design document's phases 1–7 is built and verified.
 - Phase 8's original scope (visual polish) is **fully built** — see §16.2.
@@ -171,6 +171,7 @@ The schema version is load-bearing: it is what an importer or aggregator checks 
 
 ```
 Rows 1–8    Configuration block
+Row 9       Batch defaults (2026-09-22 snag list item 1b)
 Row 10      Toolbar (Form Control buttons)
 Row 12      Table header
 Row 13+     tblJobs_<CODE> body
@@ -186,9 +187,16 @@ Row 13+     tblJobs_<CODE> body
 | B6 | `LOC_Printers` | Permitted printers, delimited, read-only |
 | B7 | `LOC_Status` | Validation summary for the sheet |
 | B8 | `LOC_Export` | Export status |
+| B9 | `LOC_DefTech` | Batch default Technician — pre-fills each new job until cleared |
+| D9 | `LOC_DefPrinter` | Batch default Printer — same bidirectional filtering as the table cells (§7.2) |
+| F9 | `LOC_DefPaper` | Batch default Paper Stock — same bidirectional filtering as the table cells (§7.2) |
 | AZ1 | — | Marker cell, `PRINTLOC/v1`. Hidden column, never edited |
 
 `LOC_Export` is deliberately separate from `LOC_Status`: validation and export state are independent, and a sheet can easily be valid and unexported at once. Both are derived and rewritten, never typed. `LOC_Export`'s name is created by `modExport` on every refresh rather than shipped in the `.xlsx`, so a duplicated or renamed sheet gets a correct one without hand surgery.
+
+**Batch defaults (snag 1b, 2026-09-22).** `modInit.EnsureJobDefaults` self-provisions `LOC_DefTech`/`LOC_DefPrinter`/`LOC_DefPaper` the same way `modExport.EnsureExportName` self-provisions `LOC_Export` — created (delete-then-add) on every `InitialiseWorkbook` and every `RefreshLocations`, not shipped in the `.xlsx`, so an older location sheet or a freshly duplicated one always ends up with correctly-scoped names. `modJobs.AddPrintJob` copies each non-blank default into the new row (`CopyDefault`) using the same "copy, don't reference" principle as the existing disregard-cost defaults (AT-07/AT-08) — a default changed later never touches a job already added from it. A **Clear defaults** button (`modJobs.ClearDefaults`) empties all three for the next batch. `modLists.BindDefaultCells` binds all three cells' dropdowns using the same `BindStockRange`/`BindPrinterRange`/`ApplyTo` functions the table columns use — a single conceptual "row" rather than a whole column — and `modValidation.OnDefaultCellChanged` mirrors `OnPrinterChanged`/`OnStockChanged` for live edits to the two cells directly (same AT-05 compatibility check, same bidirectional rebind).
+
+Duplicating a location sheet (§4.4) copies whatever values are currently sitting in the defaults, same as it copies `LOC_Name`/`LOC_DefDisPaper` — the documented add-location procedure now clears them alongside **Clear All**.
 
 **Why sheet-scoped names matter:** Excel copies them with the worksheet. Workbook-scoped names would collide on copy and silently become `LOC_Name1`, `LOC_Name2`.
 
@@ -227,7 +235,7 @@ Any location with unexported changes is named in the refresh message. `Last expo
 
 1. Right-click any location tab → *Move or Copy* → tick *Create a copy*.
 2. Rename the new tab.
-3. Click **Clear All** to discard the copied records.
+3. Click **Clear All** to discard the copied records, and **Clear defaults** to discard the copied batch-default selectors (§4.1).
 4. Enter room name, department, defaults; click *Select printers…*.
 5. Click **Refresh Locations**.
 
@@ -446,7 +454,7 @@ They cannot use `SUMIFS` for the breakdowns below — its arguments must be rang
 |---|---|
 | Summary | Refresh Locations, Check workbook, Go to Settings, **Hide/Show settings sheets** |
 | Settings | Refresh Locations, Check workbook, Re-stamp prices…, About |
-| Each location | Add Print Job, Now, Remove Row, Select printers…, Check this sheet, Clear All, Export…, **Import…** |
+| Each location | Add Print Job, Now, Remove Row, Select printers…, Check this sheet, Clear All, Export…, Import…, **Clear defaults** (row 9, §4.1) |
 | Printers | Select families… |
 | Reports | **Export report…**, **Delete visible records…** |
 
@@ -856,6 +864,8 @@ Four groups of changes, delivered as a sequence of small, individually-verified,
 **Before this work started:** `src\PrintCosts.xlsm` on disk had regressed to `0.7.1` because OneDrive overwrote the local build output again — not a real regression, since the `.xlsm` is a gitignored build output and the actual source (`PrintCosts.xlsx` + the VBA source) was untouched at `0.8.1`. Fixed by re-running `build.ps1`; no source work was lost. Worth knowing if this happens again: check the committed VBA source's `modVersion.APP_VERSION` before assuming anything needs recovering (§13.1's OneDrive-safety notes are about the same underlying hazard, for the build's *input* rather than its output).
 
 **Package 1 — bidirectional Printer/Paper Stock dropdowns (snag 1a) — built.** See §7.2's rewrite above for the design. `modCatalog.PrintersForStock` (new, the reverse of `StocksFor`), `modLists.BindPrinterRange`/`BindStockRange`/`AutoFillIfSingle`/`GroupCell` (rewritten/new), `modValidation.OnPrinterChanged`/`OnStockChanged` (now symmetric), `modJobs.AddPrintJob` (binds both cells on a new row, not just Paper Stock). Verified by new `test-dropdowns.ps1`, plus a full run of every pre-existing `test-*.ps1` regression script to confirm nothing else moved.
+
+**Package 2 — batch default Technician/Printer/Paper selectors (snag 1b) — built.** See §4.1's new row for the design. `modInit.EnsureJobDefaults`/`EnsureLocName`/`StyleInputCell` (new), `modLists.BindDefaultCells` (new, reuses Package 1's `BindStockRange`/`BindPrinterRange`), `modValidation.OnDefaultCellChanged` (new, mirrors `OnPrinterChanged`/`OnStockChanged`), `modJobs.CopyDefault`/`ClearDefaults` (new), `modMain.btnClearDefaults` (new), `modRegistry.RefreshLocations` (now also calls `EnsureJobDefaults` per location, alongside `BindColumns`). Verified by new `test-defaults.ps1`, plus the full regression suite again.
 
 ---
 
