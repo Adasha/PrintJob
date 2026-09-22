@@ -4,15 +4,16 @@
 
 **Source of truth for the code itself:** `src\PrintCosts.xlsx` (everything a file can carry except VBA) plus `src\PrintCosts-VBA\*.bas` / `*.cls` (the authoritative VBA source). `src\PrintCosts.xlsm` is a **build output** — never hand-edit it. `src\PrintCosts-VBA\SETUP.md` is the separate, actively-maintained *operational* guide (how to build, test, and set up the workbook) and is not duplicated here; this document is design and architecture, SETUP.md is procedure.
 
-**Current state, as verified against the actual VBA source on 2026-09-21:**
+**Current state, as verified against the actual VBA source on 2026-09-22:**
 
-- Workbook version reported in-code: `0.8.1` (`modVersion.APP_VERSION`) — `0.8.0` reflected the NextId fix, Export/Import, the Reports rework and the 2026-09-21 snag list; `0.8.1` closes out phase 8's own original scope — see §16.1.
-- Data schema version: `1.0` (`modUtils.SCHEMA_VER`), unchanged since inception — none of the 0.8.x work touched a job-row column.
+- Workbook version reported in-code: `0.9.0` (`modVersion.APP_VERSION`) — `0.8.0` reflected the NextId fix, Export/Import, the Reports rework and the 2026-09-21 snag list; `0.8.1` closed out phase 8's own original scope (§16.1); `0.9.0` begins phase 9, the 2026-09-22 post-phase-8 snag list (§16.4).
+- Data schema version: `1.0` (`modUtils.SCHEMA_VER`), unchanged since inception so far — none of the 0.8.x work touched a job-row column; phase 9's Paid column (snag 1c, not yet built) will be the first to bump it.
 - Everything in the original design document's phases 1–7 is built and verified.
 - Phase 8's original scope (visual polish) is **fully built** — see §16.2.
 - The "larger changes" plan (`snaglist-stage7handoff.txt`: NextId fix, Import/Export rework, Reports rework, bulk delete) is **fully built**.
 - The 2026-09-21 seventeen-item snag list (`snaglist_2026-09-21.rtf`) is **fully built**.
-- Phase 9 (formal acceptance testing on Windows and Mac, test report) has **not** run.
+- **Phase 9 is the 2026-09-22 post-phase-8 snag list — in progress, see §16.4.** Renumbered from the original plan: this document previously reserved "Phase 9" for formal acceptance testing, but a real, larger batch of functional work arrived first, so acceptance testing is now **Phase 10** (every "Phase 9" reference to acceptance testing below has moved accordingly).
+- Phase 10 (formal acceptance testing on Windows and Mac, test report) has **not** run.
 
 ---
 
@@ -325,12 +326,17 @@ Version 1.1 specified dropdowns on spill references. Two hard limits ruled that 
 - **A Data Validation rule is uniform down a table column**, but each row's candidate stocks depend on *that row's* printer. One spill cannot serve every row, and the workaround — a `SelectionChange` handler writing the active row's printer into a context cell — makes the dropdown depend on the selection. Replacing a cell's validation closes an open dropdown, so the arrow visibly flashed and vanished.
 - **A validation list supplied as a literal string is capped at 255 characters**, which a real stock list exceeds.
 
-`modLists` gives **every distinct list its own staging column** on `_Work`, claimed by a tag in row 1 — `PRN|<sheet>`, `TEC`, `STK|<model>`, and reused for the Reports page's own dropdowns (§8). Consequences:
+`modLists` gives **every distinct list its own staging column** on `_Work`, claimed by a tag in row 1 — `PRN|<all>|<sheet>`, `PRN|<sheet>|<stock>`, `TEC`, `STK|<all>|<sheet>`, `STK|<model>` — and reused for the Reports page's own dropdowns (§8). Consequences:
 
 - Lists rebuild when something **changes**, never on selection, so nothing flashes.
-- Rows are grouped by printer before binding, so each distinct list is written once.
+- Rows are grouped by the *other* field's value before binding (Printer rows grouped by Paper Stock, and vice versa), so each distinct list is written once, not once per row.
 - A per-list column was necessary: one shared column per list *type* meant the last sheet bound overwrote the others, and one print room showed another's printers.
-- **Paper Stock is locked while Printer is blank**, making the incompatible combination unreachable rather than merely caught.
+
+**Printer and Paper Stock filter each other, in both directions (2026-09-22 snag list item 1a).** Earlier, Paper Stock was locked until a printer was chosen, so a printer always had to be picked first. Both cells now start unlocked and fully populated — Printer with every active printer permitted at the location, Paper Stock with every active stock compatible with *some* printer permitted there — and whichever one is chosen first narrows the other to compatible options only (`modCatalog.PrintersForStock`, the reverse of the existing `StocksFor`). If the narrowed list collapses to exactly one option, it's auto-filled rather than making the user pick the only choice (`modLists.AutoFillIfSingle`) — but never overwriting a value already there, and never mistaking the "nothing available" placeholder text for a real singleton. `modValidation.OnPrinterChanged`/`OnStockChanged` are now symmetric: either field can strand the other's value (AT-05 applies both ways), and each change rebinds both cells' lists so a field that gets cleared widens the other back out immediately.
+
+A `Range.Value` read on a target spanning more than one cell — the `Union` a row-group can produce when the matching rows aren't contiguous — returns an **array**, not a scalar; `AutoFillIfSingle` walks `target.Cells` individually rather than reading `target.Value` directly, which is exactly the bug this surfaced as during development (`CStr()` on that array raises a Type Mismatch that only a non-contiguous group triggers, so it's easy to miss in a small test dataset — worth remembering for any future code that reads `.Value` off a grouped/Union range).
+
+Verified by `test-dropdowns.ps1`: both directions narrow and auto-fill correctly, a still-ambiguous narrowed list is left blank with the right options staged, and an incompatible combination is still caught and cleared regardless of which field was typed second.
 
 ### 7.3 Layer 3 — Row and workbook validation
 
@@ -792,13 +798,13 @@ Run the four `test-*.ps1` regression scripts **one at a time**, not in a tight l
 
 | Acceptance test | Design element | Verified |
 |---|---|---|
-| AT-01 | §5.1 Paper Cost formula; `S_UnitCost` for sheet families | Phase 9 |
-| AT-02 | §5.1 Area formula, roll branch, blank print width | Phase 9 |
+| AT-01 | §5.1 Paper Cost formula; `S_UnitCost` for sheet families | Phase 10 |
+| AT-02 | §5.1 Area formula, roll branch, blank print width | Phase 10 |
 | AT-03 | §5.1 — print width in Area only, never in Paper Cost | By construction |
-| AT-04 | §7.3 width check | Phase 9 |
-| AT-05 | §7.2 dependent list; §7.3 re-edit check | Phase 9 |
-| AT-06 | §7.2 valid printer list from `LOC_Printers` | Phase 9 |
-| AT-07 | §9 AddPrintJob seeds flags from location defaults | Phase 9 |
+| AT-04 | §7.3 width check | Phase 10 |
+| AT-05 | §7.2 dependent list; §7.3 re-edit check | Phase 10 |
+| AT-06 | §7.2 valid printer list from `LOC_Printers` | Phase 10 |
+| AT-07 | §9 AddPrintJob seeds flags from location defaults | Phase 10 |
 | AT-08 | §5 flags are plain row values with no link to the defaults | By construction |
 | AT-09 | §6 snapshot block; no live link from job rows to config | By construction |
 | AT-10 | §8.3 live filter — **within this workbook** (D17) | **Yes — `test-reports.ps1`** |
@@ -806,14 +812,14 @@ Run the four `test-*.ps1` regression scripts **one at a time**, not in a tight l
 | AT-12 | §8.3 criteria seeded to array shape; blanks collapse to TRUE | **Yes — `test-reports.ps1`** |
 | AT-13 | §4.2 marker detection, table parking and renaming, code assignment, formula rewrite | **Yes — `test-duplicate.ps1`** |
 | AT-14 | §10.2 confirmation content; `modUtils.DateSerialOf` | **Yes — `test-validation.ps1`** |
-| AT-15 | §9.3 cross-platform strategy; picker render check on Mac | Phase 9 |
+| AT-15 | §9.3 cross-platform strategy; picker render check on Mac | Phase 10 |
 | AT-16 | §3.2 stable IDs; §6.3 inactive-record behaviour | **Yes — `test-validation.ps1`** |
 | — | §10.4 export completeness and fingerprint | **Yes — `test-export.ps1`** |
 | — | §3.2 Job ID high-water mark survives deletion and refresh | **Yes — `test-nextid.ps1`** |
 | — | §10.5 Export All Locations; Import (origin and cross-room) | **Yes — `test-import.ps1`** |
 | — | §10.6 Export report snapshot; Reports-page bulk delete | **Yes — `test-deletereports.ps1`** |
 
-Several acceptance tests are about what happens as a person types, which is worth testing as a person rather than only as a script, and AT-15 needs a Mac — these still need the phase 9 run. Export/Import/NextId/Reports-delete have no numbered acceptance test in the original spec, being design-led additions; they are covered by their own scripts instead.
+Several acceptance tests are about what happens as a person types, which is worth testing as a person rather than only as a script, and AT-15 needs a Mac — these still need the phase 10 run. Export/Import/NextId/Reports-delete have no numbered acceptance test in the original spec, being design-led additions; they are covered by their own scripts instead.
 
 ---
 
@@ -842,6 +848,14 @@ A large amount of *other* visual/UX work had already been done since phase 8 was
 - `SET_FOOTER` and `SET_FY_START` are defined names with no code consumer. Decide whether to wire them up or drop them from the settings table.
 - No calendar-style date picker on the Reports date filters (§8.4) — a confirmed platform limitation on desktop Excel, not a bug, but worth remembering if a future Excel release changes this.
 - SETUP.md's "What is not built yet" framing has been kept up to date through the 2026-09-21 commits (it correctly describes Import/Export/NextId/Reports-delete as built) — but cross-check it against this document's §16.1/§16.2 rather than assuming either one alone is complete, since they serve different audiences (procedure vs. architecture) and could drift independently.
+
+### 16.4 Phase 9 — the 2026-09-22 post-phase-8 snag list — in progress
+
+Four groups of changes, delivered as a sequence of small, individually-verified, individually-committed packages (workbook version `0.9.x`). Tracked here as each package lands; see the plan this was scoped from for the full list.
+
+**Before this work started:** `src\PrintCosts.xlsm` on disk had regressed to `0.7.1` because OneDrive overwrote the local build output again — not a real regression, since the `.xlsm` is a gitignored build output and the actual source (`PrintCosts.xlsx` + the VBA source) was untouched at `0.8.1`. Fixed by re-running `build.ps1`; no source work was lost. Worth knowing if this happens again: check the committed VBA source's `modVersion.APP_VERSION` before assuming anything needs recovering (§13.1's OneDrive-safety notes are about the same underlying hazard, for the build's *input* rather than its output).
+
+**Package 1 — bidirectional Printer/Paper Stock dropdowns (snag 1a) — built.** See §7.2's rewrite above for the design. `modCatalog.PrintersForStock` (new, the reverse of `StocksFor`), `modLists.BindPrinterRange`/`BindStockRange`/`AutoFillIfSingle`/`GroupCell` (rewritten/new), `modValidation.OnPrinterChanged`/`OnStockChanged` (now symmetric), `modJobs.AddPrintJob` (binds both cells on a new row, not just Paper Stock). Verified by new `test-dropdowns.ps1`, plus a full run of every pre-existing `test-*.ps1` regression script to confirm nothing else moved.
 
 ---
 

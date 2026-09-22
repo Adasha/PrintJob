@@ -32,6 +32,7 @@ Public Sub AddPrintJob(ByVal ws As Worksheet)
     CellIn(lo, n, "S_SchemaVer").Value = SCHEMA_VER
     RelockSheet ws
     BindStockCell ws, lo, n
+    BindPrinterCell ws, lo, n
     AppOn
 
     CellIn(lo, n, "Student Name").Select

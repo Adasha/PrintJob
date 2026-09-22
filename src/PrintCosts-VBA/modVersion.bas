@@ -23,6 +23,23 @@ Option Explicit
 ' acceptance passes at the end of the sequence.
 
 Public Const APP_NAME As String = "Print Cost Management"
+' 0.9.0 - phase 9 begins: the 2026-09-22 post-phase-8 snag list. Real new
+' functionality, not just fixes, so the phase digit moves again:
+'
+'   - Printer and Paper Stock on a location sheet now filter each other in
+'     BOTH directions, auto-filling either one when only a single compatible
+'     option remains. Previously Paper Stock was locked until a printer was
+'     chosen; both cells now start unlocked and fully populated.
+'     modCatalog.PrintersForStock is new (the reverse of the existing
+'     StocksFor); modLists.BindPrinterRange/BindStockRange/AutoFillIfSingle
+'     replace the old one-directional BindStockRange; modValidation's
+'     OnPrinterChanged/OnStockChanged are now symmetric, each rebinding both
+'     cells' lists rather than assuming only one drives the other. See
+'     docs/ARCHITECTURE.md §7.2 for the design and a note on the one real
+'     bug this surfaced (Range.Value on a multi-cell Union is an array, not
+'     a scalar - AutoFillIfSingle has to walk target.Cells, not read
+'     target.Value directly).
+'
 ' 0.8.1 - phase 8's original scope, finally built (see the 0.8.0 note below,
 ' which explicitly deferred this):
 '
@@ -114,7 +131,7 @@ Public Const APP_NAME As String = "Print Cost Management"
 ' A patch increment, not a phase: the phase digit still reads 7 because phase
 ' 8 has not been built. The revision digit is what "0.<phase>.<revision>"
 ' exists for.
-Public Const APP_VERSION As String = "0.8.1"
+Public Const APP_VERSION As String = "0.9.0"
 Public Const APP_AUTHOR As String = "Adam Shailer"
 
 Public Function VersionString() As String

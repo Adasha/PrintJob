@@ -34,18 +34,15 @@ Public Function OnCellChanged(ByVal ws As Worksheet, ByVal Target As Range) As B
     End Select
 End Function
 
+' Either field can drive the other now (spec 1a). Both handlers end by
+' rebinding BOTH cells' lists rather than just the other one: whichever field
+' just changed may itself need widening back out, e.g. when the other field
+' had to be cleared for incompatibility, or when this field was cleared
+' outright and the other field's list was previously narrowed by it.
 Private Sub OnPrinterChanged(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal n As Long)
     Dim model As String, stk As String, s As clsStock
     model = CStr(CellIn(lo, n, "Printer").Value)
     stk = CStr(CellIn(lo, n, "Paper Stock").Value)
-
-    ' Clearing the printer takes the stock with it and locks the cell again.
-    If Len(model) = 0 Then
-        If Len(stk) > 0 Then CellIn(lo, n, "Paper Stock").ClearContents
-        BindStockCell ws, lo, n
-        StampRow ws, n
-        Exit Sub
-    End If
 
     ' A printer change can strand a stock that was valid a moment ago (AT-05).
     If Len(stk) > 0 And Len(model) > 0 Then
@@ -55,7 +52,9 @@ Private Sub OnPrinterChanged(ByVal ws As Worksheet, ByVal lo As ListObject, ByVa
             Say "'" & stk & "' cannot be used on " & model & ".", "That printer does not support the " & s.Family & " paper family.", "The paper stock has been cleared. Choose a stock this printer supports."
         End If
     End If
+
     BindStockCell ws, lo, n
+    BindPrinterCell ws, lo, n
     StampRow ws, n
 End Sub
 
@@ -63,25 +62,28 @@ Private Sub OnStockChanged(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal 
     Dim model As String, stk As String, s As clsStock, p As clsPrinterDef
     model = CStr(CellIn(lo, n, "Printer").Value)
     stk = CStr(CellIn(lo, n, "Paper Stock").Value)
-    If Len(stk) = 0 Then Exit Sub
-
-    If Len(model) = 0 Then
-        ' The stock cell is normally locked until a printer is chosen, so this
-        ' is only reachable if a value arrived by paste or by a cleared printer.
-        Say "Choose a printer first.", "Which paper stocks are available depends on the printer, because a stock can only be used on a printer that supports its family.", "Pick the printer, then the paper stock."
-        CellIn(lo, n, "Paper Stock").ClearContents
-        BindStockCell ws, lo, n
+    If Len(stk) = 0 Then
+        BindPrinterCell ws, lo, n
         Exit Sub
     End If
 
-    If Not Compatible(model, stk) Then
-        Set s = Stock(stk)
-        Set p = Prn(model)
-        CellIn(lo, n, "Paper Stock").ClearContents
-        Say "'" & stk & "' cannot be used on " & model & ".", "That stock is in the " & s.Family & " family, which this printer does " & "not support.", "Choose a stock in one of: " & p.Families
-        Exit Sub
+    ' A stock change can strand a printer that was valid a moment ago, now
+    ' that Paper Stock can be chosen before Printer - the mirror of
+    ' OnPrinterChanged's own AT-05 check.
+    If Len(model) > 0 Then
+        If Not Compatible(model, stk) Then
+            Set s = Stock(stk)
+            Set p = Prn(model)
+            CellIn(lo, n, "Paper Stock").ClearContents
+            Say "'" & stk & "' cannot be used on " & model & ".", "That stock is in the " & s.Family & " family, which this printer does " & "not support.", "Choose a stock in one of: " & p.Families
+            BindStockCell ws, lo, n
+            BindPrinterCell ws, lo, n
+            Exit Sub
+        End If
     End If
 
+    BindStockCell ws, lo, n
+    BindPrinterCell ws, lo, n
     StampRow ws, n
 
     ' Print width is meaningless for cut sheets (spec 10.6).

@@ -153,6 +153,27 @@ Public Function PrintersFor(ByVal ws As Worksheet) As Collection
     Set PrintersFor = out
 End Function
 
+' The reverse of PrintersFor/StocksFor: active printers permitted at this
+' location whose supported families include the given stock's family (spec
+' 1a). Paper Stock can now be chosen before Printer, so Printer's own list
+' has to be narrowable by the row's stock just as Stock's list is narrowable
+' by the row's printer.
+Public Function PrintersForStock(ByVal ws As Worksheet, ByVal Description As String) As Collection
+    Dim out As Collection, k As Variant, p As clsPrinterDef, allowed As String
+    Set out = New Collection
+    LoadCatalog
+    allowed = LocValue(ws, "LOC_Printers")
+    For Each k In mPrinters.Keys
+        Set p = mPrinters.Obj(CStr(k))
+        If p.Active Then
+            If InList(allowed, p.Model) Then
+                If Compatible(p.Model, Description) Then out.Add p.Model
+            End If
+        End If
+    Next k
+    Set PrintersForStock = out
+End Function
+
 Public Function ActiveTechnicians() As Collection
     Dim out As Collection, lo As ListObject, i As Long
     Set out = New Collection
