@@ -105,11 +105,6 @@ Fail:
     ReportError "Check this sheet"
 End Sub
 
-Public Sub btnGoSettings()
-    On Error Resume Next
-    ThisWorkbook.Worksheets("Settings").Activate
-End Sub
-
 Public Sub btnAbout()
     On Error GoTo Fail
     ShowAbout

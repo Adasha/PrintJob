@@ -23,6 +23,19 @@ Option Explicit
 ' acceptance passes at the end of the sequence.
 
 Public Const APP_NAME As String = "Print Cost Management"
+' 0.9.8 - Summary sheet fixes (snags 3a, 3b). ToggleConfigSheets (the
+' Hide/Show settings sheets button) now captures the Summary worksheet
+' explicitly and re-activates it unconditionally after hiding/showing the
+' four configuration sheets, rather than relying on Summary having stayed
+' active throughout - hiding whichever sheet happens to be active is what
+' forces Excel to jump to the next one in tab order, so this is correct
+' regardless of how ToggleConfigSheets was actually invoked. The "Go to
+' Settings" button is removed outright rather than made target-aware: with
+' four configuration sheets and no way to tell which one a task needs, it
+' could only ever jump to one of them, and Hide/Show settings sheets plus
+' Excel's own tabs already reach all four once visible - the snag list's
+' own "easiest fix."
+'
 ' 0.9.7 - Export report's header block and single-value promotion (snags
 ' 2b, 2c). modExport.ExportReportSnapshot's .xlsx archive now opens with a
 ' metadata block - report title, schema version, site ID/name, the date
@@ -290,7 +303,7 @@ Public Const APP_NAME As String = "Print Cost Management"
 ' A patch increment, not a phase: the phase digit still reads 7 because phase
 ' 8 has not been built. The revision digit is what "0.<phase>.<revision>"
 ' exists for.
-Public Const APP_VERSION As String = "0.9.7"
+Public Const APP_VERSION As String = "0.9.8"
 Public Const APP_AUTHOR As String = "Adam Shailer"
 
 Public Function VersionString() As String

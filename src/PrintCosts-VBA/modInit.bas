@@ -70,13 +70,18 @@ Public Sub InitialiseWorkbook()
             ' Column O onwards, clear of the A:M report table.
             DrawOne ws, 1, 15, "Refresh Locations", "btnRefreshLocations", 130
             DrawOne ws, 3, 15, "Check workbook", "btnCheckWorkbook", 130
-            DrawOne ws, 5, 15, "Go to Settings", "btnGoSettings", 130
+            ' "Go to Settings" removed (snag 3b, 2026-09-22): with four
+            ' configuration sheets and no way to tell which one a given task
+            ' needs, the button could only ever jump to one of them (Settings)
+            ' - not a fix worth making target-aware when Hide/Show settings
+            ' sheets already reveals all four and Excel's own sheet tabs reach
+            ' any of them directly, the easiest fix the snag list itself named.
             ' btnToggleConfigSheets, not btnToggleSettingsSheets: the latter
             ' is exactly 32 characters with this row/column, which Button.Name
             ' silently truncates to 31 rather than erroring on (SetButtonName's
             ' comment) - caught by the length audit that found the Settings
             ' lookup-table buttons' own truncation.
-            DrawOne ws, 7, 15, ConfigToggleCaption(), "btnToggleConfigSheets", 130
+            DrawOne ws, 5, 15, ConfigToggleCaption(), "btnToggleConfigSheets", 130
         ElseIf StrComp(ws.Name, "Printers", vbTextCompare) = 0 Then
             EnsureTableGap ws, "tblPrinters", 6
             DrawOne ws, 4, 1, "Add row", "btnAddRowPrinters", 110
@@ -594,9 +599,22 @@ End Sub
 ' Snag list item 13: a Summary-page toggle for the four configuration sheets,
 ' xlSheetHidden rather than VeryHidden so a determined user can still reach
 ' Unhide by hand - the button is the friendly path, not the only one.
+' Snag 3a (2026-09-22): the button lives on Summary, so Summary is normally
+' already the active sheet when this runs - but hiding a sheet that HAPPENS
+' to be active forces Excel to activate whatever is next in tab order, and
+' nothing here guaranteed the active sheet was Summary rather than one of
+' the four being hidden (called other than by a direct click on Summary's
+' own button - e.g. Application.Run - can leave any sheet active). Capturing
+' Summary explicitly and re-activating it unconditionally at the end is
+' correct either way: a no-op when Summary was already active, and the fix
+' when it was not.
 Public Sub ToggleConfigSheets()
-    Dim hideThem As Boolean, nm As Variant, ws As Worksheet
+    Dim hideThem As Boolean, nm As Variant, ws As Worksheet, summaryWs As Worksheet
     hideThem = Not ConfigSheetsHidden()
+
+    On Error Resume Next
+    Set summaryWs = ThisWorkbook.Worksheets("Summary")
+    On Error GoTo 0
 
     For Each nm In ConfigSheetNames()
         Set ws = Nothing
@@ -607,6 +625,8 @@ Public Sub ToggleConfigSheets()
             ws.Visible = IIf(hideThem, xlSheetHidden, xlSheetVisible)
         End If
     Next nm
+
+    If Not summaryWs Is Nothing Then summaryWs.Activate
 
     RelabelConfigToggleButton
 End Sub
