@@ -134,9 +134,17 @@ try {
     $data = $wb.Worksheets('_Data')
     $xl.CalculateFullRebuild()
     $spill = $data.Range('A10').SpillingToRange
+    # Technician's column in _Data - found by header (row 9), not a hardcoded
+    # index: 2026-09-22's ReorderJobColumns moved Status/Job ID to the back
+    # of the job table, which shifted every column after them, _Data
+    # included.
+    $techCol = 0
+    for ($c = 1; $c -le 30; $c++) {
+        if ([string]$data.Cells(9, $c).Text -eq 'Technician') { $techCol = $c; break }
+    }
     $stillThere = 0
     for ($r = 1; $r -le $spill.Rows.Count; $r++) {
-        if ([string]$spill.Cells($r, 6).Text -eq $victim) { $stillThere++ }
+        if ([string]$spill.Cells($r, $techCol).Text -eq $victim) { $stillThere++ }
     }
     Write-Host ("  rows in the consolidated range still crediting '{0}': {1}  {2}" -f $victim, $stillThere,
         $(if ($stillThere -gt 0) { 'retained - correct' } else { 'LOST - BUG' }))

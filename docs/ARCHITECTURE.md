@@ -6,7 +6,7 @@
 
 **Current state, as verified against the actual VBA source on 2026-09-22:**
 
-- Workbook version reported in-code: `0.9.3` (`modVersion.APP_VERSION`) — `0.8.0` reflected the NextId fix, Export/Import, the Reports rework and the 2026-09-21 snag list; `0.8.1` closed out phase 8's own original scope (§16.1); `0.9.0`–`0.9.3` are phase 9's packages so far — see §16.4.
+- Workbook version reported in-code: `0.9.4` (`modVersion.APP_VERSION`) — `0.8.0` reflected the NextId fix, Export/Import, the Reports rework and the 2026-09-21 snag list; `0.8.1` closed out phase 8's own original scope (§16.1); `0.9.0`–`0.9.4` are phase 9's packages so far — see §16.4.
 - Data schema version: `1.1` (`modUtils.SCHEMA_VER`) — unchanged since inception through every 0.8.x release; bumped for the first time by phase 9's Paid column (snag 1c, §5), which also surfaced and fixed a gap in how `SET_SCHEMA` stayed in sync with the constant (§3.3, §3.5).
 - Everything in the original design document's phases 1–7 is built and verified.
 - Phase 8's original scope (visual polish) is **fully built** — see §16.2.
@@ -198,7 +198,16 @@ Row 13+     tblJobs_<CODE> body
 
 Duplicating a location sheet (§4.4) copies whatever values are currently sitting in the defaults, same as it copies `LOC_Name`/`LOC_DefDisPaper` — the documented add-location procedure now clears them alongside **Clear All**.
 
-**Reduced-clutter view (snag 1e, 2026-09-22).** A **workbook-wide** toggle — not per-sheet, so every location sheet always agrees with every other rather than risking drift — that hides Status, Job ID, Printer, Area m2, Disregard Paper and Disregard Consumable on every location sheet at once. Its own toggle button sits at row 9 too (further right, past the batch defaults and Clear defaults). Driven by two settings, `SET_LOC_REDUCED_VIEW` (Yes/No) and `SET_LOC_REDUCED_COLUMNS` (the semicolon-delimited header list) — the list lives in a setting rather than a VBA constant specifically so it can be edited without a rebuild if the shortlist needs to change, matching the snag list's own "keep it flexible" instruction. `modInit.ApplyColumnVisibility(lo, Headers, Hide)` is the general primitive underneath (hides or shows *exactly* the named columns, by header, and touches nothing else) — it does **not** do a blanket "show everything, then hide the list" reset, because some columns (`H_Issues`) are hidden permanently, shipped that way in the `.xlsx` and never toggled by any code, and a blanket reset would have unhidden it the first time this ran. `modInit.ApplyReducedView` applies the current setting to one sheet's table and is called from both `InitialiseWorkbook` and `RefreshLocations`, same self-healing/duplicated-sheet reasoning as `EnsureJobDefaults`. `modInit.ApplyColumnVisibility` is `Public` and reused as-is by the Reports page's own fixed minimum-columns view (§8.3, snag 2d) — same primitive, no toggle there, just applied once at build time.
+**Reduced-clutter view (snag 1e, 2026-09-22).** A **workbook-wide** toggle — not per-sheet, so every location sheet always agrees with every other rather than risking drift — that hides Status, Job ID, Printer, Area m2, Disregard Paper, Disregard Consumable and `S_SchemaVer` on every location sheet at once. Its own toggle button sits at row 9, column 7 (over Unit, clear of the batch defaults at columns A-F and of every column the toggle itself can hide). Driven by two settings, `SET_LOC_REDUCED_VIEW` (Yes/No) and `SET_LOC_REDUCED_COLUMNS` (the semicolon-delimited header list) — the list lives in a setting rather than a VBA constant specifically so it can be edited without a rebuild if the shortlist needs to change, matching the snag list's own "keep it flexible" instruction. `modInit.ApplyColumnVisibility(lo, Headers, Hide)` is the general primitive underneath (hides or shows *exactly* the named columns, by header, and touches nothing else) — it does **not** do a blanket "show everything, then hide the list" reset, because some columns (`H_Issues`) are hidden permanently, shipped that way in the `.xlsx` and never toggled by any code, and a blanket reset would have unhidden it the first time this ran. `modInit.ApplyReducedView` applies the current setting to one sheet's table and is called from both `InitialiseWorkbook` and `RefreshLocations`, same self-healing/duplicated-sheet reasoning as `EnsureJobDefaults`. `modInit.ApplyColumnVisibility` is `Public` and reused as-is by the Reports page's own fixed minimum-columns view (§8.3, snag 2d) — same primitive, no toggle there, just applied once at build time.
+
+**Two bugs found in testing, both fixed 2026-09-22 (same day):**
+
+1. **Hiding a column hides the WHOLE column, every row — not just the table's.** Status and Job ID were originally the job table's first two columns (sheet A/B), which are the *same* columns the location header block above the table (room name, department, code, defaults) occupies in rows 1-9. Toggling reduced view on was blanking the header along with the table cells. Fixed by `modInit.ReorderJobColumns`: Status and Job ID move to just after Paid, ahead of Notes/`H_Issues`/the snapshot block, so columns A/B are always "Date/Time"/"Student Name" — never anything the reduced view can hide. Column order isn't load-bearing anywhere (§5.1), with one matching fix needed: `modRegistry`'s consolidated-range span was bounded by column *name* from `"Job ID"` to `"Notes"` (`FIRST_JOB_COL`/`LAST_JOB_COL`, §8.1) — with Job ID no longer the leftmost real column, that bound moved to `"Date/Time"` instead, so the span still covers every real column (Status and Job ID included, since they now sit *inside* it rather than starting it).
+2. **The toggle button was anchored to one of its own hidden columns.** Originally drawn at column 13, which happened to coincide with Disregard Consumable — so turning reduced view on could take out the one button that turns it back off. Moved to column 7, deliberately independent of whatever `ReorderJobColumns` did, since a hidden-column collision here is worse than anywhere else on the sheet.
+
+**Not a general solution — revisit later.** Both fixes patch today's specific collisions rather than solving the underlying constraint: Excel's column-hide is whole-column-only, so *anything* sharing a column with a hidden-by-default table column is at risk, and `SET_LOC_REDUCED_COLUMNS` is user-editable, so this could recur if the list is ever edited to name a column that collides with something else on the sheet. A more robust fix — decoupling the header block's and toolbar buttons' columns from the table's entirely, so no future hidden-column choice can ever collide with either — is worth doing properly rather than patching column-by-column as new collisions turn up.
+
+**Also flagged, not yet addressed:** the toggle's only feedback that it's engaged is the button's own caption text ("Reduce clutter" ↔ "Show all columns"). Worth a clearer visual indicator of the current state (sheet-level, not just the button) — filed alongside the rest of the deferred visual-polish work, §16 Package 10.
 
 **Why sheet-scoped names matter:** Excel copies them with the worksheet. Workbook-scoped names would collide on copy and silently become `LOC_Name1`, `LOC_Name2`.
 
@@ -245,30 +254,32 @@ Any location with unexported changes is named in the refresh message. `Last expo
 
 ## 5. Transaction table
 
+**Column order changed 2026-09-22** (§4.1's reduced-clutter-view fix, `modInit.ReorderJobColumns`) — Status and Job ID used to be columns 1-2; they now sit just after Paid. The `#` column below is the *current* physical position; none of it is load-bearing (see the note below the table).
+
 | # | Column | Type | Notes |
 |---|---|---|---|
-| 1 | Status | calc | `OK` or a warning; conditionally formatted |
-| 2 | Job ID | VBA | `<SITE>-<LOC>-00001`, never re-used (§3.2) |
-| 3 | Date/Time | input | Required. Toolbar *Now*, or double-click |
-| 4 | Student Name | input | At least one of name/number required |
-| 5 | Student No | input | " |
-| 6 | Technician | input | Dropdown, active only |
-| 7 | Printer | input | Dropdown, active ∩ permitted here |
-| 8 | Paper Stock | input | Dropdown, active ∩ compatible with printer |
-| 9 | Unit | calc | `sheets` or `metres` |
-| 10 | Quantity | input | > 0; whole number for sheet stock (I3) |
-| 11 | Print Width mm | input | Roll only; blank = full stock width; ≤ stock width |
-| 12 | Disregard Paper | input | Yes/No, seeded from location default |
-| 13 | Disregard Consumable | input | Yes/No, seeded from location default |
-| 14 | Area m2 | calc | Printed area |
-| 15–19 | Paper Cost, Consumable Cost, Gross Cost, Disregarded, Chargeable Cost | calc | §5.1 |
-| 20 | **Paid** | **input** | **Yes/No, blank on rows that predate it (2026-09-22 snag list item 1c) — see below** |
+| 1 | Date/Time | input | Required. Toolbar *Now*, or double-click |
+| 2 | Student Name | input | At least one of name/number required |
+| 3 | Student No | input | " |
+| 4 | Technician | input | Dropdown, active only |
+| 5 | Printer | input | Dropdown, active ∩ permitted here |
+| 6 | Paper Stock | input | Dropdown, active ∩ compatible with printer |
+| 7 | Unit | calc | `sheets` or `metres` |
+| 8 | Quantity | input | > 0; whole number for sheet stock (I3) |
+| 9 | Print Width mm | input | Roll only; blank = full stock width; ≤ stock width |
+| 10 | Disregard Paper | input | Yes/No, seeded from location default |
+| 11 | Disregard Consumable | input | Yes/No, seeded from location default |
+| 12 | Area m2 | calc | Printed area |
+| 13–17 | Paper Cost, Consumable Cost, Gross Cost, Disregarded, Chargeable Cost | calc | §5.1 |
+| 18 | Paid | input | Yes/No, blank on rows that predate it (2026-09-22 snag list item 1c) — see below |
+| 19 | Status | calc | `OK` or a warning; conditionally formatted |
+| 20 | Job ID | VBA | `<SITE>-<LOC>-00001`, never re-used (§3.2) |
 | 21 | Notes | input | Optional |
 | 22 | H_Issues | calc | Hidden working column behind Status |
 
 **Snapshot block (23–34)** — locked, grey, collapsed group headed *Historical record — do not edit*: `S_PrinterID`, `S_StockID`, `S_TechID`, `S_Family`, `S_Measure`, `S_UnitCost`, `S_StockWidth_mm`, `S_SheetHeight_mm`, `S_ConsRate`, `S_StampedAt`, `S_StampedBy`, `S_SchemaVer`.
 
-Column *order* is not load-bearing anywhere: formulas use structured references, VBA resolves columns by header name, reports resolve `_Data` by header name (§6.2), imports write by header name (§10.5), and exports carry a header row read by name (§10.4). Reordering is free and does not bump the schema version.
+Column *order* is not load-bearing anywhere: formulas use structured references, VBA resolves columns by header name, reports resolve `_Data` by header name (§6.2), imports write by header name (§10.5), and exports carry a header row read by name (§10.4). Reordering is free and does not bump the schema version — proven in practice by the 2026-09-22 move above, which touched nothing but `modInit` (the reorder itself) and `modRegistry`'s `FIRST_JOB_COL` constant (the one place a column's *name*, not position, was baked in as a span boundary — see §8.1).
 
 **Paid (snag 1c, 2026-09-22) — the first real schema bump since inception.** Whether a chargeable cost has been settled — Yes/No, no location default (unlike Disregard Paper/Consumable, every new job just starts unpaid). Added via `modInit.EnsurePaidColumn` (`ListColumns.Add` at a fixed position right after Chargeable Cost, checked-first so it's idempotent), not shipped in the `.xlsx` — the same "build it in VBA, not by hand" reasoning as `_Registry`/`_Audit`/`_Data` (§3.4). **Existing rows are left blank, deliberately not force-set to "No"**: blank means "not recorded either way" for a job that predates the column, and every consumer (Summary/Reports totals, export, import) already treats blank the same as "No" rather than requiring a value, so no backfill or migration step was needed.
 
@@ -380,16 +391,18 @@ Two report sheets: **Summary** (at-a-glance totals) and **Reports** (filterable 
 ```
 =LET(raw,
   VSTACK(
-    HSTACK(IF(SEQUENCE(ROWS(tblJobs_MAIN[Job ID]))>0,"MAIN"),  tblJobs_MAIN[[Job ID]:[Notes]]),
-    HSTACK(IF(SEQUENCE(ROWS(tblJobs_ANNEX[Job ID]))>0,"ANNEX"), tblJobs_ANNEX[[Job ID]:[Notes]])),
+    HSTACK(IF(SEQUENCE(ROWS(tblJobs_MAIN[Date/Time]))>0,"MAIN"),  tblJobs_MAIN[[Date/Time]:[Notes]]),
+    HSTACK(IF(SEQUENCE(ROWS(tblJobs_ANNEX[Date/Time]))>0,"ANNEX"), tblJobs_ANNEX[[Date/Time]:[Notes]])),
   IFERROR(FILTER(raw, INDEX(raw,,2)<>""), ""))
 ```
+
+The span's boundary column names (`FIRST_JOB_COL`/`LAST_JOB_COL`, `modRegistry`) changed from `"Job ID"`/`"Notes"` to `"Date/Time"`/`"Notes"` on 2026-09-22, when `modInit.ReorderJobColumns` moved Status and Job ID away from the front of the table (§4.1, §5) — Job ID stopped being the leftmost real column, so the span's start had to move with it. Status and Job ID are still fully included in the consolidated range either way, since they now sit *inside* the `Date/Time`→`Notes` span rather than starting it.
 
 - **`IF(SEQUENCE(ROWS(…))>0,"CODE")` rather than a bare `"CODE"`**: `HSTACK` does not broadcast a scalar against a column.
 - **`FILTER(raw, INDEX(raw,,2)<>"")` drops blank table rows.**
 - **`IFERROR` on the outside** is the §4.3 safety net.
 
-Shape: `Location`, then `Job ID` through `Notes` — 20 columns. Headers are written to row 9 from the first location's actual header row, so they cannot drift.
+Shape: `Location`, then `Date/Time` through `Notes` — 22 columns (21 job-row columns, up from 20 once Paid was added, §5). Headers are written to row 9 from the first location's actual header row, so they cannot drift.
 
 VBA's entire role in reporting is rewriting that one formula (plus refreshing the Reports filter dropdowns, §8.4). Everything downstream is a live worksheet formula.
 
@@ -882,6 +895,8 @@ Four groups of changes, delivered as a sequence of small, individually-verified,
 **Packages 3+4 — Paid column and the column-grouping fix (snags 1c, 1d) — built.** See §5 for the Paid column design and §3.3/§3.5 for the `SET_SCHEMA` self-provisioning fix it surfaced. `modUtils.SCHEMA_VER` → `1.1`; `modVersion.EnsureSchemaSetting` (new); `modInit.EnsurePaidColumn` (new, `ListColumns.Add` at a fixed position, idempotent), `modInit.GroupJobColumns`/`GroupColumnRange`/`UngroupColumnRange` (the cost-column group now runs Paper Cost→Disregarded only, ungrouping the old wider span first so re-running setup against a pre-fix workbook actually clears it rather than layering outlines); `modJobs.AddPrintJob` (seeds `Paid = "No"` on new rows); `modExport.ExportColumns`/`modImport.WriteImportedRow` (both carry Paid through; a pre-2026-09-22 import file without the column reads back as blank, which every consumer already treats as unpaid); `modReports.BuildSummary`/`BuildReports` (Chargeable total split into Paid/Unpaid on both sheets, `Unpaid = filtered Chargeable − Paid` so the two always reconcile exactly by construction rather than by a second, potentially-drifting criteria expression). Verified by new `test-paid.ps1` (14 checks: column position and validation, blank-not-backfilled existing rows, new-row default, both sheets' totals reconciling, and the group boundary), plus the full regression suite again.
 
 **Package 5 — reduced-clutter view toggle (snag 1e) — built.** See §4.1's new paragraph for the design. `modInit.EnsureReducedViewSettings` (new, self-provisions `SET_LOC_REDUCED_VIEW`/`SET_LOC_REDUCED_COLUMNS`), `modInit.ApplyColumnVisibility` (new, `Public`, the general "hide/show exactly these headers" primitive Reports will reuse for its own fixed column set, §8.3), `modInit.ApplyReducedView`/`ToggleReducedView`/`RelabelReducedViewButton` (new), `modMain.btnToggleReducedView` (new), `modRegistry.RefreshLocations` (now also calls `ApplyReducedView` per location). Verified by new `test-reducedview.ps1`, plus the full regression suite again. **Caught and fixed one real bug along the way**, worth its own note in §9.2: a module-level `Const` declared mid-file (not in the declarations section at the top) compiled visibly but broke the whole module with a misleading "Variable not defined" error on an unrelated, correctly-declared line — diagnosed by reading the VBE's blocking compile-error dialog directly via Win32 window-text APIs, since a compile error hangs `build.ps1` with no COM exception to catch (also now documented, §13.1).
+
+**Package 5 follow-up (same day) — two bugs found testing the toggle, both fixed.** See §4.1 for the full writeup. (1) Hiding Status/Job ID also blanked the location header block above the table, since both used to share columns A/B with it — fixed by `modInit.ReorderJobColumns` (new), which moves Status and Job ID to just after Paid; `modRegistry`'s `FIRST_JOB_COL` moved from `"Job ID"` to `"Date/Time"` to match (§8.1). (2) The toggle button itself was anchored to column 13, which happened to be one of its own hidden columns — moved to column 7. Three pre-existing test scripts (`test-validation.ps1`, `test-import.ps1`, `test-paid.ps1`) had hardcoded column-position assumptions about Status/Job ID that the reorder broke; fixed to look columns up by header instead, and a new `test-reorder.ps1` covers the fix directly. **Flagged, not yet done:** this patches today's specific collisions rather than the underlying constraint (Excel hides whole columns; the header block and any future hidden-column choice could still collide) — a real fix would decouple the header block's columns from the table's entirely. Also flagged: the toggle's only feedback is its own button caption; a clearer visual indicator of the current state is worth adding, deferred alongside Package 10's visual work.
 
 ---
 

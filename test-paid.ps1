@@ -51,7 +51,10 @@ try {
     $notesCol = Col $lo 'Notes'
     Check ($paidCol -gt 0) "Paid column exists"
     Check ($paidCol -eq $chgCol + 1) "Paid sits immediately after Chargeable Cost (chg=$chgCol paid=$paidCol)"
-    Check ($notesCol -eq $paidCol + 1) "Notes sits immediately after Paid (paid=$paidCol notes=$notesCol)"
+    # Not "immediately after Paid" any more: 2026-09-22's ReorderJobColumns
+    # (test-reorder.ps1 covers this precisely) moved Status/Job ID to sit
+    # between Paid and Notes, fixing a reduced-clutter-view header collision.
+    Check ($notesCol -gt $paidCol) "Notes still sits after Paid (paid=$paidCol notes=$notesCol)"
 
     $sheetPaidCol = $lo.Range.Column + $paidCol - 1
     $dv = $main.Cells(13, $sheetPaidCol).Validation

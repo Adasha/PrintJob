@@ -28,7 +28,19 @@ Private Const DATA_SHEET As String = "_Data"
 Private Const AUDIT_SHEET As String = "_Audit"
 Private Const REG_TABLE As String = "tblLocations"
 Private Const AUDIT_TABLE As String = "tblAudit"
-Private Const FIRST_JOB_COL As String = "Job ID"
+' The consolidated range's column span, bounded by NAME rather than
+' position: "every column from FIRST_JOB_COL to LAST_JOB_COL, inclusive" via
+' a structured reference (WriteConsolidated/WriteHeaders below). FIRST_JOB_COL
+' was "Job ID" until 2026-09-22, when modInit.ReorderJobColumns moved Status
+' and Job ID away from the front of the table (columns 1-2) to fix a
+' reduced-clutter-view bug (they used to collide with the location config
+' block, which also lives in columns A/B - see modInit's own comment).
+' Job ID is no longer the leftmost real column, so the bound had to move to
+' whatever IS - Date/Time - or the span would have started mid-table and
+' silently dropped everything before it. Status and Job ID are still
+' INSIDE the span either way, since they now sit between Date/Time and
+' Notes rather than starting it.
+Private Const FIRST_JOB_COL As String = "Date/Time"
 Private Const LAST_JOB_COL As String = "Notes"
 Private Const HDR_ROW As Long = 9
 Private Const DATA_ROW As Long = 10

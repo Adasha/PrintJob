@@ -119,9 +119,17 @@ try {
     $xl.CalculateFullRebuild()
     $d = $wb.Worksheets('_Data')
     $spill = $d.Range('A10').SpillingToRange
+    # Job ID's column in _Data - found by header (row 9), not a hardcoded
+    # index: 2026-09-22's ReorderJobColumns moved Status/Job ID to the back
+    # of the job table (fixing a reduced-clutter-view bug), which shifted
+    # every column after them, _Data included.
+    $jobIdCol = 0
+    for ($c = 1; $c -le 30; $c++) {
+        if ([string]$d.Cells(9, $c).Text -eq 'Job ID') { $jobIdCol = $c; break }
+    }
     $foundLoc = $null
     for ($r = 1; $r -le $spill.Rows.Count; $r++) {
-        if ([string]$spill.Cells($r, 2).Value2 -eq $victimId) { $foundLoc = [string]$spill.Cells($r, 1).Value2 }
+        if ([string]$spill.Cells($r, $jobIdCol).Value2 -eq $victimId) { $foundLoc = [string]$spill.Cells($r, 1).Value2 }
     }
     Write-Host ("_Data reports {0} under Location = '{1}'" -f $victimId, $foundLoc)
     if ($foundLoc -ne 'ANNEX') {

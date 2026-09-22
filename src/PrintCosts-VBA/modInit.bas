@@ -22,7 +22,7 @@ Private Const BTN_TAG As String = "pcb_"
 ' a Sub/Function has already appeared in the source left this workbook
 ' failing to compile ("Variable not defined") even though the declaration
 ' itself was syntactically fine on its own.
-Private Const REDUCED_COLUMNS_DEFAULT As String = "Status;Job ID;Printer;Area m2;Disregard Paper;Disregard Consumable"
+Private Const REDUCED_COLUMNS_DEFAULT As String = "Status;Job ID;Printer;Area m2;Disregard Paper;Disregard Consumable;S_SchemaVer"
 
 ' Set by a setup run and consumed by the message Refresh Locations shows, so a
 ' full setup can say how many buttons it drew without a second dialog.
@@ -60,6 +60,7 @@ Public Sub InitialiseWorkbook()
             ConfigValidation ws
             EnsureJobDefaults ws
             EnsurePaidColumn ws
+            ReorderJobColumns ws
             BindColumns ws
             GroupJobColumns ws
             ApplyStatusFormat ws
@@ -175,14 +176,20 @@ Private Sub DrawLocationButtons(ByVal ws As Worksheet)
     Next c
     ws.Cells(10, 13).ClearContents
 
-    ' Batch defaults toolbar (row 9, snag list item 1b) - clear sits to the
-    ' right of the three default cells (columns A-F), clear of both.
-    DrawOne ws, 9, 9, "Clear defaults", "btnClearDefaults", 110
+    ' Reduced-clutter view toggle (row 9, snag list item 1e) - column 7,
+    ' over Unit (just past the batch defaults' own Printer/Paper Stock cells
+    ' at columns A-F, §4.1) - not one of the columns the toggle itself can
+    ' hide. Originally drawn at column 13, which happened to land on
+    ' whichever column Disregard Consumable was sitting at - column 13 is
+    ' safe now that ReorderJobColumns has moved Status/Job ID away from the
+    ' front of the table, but the anchor is deliberately independent of that
+    ' fix (a hidden-column collision here would take out the one button that
+    ' undoes it). Caption read fresh from the current setting each time this
+    ' runs, same as ConfigToggleCaption's button does.
+    DrawOne ws, 9, 7, ReducedViewCaption(), "btnToggleReducedView", 130
 
-    ' Reduced-clutter view toggle (row 9, snag list item 1e) - further right
-    ' again, clear of Clear defaults. Caption read fresh from the current
-    ' setting each time this runs, same as ConfigToggleCaption's button does.
-    DrawOne ws, 9, 13, ReducedViewCaption(), "btnToggleReducedView", 130
+    ' Clear defaults - to the right of the toggle above, clear of both.
+    DrawOne ws, 9, 9, "Clear defaults", "btnClearDefaults", 110
 End Sub
 
 ' Yes/No validation on the two location defaults (spec 9.2). These seed each
@@ -306,6 +313,64 @@ Public Sub EnsurePaidColumn(ByVal ws As Worksheet)
             .ErrorMessage = "Choose Yes or No."
         End With
     End If
+    RelockSheet ws
+End Sub
+
+' ---------------------------------------------------------- column order ---
+' Moves Status and Job ID from the start of the table (columns 1-2) to just
+' after Paid, ahead of Notes/H_Issues/the snapshot block. Fixes a real bug
+' found in the reduced-clutter view (snag 1e, above): Status and Job ID are
+' two of its six hidden-by-default columns, but they used to sit at sheet
+' columns A/B - the SAME columns the location config block above the table
+' (room name, department, code, defaults - §4.1) occupies in rows 1-9.
+' Hiding a column hides the WHOLE column, every row, not just the table's -
+' so toggling reduced view was also blanking the room name/department/code
+' the user needs to keep sight of. Moving Status/Job ID off columns A/B
+' removes the collision without touching the config block at all.
+'
+' Column order is not load-bearing anywhere in this project (§5.1) -
+' formulas use structured references, everything else resolves columns by
+' header name - so this is free to do purely for layout reasons. The one
+' exception needing a matching fix: modRegistry's consolidated-range span
+' bounds itself by column NAME ("Job ID" to "Notes"), so moving Job ID away
+' from being the leftmost column meant that bound had to move too (now
+' "Date/Time" to "Notes" - still spans every real column, Status and Job ID
+' included, since they now sit inside that span rather than starting it).
+'
+' NOTE (revisit): this fixes today's specific collision (columns A/B) but
+' isn't a general solution - if SET_LOC_REDUCED_COLUMNS is ever edited to
+' name a column that collides with the config block or the batch-defaults
+' row for some other reason, the same class of bug could resurface. A more
+' robust fix (decouple the config block's columns from the table's
+' entirely, or keep them in sync some other way) is worth doing properly
+' later rather than patching column-by-column.
+Public Sub ReorderJobColumns(ByVal ws As Worksheet)
+    Dim lo As ListObject, order As Variant, i As Long, want As String, have As String
+    Set lo = JobsTable(ws)
+    If lo Is Nothing Then Exit Sub
+
+    order = Array( _
+        "Date/Time", "Student Name", "Student No", "Technician", "Printer", _
+        "Paper Stock", "Unit", "Quantity", "Print Width mm", "Disregard Paper", _
+        "Disregard Consumable", "Area m2", "Paper Cost", "Consumable Cost", _
+        "Gross Cost", "Disregarded", "Chargeable Cost", "Paid", "Status", "Job ID", _
+        "Notes", "H_Issues", _
+        "S_PrinterID", "S_StockID", "S_TechID", "S_Family", "S_Measure", _
+        "S_UnitCost", "S_StockWidth_mm", "S_SheetHeight_mm", "S_ConsRate", _
+        "S_StampedAt", "S_StampedBy", "S_SchemaVer")
+
+    UnlockSheet ws
+    For i = 1 To UBound(order) - LBound(order) + 1
+        want = CStr(order(LBound(order) + i - 1))
+        have = lo.ListColumns(i).Name
+        If StrComp(have, want, vbTextCompare) <> 0 Then
+            ' Cut+insert scoped to the table's own range (ListColumn.Range is
+            ' header+data only, never the full column) - rows 1-11 above the
+            ' table are never touched by this, whichever column is moving.
+            lo.ListColumns(want).Range.Cut
+            lo.ListColumns(i).Range.Insert Shift:=xlToRight
+        End If
+    Next i
     RelockSheet ws
 End Sub
 

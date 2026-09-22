@@ -23,6 +23,36 @@ Option Explicit
 ' acceptance passes at the end of the sequence.
 
 Public Const APP_NAME As String = "Print Cost Management"
+' 0.9.4 - two bugs found testing 0.9.3's reduced-clutter view, both fixed
+' the same day:
+'
+'   - Hiding a column hides the WHOLE column, every row, not just the
+'     table's - Status and Job ID used to be the table's first two columns
+'     (sheet A/B), the SAME columns the location header block above the
+'     table (room name, department, code, defaults) occupies in rows 1-9.
+'     Turning reduced view on blanked the header along with the table
+'     cells. modInit.ReorderJobColumns moves Status and Job ID to just
+'     after Paid, ahead of Notes/H_Issues/the snapshot block, so columns
+'     A/B are always Date/Time/Student Name - never anything reduced view
+'     can hide. Column order isn't load-bearing anywhere (design 5.1), with
+'     one matching fix: modRegistry's consolidated-range span was bounded
+'     by column NAME from "Job ID" to "Notes" - with Job ID no longer the
+'     leftmost column, that bound moved to "Date/Time" so the span still
+'     covers everything (Status/Job ID included, now inside the span
+'     rather than starting it).
+'   - The toggle button itself was anchored to column 13, which happened to
+'     be one of its own hidden columns (Disregard Consumable) - turning
+'     reduced view on could take out the one button that turns it back
+'     off. Moved to column 7, deliberately independent of the reorder
+'     above.
+'
+' Neither is a general fix for the underlying constraint (Excel's
+' column-hide is whole-column-only, and the hidden-column list is
+' user-editable, so a future edit could collide with something else on the
+' sheet) - revisit properly later. Also flagged: the toggle's only feedback
+' is its own button caption; a clearer visual state indicator is worth
+' adding, deferred alongside the rest of the visual-polish work.
+'
 ' 0.9.3 - reduced-clutter view toggle (snag 1e): a workbook-wide (not
 ' per-sheet) toggle hiding Status, Job ID, Printer, Area m2, Disregard Paper
 ' and Disregard Consumable on every location sheet at once, driven by two
@@ -176,7 +206,7 @@ Public Const APP_NAME As String = "Print Cost Management"
 ' A patch increment, not a phase: the phase digit still reads 7 because phase
 ' 8 has not been built. The revision digit is what "0.<phase>.<revision>"
 ' exists for.
-Public Const APP_VERSION As String = "0.9.3"
+Public Const APP_VERSION As String = "0.9.4"
 Public Const APP_AUTHOR As String = "Adam Shailer"
 
 Public Function VersionString() As String
