@@ -73,7 +73,7 @@ try {
     $lo = $ws.ListObjects('tblJobs_MAIN')
     $qtyCol = 0
     for ($i = 1; $i -le $lo.ListColumns.Count; $i++) {
-        if ($lo.ListColumns($i).Name -eq 'Quantity') { $qtyCol = $i }
+        if ($lo.ListColumns($i).Name -eq 'Qty') { $qtyCol = $i }
     }
     $cell = $lo.ListRows(1).Range.Cells(1, $qtyCol)
     $was = $cell.Value2

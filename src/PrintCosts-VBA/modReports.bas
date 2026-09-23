@@ -14,7 +14,7 @@ Option Explicit
 '
 ' Columns are addressed by HEADER NAME, never by position:
 '
-'     INDEX(_Data!$A$10#,,MATCH("Quantity",_Data!$A$9:$AZ$9,0))
+'     INDEX(_Data!$A$10#,,MATCH("Qty",_Data!$A$9:$AZ$9,0))
 '
 ' It is wordier than INDEX(...,,10) and it is the reason the job table's
 ' columns can be reordered without touching a single report formula.
@@ -77,7 +77,7 @@ Public Sub BuildSummary()
 
     ' --- headers -----------------------------------------------------------
     WriteHeaderRow ws, 9, Array("Location", "Printer", "Paper stock", "Type", "Family", "Unit", _
-                                "Jobs", "Quantity", "Area m2", "Paper cost", _
+                                "Jobs", "Qty", "Area m2", "Paper cost", _
                                 "Consumable cost", "Gross", "Disregarded", "Chargeable")
 
     ' --- the one formula -----------------------------------------------------
@@ -94,7 +94,7 @@ Public Sub BuildSummary()
     f = f & "IFNA(XLOOKUP(st,tblPapers[Description],tblPapers[Family]),""(not in Papers)""),"
     f = f & "IFNA(IF(XLOOKUP(st,tblPapers[Description],tblPapers[Measure])=""Sheet"",""sheets"",""metres""),""-""),"
     f = f & "COUNTIFS(" & C("Location") & ",lo," & C("Printer") & ",pr," & C("Paper Stock") & ",st),"
-    f = f & SumBy("Quantity") & "," & SumBy("Area m2") & "," & SumBy("Paper Cost") & ","
+    f = f & SumBy("Qty") & "," & SumBy("Area m2") & "," & SumBy("Paper Cost") & ","
     f = f & SumBy("Consumable Cost") & "," & SumBy("Gross Cost") & ","
     f = f & SumBy("Disregarded") & "," & SumBy("Chargeable Cost") & ")),"
     f = f & """No print jobs have been recorded yet."")"
@@ -107,7 +107,11 @@ Public Sub BuildSummary()
 End Sub
 
 Private Sub FormatSummary(ByVal ws As Worksheet)
-    ws.Range("A9:N9").Interior.Color = RGB(222, 232, 244)
+    ' Warm tint (0.9.14), matching the Reports page's own totals header (row
+    ' 12 there) rather than its blue results-table header - this table is
+    ' itself a totals breakdown (by location/printer/paper stock), the same
+    ' category as Reports' "Matching" row, not a per-job record list.
+    ws.Range("A9:N9").Interior.Color = RGB(244, 232, 222)
     ws.Range("H10:I2000").NumberFormat = "#,##0.00"
     ws.Range("J10:N2000").NumberFormat = CurrencyFormatCode()
     ws.Range("D6").NumberFormat = CurrencyFormatCode()
@@ -224,7 +228,7 @@ Private Function Criteria() As String
     ' boxes are so a value left as text by an unformatted cell is treated as
     ' no filter rather than as a quantity of zero.
     s = s & "*IF($F$8="""",TRUE,IF(ISERROR($F$8*1),TRUE," & _
-        "IFERROR(" & C("Quantity") & "*1,0)=$F$8*1))"
+        "IFERROR(" & C("Qty") & "*1,0)=$F$8*1))"
 
     Criteria = s
 End Function
@@ -235,7 +239,7 @@ End Function
 Private Function ResultHeaders() As Variant
     ResultHeaders = Array("Date/Time", "Location", "Student name", "Student no", _
                           "Printer", "Paper stock", _
-                          "Quantity", "Unit", "Area m2", "Paper cost", _
+                          "Qty", "Unit", "Area m2", "Paper cost", _
                           "Consumable cost", "Gross", "Disregarded", "Chargeable", "Paid", _
                           "Technician", "Notes")
 End Function
@@ -437,7 +441,7 @@ Public Sub BuildReports()
 
     f = "=IFERROR(LET(" & _
         "res,FILTER(HSTACK(" & C("Date/Time") & "," & C("Location") & "," & sName & "," & sNo & _
-        "," & C("Printer") & "," & C("Paper Stock") & "," & C("Quantity") & "," & C("Unit") & "," & C("Area m2") & _
+        "," & C("Printer") & "," & C("Paper Stock") & "," & C("Qty") & "," & C("Unit") & "," & C("Area m2") & _
         "," & C("Paper Cost") & "," & C("Consumable Cost") & "," & C("Gross Cost") & _
         "," & C("Disregarded") & "," & C("Chargeable Cost") & "," & paidText & "," & C("Technician") & _
         "," & C("Notes") & "," & C("Job ID") & ")," & ok & ",""No print jobs match those criteria.""),"
@@ -537,7 +541,7 @@ End Function
 
 ' Column letters below reflect the 2026-09-22 layout: A Date/Time, B
 ' Location, C Student Name, D Student No, E Printer, F Paper Stock, G
-' Quantity, H Unit, I Area m2, J Paper Cost, K Consumable Cost, L Gross
+' Qty, H Unit, I Area m2, J Paper Cost, K Consumable Cost, L Gross
 ' Cost, M Disregarded, N Chargeable Cost, O Paid, P Technician, Q Notes,
 ' (R Job ID, hidden).
 Private Sub FormatReports(ByVal ws As Worksheet)
@@ -553,6 +557,7 @@ Private Sub FormatReports(ByVal ws As Worksheet)
     ws.Columns("A:Q").ColumnWidth = 14
     ws.Columns("B:F").ColumnWidth = 22
     ws.Columns("Q").ColumnWidth = 30
+    ws.Columns("A").ColumnWidth = ColWidthForPx(100)  ' Date/Time, 100px
     ws.Columns("T").ColumnWidth = 22
     ws.Columns("X").ColumnWidth = 22
     ws.Rows(15).Font.Bold = True

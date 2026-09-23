@@ -37,7 +37,7 @@ Private Const EXPORT_CELL As String = "$B$8"
 Private Function ExportColumns() As Variant
     ExportColumns = Array( _
         "Job ID", "Date/Time", "Student Name", "Student No", "Technician", _
-        "Printer", "Paper Stock", "Unit", "Quantity", "Print Width mm", _
+        "Printer", "Paper Stock", "Unit", "Qty", "Print Width mm", _
         "Disregard Paper", "Disregard Consumable", "Area m2", _
         "Paper Cost", "Consumable Cost", "Gross Cost", "Disregarded", _
         "Chargeable Cost", "Paid", "Notes", "Status", _
@@ -501,7 +501,7 @@ Private Sub FormatSnapshotColumns(ByVal outWs As Worksheet, ByVal block As Varia
                 outWs.Columns(c).NumberFormat = "dd/mm/yyyy hh:mm"
             Case "Paper cost", "Consumable cost", "Gross", "Disregarded", "Chargeable"
                 outWs.Columns(c).NumberFormat = CurrencyFormatCode()
-            Case "Quantity", "Area m2"
+            Case "Qty", "Area m2"
                 outWs.Columns(c).NumberFormat = "#,##0.00"
         End Select
     Next c
@@ -765,7 +765,7 @@ Public Function ExportSig(ByVal ws As Worksheet) As String
     ' wrongly, because it is what stands between a sheet deletion and the
     ' records. A component that cannot be computed is marked instead.
     cells = Agg(lo, "", "CountA", bad)
-    qty = Agg(lo, "Quantity", "Sum", bad)
+    qty = Agg(lo, "Qty", "Sum", bad)
     chg = Agg(lo, "Chargeable Cost", "Sum", bad)
     last = Agg(lo, "Date/Time", "Max", bad)
 

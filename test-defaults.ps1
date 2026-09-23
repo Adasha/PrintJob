@@ -1,5 +1,6 @@
 # Snag 1b: batch default Technician/Printer/Paper selectors above the
-# location-sheet toolbar (row 9).
+# location-sheet toolbar (row 10, after 0.9.13's EnsureJobTableGap opened a
+# blank row both above and below it).
 #
 #   - Setting a default pre-fills every subsequently added job.
 #   - Changing a default afterwards never alters jobs already added (AT-07/
@@ -52,13 +53,13 @@ try {
     }
 
     # ------------------------------------------------------------ named cells
-    Write-Host '=== Named cells exist and are laid out at row 9 ==='
+    Write-Host '=== Named cells exist and are laid out at row 10 ==='
     foreach ($nm in 'LOC_DefTech', 'LOC_DefPrinter', 'LOC_DefPaper') {
         $found = $false
-        try { $r = $main.Names.Item($nm).RefersToRange; $found = ($r.Row -eq 9) } catch {}
-        Check $found "$nm exists and refers to row 9"
+        try { $r = $main.Names.Item($nm).RefersToRange; $found = ($r.Row -eq 10) } catch {}
+        Check $found "$nm exists and refers to row 10"
     }
-    Check ([string]$main.Range('A9').Text -eq 'Default: technician') "A9 label reads correctly (got '$($main.Range('A9').Text)')"
+    Check ([string]$main.Range('A10').Text -eq 'Default: technician') "A10 label reads correctly (got '$($main.Range('A10').Text)')"
 
     # ------------------------------------------------------------- pre-fill
     Write-Host ''

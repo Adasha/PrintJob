@@ -21,7 +21,7 @@ Option Explicit
 ' "re-aggregate overlapping exports" both work correctly.
 '
 ' Only the input and snapshot columns are written - Job ID, Date/Time,
-' Student Name, Student No, Technician, Printer, Paper Stock, Unit, Quantity,
+' Student Name, Student No, Technician, Printer, Paper Stock, Unit, Qty,
 ' Print Width mm, Disregard Paper, Disregard Consumable, Paid, Notes, and
 ' every S_* column. The calculated columns (Area m2, Paper Cost, Consumable
 ' Cost, Gross Cost, Disregarded, Chargeable Cost) and Status are left alone -
@@ -32,6 +32,13 @@ Option Explicit
 ' WriteImportedRow reads it the same way as every other field and gets back
 ' Empty, which writes as blank, which every consumer already treats as "not
 ' paid" (modUtils.SCHEMA_VER's 1.1 comment). No migration step needed.
+'
+' Same reasoning covers the Quantity->Qty header rename (0.9.14): a file
+' exported before the rename has a column literally called "Quantity", so
+' the dict `d` below (keyed by whatever header text the FILE itself uses)
+' has no "Qty" entry - WriteNum's d.Item("Qty") comes back Empty and writes
+' blank, exactly the same graceful-degradation path as a missing Paid
+' column, not a hard failure. Nothing here bulk-migrates old export files.
 '
 ' All writes happen with EnableEvents False, same as every other write this
 ' workbook makes to its own sheets, so imported rows bypass Worksheet_Change
@@ -220,7 +227,7 @@ Private Sub WriteImportedRow(ByVal lo As ListObject, ByVal RowNo As Long, ByVal 
     WriteText lo, RowNo, "Printer", d
     WriteText lo, RowNo, "Paper Stock", d
     WriteText lo, RowNo, "Unit", d
-    WriteNum lo, RowNo, "Quantity", d
+    WriteNum lo, RowNo, "Qty", d
     WriteNum lo, RowNo, "Print Width mm", d
     WriteText lo, RowNo, "Disregard Paper", d
     WriteText lo, RowNo, "Disregard Consumable", d

@@ -281,3 +281,26 @@ Public Sub RemoveCatalogRow(ByVal TableName As String)
     Invalidate
     AppOn
 End Sub
+
+' A pure rename (0.9.14, "shorten headers to save space"), same reasoning as
+' modInit.EnsureQtyColumnName: tblPapers ships in PrintCosts.xlsx with this
+' column still called "Standard size" (§16.1 - schema-shape changes are
+' self-provisioned at setup rather than hand-edited into the static .xlsx),
+' and nothing in this codebase looks it up by name (unlike Quantity, this one
+' needed no other call sites touched), so the rename is free of any lookup
+' risk. Checked first, like every other Ensure* in this project.
+Public Sub EnsureStdSizeColumnName()
+    Dim lo As ListObject, i As Long
+    Set lo = Tbl("tblPapers")
+    If lo Is Nothing Then Exit Sub
+
+    For i = 1 To lo.ListColumns.Count
+        If StrComp(lo.ListColumns(i).Name, "Std. size", vbTextCompare) = 0 Then Exit Sub
+    Next i
+
+    UnlockSheet lo.Parent
+    On Error Resume Next
+    lo.ListColumns("Standard size").Name = "Std. size"
+    On Error GoTo 0
+    RelockSheet lo.Parent
+End Sub

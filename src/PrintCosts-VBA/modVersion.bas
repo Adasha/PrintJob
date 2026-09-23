@@ -23,6 +23,57 @@ Option Explicit
 ' acceptance passes at the end of the sequence.
 
 Public Const APP_NAME As String = "Print Cost Management"
+' 0.9.14 - Five direct user-feedback items, layout and naming only, no schema
+' change:
+'
+'   - "Quantity" renamed to "Qty" everywhere it is a table/column header (the
+'     job table on every location sheet, the Reports results table and its
+'     Sort-by list, Summary's breakdown table, the export column order/
+'     header row) - narrower headers were costing width the already-tight
+'     job-row columns needed elsewhere. modInit.EnsureQtyColumnName renames
+'     the live ListColumn (checked-first, same shape as EnsurePaidColumn)
+'     rather than hand-editing PrintCosts.xlsx; Excel updates every
+'     structured reference (Area m2/Paper Cost's own formulas, _Data's
+'     consolidated header copy) as part of the rename itself. Every VBA call
+'     site that looked the column up by its old name - modReports.C/SumBy,
+'     modExport.ExportColumns/Agg, modImport.WriteImportedRow - now asks for
+'     "Qty". Not a schema bump (§3.5: a rename doesn't change what a column
+'     MEANS, only its label) - a file exported before the rename degrades
+'     the same graceful way a pre-Paid export already does (missing key
+'     reads back blank, not an error). The Reports page's OWN "Quantity"
+'     filter-box label (F8) is deliberately left alone - a criteria label,
+'     not a table header, with no width pressure on it.
+'   - "Standard size" (tblPapers) renamed to "Std. size" the same way -
+'     modCatalog.EnsureStdSizeColumnName - but with no call sites to fix,
+'     since nothing in this codebase looked that one up by name.
+'   - Location-sheet job-row columns narrowed to fit more of the table in
+'     one screen: Unit and Qty capped at 50px, Area m2 at 60px, Paid at
+'     40px; Job ID and the Reports page's own Date/Time column fixed at
+'     exactly 100px. modUtils.ColWidthForPx converts a pixel target into
+'     Range.ColumnWidth's own "characters of the Normal-style font" unit
+'     using Calibri 11's well-known metric (7px/char + 5px padding, the same
+'     constant openpyxl/xlsxwriter use) - there is no Range.WidthInPixels to
+'     set directly. Always rounds down, so a cap can never render one pixel
+'     over.
+'   - Summary's own totals-breakdown header (row 9) now shares the Reports
+'     page's warm totals tint (RGB(244, 232, 222), added in 0.9.13 for
+'     Reports' own "Matching" row) instead of the blue it used to share with
+'     Reports' results-table header - this table is itself a totals
+'     breakdown (by location/printer/paper stock), the same category as
+'     "Matching", not a per-job record list.
+'   - A blank row now sits both above and below the location-sheet batch-
+'     defaults row (modInit.EnsureJobTableGap, the same "insert a row above
+'     a table, checked first" idiom EnsureTableGap already used for the
+'     catalogue tables) - it used to run straight into the main toolbar
+'     below with no gap at all, and read as crowded against the config
+'     block above despite row 8 already being blank there. Shifts the
+'     defaults from row 9 to row 10 and the toolbar from row 10 to row 12;
+'     every hardcoded row reference in modInit (EnsureJobDefaults,
+'     DrawLocationButtons, the reduced-view toggle/Clear defaults buttons)
+'     moved with it. Named ranges (LOC_DefTech/LOC_DefPrinter/LOC_DefPaper)
+'     needed no separate migration - Excel's own row-insert already carries
+'     a name's RefersTo along with whatever physically moved.
+'
 ' 0.9.13 - Two small Reports-page fixes, direct user feedback:
 '
 '   - Matching's totals header (row 12) now gets its own subtle tint,
@@ -395,7 +446,7 @@ Public Const APP_NAME As String = "Print Cost Management"
 ' A patch increment, not a phase: the phase digit still reads 7 because phase
 ' 8 has not been built. The revision digit is what "0.<phase>.<revision>"
 ' exists for.
-Public Const APP_VERSION As String = "0.9.13"
+Public Const APP_VERSION As String = "0.9.14"
 Public Const APP_AUTHOR As String = "Adam Shailer"
 
 Public Function VersionString() As String

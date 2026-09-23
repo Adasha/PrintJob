@@ -145,6 +145,19 @@ Public Function CellIn(ByVal lo As ListObject, ByVal RowNo As Long, ByVal Header
     Set CellIn = lo.ListRows(RowNo).Range.Cells(1, ColIdx(lo, Header))
 End Function
 
+' Range.ColumnWidth is in "characters of the Normal-style font" (Calibri 11
+' throughout this workbook, per xl/styles.xml), not pixels, and Excel itself
+' is the only thing that draws the relationship between the two - there is no
+' Range.WidthInPixels to set directly. Calibri 11's own metric (7px per
+' character plus Excel's fixed 5px of cell padding: pixels = ColumnWidth*7+5)
+' is the same constant openpyxl/xlsxwriter use and matches Excel's own
+' column-width dialog for this font. Always rounds DOWN, so a "no more than
+' Npx" width can never render one pixel over - callers asking for an exact
+' target (not a cap) accept the same sub-pixel rounding for simplicity.
+Public Function ColWidthForPx(ByVal px As Double) As Double
+    ColWidthForPx = Int(((px - 5) / 7) * 100) / 100
+End Function
+
 Public Function RowCount(ByVal lo As ListObject) As Long
     If lo.ListRows.Count = 0 Then
         RowCount = 0

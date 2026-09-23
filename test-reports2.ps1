@@ -66,7 +66,7 @@ try {
     Write-Host ''
     Write-Host '=== Minimum-columns view: only the documented set stays visible ==='
     $shouldShow = 'Date/Time', 'Location', 'Student name', 'Student no', 'Paper stock', 'Chargeable', 'Paid'
-    $shouldHide = 'Printer', 'Quantity', 'Unit', 'Area m2', 'Paper cost', 'Consumable cost', 'Gross', 'Disregarded', 'Technician', 'Notes'
+    $shouldHide = 'Printer', 'Qty', 'Unit', 'Area m2', 'Paper cost', 'Consumable cost', 'Gross', 'Disregarded', 'Technician', 'Notes'
     foreach ($h in $shouldShow) {
         $col = ReportsCol $h
         $letter = ([char](64 + $col)).ToString()

@@ -74,7 +74,7 @@ try {
     Write-Host "  OK: Printer is now part of the Summary key (Location, Printer, Paper stock, ...)"
     for ($r = 10; $r -le 15; $r++) {
         $v = @()
-        # Location, Printer, Paper stock, Unit, Jobs, Quantity, Gross, Chargeable
+        # Location, Printer, Paper stock, Unit, Jobs, Qty, Gross, Chargeable
         foreach ($col in 1, 2, 3, 6, 7, 8, 12, 14) { $v += [string]$s.Cells($r, $col).Text }
         if ($v[0] -ne '') { Write-Host ('   ' + ($v -join ' | ')) }
     }
@@ -170,18 +170,18 @@ try {
 
     Write-Host ''
     Write-Host '=== Reports: sort by column ==='
-    $c.Range('B10').Value2 = 'Quantity'
+    $c.Range('B10').Value2 = 'Qty'
     $c.Range('F10').Value2 = 'Descending'
     $xl.CalculateFullRebuild()
     $sp = $c.Range('A16').SpillingToRange
-    $qtyCol = ReportsCol 'Quantity'
+    $qtyCol = ReportsCol 'Qty'
     $qtys = @()
     for ($r = 1; $r -le $sp.Rows.Count; $r++) { $qtys += [double]$sp.Cells($r, $qtyCol).Value2 }
-    Write-Host ('  Quantity column, sorted Descending: ' + ($qtys -join ', '))
+    Write-Host ('  Qty column, sorted Descending: ' + ($qtys -join ', '))
     $sortedDesc = $qtys | Sort-Object -Descending
     $matches = $true
     for ($i = 0; $i -lt $qtys.Count; $i++) { if ($qtys[$i] -ne $sortedDesc[$i]) { $matches = $false } }
-    if (-not $matches) { Write-Host 'FAIL: results were not sorted by Quantity Descending'; exit 1 }
+    if (-not $matches) { Write-Host 'FAIL: results were not sorted by Qty Descending'; exit 1 }
     Write-Host '  OK: SORTBY reordered the results as requested'
     $c.Range('B10').ClearContents() | Out-Null
     $c.Range('F10').ClearContents() | Out-Null

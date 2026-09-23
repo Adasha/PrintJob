@@ -45,6 +45,7 @@ Public Sub InitialiseWorkbook()
     EnsureSchemaSetting
     EnsureExportSettings
     EnsureReducedViewSettings
+    EnsureStdSizeColumnName
 
     ' Summary and Reports, likewise built here. Their formulas read
     ' _Data, which RefreshLocations writes at the end of this run - until then
@@ -55,15 +56,18 @@ Public Sub InitialiseWorkbook()
         UnlockSheet ws
         ClearButtons ws
         If IsLocation(ws) Then
+            EnsureJobTableGap ws
             DrawLocationButtons ws
             ConfigValidation ws
             EnsureJobDefaults ws
             EnsurePaidColumn ws
+            EnsureQtyColumnName ws
             ReorderJobColumns ws
             BindColumns ws
             GroupJobColumns ws
             ApplyStatusFormat ws
             ApplyReducedView ws
+            ApplyJobColumnWidths ws
             n = n + 1
         ElseIf StrComp(ws.Name, "Summary", vbTextCompare) = 0 Then
             ' Column O onwards, clear of the A:M report table.
@@ -185,48 +189,61 @@ Fail:
 End Sub
 
 Private Sub DrawLocationButtons(ByVal ws As Worksheet)
-    ' The placeholder labels sit on row 10, two columns apart. Buttons are drawn
-    ' over them and the labels cleared.
-    DrawOne ws, 10, 1, "Add Print Job", "btnAddPrintJob", 110
-    DrawOne ws, 10, 3, "Now", "btnNow", 110
-    DrawOne ws, 10, 5, "Remove Row", "btnRemoveRow", 110
-    DrawOne ws, 10, 7, "Select printers...", "btnSelectPrinters", 110
-    DrawOne ws, 10, 9, "Check this sheet", "btnCheckSheet", 110
-    DrawOne ws, 10, 11, "Clear All", "btnClearAll", 110
-    DrawOne ws, 10, 13, "Export...", "btnExport", 110
-    DrawOne ws, 10, 15, "Import...", "btnImportLocation", 110
+    ' The placeholder labels sit on row 12 (EnsureJobTableGap has already
+    ' pushed the toolbar down from its shipped row 10, opening a blank row
+    ' both above and below the batch-defaults row - snag list item, 2026-09-
+    ' 23), two columns apart. Buttons are drawn over them and the labels
+    ' cleared.
+    DrawOne ws, 12, 1, "Add Print Job", "btnAddPrintJob", 110
+    DrawOne ws, 12, 3, "Now", "btnNow", 110
+    DrawOne ws, 12, 5, "Remove Row", "btnRemoveRow", 110
+    DrawOne ws, 12, 7, "Select printers...", "btnSelectPrinters", 110
+    DrawOne ws, 12, 9, "Check this sheet", "btnCheckSheet", 110
+    DrawOne ws, 12, 11, "Clear All", "btnClearAll", 110
+    DrawOne ws, 12, 13, "Export...", "btnExport", 110
+    DrawOne ws, 12, 15, "Import...", "btnImportLocation", 110
 
     Dim c As Long
     For c = 1 To 15
-        With ws.Cells(10, c)
+        With ws.Cells(12, c)
             .ClearContents
             .Interior.Pattern = xlNone
         End With
     Next c
-    ws.Cells(10, 13).ClearContents
+    ws.Cells(12, 13).ClearContents
 
-    ' Reduced-clutter view toggle (row 9, snag list item 1e) - column 7,
-    ' over Unit (just past the batch defaults' own Printer/Paper Stock cells
-    ' at columns A-F, §4.1) - not one of the columns the toggle itself can
-    ' hide. Originally drawn at column 13, which happened to land on
-    ' whichever column Disregard Consumable was sitting at - column 13 is
-    ' safe now that ReorderJobColumns has moved Status/Job ID away from the
-    ' front of the table, but the anchor is deliberately independent of that
-    ' fix (a hidden-column collision here would take out the one button that
-    ' undoes it). Caption read fresh from the current setting each time this
-    ' runs, same as ConfigToggleCaption's button does.
-    DrawOne ws, 9, 7, ReducedViewCaption(), "btnToggleReducedView", 130
+    ' Reduced-clutter view toggle (row 10 - shifted down from row 9 the same
+    ' way the toolbar above was, snag list item 1e) - column 7, over Unit
+    ' (just past the batch defaults' own Printer/Paper Stock cells at columns
+    ' A-F, §4.1) - not one of the columns the toggle itself can hide.
+    ' Originally drawn at column 13, which happened to land on whichever
+    ' column Disregard Consumable was sitting at - column 13 is safe now that
+    ' ReorderJobColumns has moved Status/Job ID away from the front of the
+    ' table, but the anchor is deliberately independent of that fix (a
+    ' hidden-column collision here would take out the one button that undoes
+    ' it). Caption read fresh from the current setting each time this runs,
+    ' same as ConfigToggleCaption's button does.
+    DrawOne ws, 10, 7, ReducedViewCaption(), "btnToggleReducedView", 130
 
     ' Clear defaults - to the right of the toggle above, clear of both.
-    DrawOne ws, 9, 9, "Clear defaults", "btnClearDefaults", 110
+    DrawOne ws, 10, 9, "Clear defaults", "btnClearDefaults", 110
 End Sub
 
 ' Yes/No validation on the two location defaults (spec 9.2). These seed each
 ' new print job and are plain cells in the workbook file, so the list is added
 ' here rather than shipped with it.
+' Unlocks/relocks around its own edit, like every other per-sheet Ensure/
+' Apply function here - added 0.9.14, when EnsureJobTableGap became the
+' first thing the location loop runs and started leaving the sheet
+' genuinely re-protected (its own RelockSheet) by the time this ran. Validation.Add
+' raises 1004 under real protection even with UserInterfaceOnly - drawing
+' buttons/clearing cells (DrawLocationButtons, between the two) does not,
+' which is exactly why only this one broke.
 Private Sub ConfigValidation(ByVal ws As Worksheet)
+    UnlockSheet ws
     AddYesNo LocRange(ws, "LOC_DefDisPaper"), "Disregard paper cost", "Sets what new print jobs on this sheet start with. Changing it never alters jobs already recorded."
     AddYesNo LocRange(ws, "LOC_DefDisCons"), "Disregard consumable cost", "Sets what new print jobs on this sheet start with. Changing it never alters jobs already recorded."
+    RelockSheet ws
 End Sub
 
 Private Sub AddYesNo(ByVal target As Range, ByVal Title As String, ByVal Msg As String)
@@ -246,36 +263,59 @@ Private Sub AddYesNo(ByVal target As Range, ByVal Title As String, ByVal Msg As 
     End With
 End Sub
 
+' ------------------------------------------------------------ table gap ---
+' A blank row both above and below the batch-defaults row, so it reads as
+' its own group rather than crowding the config block above (which already
+' had row 8 as a gap) or running straight into the toolbar below (which
+' didn't - row 9 and row 10 used to be flush against each other). Same
+' "checked first" idiom as EnsureTableGap (catalogue tables, above): the
+' second insert's target row is read fresh AFTER the first has already
+' shifted everything below it, so this is safe to call on a sheet that has
+' already been migrated (JobsTable's own row no longer < 14) without
+' inserting a second time.
+Public Sub EnsureJobTableGap(ByVal ws As Worksheet)
+    Dim lo As ListObject
+    Set lo = JobsTable(ws)
+    If lo Is Nothing Then Exit Sub
+    If lo.Range.Row >= 14 Then Exit Sub
+
+    UnlockSheet ws
+    ws.Rows(10).Insert Shift:=xlDown  ' gap BELOW the defaults row
+    ws.Rows(9).Insert Shift:=xlDown   ' gap ABOVE the defaults row
+    RelockSheet ws
+End Sub
+
 ' ----------------------------------------------------- batch defaults ---
-' Snag list item 1b: three cells above the toolbar (row 9 - the config block
-' ends at row 8, the toolbar starts at row 10) let a technician set a
-' Technician/Printer/Paper Stock once and have every subsequently added job
-' pre-filled from them (modJobs.AddPrintJob), until Clear defaults empties
-' them again (modJobs.ClearDefaults). Self-provisioned here rather than
-' shipped in the .xlsx - same reasoning as LOC_Export (modExport): a
-' sheet-scoped name copies cleanly with a duplicated sheet, and re-adding it
-' every run means an older location sheet picks the feature up without hand
-' surgery.
+' Snag list item 1b: three cells above the toolbar (row 10 - EnsureJobTableGap
+' has already opened a blank row both above and below this one, so the config
+' block above ends at row 8, the defaults sit at row 10, and the toolbar
+' starts at row 12) let a technician set a Technician/Printer/Paper Stock
+' once and have every subsequently added job pre-filled from them
+' (modJobs.AddPrintJob), until Clear defaults empties them again
+' (modJobs.ClearDefaults). Self-provisioned here rather than shipped in the
+' .xlsx - same reasoning as LOC_Export (modExport): a sheet-scoped name
+' copies cleanly with a duplicated sheet, and re-adding it every run means an
+' older location sheet picks the feature up without hand surgery.
 ' Public: modRegistry.RefreshLocations also calls this for every location on
 ' every refresh, alongside BindColumns - the same "rebuild dependent
 ' dropdowns, self-heal an old sheet, re-point a duplicated one" reasoning
 ' RefreshExportStatus/EnsureExportName already applies to LOC_Export.
 Public Sub EnsureJobDefaults(ByVal ws As Worksheet)
     UnlockSheet ws
-    ws.Range("A9").Value = "Default: technician"
-    ws.Range("A9").Font.Bold = True
-    ws.Range("C9").Value = "Default: printer"
-    ws.Range("C9").Font.Bold = True
-    ws.Range("E9").Value = "Default: paper"
-    ws.Range("E9").Font.Bold = True
+    ws.Range("A10").Value = "Default: technician"
+    ws.Range("A10").Font.Bold = True
+    ws.Range("C10").Value = "Default: printer"
+    ws.Range("C10").Font.Bold = True
+    ws.Range("E10").Value = "Default: paper"
+    ws.Range("E10").Font.Bold = True
 
-    EnsureLocName ws, "LOC_DefTech", "$B$9"
-    EnsureLocName ws, "LOC_DefPrinter", "$D$9"
-    EnsureLocName ws, "LOC_DefPaper", "$F$9"
+    EnsureLocName ws, "LOC_DefTech", "$B$10"
+    EnsureLocName ws, "LOC_DefPrinter", "$D$10"
+    EnsureLocName ws, "LOC_DefPaper", "$F$10"
 
-    StyleInputCell ws.Range("B9")
-    StyleInputCell ws.Range("D9")
-    StyleInputCell ws.Range("F9")
+    StyleInputCell ws.Range("B10")
+    StyleInputCell ws.Range("D10")
+    StyleInputCell ws.Range("F10")
     RelockSheet ws
 
     ' Both directions of spec 1a's filtering apply here too (spec 1b: "these
@@ -345,6 +385,30 @@ Public Sub EnsurePaidColumn(ByVal ws As Worksheet)
     RelockSheet ws
 End Sub
 
+' A pure rename (0.9.14, "shorten headers to save space"), not a new column -
+' ListColumns(...).Name = handles the Table's internal bookkeeping (structured
+' references, the _Data consolidation's own copy of this header) the same way
+' Excel would if a person renamed it by hand, so every C("Qty")/SumBy("Qty")-
+' style lookup elsewhere just needs to ask for the new name; nothing here
+' migrates old data since nothing about the DATA changed, only its header
+' text. Checked-first, like EnsurePaidColumn, so a sheet already renamed is
+' left alone.
+Public Sub EnsureQtyColumnName(ByVal ws As Worksheet)
+    Dim lo As ListObject, i As Long
+    Set lo = JobsTable(ws)
+    If lo Is Nothing Then Exit Sub
+
+    For i = 1 To lo.ListColumns.Count
+        If StrComp(lo.ListColumns(i).Name, "Qty", vbTextCompare) = 0 Then Exit Sub
+    Next i
+
+    UnlockSheet ws
+    On Error Resume Next
+    lo.ListColumns("Quantity").Name = "Qty"
+    On Error GoTo 0
+    RelockSheet ws
+End Sub
+
 ' ---------------------------------------------------------- column order ---
 ' Moves Status and Job ID from the start of the table (columns 1-2) to just
 ' after Paid, ahead of Notes/H_Issues/the snapshot block. Fixes a real bug
@@ -380,7 +444,7 @@ Public Sub ReorderJobColumns(ByVal ws As Worksheet)
 
     order = Array( _
         "Date/Time", "Student Name", "Student No", "Technician", "Printer", _
-        "Paper Stock", "Unit", "Quantity", "Print Width mm", "Disregard Paper", _
+        "Paper Stock", "Unit", "Qty", "Print Width mm", "Disregard Paper", _
         "Disregard Consumable", "Area m2", "Paper Cost", "Consumable Cost", _
         "Gross Cost", "Disregarded", "Chargeable Cost", "Paid", "Status", "Job ID", _
         "Notes", "H_Issues", _
@@ -740,6 +804,35 @@ Public Sub ApplyReducedView(ByVal ws As Worksheet)
     Set lo = JobsTable(ws)
     If lo Is Nothing Then Exit Sub
     ApplyColumnVisibility lo, SplitList(SettingText("LOC_REDUCED_COLUMNS", REDUCED_COLUMNS_DEFAULT)), ReducedViewOn()
+End Sub
+
+' Narrower default widths for the columns that need the least room to show
+' their actual content, freeing screen space for Student Name/Notes/etc.
+' Date/Time and Job ID get a fixed 100px rather than a cap - both hold
+' content that genuinely needs it (a full "dd/mm/yyyy hh:mm" stamp, or a
+' multi-digit correlation ID), so there is no narrower "good enough" to allow.
+' modUtils.ColWidthForPx does the character-unit conversion; a header not
+' present (e.g. a much older sheet mid-migration) is skipped via ColIdx's own
+' error rather than aborting the rest.
+Public Sub ApplyJobColumnWidths(ByVal ws As Worksheet)
+    Dim lo As ListObject
+    Set lo = JobsTable(ws)
+    If lo Is Nothing Then Exit Sub
+
+    UnlockSheet ws
+    SetJobColWidth lo, "Unit", ColWidthForPx(50)
+    SetJobColWidth lo, "Qty", ColWidthForPx(50)
+    SetJobColWidth lo, "Area m2", ColWidthForPx(60)
+    SetJobColWidth lo, "Paid", ColWidthForPx(40)
+    SetJobColWidth lo, "Job ID", ColWidthForPx(100)
+    SetJobColWidth lo, "Date/Time", ColWidthForPx(100)
+    RelockSheet ws
+End Sub
+
+Private Sub SetJobColWidth(ByVal lo As ListObject, ByVal Header As String, ByVal Width As Double)
+    On Error Resume Next
+    lo.ListColumns(Header).Range.EntireColumn.ColumnWidth = Width
+    On Error GoTo 0
 End Sub
 
 ' Hides or shows exactly the named columns, by header, and touches nothing

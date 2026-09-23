@@ -57,13 +57,14 @@ try {
     Check ($notesCol -gt $paidCol) "Notes still sits after Paid (paid=$paidCol notes=$notesCol)"
 
     $sheetPaidCol = $lo.Range.Column + $paidCol - 1
-    $dv = $main.Cells(13, $sheetPaidCol).Validation
+    $firstDataRow = $lo.Range.Row + 1  # table header + 1 - not hardcoded, since 0.9.14's EnsureJobTableGap moved the table's own start row
+    $dv = $main.Cells($firstDataRow, $sheetPaidCol).Validation
     Check ($dv.Type -eq 3) "Paid cells carry list (Yes/No) validation"
 
     # ---------------------------------------------------- existing rows blank
     Write-Host ''
     Write-Host '=== Pre-existing rows are left blank, not force-set ==='
-    $row1Paid = [string]$main.Cells(13, $sheetPaidCol).Text
+    $row1Paid = [string]$main.Cells($firstDataRow, $sheetPaidCol).Text
     Check ([string]::IsNullOrEmpty($row1Paid)) "row 1 (pre-existing, predates the column) has a blank Paid (got '$row1Paid')"
 
     # ------------------------------------------------------------- new job
@@ -78,7 +79,7 @@ try {
     # Mark row 1 (blank/unpaid) and the new row (No) - leave one Yes for the
     # totals check below.
     $sheetChgCol = $lo.Range.Column + $chgCol - 1
-    $main.Cells(13, $sheetPaidCol).Value2 = 'Yes'
+    $main.Cells($firstDataRow, $sheetPaidCol).Value2 = 'Yes'
     Start-Sleep -Milliseconds 200
 
     # ---------------------------------------------------------- Summary totals
