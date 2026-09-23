@@ -68,7 +68,7 @@ does not matter.
 | `modReports.bas` | Builds the Summary and Reports sheets; Reports-page delete |
 | `modExport.bas` | Per-location CSV and Export All Locations; the Export report snapshot; what has not been exported |
 | `modImport.bas` | Restores or merges an exported file into a print room's job table |
-| `modVersion.bas` | Version identity, the About block, file properties |
+| `modVersion.bas` | Version identity, the About popup, file properties |
 
 The last four were added in build phases 4 to 7 and were missing from this
 list until 0.7.1. If you are on a Mac this list is the whole build, so a

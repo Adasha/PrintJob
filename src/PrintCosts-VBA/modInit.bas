@@ -39,13 +39,12 @@ Public Sub InitialiseWorkbook()
     ' .xlsx, so the workbook file stays something VBA can reconstruct.
     EnsureSystemSheets
 
-    ' The version rows and the About block likewise. Setup does not stamp the
-    ' build date - that is build.ps1's job, via StampBuild.
+    ' The version rows likewise. Setup does not stamp the build date - that
+    ' is build.ps1's job, via StampBuild.
     EnsureVersionSettings
     EnsureSchemaSetting
     EnsureExportSettings
     EnsureReducedViewSettings
-    WriteAbout
 
     ' Summary and Reports, likewise built here. Their formulas read
     ' _Data, which RefreshLocations writes at the end of this run - until then
@@ -99,14 +98,37 @@ Public Sub InitialiseWorkbook()
             DrawOne ws, 4, 3, "Remove row", "btnRemoveRowTechnicians", 110
             SetFreeze ws, ""
         ElseIf StrComp(ws.Name, "Settings", vbTextCompare) = 0 Then
-            DrawOne ws, 2, 20, "Refresh Locations", "btnRefreshLocations", 130
-            DrawOne ws, 4, 20, "Check workbook", "btnCheckWorkbook", 130
-            DrawOne ws, 6, 20, "Re-stamp prices...", "btnReStamp", 130
-            DrawOne ws, 8, 20, "About", "btnAbout", 130
-            DrawOne ws, 10, 20, "Export All Locations...", "btnExportAll", 130
-            DrawOne ws, 12, 20, "Import (choose room)...", "btnImportGlobal", 130
-            DrawOne ws, 14, 20, "Backup workbook...", "btnBackupWorkbook", 130
-            DrawOne ws, 16, 20, "Restore workbook...", "btnRestoreWorkbook", 130
+            ' The eight action buttons used to run down the right-hand side of
+            ' the sheet (column T), out of the way but also out of sight on a
+            ' normal-width window. They now sit in the space the removed About
+            ' block (modVersion.WriteAbout, retired) used to occupy, directly
+            ' below whichever table on this sheet runs deepest - tblSettings
+            ' once EnsureSetting has added its self-provisioned rows, in every
+            ' build seen so far. TablesBottom() finds that row the same way
+            ' WriteAbout used to. The old About text lived in columns A:D at
+            ' bottom+1 upward; clearing that band first means a workbook built
+            ' before this change loses the stale text on its next setup run,
+            ' not just on a from-scratch rebuild.
+            Dim settingsBottom As Long
+            settingsBottom = TablesBottom(ws)
+            UnlockSheet ws
+            ws.Range(ws.Cells(settingsBottom + 1, 1), ws.Cells(settingsBottom + 20, 4)).Clear
+            RelockSheet ws
+
+            ' Two logical groups, four buttons each, one row per group so both
+            ' read at a glance: everyday workbook actions first, then the
+            ' data-movement actions (export/import/backup/restore). Columns
+            ' three apart (roughly 190px at the sheet's default column width)
+            ' so a 130px-wide button never crowds its neighbour.
+            DrawOne ws, settingsBottom + 2, 1, "Refresh Locations", "btnRefreshLocations", 130
+            DrawOne ws, settingsBottom + 2, 4, "Check workbook", "btnCheckWorkbook", 130
+            DrawOne ws, settingsBottom + 2, 7, "Re-stamp prices...", "btnReStamp", 130
+            DrawOne ws, settingsBottom + 2, 10, "About", "btnAbout", 130
+
+            DrawOne ws, settingsBottom + 4, 1, "Export All Locations...", "btnExportAll", 130
+            DrawOne ws, settingsBottom + 4, 4, "Import (choose room)...", "btnImportGlobal", 130
+            DrawOne ws, settingsBottom + 4, 7, "Backup workbook...", "btnBackupWorkbook", 130
+            DrawOne ws, settingsBottom + 4, 10, "Restore workbook...", "btnRestoreWorkbook", 130
             ' Small +/- buttons above the four lookup tables (snag list item
             ' 5). Row 4 is already the table's own subtitle ("Paper stock
             ' types" etc.) on this sheet, unlike the blank row 4 on Printers/
@@ -461,6 +483,18 @@ Private Sub ClearButtons(ByVal ws As Worksheet)
         If Left$(ws.Buttons(i).Name, Len(BTN_TAG)) = BTN_TAG Then ws.Buttons(i).Delete
     Next i
 End Sub
+
+' The row just below whichever ListObject on this sheet runs deepest - e.g.
+' tblSettings on Settings, which grows every time modVersion.EnsureSetting
+' adds a self-provisioned row. Used to anchor content that must sit clear of
+' every table on the sheet regardless of how many rows each currently has.
+Private Function TablesBottom(ByVal ws As Worksheet) As Long
+    Dim lo As ListObject, bottom As Long
+    For Each lo In ws.ListObjects
+        If lo.Range.Row + lo.Range.Rows.Count - 1 > bottom Then bottom = lo.Range.Row + lo.Range.Rows.Count - 1
+    Next lo
+    TablesBottom = bottom
+End Function
 
 ' ------------------------------------------------------------- freeze panes ---
 ' Freeze panes are a per-window view setting with no non-UI object model

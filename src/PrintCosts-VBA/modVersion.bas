@@ -1,7 +1,7 @@
 Attribute VB_Name = "modVersion"
 Option Explicit
 
-' Version identity, and the About block on the Settings sheet.
+' Version identity, and the About popup on the Settings sheet.
 '
 ' There are TWO version numbers and they mean different things:
 '
@@ -23,6 +23,25 @@ Option Explicit
 ' acceptance passes at the end of the sequence.
 
 Public Const APP_NAME As String = "Print Cost Management"
+' 0.9.12 - Settings-page layout: the About section (modVersion.WriteAbout,
+' removed) is gone from the bottom of the Settings sheet, per direct user
+' feedback that it duplicated the About popup for no benefit while eating
+' vertical space. The eight action buttons that used to run down column T -
+' out of the way, but also out of sight on a normal-width window - now sit in
+' the freed space instead, directly below whichever table on the sheet runs
+' deepest (modInit.TablesBottom, the same "bottom" WriteAbout used to compute
+' before clearing its own text). Two logical groups of four, one row each:
+' Refresh Locations/Check workbook/Re-stamp prices/About, then Export All
+' Locations/Import/Backup workbook/Restore workbook. modInit.InitialiseWorkbook
+' also clears the old About block's text area unconditionally on every setup
+' run, not just a from-scratch rebuild, so a workbook built before this change
+' loses the stale text the next time setup runs on it.
+'
+' ShowAbout (the popup itself, unchanged in structure) now carries the brief
+' description that used to live only in the About block's prose, so the
+' popup alone covers project name, version, author and what the workbook
+' does - nothing is lost by removing the on-sheet block.
+'
 ' 0.9.11 - Printer/Paper Stock dropdowns no longer hide incompatible options,
 ' per direct user feedback that the bidirectional narrowing added in 0.9.0
 ' was "too restrictive." Every active/permitted item is now always listed;
@@ -361,7 +380,7 @@ Public Const APP_NAME As String = "Print Cost Management"
 ' A patch increment, not a phase: the phase digit still reads 7 because phase
 ' 8 has not been built. The revision digit is what "0.<phase>.<revision>"
 ' exists for.
-Public Const APP_VERSION As String = "0.9.11"
+Public Const APP_VERSION As String = "0.9.12"
 Public Const APP_AUTHOR As String = "Adam Shailer"
 
 Public Function VersionString() As String
@@ -380,7 +399,6 @@ Public Sub StampBuild()
     EnsureVersionSettings
     SetSetting "BUILT", Now
     SetSetting "BUILT_BY", CurrentUser
-    WriteAbout
     StampProperties
     AppOn
     Say "Stamped as " & VersionString & ".", "Built " & Format$(Now, "dd/mm/yyyy hh:mm") & " by " & CurrentUser & "."
@@ -457,68 +475,6 @@ Public Function EnsureSetting(ByVal Key As String, ByVal Label As String, ByVal 
     Set EnsureSetting = c
 End Function
 
-' ------------------------------------------------------------ about block ---
-' Sits below whatever the Settings sheet's tables occupy, so adding settings
-' later pushes it down rather than writing over it. Rewritten in full each
-' time, which is why it clears its own area first.
-Public Sub WriteAbout()
-    Dim ws As Worksheet, r As Long, lo As ListObject, bottom As Long
-
-    On Error Resume Next
-    Set ws = ThisWorkbook.Worksheets("Settings")
-    On Error GoTo 0
-    If ws Is Nothing Then Exit Sub
-
-    For Each lo In ws.ListObjects
-        If lo.Range.Row + lo.Range.Rows.Count - 1 > bottom Then bottom = lo.Range.Row + lo.Range.Rows.Count - 1
-    Next lo
-    r = bottom + 3
-
-    UnlockSheet ws
-    ws.Range(ws.Cells(bottom + 1, 1), ws.Cells(bottom + 20, 4)).Clear
-
-    ws.Cells(r, 1).Value = "About"
-    ws.Cells(r, 1).Font.Bold = True
-    ws.Cells(r, 1).Font.Size = 12
-
-    Lbl ws, r + 1, "Workbook", APP_NAME
-    ' Read from the settings rows rather than the constants, so the block can
-    ' never disagree with what the rest of the workbook reports.
-    Lbl ws, r + 2, "Version", "=SET_APP_VER"
-    Lbl ws, r + 3, "Data schema", "=SET_SCHEMA"
-    Lbl ws, r + 4, "Built", "=TEXT(SET_BUILT,""dd/mm/yyyy hh:mm"")"
-    Lbl ws, r + 5, "Built by", "=SET_BUILT_BY"
-
-    ws.Cells(r + 7, 1).Value = "Logs print output and cost per student or department across the university's print bureaux. " & _
-        "Each record freezes the prices it was costed at, so changing a paper or consumable price " & _
-        "never alters what has already been charged."
-    ws.Cells(r + 8, 1).Value = "Version numbering is 0.<build phase>.<revision>, tracking the build sequence " & _
-        "in the Stage 1 design document. The data schema version is separate and changes only when " & _
-        "the print job table's columns do."
-    ws.Cells(r + 9, 1).Value = "Specified by " & APP_AUTHOR & ". Built by Claude (Anthropic) working with " & _
-        APP_AUTHOR & ", September 2026."
-
-    ' Left unmerged and unwrapped so the text simply overflows to the right.
-    ' Merged cells do not AutoFit, so wrapping here would need a hard-coded row
-    ' height that breaks at a different zoom or font.
-    Dim i As Long
-    For i = 7 To 9
-        ws.Cells(r + i, 1).Font.Italic = True
-    Next i
-
-    RelockSheet ws
-End Sub
-
-Private Sub Lbl(ByVal ws As Worksheet, ByVal RowNo As Long, ByVal Label As String, ByVal Value As String)
-    ws.Cells(RowNo, 1).Value = Label
-    ws.Cells(RowNo, 1).Font.Bold = True
-    If Left$(Value, 1) = "=" Then
-        ws.Cells(RowNo, 3).Formula = Value
-    Else
-        ws.Cells(RowNo, 3).Value = Value
-    End If
-End Sub
-
 ' --------------------------------------------------- file-level identity ---
 ' So the version is visible without opening the file: Explorer's details pane,
 ' Finder's Get Info, and File > Info in Excel all read these.
@@ -547,7 +503,10 @@ Fail:
 End Function
 
 ' ------------------------------------------------------------------ about ---
-' Bound to the About button on the Settings sheet.
+' Bound to the About button on the Settings sheet. The only place any of this
+' is shown now that the on-sheet About block (WriteAbout) is gone, so it
+' carries the brief description that used to live only in that block's prose
+' as well as the identity/version details it always showed.
 Public Sub ShowAbout()
     Dim built As String, who As String, ver As String
 
@@ -556,9 +515,11 @@ Public Sub ShowAbout()
     who = SettingText("BUILT_BY")
 
     Say APP_NAME & " v" & ver, _
+        "Logs print output and cost per student or department across the university's print bureaux. " & _
+        "Each record freezes the prices it was costed at, so changing a paper or consumable price " & _
+        "never alters what has already been charged." & vbCrLf & vbCrLf & _
         "Data schema " & SCHEMA_VER & IIf(Len(built) > 0, vbCrLf & "Built " & built, "") & _
-        IIf(Len(who) > 0, " by " & who, "") & vbCrLf & vbCrLf & _
+        IIf(Len(who) > 0, " by " & who, ""), _
         "Specified by " & APP_AUTHOR & ". Built by Claude (Anthropic) working with " & APP_AUTHOR & ", September 2026.", _
-        "Full details are in the About section at the bottom of this sheet.", _
         "About"
 End Sub
