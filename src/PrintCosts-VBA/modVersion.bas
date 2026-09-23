@@ -41,14 +41,10 @@ Public Const APP_NAME As String = "Print Cost Management"
 ' presented as settled: Excel's native in-cell dropdown (Data Validation)
 ' cannot style individual list entries - no italics, colour or shading on
 ' one item within the list, which is what was actually asked for. A text
-' suffix is what is achievable inside a real Excel dropdown; the
-' alternative - a worksheet-based picker sheet, in the style of
-' modPicker.bas's existing multi-select dialog, which COULD render
-' incompatible items in muted real formatting - was considered and
-' deliberately not built this round, to avoid replacing a familiar in-cell
-' dropdown with a click-to-open dialog for a cosmetic upgrade. Revisit if the
-' text-only marker turns out not to be clear enough in practice. See
-' docs/ARCHITECTURE.md §7.2.
+' suffix is what is achievable inside a real Excel dropdown, and is judged
+' good enough for now - the workbook stays with native Excel styling
+' throughout rather than building a bespoke picker UI just for this. See
+' docs/ARCHITECTURE.md §7.2 / §16.3.
 '
 ' 0.9.10 - Department/"charge to" terminology (snag 4b, D19): free text,
 ' no new catalogue table, per the user's own decision on review. The

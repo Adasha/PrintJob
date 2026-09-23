@@ -41,10 +41,10 @@ Option Explicit
 ' Native Excel Data Validation cannot italicise, grey out or shade individual
 ' list entries - that rendering is Excel's own, not something VBA can reach
 ' into. A text suffix is the compromise that stays inside the in-cell
-' dropdown people already know, rather than replacing it with a worksheet-
-' based picker (as modPicker.bas already does for the two multi-select
-' fields) purely to get real per-item styling. Revisit if that trade-off
-' stops being acceptable - see docs/ARCHITECTURE.md §7.2.
+' dropdown people already know, and is judged good enough on its own - the
+' workbook keeps native Excel styling throughout rather than building a
+' bespoke picker UI just to get real per-item formatting here. See
+' docs/ARCHITECTURE.md §7.2 / §16.3.
 '
 ' Staging is needed at all because a validation list supplied as a literal
 ' string is capped at 255 characters, which a real stock list exceeds.
