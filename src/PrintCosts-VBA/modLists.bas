@@ -15,17 +15,36 @@ Option Explicit
 '
 ' Tags are: PRN|<all>|<sheet>   every printer permitted at that print room -
 '                                used when the row's Paper Stock is blank
-'           PRN|<sheet>|<stock> printers at that print room supporting <stock>
+'           PRN|<sheet>|<stock> every printer permitted at that print room,
+'                                ones that don't support <stock> marked
+'                                unavailable rather than left out
 '           TEC                 active technicians, the same everywhere
 '           STK|<all>|<sheet>   every stock compatible with a printer at that
 '                                print room - used when Printer is blank
-'           STK|<model>         stocks <model> can take - shared by every row
-'                                using it, because the list depends only on
-'                                the printer, not the sheet
+'           STK|<sheet>|<model> every stock compatible with a printer at that
+'                                print room, ones <model> can't take marked
+'                                unavailable rather than left out - sheet-
+'                                scoped now (unlike the old narrowed-only
+'                                version) because the full list itself is
 '
 ' Printer and Paper Stock filter each other (spec 1a): both cells start
 ' unlocked and fully populated, and whichever is chosen first narrows the
-' other to compatible options, auto-filling it when only one remains.
+' OTHER field's auto-fill decision (still exactly one compatible option ->
+' fill it in) without narrowing what the dropdown itself shows (2026-09-23
+' snag: "filters too restrictive"). Every active/permitted item is always
+' listed; whichever ones the other field's current value rules out are
+' suffixed with UNAVAILABLE_SUFFIX so they still read as unavailable, but
+' remain pickable - selecting one is exactly the AT-05 "incompatible
+' combination" case modValidation already clears and explains, just reached
+' via the dropdown instead of by typing over a filled cell.
+'
+' Native Excel Data Validation cannot italicise, grey out or shade individual
+' list entries - that rendering is Excel's own, not something VBA can reach
+' into. A text suffix is the compromise that stays inside the in-cell
+' dropdown people already know, rather than replacing it with a worksheet-
+' based picker (as modPicker.bas already does for the two multi-select
+' fields) purely to get real per-item styling. Revisit if that trade-off
+' stops being acceptable - see docs/ARCHITECTURE.md §7.2.
 '
 ' Staging is needed at all because a validation list supplied as a literal
 ' string is capped at 255 characters, which a real stock list exceeds.
@@ -34,6 +53,12 @@ Private Const STAGE_SHEET As String = "_Work"
 Private Const FIRST_ITEM_ROW As Long = 2
 Private Const MAX_COLS As Long = 200
 Private Const MAX_ITEMS As Long = 500
+
+' Appended to a Printer/Paper Stock dropdown item that the OTHER field's
+' current value rules out (see the module note above). CleanPick strips it
+' back off once something is actually picked, so nothing downstream of
+' Worksheet_Change ever sees it.
+Public Const UNAVAILABLE_SUFFIX As String = " (unavailable)"
 
 ' Only fills a gap: a Printer or Paper Stock cell that has never been given a
 ' list - reachable when Excel's own table auto-extend creates a row outside
@@ -138,61 +163,119 @@ Public Sub BindDefaultCells(ByVal ws As Worksheet)
 End Sub
 
 ' Paper Stock choices: every active stock compatible with some printer
-' permitted at this location when Printer is blank, or narrowed to what the
-' row's own Printer supports once it's chosen (spec 1a). Never locked - the
-' cell stays reachable either way, unlike the old one-directional version.
+' permitted at this location, ALWAYS - whether or not Printer is chosen.
+' Once Printer is chosen, stocks its family doesn't support are still listed
+' but suffixed UNAVAILABLE_SUFFIX (module note above) rather than removed.
+' Auto-fill still uses the narrowed (compatible-only) set, unaffected by
+' what the dropdown displays. Never locked - the cell stays reachable either
+' way, unlike the old one-directional version.
 Private Sub BindStockRange(ByVal ws As Worksheet, ByVal target As Range, ByVal Model As String)
-    Dim items As Collection, Tag As String, Msg As String
+    Dim full As Collection, compat As Collection, marked As Collection
+    Dim Tag As String, Msg As String
     If target Is Nothing Then Exit Sub
 
+    Set full = StocksForLocation(ws)
     If Len(Model) = 0 Then
-        Set items = StocksForLocation(ws)
+        Set compat = full
         Tag = "STK|<all>|" & ws.Name
-        Msg = "Every active stock compatible with a printer at this print room. Choosing one narrows the Printer list to printers that support it."
+        Msg = "Every active stock compatible with a printer at this print room."
     Else
-        Set items = StocksFor(Model)
-        Tag = "STK|" & Model
-        Msg = "Only stocks whose paper family " & Model & " supports are listed."
+        Set compat = StocksFor(Model)
+        Tag = "STK|" & ws.Name & "|" & Model
+        Msg = "Every active stock compatible with a printer at this print room. Stocks marked '" & Trim$(UNAVAILABLE_SUFFIX) & "' are not in a family " & Model & " supports - picking one clears the printer instead."
     End If
 
-    AutoFillIfSingle target, items
-    If items.Count = 0 Then
-        Set items = New Collection
-        items.Add "- no active stock fits this printer -"
+    AutoFillIfSingle target, compat
+    Set marked = MarkStocks(full, Model)
+    If marked.Count = 0 Then
+        Set marked = New Collection
+        marked.Add "- no stock is available for this print room -"
     End If
-    ApplyTo ws, target, items, Tag, "Paper stock", Msg
+    ApplyTo ws, target, marked, Tag, "Paper stock", Msg
     UnlockSheet ws
     target.Locked = False
     RelockSheet ws
 End Sub
 
-' Printer choices: every active printer permitted at this location when
-' Paper Stock is blank, or narrowed to printers that support the row's own
-' stock once it's chosen - the mirror of BindStockRange (spec 1a).
+' Printer choices: the mirror of BindStockRange - every active printer
+' permitted at this location, always listed; once Paper Stock is chosen,
+' printers that don't support it are suffixed rather than removed.
 Private Sub BindPrinterRange(ByVal ws As Worksheet, ByVal target As Range, ByVal Description As String)
-    Dim items As Collection, Tag As String, Msg As String
+    Dim full As Collection, compat As Collection, marked As Collection
+    Dim Tag As String, Msg As String
     If target Is Nothing Then Exit Sub
 
+    Set full = PrintersFor(ws)
     If Len(Description) = 0 Then
-        Set items = PrintersFor(ws)
+        Set compat = full
         Tag = "PRN|<all>|" & ws.Name
-        Msg = "Every active printer permitted at this print room. Choosing a paper stock first narrows this to printers that support it."
+        Msg = "Every active printer permitted at this print room."
     Else
-        Set items = PrintersForStock(ws, Description)
+        Set compat = PrintersForStock(ws, Description)
         Tag = "PRN|" & ws.Name & "|" & Description
-        Msg = "Only printers at this print room that support '" & Description & "' are listed."
+        Msg = "Every active printer permitted at this print room. Printers marked '" & Trim$(UNAVAILABLE_SUFFIX) & "' don't support '" & Description & "' - picking one clears the paper stock instead."
     End If
 
-    AutoFillIfSingle target, items
-    If items.Count = 0 Then
-        Set items = New Collection
-        items.Add "- no printer here supports this stock -"
+    AutoFillIfSingle target, compat
+    Set marked = MarkPrinters(full, Description)
+    If marked.Count = 0 Then
+        Set marked = New Collection
+        marked.Add "- no printer is permitted at this print room -"
     End If
-    ApplyTo ws, target, items, Tag, "Printer", Msg
+    ApplyTo ws, target, marked, Tag, "Printer", Msg
     UnlockSheet ws
     target.Locked = False
     RelockSheet ws
 End Sub
+
+' Every item in Full, suffixed with UNAVAILABLE_SUFFIX where Model can't use
+' it - the paper-stock direction. Full itself (StocksForLocation's result) is
+' untouched; a blank Model marks nothing, matching "nothing chosen yet".
+Private Function MarkStocks(ByVal Full As Collection, ByVal Model As String) As Collection
+    Dim out As Collection, i As Long, nm As String
+    Set out = New Collection
+    For i = 1 To Full.Count
+        nm = CStr(Full(i))
+        If Len(Model) > 0 Then
+            If Not Compatible(Model, nm) Then nm = nm & UNAVAILABLE_SUFFIX
+        End If
+        out.Add nm
+    Next i
+    Set MarkStocks = out
+End Function
+
+' The printer direction of MarkStocks.
+Private Function MarkPrinters(ByVal Full As Collection, ByVal Description As String) As Collection
+    Dim out As Collection, i As Long, nm As String
+    Set out = New Collection
+    For i = 1 To Full.Count
+        nm = CStr(Full(i))
+        If Len(Description) > 0 Then
+            If Not Compatible(nm, Description) Then nm = nm & UNAVAILABLE_SUFFIX
+        End If
+        out.Add nm
+    Next i
+    Set MarkPrinters = out
+End Function
+
+' Strips UNAVAILABLE_SUFFIX from a value just picked off a Printer/Paper
+' Stock dropdown (or typed to match one of those list entries), so every
+' consumer downstream of Worksheet_Change - compatibility checks, snapshot
+' stamping, Compatible() lookups - only ever sees a real catalogue name.
+' Picking a marked/unavailable entry is allowed by design: it lands back on
+' the existing AT-05 "incompatible combination" handling in modValidation,
+' which clears the other field and explains why, same as it already does for
+' any other combination made incompatible by a later edit.
+Public Function CleanPick(ByVal Raw As String) As String
+    Dim t As String
+    t = Trim$(Raw)
+    If Len(t) > Len(UNAVAILABLE_SUFFIX) Then
+        If Right$(t, Len(UNAVAILABLE_SUFFIX)) = UNAVAILABLE_SUFFIX Then
+            t = Trim$(Left$(t, Len(t) - Len(UNAVAILABLE_SUFFIX)))
+        End If
+    End If
+    CleanPick = t
+End Function
 
 ' Every active stock compatible with at least one printer permitted at this
 ' location - the Paper Stock list's "nothing chosen yet" state.

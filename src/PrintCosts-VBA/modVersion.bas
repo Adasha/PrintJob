@@ -23,6 +23,33 @@ Option Explicit
 ' acceptance passes at the end of the sequence.
 
 Public Const APP_NAME As String = "Print Cost Management"
+' 0.9.11 - Printer/Paper Stock dropdowns no longer hide incompatible options,
+' per direct user feedback that the bidirectional narrowing added in 0.9.0
+' was "too restrictive." Every active/permitted item is now always listed;
+' whichever ones the other field's current value rules out are suffixed
+' " (unavailable)" (modLists.UNAVAILABLE_SUFFIX) instead of being removed.
+' Picking one is allowed - modValidation.Clean() strips the suffix and hands
+' the clean name to the EXISTING AT-05 "incompatible combination" handling
+' (OnPrinterChanged/OnStockChanged/OnDefaultCellChanged), which already
+' clears the other field and explains why, unchanged from 0.9.0. Auto-fill
+' when exactly one compatible option remains is UNCHANGED - it now runs off
+' a narrowed list computed only for that decision, never shown to the
+' dropdown itself, so 0.9.0's tested auto-fill behaviour (test-dropdowns.ps1)
+' still holds.
+'
+' Known compromise, not a full fix - flagged for revisiting rather than
+' presented as settled: Excel's native in-cell dropdown (Data Validation)
+' cannot style individual list entries - no italics, colour or shading on
+' one item within the list, which is what was actually asked for. A text
+' suffix is what is achievable inside a real Excel dropdown; the
+' alternative - a worksheet-based picker sheet, in the style of
+' modPicker.bas's existing multi-select dialog, which COULD render
+' incompatible items in muted real formatting - was considered and
+' deliberately not built this round, to avoid replacing a familiar in-cell
+' dropdown with a click-to-open dialog for a cosmetic upgrade. Revisit if the
+' text-only marker turns out not to be clear enough in practice. See
+' docs/ARCHITECTURE.md §7.2.
+'
 ' 0.9.10 - Department/"charge to" terminology (snag 4b, D19): free text,
 ' no new catalogue table, per the user's own decision on review. The
 ' Student Name/No columns already accept anything typed into them (D1 -
@@ -338,7 +365,7 @@ Public Const APP_NAME As String = "Print Cost Management"
 ' A patch increment, not a phase: the phase digit still reads 7 because phase
 ' 8 has not been built. The revision digit is what "0.<phase>.<revision>"
 ' exists for.
-Public Const APP_VERSION As String = "0.9.10"
+Public Const APP_VERSION As String = "0.9.11"
 Public Const APP_AUTHOR As String = "Adam Shailer"
 
 Public Function VersionString() As String

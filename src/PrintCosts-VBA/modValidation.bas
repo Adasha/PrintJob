@@ -61,8 +61,8 @@ Private Function OnDefaultCellChanged(ByVal ws As Worksheet, ByVal Target As Ran
     End If
     OnDefaultCellChanged = True
 
-    model = CStr(prnCell.Value)
-    stk = CStr(stkCell.Value)
+    model = Clean(prnCell)
+    stk = Clean(stkCell)
     If Len(model) > 0 And Len(stk) > 0 Then
         If Not Compatible(model, stk) Then
             Set s = Stock(stk)
@@ -80,6 +80,19 @@ Private Function OnDefaultCellChanged(ByVal ws As Worksheet, ByVal Target As Ran
     BindDefaultCells ws
 End Function
 
+' Reads a Printer/Paper Stock cell (table row or default cell alike) and
+' strips modLists.UNAVAILABLE_SUFFIX if the value just picked off the
+' dropdown carries it (2026-09-23: the dropdown now lists every item, marking
+' - not removing - ones the other field rules out). Rewrites the cell to the
+' clean value so nothing downstream ever sees the marker; a value with no
+' marker round-trips unchanged.
+Private Function Clean(ByVal c As Range) As String
+    Dim raw As String
+    raw = CStr(c.Value)
+    Clean = CleanPick(raw)
+    If Clean <> raw Then c.Value = Clean
+End Function
+
 ' Either field can drive the other now (spec 1a). Both handlers end by
 ' rebinding BOTH cells' lists rather than just the other one: whichever field
 ' just changed may itself need widening back out, e.g. when the other field
@@ -87,8 +100,8 @@ End Function
 ' outright and the other field's list was previously narrowed by it.
 Private Sub OnPrinterChanged(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal n As Long)
     Dim model As String, stk As String, s As clsStock
-    model = CStr(CellIn(lo, n, "Printer").Value)
-    stk = CStr(CellIn(lo, n, "Paper Stock").Value)
+    model = Clean(CellIn(lo, n, "Printer"))
+    stk = Clean(CellIn(lo, n, "Paper Stock"))
 
     ' A printer change can strand a stock that was valid a moment ago (AT-05).
     If Len(stk) > 0 And Len(model) > 0 Then
@@ -106,8 +119,8 @@ End Sub
 
 Private Sub OnStockChanged(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal n As Long)
     Dim model As String, stk As String, s As clsStock, p As clsPrinterDef
-    model = CStr(CellIn(lo, n, "Printer").Value)
-    stk = CStr(CellIn(lo, n, "Paper Stock").Value)
+    model = Clean(CellIn(lo, n, "Printer"))
+    stk = Clean(CellIn(lo, n, "Paper Stock"))
     If Len(stk) = 0 Then
         BindPrinterCell ws, lo, n
         Exit Sub

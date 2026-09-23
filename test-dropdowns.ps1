@@ -1,10 +1,19 @@
 # Snag 1a: bidirectional Printer / Paper Stock dropdowns.
 #
-#   - Paper Stock chosen first narrows Printer to compatible options, and
-#     auto-fills it when only one remains (and vice versa - Printer chosen
-#     first still narrows/auto-fills Paper Stock, the pre-existing direction).
+#   - Paper Stock chosen first still auto-fills Printer when only one
+#     compatible option exists (and vice versa - Printer chosen first still
+#     auto-fills Paper Stock, the pre-existing direction).
 #   - An incompatible combination still gets caught, clearing the field that
 #     was just changed and leaving the other one alone.
+#
+# 2026-09-23: the dropdown itself no longer narrows to compatible-only
+# options (too restrictive per user feedback) - it always lists every active/
+# permitted item, marking the ones the other field's current value rules out
+# with the ' (unavailable)' suffix instead of hiding them. Auto-fill is
+# unaffected (still driven by the narrowed/compatible count, just never
+# shown to the dropdown itself). Picking a marked item is allowed and is
+# exactly the AT-05 "incompatible combination" path, reached via the
+# dropdown instead of by typing over an already-filled cell.
 #
 # Uses Main Print Room's real catalogue data (see Printers/Papers sheets):
 #   Xerox Versant 180    -> Sheet only                  (permitted here)
@@ -106,8 +115,23 @@ try {
     $got = [string]$main.Cells($r3, $prnCol).Text
     Check ([string]::IsNullOrEmpty($got)) "Short Roll stock (2 compatible printers) leaves Printer blank, not auto-filled (got '$got')"
     $staged = Staged 'PRN|Main Print Room|Satin photo 610mm roll'
-    Check (($staged -join ',') -eq 'Epson SureColor P9500,HP DesignJet Z9+' -or ($staged -join ',') -eq 'HP DesignJet Z9+,Epson SureColor P9500') `
-        ("narrowed Printer list is exactly the two compatible models (got: {0})" -f ($staged -join ', '))
+    Check ($staged.Count -eq 3) ("Printer list still shows all 3 permitted printers, not narrowed (got {0}: {1})" -f $staged.Count, ($staged -join ', '))
+    Check ($staged -contains 'Xerox Versant 180 (unavailable)') "the incompatible printer (Sheet only) is listed but marked unavailable (got: $($staged -join ', '))"
+    Check ($staged -contains 'Epson SureColor P9500') "the compatible Epson is listed, unmarked (got: $($staged -join ', '))"
+    Check ($staged -contains 'HP DesignJet Z9+') "the compatible HP DesignJet is listed, unmarked (got: $($staged -join ', '))"
+
+    # ------------------------------------------------- picking a marked item
+    Write-Host ''
+    Write-Host '=== Picking a marked "(unavailable)" dropdown entry re-filters, AT-05 style ==='
+    $c = $main.Cells($r3, $prnCol)
+    $c.Value2 = 'Xerox Versant 180 (unavailable)'
+    Start-Sleep -Milliseconds 300
+    $prnAfter = [string]$main.Cells($r3, $prnCol).Text
+    $stkAfter = [string]$main.Cells($r3, $stkCol).Text
+    Check ($prnAfter -eq 'Xerox Versant 180') "the marker is stripped off the Printer cell itself (got '$prnAfter')"
+    Check ([string]::IsNullOrEmpty($stkAfter)) "the now-incompatible Paper Stock is cleared (got '$stkAfter')"
+    $log = [string]$xl.Run('QuietLog')
+    Check ($log -like '*cannot be used on*') 'picking the marked entry still raised the AT-05 incompatibility warning'
 
     # ------------------------------------------------------- printer -> stock
     Write-Host ''
