@@ -32,7 +32,7 @@ try {
 
     # -------------------------------------------------- 2a: default state
     Write-Host '=== Student name/no toggle: defaults to No (data protection) ==='
-    Check ([string]$c.Range('F9').Text -eq 'No') "F9 defaults to No (got '$($c.Range('F9').Text)')"
+    Check ([string]$c.Range('O10').Text -eq 'No') "O10 defaults to No (got '$($c.Range('O10').Text)')"
     $xl.CalculateFullRebuild()
     $nameCol = ReportsCol 'Student name'
     $noCol = ReportsCol 'Student no'
@@ -48,7 +48,7 @@ try {
     # ------------------------------------------------------- 2a: toggled on
     Write-Host ''
     Write-Host '=== Student name/no toggle: Yes reveals them ==='
-    $c.Range('F9').Value2 = 'Yes'
+    $c.Range('O10').Value2 = 'Yes'
     $xl.CalculateFullRebuild()
     $sp = $c.Range('A16').SpillingToRange
     $anyName = $false
@@ -59,7 +59,7 @@ try {
     $sampleName = [string]$sp.Cells(1, $nameCol).Value2
     Write-Host "  sample: '$sampleName'"
 
-    $c.Range('F9').Value2 = 'No'
+    $c.Range('O10').Value2 = 'No'
     $xl.CalculateFullRebuild()
 
     # ------------------------------------------------------------- 2d

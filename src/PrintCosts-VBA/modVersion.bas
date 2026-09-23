@@ -23,6 +23,21 @@ Option Explicit
 ' acceptance passes at the end of the sequence.
 
 Public Const APP_NAME As String = "Print Cost Management"
+' 0.9.13 - Two small Reports-page fixes, direct user feedback:
+'
+'   - Matching's totals header (row 12) now gets its own subtle tint,
+'     RGB(244, 232, 222) - the results header's own RGB(222, 232, 244) with
+'     red and blue swapped, so the two bands read as related but distinct
+'     rather than the totals row looking unstyled next to it.
+'   - "Show student/department name/no" (the toggle at what was E9/F9) had
+'     no visible label of its own reason to be there - it is a display
+'     option, not a filter criterion, and shared row 9 with the unrelated
+'     name/number mismatch warning purely because that row happened to be
+'     free. Moved to a third group on the sort-controls row (I10/J10),
+'     after Sort by/Sort direction, with its own label restored. Every
+'     formula and comment that referenced $F$9 now reads $J$10 instead;
+'     nothing outside modReports.bas touched that cell.
+'
 ' 0.9.12 - Settings-page layout: the About section (modVersion.WriteAbout,
 ' removed) is gone from the bottom of the Settings sheet, per direct user
 ' feedback that it duplicated the About popup for no benefit while eating
@@ -380,7 +395,7 @@ Public Const APP_NAME As String = "Print Cost Management"
 ' A patch increment, not a phase: the phase digit still reads 7 because phase
 ' 8 has not been built. The revision digit is what "0.<phase>.<revision>"
 ' exists for.
-Public Const APP_VERSION As String = "0.9.12"
+Public Const APP_VERSION As String = "0.9.13"
 Public Const APP_AUTHOR As String = "Adam Shailer"
 
 Public Function VersionString() As String

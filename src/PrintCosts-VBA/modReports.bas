@@ -295,15 +295,6 @@ Public Sub BuildReports()
     CritCell ws, "E7", "F7", "Paper stock", "Choose from the list, or leave blank for all."
     CritCell ws, "E8", "F8", "Quantity", "Matched exactly."
 
-    ' Snag list item 2a: student name/number are not shown or exported
-    ' unless switched on - defaults to No (data protection: opt in to
-    ' reveal, not opt out). Row 9, columns E onward: A9 is the disjoint-
-    ' criteria warning below, which only ever fires in columns A:D, so E9
-    ' is free within the same filter block without needing to resize it.
-    CritCell ws, "E9", "F9", "Show student/department name/no", "Yes shows them in the results and any export. No (the default) blanks them, for data protection."
-    AddList ws.Range("F9"), """Yes"",""No""", "Show student/department name/no", "Yes shows them in the results and any export. No blanks them."
-    If Len(Trim$(CStr(ws.Range("F9").Value))) = 0 Then ws.Range("F9").Value = "No"
-
     ' Sort by/direction sit below the filters, above the totals row (snag list
     ' item 3) rather than beside the Technician/Printer/Paper/Quantity group -
     ' row 9 is the "name and number don't match" warning below, so this is the
@@ -312,6 +303,26 @@ Public Sub BuildReports()
     CritCell ws, "E10", "F10", "Sort direction", "Ascending is the default."
     AddList ws.Range("B10"), QuotedList(hdrs), "Sort by", "Which column to sort the results by."
     AddList ws.Range("F10"), """Ascending"",""Descending""", "Sort direction", "Which way to sort."
+
+    ' Snag list item 2a: student name/number are not shown or exported
+    ' unless switched on - defaults to No (data protection: opt in to
+    ' reveal, not opt out). This is a display option, not a filter criterion,
+    ' so it moves onto the sort-controls row rather than sharing row 9 with
+    ' the (unrelated) name/number warning, where it used to sit at E9/F9.
+    '
+    ' N10/O10, not the next free columns (I/J) after Sort direction: this
+    ' sheet's minimum-columns view (ApplyReportsMinimumColumns) hides entire
+    ' COLUMNS by results-header name, and that hide reaches every row on the
+    ' sheet, not just the results table - which is exactly why E9's label was
+    ' invisible before (E is "Printer", one of the hidden columns) while its
+    ' F9 dropdown (F is "Paper stock", always kept visible) still showed with
+    ' nothing beside it. N and O are "Chargeable"/"Paid" - both permanently
+    ' kept - and free on this row, so label and dropdown survive the default
+    ' view together. (Sort direction's own E10/G10 label/hint have this same
+    ' latent problem and are left as found - out of scope here.)
+    CritCell ws, "N10", "O10", "Show student/department name/no", "Yes shows them in the results and any export. No (the default) blanks them, for data protection."
+    AddList ws.Range("O10"), """Yes"",""No""", "Show student/department name/no", "Yes shows them in the results and any export. No blanks them."
+    If Len(Trim$(CStr(ws.Range("O10").Value))) = 0 Then ws.Range("O10").Value = "No"
 
     ' Spec 14.1: both criteria given, neither matching the other.
     ws.Range("A9").Formula2 = "=IF(OR($B$5="""",$B$6=""""),""""," & _
@@ -382,7 +393,7 @@ Public Sub BuildReports()
     ' when there is nothing to sort - SORTBY on that text would otherwise
     ' error and the outer IFERROR would show the wrong one of the two
     ' messages.
-    ' Student Name/No (snag 2a): the toggle at F9 blanks the VALUES, not
+    ' Student Name/No (snag 2a): the toggle at O10 blanks the VALUES, not
     ' just the column - satisfies data protection even if someone unhides
     ' the column, since there is nothing behind it to reveal. ExportReport
     ' Snapshot copies these live values as-is, so the toggle is respected
@@ -393,9 +404,9 @@ Public Sub BuildReports()
     ' wrong quote count here is a silent formula-text bug, not a compile
     ' error, so it is worth avoiding the manual counting entirely.
     '
-    ' IF($F$9="Yes", <column array>, "") is NOT the same as an elementwise
+    ' IF($O$10="Yes", <column array>, "") is NOT the same as an elementwise
     ' per-row blank - the CONDITION here is a bare scalar (one toggle cell),
-    ' so with F9="No" the whole IF collapses to the single scalar "" rather
+    ' so with O10="No" the whole IF collapses to the single scalar "" rather
     ' than a column of blanks the same height as every other HSTACK
     ' argument. HSTACK does not broadcast a scalar against a column
     ' (modRegistry's own §7.1 comment already names this trap for the
@@ -404,11 +415,11 @@ Public Sub BuildReports()
     ' instead of real job data. Fixed by nesting the toggle INSIDE an outer
     ' IF whose own condition (Job ID <> "") is already a real per-row array
     ' - once the outer IF is evaluating elementwise, the inner one is too,
-    ' so $F$9="Yes" correctly re-tests against the SAME scalar for every
+    ' so $O$10="Yes" correctly re-tests against the SAME scalar for every
     ' row while Student Name/No resolve per row as normal.
     Dim q As String, studentOn As String, rowShape As String, sName As String, sNo As String
     q = Chr(34)
-    studentOn = "$F$9=" & q & "Yes" & q
+    studentOn = "$O$10=" & q & "Yes" & q
     rowShape = C("Job ID") & "<>" & q & q
     sName = "IF(" & rowShape & ",IF(" & studentOn & "," & C("Student Name") & "," & q & q & ")," & q & q & ")"
     sNo = "IF(" & rowShape & ",IF(" & studentOn & "," & C("Student No") & "," & q & q & ")," & q & q & ")"
@@ -530,6 +541,11 @@ End Function
 ' Cost, M Disregarded, N Chargeable Cost, O Paid, P Technician, Q Notes,
 ' (R Job ID, hidden).
 Private Sub FormatReports(ByVal ws As Worksheet)
+    ' Matching's header row (row 12) gets the same subtle-tint treatment as
+    ' the results header below, in a warmer tone so the two bands read as
+    ' related but distinct - RGB(244, 232, 222) is RGB(222, 232, 244)'s own
+    ' red/blue channels swapped, keeping the identical lightness/saturation.
+    ws.Range("A12:O12").Interior.Color = RGB(244, 232, 222)
     ws.Range("A15:Q15").Interior.Color = RGB(222, 232, 244)
     ws.Range("A16:A2000").NumberFormat = "dd/mm/yyyy hh:mm"
     ws.Range("G16:I2000").NumberFormat = "#,##0.00"
