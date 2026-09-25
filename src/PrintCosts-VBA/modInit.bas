@@ -437,6 +437,111 @@ End Sub
 ' robust fix (decouple the config block's columns from the table's
 ' entirely, or keep them in sync some other way) is worth doing properly
 ' later rather than patching column-by-column.
+' Static, non-catalog-driven validation for the job table (2026-09-25 bug
+' report: every column from Unit through Chargeable Cost was showing a
+' dropdown to pick a technician's name, and picking one overwrote the cell
+' - breaking that row's formulas).
+'
+' Root cause, confirmed against the built .xlsm: ReorderJobColumns (below)
+' moves columns via repeated Range.Cut + Range.Insert Shift:=xlToRight
+' inside the table. Excel extends a validated column's rule onto cells
+' newly shifted in beside it as each Insert runs, and the ~30 inserts one
+' full reorder performs compound that into a wide, wrong span - Technician's
+' own list (meant for one column) ended up the Formula1 on Unit through
+' Chargeable Cost, and the Date/Time rule ended up on Student Name and
+' Student No too. The values re-applied below are exactly what
+' PrintCosts.xlsx ships on Date/Time, Qty, Print Width mm, Disregard Paper
+' and Disregard Consumable - the same shipped rules ReorderJobColumns can
+' disturb, restated in code so a refresh can restore them.
+'
+' Called from modLists.BindColumns - the same "rebuild dependent dropdowns,
+' self-heal, never trust what a previous run left behind" reasoning that
+' function already applies to Technician/Printer/Paper Stock covers these
+' columns too, and reaches every existing BindColumns caller (setup,
+' Refresh Locations, Check workbook/sheet, the picker) for free. Clearing
+' the whole table body first means no stray rule from any past reorder can
+' survive a refresh, whichever columns it ended up on - and cheap enough to
+' do unconditionally, since none of those callers fire on every keystroke
+' (OnPrinterChanged/OnStockChanged rebind a single row, never the table).
+Public Sub EnsureJobColumnValidation(ByVal ws As Worksheet, ByVal lo As ListObject)
+    Dim paidCol As ListColumn
+    If lo.DataBodyRange Is Nothing Then Exit Sub
+
+    UnlockSheet ws
+    lo.DataBodyRange.Validation.Delete
+
+    With lo.ListColumns("Date/Time").DataBodyRange.Validation
+        .Add Type:=xlValidateDate, AlertStyle:=xlValidAlertStop, Operator:=xlGreater, Formula1:="01/01/2000"
+        .IgnoreBlank = True
+        .InCellDropdown = True
+        .ShowInput = True
+        .ShowError = True
+        .InputTitle = "Date and time"
+        .InputMessage = "Date and time the print was produced. Use the Now button to stamp the current date and time."
+        .ErrorTitle = "Date and time"
+        .ErrorMessage = "Date and time the print was produced. Use the Now button to stamp the current date and time."
+    End With
+
+    With lo.ListColumns("Qty").DataBodyRange.Validation
+        .Add Type:=xlValidateDecimal, AlertStyle:=xlValidAlertStop, Operator:=xlGreater, Formula1:="0"
+        .IgnoreBlank = False
+        .InCellDropdown = True
+        .ShowInput = True
+        .ShowError = True
+        .InputTitle = "Qty"
+        .InputMessage = "Sheets for sheet stock, metres for roll stock. Must be greater than zero."
+        .ErrorTitle = "Qty"
+        .ErrorMessage = "Sheets for sheet stock, metres for roll stock. Must be greater than zero."
+    End With
+
+    With lo.ListColumns("Print Width mm").DataBodyRange.Validation
+        .Add Type:=xlValidateDecimal, AlertStyle:=xlValidAlertStop, Operator:=xlGreater, Formula1:="0"
+        .IgnoreBlank = True
+        .InCellDropdown = True
+        .ShowInput = True
+        .ShowError = True
+        .InputTitle = "Print width"
+        .InputMessage = "Optional, roll stock only, in millimetres. Leave blank to use the full width of the roll. It must not exceed the stock width."
+        .ErrorTitle = "Print width"
+        .ErrorMessage = "Optional, roll stock only, in millimetres. Leave blank to use the full width of the roll. It must not exceed the stock width."
+    End With
+
+    With lo.ListColumns("Disregard Paper").DataBodyRange.Validation
+        .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Formula1:="Yes,No"
+        .IgnoreBlank = True
+        .InCellDropdown = True
+        .ShowInput = True
+        .ShowError = True
+    End With
+
+    With lo.ListColumns("Disregard Consumable").DataBodyRange.Validation
+        .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Formula1:="Yes,No"
+        .IgnoreBlank = True
+        .InCellDropdown = True
+        .ShowInput = True
+        .ShowError = True
+    End With
+
+    On Error Resume Next
+    Set paidCol = lo.ListColumns("Paid")
+    On Error GoTo 0
+    If Not paidCol Is Nothing Then
+        With paidCol.DataBodyRange.Validation
+            .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Formula1:="Yes,No"
+            .IgnoreBlank = True
+            .InCellDropdown = True
+            .ShowInput = True
+            .ShowError = True
+            .InputTitle = "Paid"
+            .InputMessage = "Whether this chargeable cost has been paid. Blank means not recorded either way and counts as unpaid in totals."
+            .ErrorTitle = "Paid"
+            .ErrorMessage = "Choose Yes or No."
+        End With
+    End If
+
+    RelockSheet ws
+End Sub
+
 Public Sub ReorderJobColumns(ByVal ws As Worksheet)
     Dim lo As ListObject, order As Variant, i As Long, want As String, have As String
     Set lo = JobsTable(ws)

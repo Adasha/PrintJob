@@ -23,6 +23,32 @@ Option Explicit
 ' acceptance passes at the end of the sequence.
 
 Public Const APP_NAME As String = "Print Cost Management"
+' 0.9.15 - Job-table Data Validation corruption fix, direct user report
+' (2026-09-25): every column from Unit through Chargeable Cost was showing a
+' dropdown to pick a technician's name instead of its own content, and
+' picking one overwrote a formula cell, breaking that row.
+'
+' Root cause, confirmed against the built .xlsm over COM: modInit.
+' ReorderJobColumns (0.9.4) moves columns via repeated Range.Cut +
+' Range.Insert Shift:=xlToRight inside the table. Excel extends a validated
+' column's rule onto cells newly shifted in beside it on each Insert, and
+' the ~30 inserts one full reorder performs compound that into a wide,
+' wrong span - Technician's own list, meant for one column, ended up the
+' Formula1 on eleven; the Date/Time rule similarly ended up on Student Name
+' and Student No. The corruption happened once, when 0.9.4 first reordered
+' an existing workbook's columns, and then sat there undisturbed - the
+' reorder's own "already in the right position" check meant it never ran
+' the Cut+Insert again to have a chance of un-corrupting it.
+'
+' modInit.EnsureJobColumnValidation (new) clears the whole table body's
+' validation and restores exactly what PrintCosts.xlsx ships for Date/Time,
+' Qty, Print Width mm, Disregard Paper, Disregard Consumable and Paid.
+' Called from modLists.BindColumns - the existing "rebuild dependent
+' dropdowns, self-heal, never trust what a previous run left behind" entry
+' point that every setup run, Refresh Locations, Check workbook/sheet and
+' the picker already go through - so the fix reaches an already-corrupted
+' workbook on the next ordinary refresh, not only a full rebuild.
+'
 ' 0.9.14 - Five direct user-feedback items, layout and naming only, no schema
 ' change:
 '
@@ -446,7 +472,7 @@ Public Const APP_NAME As String = "Print Cost Management"
 ' A patch increment, not a phase: the phase digit still reads 7 because phase
 ' 8 has not been built. The revision digit is what "0.<phase>.<revision>"
 ' exists for.
-Public Const APP_VERSION As String = "0.9.14"
+Public Const APP_VERSION As String = "0.9.15"
 Public Const APP_AUTHOR As String = "Adam Shailer"
 
 Public Function VersionString() As String

@@ -102,6 +102,13 @@ Public Sub BindColumns(ByVal ws As Worksheet)
     If lo Is Nothing Then Exit Sub
     If lo.DataBodyRange Is Nothing Then Exit Sub
 
+    ' Restores Date/Time, Qty, Print Width mm, Disregard Paper, Disregard
+    ' Consumable and Paid's validation and strips anything stray left beside
+    ' them - see the sub's own comment (modInit.bas) for why this table's
+    ' validation can drift from what it should be even when no column here
+    ' changed name or position.
+    EnsureJobColumnValidation ws, lo
+
     ApplyTo ws, lo.ListColumns(ColIdx(lo, "Technician")).DataBodyRange, ActiveTechnicians(), "TEC", "Technician", "Inactive technicians are not listed."
 
     ' Printer and Paper Stock filter each other (spec 1a), so each one's list
