@@ -23,6 +23,30 @@ Option Explicit
 ' acceptance passes at the end of the sequence.
 
 Public Const APP_NAME As String = "Print Cost Management"
+' 0.9.18 - Three snags from user testing of 0.9.17's layout rework, all
+' fixed same day (2026-09-25):
+'
+' 1. No breathing room between the configuration block (ends row 9) and the
+'    toolbar, which sat flush against "Print jobs". modInit.EnsureToolbarGap
+'    (new) inserts one blank row above the toolbar, called once per sheet
+'    from InitialiseWorkbook - narrower in scope than the EnsureJobTableGap
+'    0.9.17 removed (one row, not two), since only the toolbar needs
+'    separating from the block now. Toolbar moves from row 10 to row 11; the
+'    table's header follows naturally, from row 12 to row 13.
+'
+' 2 and 3, same root cause: "I can't access any of the drop down menus
+' (arrow appears but can't be clicked)" and "the buttons on the right
+' overlap the settings content". A Buttons.Add shape's own Width is
+' independent of the column it's anchored to - at SIDE_PANEL_COL's previous
+' (narrow, default) width, every 140pt-wide side-panel button sprawled
+' across two or three columns rightward, straight over the settings block
+' relocated to AL/AM in 0.9.17 - blocking its Yes/No dropdown arrows from
+' being clicked (the shape sits above the cell in z-order) as well as
+' simply looking wrong. Fixed by widening SIDE_PANEL_COL to comfortably
+' exceed the button's own width, so every button's footprint stays
+' contained within its one column - nothing placed to its right is ever at
+' risk again, not just AL/AM today.
+'
 ' 0.9.17 - Reduced-clutter-view visibility fixes, direct user report
 ' (2026-09-25): toolbar buttons and header-block content both vanished when
 ' the columns beneath them were hidden by reduced view - the same
@@ -521,7 +545,7 @@ Public Const APP_NAME As String = "Print Cost Management"
 ' A patch increment, not a phase: the phase digit still reads 7 because phase
 ' 8 has not been built. The revision digit is what "0.<phase>.<revision>"
 ' exists for.
-Public Const APP_VERSION As String = "0.9.17"
+Public Const APP_VERSION As String = "0.9.18"
 Public Const APP_AUTHOR As String = "Adam Shailer"
 
 Public Function VersionString() As String

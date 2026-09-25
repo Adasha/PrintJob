@@ -74,6 +74,7 @@ Public Sub InitialiseWorkbook()
         UnlockSheet ws
         ClearButtons ws
         If IsLocation(ws) Then
+            EnsureToolbarGap ws
             DrawLocationButtons ws
             ConfigValidation ws
             EnsureJobDefaults ws
@@ -208,11 +209,13 @@ Fail:
 End Sub
 
 Private Sub DrawLocationButtons(ByVal ws As Worksheet)
-    ' The placeholder labels sit on row 10 (the toolbar's shipped position -
-    ' EnsureJobTableGap, which used to push this down to make room for the
-    ' batch-defaults row, was removed 2026-09-25: that row no longer exists
-    ' as a separate thing, see EnsureJobDefaults' own comment), two columns
-    ' apart. Buttons are drawn over them and the labels cleared.
+    ' The placeholder labels sit on row 10 in the shipped .xlsx, but
+    ' EnsureToolbarGap (called just before this, per-sheet) has already
+    ' inserted one blank row above it - direct user feedback, testing the
+    ' 2026-09-25 rework below, that the toolbar needed breathing room from
+    ' the config block ending at row 9 - so by the time this runs the
+    ' toolbar's real row is 11. Two columns apart; buttons are drawn over the
+    ' (now-shifted) placeholders and the labels cleared.
     '
     ' Layout fix (2026-09-25, user-reported): a button anchored over a column
     ' the reduced-clutter view hides (§4.1's known gap) vanishes along with
@@ -228,12 +231,12 @@ Private Sub DrawLocationButtons(ByVal ws As Worksheet)
     '    reduced-view setting hides - general protection, since
     '    SET_LOC_REDUCED_COLUMNS is user-editable and a fixed anchor choice
     '    can't stay safe forever (§4.1's own "not a general solution" note).
-    DrawOne ws, 10, 1, "Add Print Job", "btnAddPrintJob", 110
-    DrawOne ws, 10, 3, "Now", "btnNow", 110
+    DrawOne ws, 11, 1, "Add Print Job", "btnAddPrintJob", 110
+    DrawOne ws, 11, 3, "Now", "btnNow", 110
 
     Dim c As Long
     For c = 1 To 15
-        With ws.Cells(10, c)
+        With ws.Cells(11, c)
             .ClearContents
             .Interior.Pattern = xlNone
         End With
@@ -243,6 +246,21 @@ Private Sub DrawLocationButtons(ByVal ws As Worksheet)
     ' single-column-stacked idiom Summary's own off-table buttons already
     ' use. Grouped loosely by kind: setup/maintenance/view, then row-level
     ' correction, then whole-sheet data movement.
+    '
+    ' SIDE_PANEL_COL widened to fit a whole button (2026-09-25, user-
+    ' reported): a Buttons.Add shape's own Width is independent of the
+    ' underlying cell/column width it is anchored to, so at the column's
+    ' previous (narrow, default) width every 140pt-wide button here sprawled
+    ' across two or three columns rightward - straight over the relocated
+    ' settings block at AL/AM, blocking its Yes/No dropdown arrows from
+    ' being clicked (the shape sits above the cell in z-order and intercepts
+    ' the click) as well as simply looking wrong. Widening the column to
+    ' comfortably exceed the button's own width keeps every button's
+    ' footprint contained within its one column, so nothing to its right is
+    ' ever at risk regardless of what lands there later.
+    UnlockSheet ws
+    ws.Columns(SIDE_PANEL_COL).ColumnWidth = ColWidthForPx(210)
+    RelockSheet ws
     '
     ' Reduced-clutter view toggle moved here 2026-09-25 (was row 10, column
     ' 7, over Unit): not used often enough to earn a spot near the table, and
@@ -285,6 +303,28 @@ Private Sub ConfigValidation(ByVal ws As Worksheet)
     UnlockSheet ws
     AddYesNo LocRange(ws, "LOC_DefDisPaper"), "Disregard paper cost", "Sets what new print jobs on this sheet start with. Changing it never alters jobs already recorded."
     AddYesNo LocRange(ws, "LOC_DefDisCons"), "Disregard consumable cost", "Sets what new print jobs on this sheet start with. Changing it never alters jobs already recorded."
+    RelockSheet ws
+End Sub
+
+' A single blank row between the configuration block (ends row 9, since the
+' 2026-09-25 layout rework, above) and the toolbar - direct user feedback
+' after testing that rework: with the table's header reverting to its
+' originally-shipped row 12 (EnsureJobTableGap removed), the toolbar sat
+' flush against Print jobs (row 9) with no breathing room. Narrower in scope
+' than the old EnsureJobTableGap this replaces - one row, not two, since
+' only the toolbar needs separating from the config block now, not a whole
+' extra defaults row - but the same idiom: checked-first via the table's own
+' row, so it is safe to call on a sheet that has already been migrated.
+' Setup-time only (InitialiseWorkbook), not RefreshLocations - a duplicated
+' sheet already carries the gap with it, same as the block above it.
+Public Sub EnsureToolbarGap(ByVal ws As Worksheet)
+    Dim lo As ListObject
+    Set lo = JobsTable(ws)
+    If lo Is Nothing Then Exit Sub
+    If lo.Range.Row >= 13 Then Exit Sub
+
+    UnlockSheet ws
+    ws.Rows(10).Insert Shift:=xlDown
     RelockSheet ws
 End Sub
 
