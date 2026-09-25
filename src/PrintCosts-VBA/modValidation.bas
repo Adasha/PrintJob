@@ -80,6 +80,33 @@ Private Function OnDefaultCellChanged(ByVal ws As Worksheet, ByVal Target As Ran
     BindDefaultCells ws
 End Function
 
+' Defensive re-check called from modJobs.AddPrintJob immediately before it
+' copies the batch defaults into a new row. OnDefaultCellChanged (above)
+' normally catches an incompatible printer/paper default the instant it is
+' set, but Excel for Mac does not reliably fire Worksheet_Change for a value
+' picked off an in-cell dropdown list - so a default chosen that way can sit
+' incompatible, still carrying modLists.UNAVAILABLE_SUFFIX in the cell text,
+' until something else happens to edit it. Add Print Job cannot depend on
+' that event having fired, so it calls this to clean and re-check the
+' defaults itself right before copying them into the new row.
+Public Sub EnsureDefaultsClean(ByVal ws As Worksheet)
+    Dim prnCell As Range, stkCell As Range, model As String, stk As String, s As clsStock
+    Set prnCell = LocRange(ws, "LOC_DefPrinter")
+    Set stkCell = LocRange(ws, "LOC_DefPaper")
+    If prnCell Is Nothing Or stkCell Is Nothing Then Exit Sub
+
+    model = Clean(prnCell)
+    stk = Clean(stkCell)
+    If Len(model) > 0 And Len(stk) > 0 Then
+        If Not Compatible(model, stk) Then
+            Set s = Stock(stk)
+            stkCell.ClearContents
+            Say "'" & stk & "' cannot be used on " & model & ".", "That printer does not support the " & s.Family & " paper family.", "The default paper stock has been cleared before adding this job."
+            BindDefaultCells ws
+        End If
+    End If
+End Sub
+
 ' Reads a Printer/Paper Stock cell (table row or default cell alike) and
 ' strips modLists.UNAVAILABLE_SUFFIX if the value just picked off the
 ' dropdown carries it (2026-09-23: the dropdown now lists every item, marking

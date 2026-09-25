@@ -23,6 +23,18 @@ Option Explicit
 ' acceptance passes at the end of the sequence.
 
 Public Const APP_NAME As String = "Print Cost Management"
+' 0.9.16 - Location-sheet batch defaults, direct user report (2026-09-25 -
+' reproduced on Mac, not Windows): picking an incompatible printer/paper
+' default pair off the dropdown left the raw "(unavailable)"-suffixed value
+' sitting in the cell, and Add Print Job copied it straight into the new
+' row uncaught. modValidation.OnDefaultCellChanged already runs the AT-05
+' compatibility check the instant a default cell changes, but that depends
+' on Worksheet_Change firing - which Excel for Mac does not reliably do for
+' an in-cell dropdown selection. modValidation.EnsureDefaultsClean is a new
+' defensive re-check, called from modJobs.AddPrintJob right before it copies
+' the defaults into the row, so a stale/incompatible default is caught and
+' cleaned regardless of whether the change-time event fired.
+'
 ' 0.9.15 - Job-table Data Validation corruption fix, direct user report
 ' (2026-09-25): every column from Unit through Chargeable Cost was showing a
 ' dropdown to pick a technician's name instead of its own content, and
@@ -472,7 +484,7 @@ Public Const APP_NAME As String = "Print Cost Management"
 ' A patch increment, not a phase: the phase digit still reads 7 because phase
 ' 8 has not been built. The revision digit is what "0.<phase>.<revision>"
 ' exists for.
-Public Const APP_VERSION As String = "0.9.15"
+Public Const APP_VERSION As String = "0.9.16"
 Public Const APP_AUTHOR As String = "Adam Shailer"
 
 Public Function VersionString() As String
