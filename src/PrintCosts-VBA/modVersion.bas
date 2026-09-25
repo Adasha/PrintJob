@@ -26,6 +26,23 @@ Option Explicit
 ' acceptance passes at the end of the sequence.
 
 Public Const APP_NAME As String = "Print Cost Management"
+' 0.9.20 - Import button reunited with the rest of the side panel, direct
+' user report (2026-09-25): "the import button seems to have wandered over
+' to the right. it should be with the other right-hand-side buttons." It had
+' been paired horizontally with Export at a second column (0.9.17) because
+' every-other-row spacing only left six safe slots above the table header
+' for seven buttons - packing them tighter risked visual overlap, since row
+' height is a whole-row property shared with the main A/B block, so the
+' side panel couldn't just use taller rows without inflating that block too.
+'
+' modInit.DrawOneAtTop (new) sidesteps the row grid entirely: takes an
+' explicit pixel Top instead of a row number, so all seven buttons now share
+' one column, spaced evenly across whatever room is actually available above
+' the table's current header row (computed at runtime, not a hardcoded
+' pixel figure) with an 8pt safety margin before it - not tied to any
+' particular row height, so it keeps working if the header moves again.
+' SIDE_PANEL_COL2, the now-unused second column, is removed.
+'
 ' 0.9.19 - Field swap between the main block and the side panel, user
 ' request (2026-09-25): Sheet status and Export move to the side panel
 ' (AL/AM rows 5-6); the permitted-printers list moves the other way, onto
@@ -564,7 +581,7 @@ Public Const APP_NAME As String = "Print Cost Management"
 ' A patch increment, not a phase: the phase digit still reads 7 because phase
 ' 8 has not been built. The revision digit is what "0.<phase>.<revision>"
 ' exists for.
-Public Const APP_VERSION As String = "0.9.19"
+Public Const APP_VERSION As String = "0.9.20"
 Public Const APP_AUTHOR As String = "Adam Shailer"
 
 Public Function VersionString() As String

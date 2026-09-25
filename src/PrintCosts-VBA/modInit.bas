@@ -23,17 +23,6 @@ Private Const BTN_TAG As String = "pcb_"
 ' Summary's own buttons already use at column O, clear of its A:M table.
 Private Const SIDE_PANEL_COL As Long = 36
 
-' Import pairs horizontally with Export at SIDE_PANEL_COL2 (2026-09-25 - see
-' DrawLocationButtons) rather than stacking below it: the table's header row
-' moved up to 12 once EnsureJobTableGap was removed, and ReorderJobColumns'
-' Cut+Insert operates on the table's whole header+data row span - so a
-' floating button anchored to row 12 or below (row 13 was Import's original
-' spot, landing exactly on the table's first data row) gets silently dragged
-' sideways the next time a column reorder runs. Every side-panel row must
-' stay at 11 or above; pairing two buttons per row rather than adding an
-' 8th stacked row keeps that margin without cramming the existing six.
-Private Const SIDE_PANEL_COL2 As Long = 48
-
 ' Snag list item 1e's reduced-clutter view: the default hidden-column list,
 ' used to seed the SET_LOC_REDUCED_COLUMNS setting the first time and as the
 ' fallback if that setting is ever cleared. Declared here with this module's
@@ -246,10 +235,10 @@ Private Sub DrawLocationButtons(ByVal ws As Worksheet)
         End With
     Next c
 
-    ' Side panel - occasional-use buttons, one per row, matching the
-    ' single-column-stacked idiom Summary's own off-table buttons already
-    ' use. Grouped loosely by kind: setup/maintenance/view, then row-level
-    ' correction, then whole-sheet data movement.
+    ' Side panel - occasional-use buttons, one stack, matching the idiom
+    ' Summary's own off-table buttons use. Grouped loosely by kind: setup/
+    ' maintenance/view, then row-level correction, then whole-sheet data
+    ' movement.
     '
     ' SIDE_PANEL_COL widened to fit a whole button (2026-09-25, user-
     ' reported): a Buttons.Add shape's own Width is independent of the
@@ -276,13 +265,29 @@ Private Sub DrawLocationButtons(ByVal ws As Worksheet)
     ' from that Sub's list too (below). Caption still read fresh from the
     ' current setting each time this runs, same as ConfigToggleCaption's
     ' button does.
-    DrawOne ws, 1, SIDE_PANEL_COL, "Select printers...", "btnSelectPrinters", 140
-    DrawOne ws, 3, SIDE_PANEL_COL, "Check this sheet", "btnCheckSheet", 140
-    DrawOne ws, 5, SIDE_PANEL_COL, ReducedViewCaption(), "btnToggleReducedView", 140
-    DrawOne ws, 7, SIDE_PANEL_COL, "Remove Row", "btnRemoveRow", 140
-    DrawOne ws, 9, SIDE_PANEL_COL, "Clear All", "btnClearAll", 140
-    DrawOne ws, 11, SIDE_PANEL_COL, "Export...", "btnExport", 140
-    DrawOne ws, 11, SIDE_PANEL_COL2, "Import...", "btnImportLocation", 140
+    '
+    ' All seven now share one column (2026-09-25, user-reported: Import had
+    ' drifted onto SIDE_PANEL_COL2, away from the rest). Every-other-row
+    ' spacing only had room for six before the table header - packed instead
+    ' via DrawOneAtTop at even pixel steps spanning the space actually
+    ' available above the header (whatever row that currently is), so the
+    ' whole stack fits in one column with a consistent, if tighter, gap
+    ' between buttons - narrower than a full spare row, but comfortably more
+    ' than nothing.
+    Dim lo As ListObject, headerTop As Double, stepPx As Double, i As Long
+    Set lo = JobsTable(ws)
+    If Not lo Is Nothing Then
+        ' 8pt safety margin before the header - packing the last button's
+        ' bottom edge flush against it left effectively no clearance at all.
+        headerTop = ws.Cells(lo.Range.Row, 1).Top
+        stepPx = (headerTop - 22 - 8) / 6
+        Dim capts() As Variant, macros() As Variant
+        capts = Array("Select printers...", "Check this sheet", ReducedViewCaption(), "Remove Row", "Clear All", "Export...", "Import...")
+        macros = Array("btnSelectPrinters", "btnCheckSheet", "btnToggleReducedView", "btnRemoveRow", "btnClearAll", "btnExport", "btnImportLocation")
+        For i = 0 To 6
+            DrawOneAtTop ws, SIDE_PANEL_COL, i * stepPx, CStr(capts(i)), CStr(macros(i)), 140
+        Next i
+    End If
 
     ' Clear defaults - column D, row 4 (over Technician), roughly centred
     ' against the three-row default-selector block it clears (A3:B5) without
@@ -773,6 +778,25 @@ Public Sub DrawOne(ByVal ws As Worksheet, ByVal RowNo As Long, ByVal ColNo As Lo
     Set c = ws.Cells(RowNo, ColNo)
     Set b = ws.Buttons.Add(c.Left, c.Top, W, 22)
     SetButtonName b, BTN_TAG & Macro & "_" & RowNo & "_" & ColNo
+    b.Caption = Caption
+    b.OnAction = Macro
+    b.Characters.Font.Size = 10
+End Sub
+
+' Same as DrawOne, but takes an explicit pixel Top rather than a row number -
+' for the location side panel (2026-09-25, user-reported: Import had drifted
+' off to a second column, away from the rest of the stack). Row height is a
+' whole-row property, so every column sharing row 12 with the main A/B
+' block is stuck at that row's ~14.5pt height - too short to give a 22pt
+' button its usual one-row gap the way every-other-row spacing does
+' elsewhere, which is what forced Import out to SIDE_PANEL_COL2 in the first
+' place. Pixel-based stacking sidesteps the row grid entirely, so seven
+' buttons fit in one column, evenly spaced, with room to spare above the
+' table header - see DrawLocationButtons for the actual spacing constant.
+Public Sub DrawOneAtTop(ByVal ws As Worksheet, ByVal ColNo As Long, ByVal Top As Double, ByVal Caption As String, ByVal Macro As String, ByVal W As Single)
+    Dim b As Button
+    Set b = ws.Buttons.Add(ws.Cells(1, ColNo).Left, Top, W, 22)
+    SetButtonName b, BTN_TAG & Macro & "_px" & CLng(Top) & "_" & ColNo
     b.Caption = Caption
     b.OnAction = Macro
     b.Characters.Font.Size = 10
