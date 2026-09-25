@@ -60,6 +60,7 @@ Public Sub InitialiseWorkbook()
             DrawLocationButtons ws
             ConfigValidation ws
             EnsureJobDefaults ws
+            EnsureRollUnitSetting ws
             EnsurePaidColumn ws
             EnsureQtyColumnName ws
             ReorderJobColumns ws
@@ -324,6 +325,48 @@ Public Sub EnsureJobDefaults(ByVal ws As Worksheet)
     BindDefaultCells ws
 End Sub
 
+' Per-location roll-stock entry unit: some print rooms prefer to type a roll
+' job's length in centimetres rather than metres. D4/E4 - column D is empty
+' the whole way down rows 4-8 in the shipped .xlsx (unlike D1:D3, which carry
+' the config block's own explanatory prose), and E4 pairs with it the same
+' width-matched-to-content way E10/F10 pairs "Default: paper" with its value
+' - so this needs no row insertion and cannot collide with anything already
+' on the sheet. Self-provisioned and re-applied on every InitialiseWorkbook
+' AND RefreshLocations run, same "re-point a duplicated sheet, self-heal an
+' old one" reasoning EnsureJobDefaults' own comment gives for LOC_DefTech/
+' LOC_Export - this setting postdates the last hand-edit of the .xlsx, so a
+' shipped name (the way LOC_DefDisPaper is done) is not an option.
+'
+' Only Qty's stored value ever changes to reflect this (modValidation.
+' OnQtyChanged, converting a Centimetres-location's raw entry to metres on
+' the cell itself) - Area m2/Paper Cost/every other formula on the row reads
+' Qty exactly as before and has no idea this setting exists.
+Public Sub EnsureRollUnitSetting(ByVal ws As Worksheet)
+    UnlockSheet ws
+    ws.Range("D4").Value = "Roll length unit"
+    ws.Range("D4").Font.Bold = True
+
+    EnsureLocName ws, "LOC_RollUnit", "$E$4"
+
+    Dim c As Range
+    Set c = ws.Range("E4")
+    If Len(Trim$(CStr(c.Value))) = 0 Then c.Value = "Metres"
+    StyleInputCell c
+    With c.Validation
+        .Delete
+        .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Formula1:="Metres,Centimetres"
+        .IgnoreBlank = False
+        .InCellDropdown = True
+        .ShowInput = True
+        .ShowError = True
+        .InputTitle = "Roll length unit"
+        .InputMessage = "How a roll job's length is typed into Qty on this sheet. Always converted to, and stored as, metres regardless of this setting - Sheet stock is unaffected."
+        .ErrorTitle = "Roll length unit"
+        .ErrorMessage = "Choose Metres or Centimetres."
+    End With
+    RelockSheet ws
+End Sub
+
 Private Sub EnsureLocName(ByVal ws As Worksheet, ByVal Nm As String, ByVal Addr As String)
     On Error Resume Next
     ws.Names(Nm).Delete
@@ -482,6 +525,12 @@ Public Sub EnsureJobColumnValidation(ByVal ws As Worksheet, ByVal lo As ListObje
         .ErrorMessage = "Date and time the print was produced. Use the Now button to stamp the current date and time."
     End With
 
+    Dim qtyMsg As String
+    If StrComp(LocValue(ws, "LOC_RollUnit"), "Centimetres", vbTextCompare) = 0 Then
+        qtyMsg = "Sheets for sheet stock, centimetres for roll stock (converted and stored as metres - see 'Roll length unit' above). Must be greater than zero."
+    Else
+        qtyMsg = "Sheets for sheet stock, metres for roll stock. Must be greater than zero."
+    End If
     With lo.ListColumns("Qty").DataBodyRange.Validation
         .Add Type:=xlValidateDecimal, AlertStyle:=xlValidAlertStop, Operator:=xlGreater, Formula1:="0"
         .IgnoreBlank = False
@@ -489,9 +538,9 @@ Public Sub EnsureJobColumnValidation(ByVal ws As Worksheet, ByVal lo As ListObje
         .ShowInput = True
         .ShowError = True
         .InputTitle = "Qty"
-        .InputMessage = "Sheets for sheet stock, metres for roll stock. Must be greater than zero."
+        .InputMessage = qtyMsg
         .ErrorTitle = "Qty"
-        .ErrorMessage = "Sheets for sheet stock, metres for roll stock. Must be greater than zero."
+        .ErrorMessage = qtyMsg
     End With
 
     With lo.ListColumns("Print Width mm").DataBodyRange.Validation

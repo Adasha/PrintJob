@@ -80,6 +80,7 @@ Public Sub RefreshLocations()
         NameJobTable ws, CStr(codes.Item("#" & ws.Name))
         FixButtons ws
         EnsureJobDefaults ws
+        EnsureRollUnitSetting ws
         BindColumns ws
         ApplyReducedView ws
         ProtectSheet ws
