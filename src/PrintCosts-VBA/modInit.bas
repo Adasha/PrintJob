@@ -82,6 +82,7 @@ Public Sub InitialiseWorkbook()
             ConfigValidation ws
             EnsureJobDefaults ws
             EnsureRollUnitSetting ws
+            EnsurePrintersDisplay ws
             EnsureJobCountDisplay ws
             EnsurePaidColumn ws
             EnsureQtyColumnName ws
@@ -441,12 +442,52 @@ Public Sub EnsureRollUnitSetting(ByVal ws As Worksheet)
     RelockSheet ws
 End Sub
 
+' Friendly display of the permitted-printers list (2026-09-25, user
+' request) - A7/B7, the row Sheet status vacated when it swapped places with
+' this (below). LOC_Printers itself - the raw semicolon-delimited list the
+' Select printers... picker writes and modCatalog's compatibility checks
+' read (modPicker.bas:189, modCatalog.bas:149/168) - stays exactly as it
+' always was functionally, just relocated to the side panel (AM7, "Permitted
+' printers (raw list)") so the picker's plain .Value write there is
+' unaffected; this is a SEPARATE, read-only formula cell, never written to
+' directly, that renders it for people rather than code: "N printers
+' (comma, separated, list)", singular "1 printer" handled explicitly. A
+' genuine Excel formula (LET, like modReports' own summary formulas), not a
+' VBA-computed string, so it stays in sync with the raw list with no code
+' involved - re-written every run only because LOC_Printers' name could in
+' principle be repointed by a future edit, same defensive reasoning as the
+' job count below.
+Public Sub EnsurePrintersDisplay(ByVal ws As Worksheet)
+    UnlockSheet ws
+    ws.Range("A7").Value = "Printers at this location"
+    ws.Range("A7").Font.Bold = True
+
+    ' Built with Chr(34) rather than a hand-escaped string literal - the
+    ' quote-doubling needed to embed this many nested string arguments in a
+    ' single VBA literal is too easy to get subtly wrong to trust by eye.
+    ' Target formula (each q below is one literal "):
+    '   =LET(list,LOC_Printers,n,IF(list="",0,LEN(list)-LEN(SUBSTITUTE(list,
+    '   ";",""))+1),IF(n=0,"0 printers ()",n&" printer"&IF(n=1,"","s")&
+    '   " ("&SUBSTITUTE(list,";",", ")&")"))
+    Dim q As String
+    q = Chr(34)
+    ws.Range("B7").Formula2 = "=LET(list,LOC_Printers,n,IF(list=" & q & q & _
+        ",0,LEN(list)-LEN(SUBSTITUTE(list," & q & ";" & q & "," & q & q & _
+        "))+1),IF(n=0," & q & "0 printers ()" & q & ",n&" & q & " printer" & _
+        q & "&IF(n=1," & q & q & "," & q & "s" & q & ")&" & q & " (" & q & _
+        "&SUBSTITUTE(list," & q & ";" & q & "," & q & ", " & q & ")&" & q & _
+        ")" & q & "))"
+    ws.Range("B7").Locked = True
+    RelockSheet ws
+End Sub
+
 ' Live count of print jobs recorded on this sheet (2026-09-25, user
-' request) - A9/B9, the row freed up by no longer needing EnsureJobTableGap
-' (the batch defaults above no longer need their own dedicated row, so
-' there's nothing left to open space for). A genuine Excel formula, not a
-' VBA-computed value, so it stays accurate as rows are added/removed with no
-' code involved - ROWS() on a bare table reference counts its data rows,
+' request) - A8/B8, the row Export vacated when it moved to the side panel
+' (below) - originally A9/B9, the row freed up by no longer needing
+' EnsureJobTableGap, until Sheet status/Export/Printers' 2026-09-25 swap
+' rearranged rows 7-9 again. A genuine Excel formula, not a VBA-computed
+' value, so it stays accurate as rows are added/removed with no code
+' involved - ROWS() on a bare table reference counts its data rows,
 ' excluding the header. Re-written (not just created-once) on every run
 ' because the table's own name can change (RefreshLocations, AT-13) and a
 ' stale table name in the formula text would silently stop updating.
@@ -456,10 +497,10 @@ Public Sub EnsureJobCountDisplay(ByVal ws As Worksheet)
     If lo Is Nothing Then Exit Sub
 
     UnlockSheet ws
-    ws.Range("A9").Value = "Print jobs"
-    ws.Range("A9").Font.Bold = True
-    ws.Range("B9").Formula = "=ROWS(" & lo.Name & ")"
-    ws.Range("B9").Locked = True
+    ws.Range("A8").Value = "Print jobs"
+    ws.Range("A8").Font.Bold = True
+    ws.Range("B8").Formula = "=ROWS(" & lo.Name & ")"
+    ws.Range("B8").Locked = True
     RelockSheet ws
 End Sub
 

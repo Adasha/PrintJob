@@ -60,7 +60,7 @@ try {
     $xl.Run('SetQuiet', $true)
 
     Write-Host '=== status before export ==='
-    Write-Host ('  B8: ' + $ws.Range('B8').Text)
+    Write-Host ('  Export: ' + $ws.Range('LOC_Export').Text)
 
     $ws.Activate()
     $xl.Run('btnExport')
@@ -69,7 +69,7 @@ try {
     Write-Host $xl.Run('QuietLog')
 
     Write-Host '=== status after export ==='
-    Write-Host ('  B8: ' + $ws.Range('B8').Text)
+    Write-Host ('  Export: ' + $ws.Range('LOC_Export').Text)
 
     # Edit a quantity. The fingerprint must notice: no event fires for this
     # when macros are off, which is the whole reason it is derived.
@@ -86,7 +86,7 @@ try {
     $xl.Run('RefreshExportStatus', $ws)
     Write-Host ''
     Write-Host ("=== after changing a quantity ({0} -> {1}) ===" -f $was, $cell.Value2)
-    Write-Host ('  B8: ' + $ws.Range('B8').Text)
+    Write-Host ('  Export: ' + $ws.Range('LOC_Export').Text)
 
     $xl.Run('SetQuiet', $false)
 }

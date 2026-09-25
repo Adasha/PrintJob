@@ -28,7 +28,13 @@ Option Explicit
 
 Private Const CSV_UTF8 As Long = 62         ' xlCSVUTF8
 Private Const XLSX_FORMAT As Long = 51      ' xlOpenXMLWorkbook
-Private Const EXPORT_CELL As String = "$B$8"
+' $AM$6, not $B$8 (2026-09-25 layout swap): Export moved to the side panel
+' alongside Sheet status, trading places with the permitted-printers list
+' and its "N printers (list)" display, which moved to the left - user
+' request, both being read-only/derived state rather than day-to-day input.
+' RefreshExportStatus's own Offset(0, -1) write for the "Export" label
+' follows this automatically, onto AL6.
+Private Const EXPORT_CELL As String = "$AM$6"
 
 ' The canonical export order. Fixed here rather than mirroring the sheet, so
 ' files stay comparable across versions even after the table is reordered.

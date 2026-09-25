@@ -26,6 +26,22 @@ Option Explicit
 ' acceptance passes at the end of the sequence.
 
 Public Const APP_NAME As String = "Print Cost Management"
+' 0.9.19 - Field swap between the main block and the side panel, user
+' request (2026-09-25): Sheet status and Export move to the side panel
+' (AL/AM rows 5-6); the permitted-printers list moves the other way, onto
+' the main block (A7/B7), reformatted for people rather than for code - "N
+' printers (comma, separated, list)", singular handled. LOC_Printers itself
+' - the raw semicolon list the Select printers... picker writes and
+' modCatalog's compatibility checks read - stays exactly as it always was
+' functionally, just relocated to the side panel (AM7) under its own label
+' ("Permitted printers (raw list)") so the picker's plain-value write is
+' unaffected; the friendly A7/B7 display is a separate, read-only LET
+' formula deriving from it (modInit.EnsurePrintersDisplay, new). Export's
+' target cell (modExport.EXPORT_CELL) moves from $B$8 to $AM$6 - a one-line
+' change, since RefreshExportStatus already writes its own "Export" label
+' via Offset(0, -1) rather than a hardcoded address. Print jobs (added
+' 0.9.17) moves from A9/B9 up to A8/B8, the row Export vacated.
+'
 ' 0.9.18 - Three snags from user testing of 0.9.17's layout rework, all
 ' fixed same day (2026-09-25):
 '
@@ -548,7 +564,7 @@ Public Const APP_NAME As String = "Print Cost Management"
 ' A patch increment, not a phase: the phase digit still reads 7 because phase
 ' 8 has not been built. The revision digit is what "0.<phase>.<revision>"
 ' exists for.
-Public Const APP_VERSION As String = "0.9.18"
+Public Const APP_VERSION As String = "0.9.19"
 Public Const APP_AUTHOR As String = "Adam Shailer"
 
 Public Function VersionString() As String
