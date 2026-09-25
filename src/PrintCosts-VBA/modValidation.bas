@@ -31,6 +31,8 @@ Public Function OnCellChanged(ByVal ws As Worksheet, ByVal Target As Range) As B
             OnPrinterChanged ws, lo, n
         Case "Paper Stock"
             OnStockChanged ws, lo, n
+        Case "Qty"
+            OnQtyChanged ws, lo, n
         Case "Print Width mm"
             OnWidthChanged ws, lo, n
         Case "Student Name", "Student No"
@@ -180,6 +182,44 @@ Private Sub OnStockChanged(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal 
             Say "Print width does not apply to sheet stock.", "For sheets the whole sheet is treated as printed, so a print width " & "would have no effect.", "The value has been cleared."
         End If
     End If
+End Sub
+
+' modInit.EnsureRollUnitSetting's LOC_RollUnit (per-location, spec: "let some
+' users enter roll lengths in centimetres without affecting the underlying
+' calculations"). Qty is what Area m2/Paper Cost read directly (§5.1) and
+' must always hold metres, so a Centimetres-preferring location has whatever
+' was just typed divided by 100 and the cell rewritten in place - the same
+' live-rewrite idiom OnWidthChanged (below) uses for its own cell. Sheet
+' stock is left alone: Qty there counts sheets, not a length, whatever this
+' setting says.
+'
+' Order-dependent, same as OnWidthChanged: this only fires on Qty's own
+' Change event, so a length typed before Paper Stock is chosen is left as
+' raw, un-converted centimetres until Qty is edited again - Paper Stock sits
+' to Qty's left in the table, so choosing it first (the natural left-to-right
+' order) avoids this in normal use.
+'
+' NOTE (revisit, 2026-09-25): that order-dependency is a real correctness
+' gap, not just UX - a length typed before Paper Stock, on a Centimetres
+' location, silently lands in Qty 100x too large as metres, and nothing in
+' CheckSheet/CheckWorkbook flags it. LOC_RollUnit is also a per-LOCATION
+' setting, so one sheet cannot mix cm and m entry job-by-job. If either
+' turns out to matter in practice, the more robust fix is a genuine per-row
+' unit (a real job-row column feeding a calculated Qty, not this cell
+' rewrite) - a real schema bump, not attempted here since it is a bigger
+' change than what was asked for. See docs/ARCHITECTURE.md §16.3.
+Private Sub OnQtyChanged(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal n As Long)
+    Dim stk As String, s As clsStock, q As Double
+    If StrComp(LocValue(ws, "LOC_RollUnit"), "Centimetres", vbTextCompare) <> 0 Then Exit Sub
+    If Len(CellIn(lo, n, "Qty").Value) = 0 Then Exit Sub
+
+    stk = CStr(CellIn(lo, n, "Paper Stock").Value)
+    If Len(stk) = 0 Then Exit Sub
+    Set s = Stock(stk)
+    If s.Measure <> "Roll" Then Exit Sub
+
+    q = NumOf(CellIn(lo, n, "Qty"))
+    If q > 0 Then CellIn(lo, n, "Qty").Value = q / 100
 End Sub
 
 Private Sub OnWidthChanged(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal n As Long)
