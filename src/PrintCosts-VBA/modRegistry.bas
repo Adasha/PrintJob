@@ -81,6 +81,7 @@ Public Sub RefreshLocations()
         FixButtons ws
         EnsureJobDefaults ws
         EnsureRollUnitSetting ws
+        EnsureJobCountDisplay ws
         BindColumns ws
         ApplyReducedView ws
         ProtectSheet ws

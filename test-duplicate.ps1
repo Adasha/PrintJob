@@ -79,7 +79,7 @@ Private Function TableList() As String
     For Each ws In ThisWorkbook.Worksheets
         For Each lo In ws.ListObjects
             If Left$(lo.Name, 8) = "tblJobs_" Then
-                r = r & "   " & lo.Name & "  on '" & ws.Name & "'  LOC_Code=" & ws.Range("B3").Value & vbCrLf
+                r = r & "   " & lo.Name & "  on '" & ws.Name & "'  LOC_Code=" & ws.Range("LOC_Code").Value & vbCrLf
             End If
         Next lo
     Next ws

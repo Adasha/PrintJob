@@ -20,6 +20,17 @@ Private Const BTN_TAG As String = "pcb_"
 ' Summary's own buttons already use at column O, clear of its A:M table.
 Private Const SIDE_PANEL_COL As Long = 36
 
+' Import pairs horizontally with Export at SIDE_PANEL_COL2 (2026-09-25 - see
+' DrawLocationButtons) rather than stacking below it: the table's header row
+' moved up to 12 once EnsureJobTableGap was removed, and ReorderJobColumns'
+' Cut+Insert operates on the table's whole header+data row span - so a
+' floating button anchored to row 12 or below (row 13 was Import's original
+' spot, landing exactly on the table's first data row) gets silently dragged
+' sideways the next time a column reorder runs. Every side-panel row must
+' stay at 11 or above; pairing two buttons per row rather than adding an
+' 8th stacked row keeps that margin without cramming the existing six.
+Private Const SIDE_PANEL_COL2 As Long = 48
+
 ' Snag list item 1e's reduced-clutter view: the default hidden-column list,
 ' used to seed the SET_LOC_REDUCED_COLUMNS setting the first time and as the
 ' fallback if that setting is ever cleared. Declared here with this module's
@@ -63,11 +74,11 @@ Public Sub InitialiseWorkbook()
         UnlockSheet ws
         ClearButtons ws
         If IsLocation(ws) Then
-            EnsureJobTableGap ws
             DrawLocationButtons ws
             ConfigValidation ws
             EnsureJobDefaults ws
             EnsureRollUnitSetting ws
+            EnsureJobCountDisplay ws
             EnsurePaidColumn ws
             EnsureQtyColumnName ws
             ReorderJobColumns ws
@@ -197,11 +208,11 @@ Fail:
 End Sub
 
 Private Sub DrawLocationButtons(ByVal ws As Worksheet)
-    ' The placeholder labels sit on row 12 (EnsureJobTableGap has already
-    ' pushed the toolbar down from its shipped row 10, opening a blank row
-    ' both above and below the batch-defaults row - snag list item, 2026-09-
-    ' 23), two columns apart. Buttons are drawn over them and the labels
-    ' cleared.
+    ' The placeholder labels sit on row 10 (the toolbar's shipped position -
+    ' EnsureJobTableGap, which used to push this down to make room for the
+    ' batch-defaults row, was removed 2026-09-25: that row no longer exists
+    ' as a separate thing, see EnsureJobDefaults' own comment), two columns
+    ' apart. Buttons are drawn over them and the labels cleared.
     '
     ' Layout fix (2026-09-25, user-reported): a button anchored over a column
     ' the reduced-clutter view hides (§4.1's known gap) vanishes along with
@@ -212,17 +223,17 @@ Private Sub DrawLocationButtons(ByVal ws As Worksheet)
     '    side panel at SIDE_PANEL_COL, past the table's own columns entirely,
     '    so no column-hide can ever reach it (below).
     ' 2. The few buttons still anchored inside the table's column span
-    '    (these two, plus row 10's Clear defaults) are covered by
-    '    RelocateAtRiskButtons instead, which moves any of them off a column
-    '    the CURRENT reduced-view setting hides - general protection, since
+    '    (these two, plus Clear defaults) are covered by RelocateAtRiskButtons
+    '    instead, which moves any of them off a column the CURRENT
+    '    reduced-view setting hides - general protection, since
     '    SET_LOC_REDUCED_COLUMNS is user-editable and a fixed anchor choice
     '    can't stay safe forever (§4.1's own "not a general solution" note).
-    DrawOne ws, 12, 1, "Add Print Job", "btnAddPrintJob", 110
-    DrawOne ws, 12, 3, "Now", "btnNow", 110
+    DrawOne ws, 10, 1, "Add Print Job", "btnAddPrintJob", 110
+    DrawOne ws, 10, 3, "Now", "btnNow", 110
 
     Dim c As Long
     For c = 1 To 15
-        With ws.Cells(12, c)
+        With ws.Cells(10, c)
             .ClearContents
             .Interior.Pattern = xlNone
         End With
@@ -249,12 +260,15 @@ Private Sub DrawLocationButtons(ByVal ws As Worksheet)
     DrawOne ws, 7, SIDE_PANEL_COL, "Remove Row", "btnRemoveRow", 140
     DrawOne ws, 9, SIDE_PANEL_COL, "Clear All", "btnClearAll", 140
     DrawOne ws, 11, SIDE_PANEL_COL, "Export...", "btnExport", 140
-    DrawOne ws, 13, SIDE_PANEL_COL, "Import...", "btnImportLocation", 140
+    DrawOne ws, 11, SIDE_PANEL_COL2, "Import...", "btnImportLocation", 140
 
-    ' Clear defaults - stays at row 10, next to the batch-default cells it
-    ' clears; still anchored inside the table's column span (over Print
-    ' Width mm), so RelocateAtRiskButtons still covers it (below).
-    DrawOne ws, 10, 9, "Clear defaults", "btnClearDefaults", 110
+    ' Clear defaults - column D, row 4 (over Technician), roughly centred
+    ' against the three-row default-selector block it clears (A3:B5) without
+    ' overlapping the labels themselves - column D is free there (D1:D2 hold
+    ' the block's own explanatory prose, D3 onward is empty). Still anchored
+    ' inside the table's column span, so RelocateAtRiskButtons covers it
+    ' (below).
+    DrawOne ws, 4, 4, "Clear defaults", "btnClearDefaults", 110
 End Sub
 
 ' Yes/No validation on the two location defaults (spec 9.2). These seed each
@@ -291,59 +305,49 @@ Private Sub AddYesNo(ByVal target As Range, ByVal Title As String, ByVal Msg As 
     End With
 End Sub
 
-' ------------------------------------------------------------ table gap ---
-' A blank row both above and below the batch-defaults row, so it reads as
-' its own group rather than crowding the config block above (which already
-' had row 8 as a gap) or running straight into the toolbar below (which
-' didn't - row 9 and row 10 used to be flush against each other). Same
-' "checked first" idiom as EnsureTableGap (catalogue tables, above): the
-' second insert's target row is read fresh AFTER the first has already
-' shifted everything below it, so this is safe to call on a sheet that has
-' already been migrated (JobsTable's own row no longer < 14) without
-' inserting a second time.
-Public Sub EnsureJobTableGap(ByVal ws As Worksheet)
-    Dim lo As ListObject
-    Set lo = JobsTable(ws)
-    If lo Is Nothing Then Exit Sub
-    If lo.Range.Row >= 14 Then Exit Sub
-
-    UnlockSheet ws
-    ws.Rows(10).Insert Shift:=xlDown  ' gap BELOW the defaults row
-    ws.Rows(9).Insert Shift:=xlDown   ' gap ABOVE the defaults row
-    RelockSheet ws
-End Sub
-
-' ----------------------------------------------------- batch defaults ---
-' Snag list item 1b: three cells above the toolbar (row 10 - EnsureJobTableGap
-' has already opened a blank row both above and below this one, so the config
-' block above ends at row 8, the defaults sit at row 10, and the toolbar
-' starts at row 12) let a technician set a Technician/Printer/Paper Stock
-' once and have every subsequently added job pre-filled from them
-' (modJobs.AddPrintJob), until Clear defaults empties them again
-' (modJobs.ClearDefaults). Self-provisioned here rather than shipped in the
-' .xlsx - same reasoning as LOC_Export (modExport): a sheet-scoped name
-' copies cleanly with a duplicated sheet, and re-adding it every run means an
-' older location sheet picks the feature up without hand surgery.
-' Public: modRegistry.RefreshLocations also calls this for every location on
-' every refresh, alongside BindColumns - the same "rebuild dependent
-' dropdowns, self-heal an old sheet, re-point a duplicated one" reasoning
-' RefreshExportStatus/EnsureExportName already applies to LOC_Export.
+' ------------------------------------------------------- batch defaults ---
+' Layout fix (2026-09-25, same pass as the button relocation above): these
+' four rows - the three per-job selectors plus the roll-unit setting - used
+' to live spread across columns A-F on their own dedicated row (requiring
+' EnsureJobTableGap to open space for it), which is exactly what put
+' "Default: paper" on top of the Printer column and made it vanish under
+' reduced view (§4.1's cross-column collision, same root cause the button
+' fix addressed for shapes). Fixed the same way in spirit: everything that
+' must stay visible regardless of the reduced-view setting now lives ONLY in
+' columns A/B, which ApplyColumnVisibility never touches (below) - stacked
+' as one row each instead of three column-pairs on one row. Location code,
+' the two disregard-cost defaults and the permitted-printers list moved out
+' to the side panel to make room (rows 3-6 here used to be theirs) - none of
+' them are used per-job the way these four are.
+'
+' Snag list item 1b's own reasoning still holds: a technician sets a
+' Technician/Printer/Paper Stock once and has every subsequently added job
+' pre-filled from them (modJobs.AddPrintJob), until Clear defaults empties
+' them again (modJobs.ClearDefaults). Self-provisioned here rather than
+' shipped in the .xlsx - same reasoning as LOC_Export (modExport): a
+' sheet-scoped name copies cleanly with a duplicated sheet, and re-adding it
+' every run means an older location sheet picks the feature up without hand
+' surgery. Public: modRegistry.RefreshLocations also calls this for every
+' location on every refresh, alongside BindColumns - the same "rebuild
+' dependent dropdowns, self-heal an old sheet, re-point a duplicated one"
+' reasoning RefreshExportStatus/EnsureExportName already applies to
+' LOC_Export.
 Public Sub EnsureJobDefaults(ByVal ws As Worksheet)
     UnlockSheet ws
-    ws.Range("A10").Value = "Default: technician"
-    ws.Range("A10").Font.Bold = True
-    ws.Range("C10").Value = "Default: printer"
-    ws.Range("C10").Font.Bold = True
-    ws.Range("E10").Value = "Default: paper"
-    ws.Range("E10").Font.Bold = True
+    ws.Range("A3").Value = "Default: technician"
+    ws.Range("A3").Font.Bold = True
+    ws.Range("A4").Value = "Default: printer"
+    ws.Range("A4").Font.Bold = True
+    ws.Range("A5").Value = "Default: paper"
+    ws.Range("A5").Font.Bold = True
 
-    EnsureLocName ws, "LOC_DefTech", "$B$10"
-    EnsureLocName ws, "LOC_DefPrinter", "$D$10"
-    EnsureLocName ws, "LOC_DefPaper", "$F$10"
+    EnsureLocName ws, "LOC_DefTech", "$B$3"
+    EnsureLocName ws, "LOC_DefPrinter", "$B$4"
+    EnsureLocName ws, "LOC_DefPaper", "$B$5"
 
-    StyleInputCell ws.Range("B10")
-    StyleInputCell ws.Range("D10")
-    StyleInputCell ws.Range("F10")
+    StyleInputCell ws.Range("B3")
+    StyleInputCell ws.Range("B4")
+    StyleInputCell ws.Range("B5")
     RelockSheet ws
 
     ' Both directions of spec 1a's filtering apply here too (spec 1b: "these
@@ -353,16 +357,16 @@ Public Sub EnsureJobDefaults(ByVal ws As Worksheet)
 End Sub
 
 ' Per-location roll-stock entry unit: some print rooms prefer to type a roll
-' job's length in centimetres rather than metres. D4/E4 - column D is empty
-' the whole way down rows 4-8 in the shipped .xlsx (unlike D1:D3, which carry
-' the config block's own explanatory prose), and E4 pairs with it the same
-' width-matched-to-content way E10/F10 pairs "Default: paper" with its value
-' - so this needs no row insertion and cannot collide with anything already
-' on the sheet. Self-provisioned and re-applied on every InitialiseWorkbook
-' AND RefreshLocations run, same "re-point a duplicated sheet, self-heal an
-' old one" reasoning EnsureJobDefaults' own comment gives for LOC_DefTech/
-' LOC_Export - this setting postdates the last hand-edit of the .xlsx, so a
-' shipped name (the way LOC_DefDisPaper is done) is not an option.
+' job's length in centimetres rather than metres. Conceptually part of the
+' same "regularly used, must stay visible" group as the three selectors
+' above (user feedback, 2026-09-25), so it joins them at A6/B6 rather than
+' sitting apart - moved from its original D4/E4 spot in the same layout fix
+' described above. Self-provisioned and re-applied on every
+' InitialiseWorkbook AND RefreshLocations run, same "re-point a duplicated
+' sheet, self-heal an old one" reasoning EnsureJobDefaults' own comment
+' gives for LOC_DefTech/LOC_Export - this setting postdates the last
+' hand-edit of the .xlsx, so a shipped name (the way LOC_DefDisPaper is
+' done) is not an option.
 '
 ' Only Qty's stored value ever changes to reflect this (modValidation.
 ' OnQtyChanged, converting a Centimetres-location's raw entry to metres on
@@ -370,13 +374,13 @@ End Sub
 ' Qty exactly as before and has no idea this setting exists.
 Public Sub EnsureRollUnitSetting(ByVal ws As Worksheet)
     UnlockSheet ws
-    ws.Range("D4").Value = "Roll length unit"
-    ws.Range("D4").Font.Bold = True
+    ws.Range("A6").Value = "Roll length unit"
+    ws.Range("A6").Font.Bold = True
 
-    EnsureLocName ws, "LOC_RollUnit", "$E$4"
+    EnsureLocName ws, "LOC_RollUnit", "$B$6"
 
     Dim c As Range
-    Set c = ws.Range("E4")
+    Set c = ws.Range("B6")
     If Len(Trim$(CStr(c.Value))) = 0 Then c.Value = "Metres"
     StyleInputCell c
     With c.Validation
@@ -391,6 +395,28 @@ Public Sub EnsureRollUnitSetting(ByVal ws As Worksheet)
         .ErrorTitle = "Roll length unit"
         .ErrorMessage = "Choose Metres or Centimetres."
     End With
+    RelockSheet ws
+End Sub
+
+' Live count of print jobs recorded on this sheet (2026-09-25, user
+' request) - A9/B9, the row freed up by no longer needing EnsureJobTableGap
+' (the batch defaults above no longer need their own dedicated row, so
+' there's nothing left to open space for). A genuine Excel formula, not a
+' VBA-computed value, so it stays accurate as rows are added/removed with no
+' code involved - ROWS() on a bare table reference counts its data rows,
+' excluding the header. Re-written (not just created-once) on every run
+' because the table's own name can change (RefreshLocations, AT-13) and a
+' stale table name in the formula text would silently stop updating.
+Public Sub EnsureJobCountDisplay(ByVal ws As Worksheet)
+    Dim lo As ListObject
+    Set lo = JobsTable(ws)
+    If lo Is Nothing Then Exit Sub
+
+    UnlockSheet ws
+    ws.Range("A9").Value = "Print jobs"
+    ws.Range("A9").Font.Bold = True
+    ws.Range("B9").Formula = "=ROWS(" & lo.Name & ")"
+    ws.Range("B9").Locked = True
     RelockSheet ws
 End Sub
 
@@ -999,7 +1025,7 @@ End Sub
 Private Sub RelocateAtRiskButtons(ByVal ws As Worksheet, ByVal lo As ListObject)
     RelocateButton ws, lo, "btnAddPrintJob", "Date/Time"
     RelocateButton ws, lo, "btnNow", "Student No"
-    RelocateButton ws, lo, "btnClearDefaults", "Print Width mm"
+    RelocateButton ws, lo, "btnClearDefaults", "Technician"
 End Sub
 
 Private Sub RelocateButton(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal Macro As String, ByVal PreferredHeader As String)

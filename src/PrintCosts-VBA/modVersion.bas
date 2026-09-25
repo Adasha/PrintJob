@@ -23,6 +23,43 @@ Option Explicit
 ' acceptance passes at the end of the sequence.
 
 Public Const APP_NAME As String = "Print Cost Management"
+' 0.9.17 - Reduced-clutter-view visibility fixes, direct user report
+' (2026-09-25): toolbar buttons and header-block content both vanished when
+' the columns beneath them were hidden by reduced view - the same
+' "Excel's column-hide is whole-column" constraint §4.1 had already flagged
+' as an unsolved general risk (2026-09-22), now recurring in practice.
+'
+' Buttons: occasional-use location buttons (Remove Row, Select printers,
+' Check this sheet, Clear All, Export, Import, the reduced-view toggle
+' itself) move to a side panel (modInit.SIDE_PANEL_COL/SIDE_PANEL_COL2, past
+' the table's own columns) immune by construction. The few still anchored
+' inside the table's column span (Add Print Job, Now, Clear defaults)
+' self-relocate off whatever column is currently hidden via the new
+' modInit.RelocateAtRiskButtons, called every time column visibility can
+' change - general protection against SET_LOC_REDUCED_COLUMNS being edited
+' to name a column one of them happens to sit on.
+'
+' Header-block content: LOC_RollUnit's dropdown and the "Default: paper"
+' label both sat on column E (table column 5, Printer - one of the default
+' hidden columns), vanishing out of the box with no custom editing needed.
+' Cell content can't float to a different column the way a button can, so
+' the fix is structural: everything that must stay visible - room name,
+' department, the three per-job selectors, roll unit, sheet status, export
+' status, and a new live job count - now lives only in columns A/B, which
+' never appear in any hide list. Location code, the two disregard-cost
+' defaults and the permitted-printers list (not used per-job) moved to the
+' side panel to make room. modInit.EnsureJobTableGap is removed entirely -
+' the selectors no longer need a dedicated row, so there is nothing left to
+' open space for, and the table header reverts to its originally-shipped
+' row 12.
+'
+' A third bug surfaced by that same reversion: modInit.ReorderJobColumns'
+' Range.Cut/Range.Insert Shift:=xlToRight operates on the table's whole
+' header+data row span, not just its columns - with the header back at row
+' 12, row 13 became the table's first data row, exactly where the side
+' panel's Import button had landed, and the next reorder silently dragged
+' it sideways. Fixed by keeping every side-panel row at 11 or above.
+'
 ' 0.9.16 - Location-sheet batch defaults, direct user report (2026-09-25 -
 ' reproduced on Mac, not Windows): picking an incompatible printer/paper
 ' default pair off the dropdown left the raw "(unavailable)"-suffixed value
@@ -484,7 +521,7 @@ Public Const APP_NAME As String = "Print Cost Management"
 ' A patch increment, not a phase: the phase digit still reads 7 because phase
 ' 8 has not been built. The revision digit is what "0.<phase>.<revision>"
 ' exists for.
-Public Const APP_VERSION As String = "0.9.16"
+Public Const APP_VERSION As String = "0.9.17"
 Public Const APP_AUTHOR As String = "Adam Shailer"
 
 Public Function VersionString() As String
