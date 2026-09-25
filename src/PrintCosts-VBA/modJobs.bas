@@ -11,6 +11,11 @@ Public Sub AddPrintJob(ByVal ws As Worksheet)
         Exit Sub
     End If
 
+    ' modValidation.EnsureDefaultsClean: don't trust that an incompatible
+    ' printer/paper default was already caught at the moment it was set - see
+    ' that sub's comment for why (Excel for Mac's dropdown selection).
+    EnsureDefaultsClean ws
+
     AppOff
     UnlockSheet ws
     If lo.ListRows.Count = 1 And IsBlankRow(lo, 1) Then
