@@ -556,6 +556,25 @@ Public Function LocationSheets() As Collection
     Set LocationSheets = out
 End Function
 
+' Every print room currently registered (tblLocations), for the Reports
+' page's Location filter (modReports.RefreshReportFilterLists) - the same
+' "every catalogue entry, not just what has been used" behaviour as
+' modCatalog.AllActivePrinters/AllActiveStocks, so a room added today but not
+' yet logged against is still choosable here.
+Public Function AllLocationCodes() As Collection
+    Dim out As New Collection, lo As ListObject, i As Long, code As String
+    Set lo = Tbl(REG_TABLE)
+    If lo Is Nothing Then
+        Set AllLocationCodes = out
+        Exit Function
+    End If
+    For i = 1 To lo.ListRows.Count
+        code = Trim$(CStr(CellIn(lo, i, "Code").Value))
+        If Len(code) > 0 Then out.Add code
+    Next i
+    Set AllLocationCodes = SortedTextCollection(out)
+End Function
+
 Public Function ConsolidatedRange() As Range
     Dim dws As Worksheet
     On Error Resume Next

@@ -230,6 +230,13 @@ Private Function Criteria() As String
     s = s & "*IF($F$8="""",TRUE,IF(ISERROR($F$8*1),TRUE," & _
         "IFERROR(" & C("Qty") & "*1,0)=$F$8*1))"
 
+    ' Location (print room), added 2026-09-25 - a dropdown of registered print
+    ' rooms (RefreshReportFilterLists, AllLocationCodes), same exact-match
+    ' treatment as Technician/Printer/Paper Stock above. Parked at $O$5 (the
+    ' N5/O5 "third group" - see its CritCell call site below) rather than
+    ' extending the A-H layout rows 5-8 already fill.
+    s = s & "*IF($O$5="""",TRUE," & C("Location") & "=$O$5)"
+
     Criteria = s
 End Function
 
@@ -298,6 +305,17 @@ Public Sub BuildReports()
     CritCell ws, "E6", "F6", "Printer", "Choose from the list, or leave blank for all."
     CritCell ws, "E7", "F7", "Paper stock", "Choose from the list, or leave blank for all."
     CritCell ws, "E8", "F8", "Quantity", "Matched exactly."
+
+    ' Location (print room) filter, added 2026-09-25. N5/O5, not a third slot
+    ' in the A-D/E-H groups: E/G/H (and I:M) are columns
+    ' ApplyReportsMinimumColumns hides entirely by results-header name, the
+    ' same trap O10's own 2026-09-22 comment already names - a label or input
+    ' parked there can render hidden or orphaned under the default view. N/O
+    ' are "Chargeable"/"Paid", both permanently kept visible, with I:M
+    ' (Area m2 .. Disregarded, all hidden by default) already sitting blank
+    ' between them and the Printer/Paper Stock/Quantity group as a natural
+    ' gap - no existing cell moves.
+    CritCell ws, "N5", "O5", "Location (print room)", "Choose a print room, or leave blank for all."
 
     ' Sort by/direction sit below the filters, above the totals row (snag list
     ' item 3) rather than beside the Technician/Printer/Paper/Quantity group -
@@ -978,6 +996,14 @@ Public Sub RefreshReportFilterLists(ByVal ws As Worksheet)
         "Printer", "Choose a printer, or leave blank to include all."
     ApplyTo ws, ws.Range("F7"), AllActiveStocks(), "REP|Paper stock", _
         "Paper stock", "Choose a paper stock, or leave blank to include all."
+
+    ' Location (print room): every registered print room (modRegistry.
+    ' AllLocationCodes, tblLocations), not just those with a job logged yet -
+    ' same "every catalogue entry" behaviour as Printer/Paper Stock above
+    ' (AllActivePrinters/AllActiveStocks), so a room added today is
+    ' immediately choosable here.
+    ApplyTo ws, ws.Range("O5"), AllLocationCodes(), "REP|Location", _
+        "Location (print room)", "Choose a print room, or leave blank to include all."
 End Sub
 
 ' Distinct, sorted, non-blank values of one column of the consolidated range,
