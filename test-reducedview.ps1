@@ -102,6 +102,58 @@ try {
     $btnCaption2 = FindButtonCaption $main $prefix
     Check ($btnCaption2 -eq 'Reduce clutter') "button caption flipped back to 'Reduce clutter' (got '$btnCaption2')"
 
+    # ------------------------------------------- button relocation (2026-09-25 fix)
+    # A button anchored over a column the reduced view hides used to vanish
+    # with it (Remove Row/Clear All sat on Printer/Disregard Consumable).
+    # Fix: occasional-use buttons, including the toggle itself (moved here
+    # same day - not used often enough to earn a spot near the table), now
+    # live in a side panel (col 36) immune by construction; the few still
+    # inside the table (Add Print Job, Now, Clear defaults) self-relocate off
+    # whatever column is currently hidden. REDUCED_COLUMNS_DEFAULT alone
+    # never hides any of those three, so this needs its own list to actually
+    # exercise the relocation path.
+    Write-Host ''
+    Write-Host '=== Buttons anchored inside the table self-relocate off a hidden column ==='
+
+    function ButtonColumn($ws, $prefix) {
+        $n = $ws.Buttons().Count
+        for ($i = 1; $i -le $n; $i++) {
+            $b = $ws.Buttons($i)
+            if ([string]$b.Name -like "$prefix*") {
+                for ($c = 1; $c -le 60; $c++) {
+                    if ([Math]::Abs($ws.Cells(1, $c).Left - $b.Left) -lt 0.5) { return $c }
+                }
+                return -1
+            }
+        }
+        return 0
+    }
+
+    $pwidthCol = $lo.Range.Column + (Col $lo 'Print Width mm') - 1
+
+    foreach ($p in 'pcb_btnRemoveRow', 'pcb_btnSelectPrinters', 'pcb_btnCheckSheet', 'pcb_btnClearAll', 'pcb_btnExport', 'pcb_btnImportLocation', 'pcb_btnToggleReducedView') {
+        Check ((ButtonColumn $main $p) -eq 36) "$p sits in the side panel (column 36), immune to column-hide"
+    }
+    Check ((ButtonColumn $main 'pcb_btnClearDefaults') -eq $pwidthCol) "btnClearDefaults starts anchored on Print Width mm"
+
+    $wb.Names.Item('SET_LOC_REDUCED_COLUMNS').RefersToRange.Value = 'Print Width mm'
+    [void]$xl.Run('ToggleReducedView')
+    Start-Sleep -Milliseconds 300
+    Check (IsHidden $main $lo 'Print Width mm') "Print Width mm is hidden (test-only hide list)"
+    $movedCol = ButtonColumn $main 'pcb_btnClearDefaults'
+    Check ($movedCol -ne $pwidthCol) "btnClearDefaults relocated off Print Width mm (was col $pwidthCol, now $movedCol)"
+    Check ($movedCol -gt 0 -and -not [bool]$main.Columns($movedCol).Hidden) "btnClearDefaults' new column ($movedCol) is actually visible"
+    foreach ($p in 'pcb_btnRemoveRow', 'pcb_btnSelectPrinters', 'pcb_btnCheckSheet', 'pcb_btnClearAll', 'pcb_btnExport', 'pcb_btnImportLocation', 'pcb_btnToggleReducedView') {
+        Check ((ButtonColumn $main $p) -eq 36) "$p still in the side panel, unaffected by the test-only hide list"
+    }
+
+    [void]$xl.Run('ToggleReducedView')
+    Start-Sleep -Milliseconds 300
+    Check (-not (IsHidden $main $lo 'Print Width mm')) "Print Width mm is visible again"
+    Check ((ButtonColumn $main 'pcb_btnClearDefaults') -eq $pwidthCol) "btnClearDefaults moved back onto Print Width mm now that it's visible"
+
+    $wb.Names.Item('SET_LOC_REDUCED_COLUMNS').RefersToRange.Value = $list
+
     $xl.Run('SetQuiet', $false)
 }
 finally {

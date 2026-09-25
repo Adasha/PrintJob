@@ -13,6 +13,13 @@ Option Explicit
 
 Private Const BTN_TAG As String = "pcb_"
 
+' Column where a location sheet's occasional-use buttons live (2026-09-25
+' layout fix, see DrawLocationButtons) - well past the job table's own
+' columns (34, S_SchemaVer) and the AZ1/52 marker, so ApplyColumnVisibility
+' can never hide a button by hiding the column under it. Same pattern
+' Summary's own buttons already use at column O, clear of its A:M table.
+Private Const SIDE_PANEL_COL As Long = 36
+
 ' Snag list item 1e's reduced-clutter view: the default hidden-column list,
 ' used to seed the SET_LOC_REDUCED_COLUMNS setting the first time and as the
 ' fallback if that setting is ever cleared. Declared here with this module's
@@ -195,14 +202,23 @@ Private Sub DrawLocationButtons(ByVal ws As Worksheet)
     ' both above and below the batch-defaults row - snag list item, 2026-09-
     ' 23), two columns apart. Buttons are drawn over them and the labels
     ' cleared.
+    '
+    ' Layout fix (2026-09-25, user-reported): a button anchored over a column
+    ' the reduced-clutter view hides (§4.1's known gap) vanishes along with
+    ' it - Remove Row sat on Printer, Clear All on Disregard Consumable, both
+    ' hidden by REDUCED_COLUMNS_DEFAULT. Fix has two parts:
+    ' 1. Only the two buttons used on every job entry stay here, close to
+    '    hand - everything used occasionally rather than per-job moves to a
+    '    side panel at SIDE_PANEL_COL, past the table's own columns entirely,
+    '    so no column-hide can ever reach it (below).
+    ' 2. The few buttons still anchored inside the table's column span
+    '    (these two, plus row 10's Clear defaults) are covered by
+    '    RelocateAtRiskButtons instead, which moves any of them off a column
+    '    the CURRENT reduced-view setting hides - general protection, since
+    '    SET_LOC_REDUCED_COLUMNS is user-editable and a fixed anchor choice
+    '    can't stay safe forever (§4.1's own "not a general solution" note).
     DrawOne ws, 12, 1, "Add Print Job", "btnAddPrintJob", 110
     DrawOne ws, 12, 3, "Now", "btnNow", 110
-    DrawOne ws, 12, 5, "Remove Row", "btnRemoveRow", 110
-    DrawOne ws, 12, 7, "Select printers...", "btnSelectPrinters", 110
-    DrawOne ws, 12, 9, "Check this sheet", "btnCheckSheet", 110
-    DrawOne ws, 12, 11, "Clear All", "btnClearAll", 110
-    DrawOne ws, 12, 13, "Export...", "btnExport", 110
-    DrawOne ws, 12, 15, "Import...", "btnImportLocation", 110
 
     Dim c As Long
     For c = 1 To 15
@@ -211,22 +227,33 @@ Private Sub DrawLocationButtons(ByVal ws As Worksheet)
             .Interior.Pattern = xlNone
         End With
     Next c
-    ws.Cells(12, 13).ClearContents
 
-    ' Reduced-clutter view toggle (row 10 - shifted down from row 9 the same
-    ' way the toolbar above was, snag list item 1e) - column 7, over Unit
-    ' (just past the batch defaults' own Printer/Paper Stock cells at columns
-    ' A-F, §4.1) - not one of the columns the toggle itself can hide.
-    ' Originally drawn at column 13, which happened to land on whichever
-    ' column Disregard Consumable was sitting at - column 13 is safe now that
-    ' ReorderJobColumns has moved Status/Job ID away from the front of the
-    ' table, but the anchor is deliberately independent of that fix (a
-    ' hidden-column collision here would take out the one button that undoes
-    ' it). Caption read fresh from the current setting each time this runs,
-    ' same as ConfigToggleCaption's button does.
-    DrawOne ws, 10, 7, ReducedViewCaption(), "btnToggleReducedView", 130
+    ' Side panel - occasional-use buttons, one per row, matching the
+    ' single-column-stacked idiom Summary's own off-table buttons already
+    ' use. Grouped loosely by kind: setup/maintenance/view, then row-level
+    ' correction, then whole-sheet data movement.
+    '
+    ' Reduced-clutter view toggle moved here 2026-09-25 (was row 10, column
+    ' 7, over Unit): not used often enough to earn a spot near the table, and
+    ' its previous position - however carefully chosen - was still only ever
+    ' safe by construction against today's REDUCED_COLUMNS_DEFAULT, not
+    ' against whatever SET_LOC_REDUCED_COLUMNS might later be edited to name.
+    ' Living in the side panel sidesteps that question entirely rather than
+    ' relying on RelocateAtRiskButtons to keep dodging it, so it's dropped
+    ' from that Sub's list too (below). Caption still read fresh from the
+    ' current setting each time this runs, same as ConfigToggleCaption's
+    ' button does.
+    DrawOne ws, 1, SIDE_PANEL_COL, "Select printers...", "btnSelectPrinters", 140
+    DrawOne ws, 3, SIDE_PANEL_COL, "Check this sheet", "btnCheckSheet", 140
+    DrawOne ws, 5, SIDE_PANEL_COL, ReducedViewCaption(), "btnToggleReducedView", 140
+    DrawOne ws, 7, SIDE_PANEL_COL, "Remove Row", "btnRemoveRow", 140
+    DrawOne ws, 9, SIDE_PANEL_COL, "Clear All", "btnClearAll", 140
+    DrawOne ws, 11, SIDE_PANEL_COL, "Export...", "btnExport", 140
+    DrawOne ws, 13, SIDE_PANEL_COL, "Import...", "btnImportLocation", 140
 
-    ' Clear defaults - to the right of the toggle above, clear of both.
+    ' Clear defaults - stays at row 10, next to the batch-default cells it
+    ' clears; still anchored inside the table's column span (over Print
+    ' Width mm), so RelocateAtRiskButtons still covers it (below).
     DrawOne ws, 10, 9, "Clear defaults", "btnClearDefaults", 110
 End Sub
 
@@ -958,7 +985,78 @@ Public Sub ApplyReducedView(ByVal ws As Worksheet)
     Set lo = JobsTable(ws)
     If lo Is Nothing Then Exit Sub
     ApplyColumnVisibility lo, SplitList(SettingText("LOC_REDUCED_COLUMNS", REDUCED_COLUMNS_DEFAULT)), ReducedViewOn()
+    RelocateAtRiskButtons ws, lo
 End Sub
+
+' General fix for the column-hide-takes-a-button-with-it gap (§4.1) - only
+' the handful of buttons DrawLocationButtons still anchors inside the job
+' table's own column span (everything else lives in the side panel, immune
+' by construction) need this. Called every time column visibility can have
+' changed - InitialiseWorkbook, RefreshLocations and ToggleReducedView all
+' reach it via ApplyReducedView - so a button self-heals back onto a visible
+' column whichever way the setting just moved, including back to its own
+' preferred column once reduced view is switched off again.
+Private Sub RelocateAtRiskButtons(ByVal ws As Worksheet, ByVal lo As ListObject)
+    RelocateButton ws, lo, "btnAddPrintJob", "Date/Time"
+    RelocateButton ws, lo, "btnNow", "Student No"
+    RelocateButton ws, lo, "btnClearDefaults", "Print Width mm"
+End Sub
+
+Private Sub RelocateButton(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal Macro As String, ByVal PreferredHeader As String)
+    Dim b As Button, prefix As String, i As Long, col As Long
+    prefix = BTN_TAG & Macro
+    For i = 1 To ws.Buttons.Count
+        If Left$(ws.Buttons(i).Name, Len(prefix)) = prefix Then
+            Set b = ws.Buttons(i)
+            Exit For
+        End If
+    Next i
+    If b Is Nothing Then Exit Sub
+
+    col = NearestVisibleColumn(lo, PreferredHeader)
+    If col = 0 Then Exit Sub
+    b.Left = ws.Cells(1, col).Left
+End Sub
+
+' The button's own preferred column if it's currently visible, else the
+' nearest column (checked right then left, one step further out each pass)
+' that is neither hidden by the reduced-clutter view nor one of the table's
+' permanently-hidden columns (H_Issues, the snapshot block) - landing a
+' relocated button on one of those would just move the problem rather than
+' solve it. Returns a worksheet column number, not a ListColumn index -
+' correct even though they coincide today (the table starts at column A).
+Private Function NearestVisibleColumn(ByVal lo As ListObject, ByVal PreferredHeader As String) As Long
+    Dim preferred As Long, dist As Long, side As Long, candidate As Long
+    On Error Resume Next
+    preferred = ColIdx(lo, PreferredHeader)
+    On Error GoTo 0
+    If preferred = 0 Then Exit Function
+
+    If IsSafeAnchorColumn(lo, preferred) Then
+        NearestVisibleColumn = lo.ListColumns(preferred).Range.Column
+        Exit Function
+    End If
+
+    For dist = 1 To lo.ListColumns.Count
+        For side = -1 To 1 Step 2
+            candidate = preferred + side * dist
+            If candidate >= 1 And candidate <= lo.ListColumns.Count Then
+                If IsSafeAnchorColumn(lo, candidate) Then
+                    NearestVisibleColumn = lo.ListColumns(candidate).Range.Column
+                    Exit Function
+                End If
+            End If
+        Next side
+    Next dist
+End Function
+
+Private Function IsSafeAnchorColumn(ByVal lo As ListObject, ByVal col As Long) As Boolean
+    Dim header As String
+    header = lo.ListColumns(col).Name
+    If StrComp(header, "H_Issues", vbTextCompare) = 0 Then Exit Function
+    If Left$(header, 2) = "S_" Then Exit Function
+    IsSafeAnchorColumn = Not CBool(lo.ListColumns(col).Range.EntireColumn.Hidden)
+End Function
 
 ' Narrower default widths for the columns that need the least room to show
 ' their actual content, freeing screen space for Student Name/Notes/etc.
