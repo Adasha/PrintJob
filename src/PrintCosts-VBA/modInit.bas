@@ -1,6 +1,9 @@
 Attribute VB_Name = "modInit"
 Option Explicit
 
+' This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
+' If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 ' One-time setup, run once after the modules are imported.
 '
 ' The workbook file is written outside Excel, which can lay out cells but

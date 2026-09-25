@@ -1,3 +1,6 @@
+# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
+# If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
 # Snag 1b: batch default Technician/Printer/Paper selectors, one row each at
 # A3:B5 (2026-09-25 layout fix - moved off their original single shared row
 # to stop "Default: paper" landing on the Printer column and vanishing under

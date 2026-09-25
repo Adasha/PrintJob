@@ -6,4 +6,8 @@ This is an internal project published here mainly to serve as the cloud backup. 
 
 Needs Office 365 subscription, Windows or Mac. See SETUP.md for build instructions.
 
-Distributed under MPL 2.0.
+## License
+
+This project is distributed under the [Mozilla Public License 2.0](LICENSE).
+
+See the [LICENSE](LICENSE) file for the full license text.

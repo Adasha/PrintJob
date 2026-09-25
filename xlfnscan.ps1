@@ -1,3 +1,6 @@
+# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
+# If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
 # Finds every _xlfn / _xlws occurrence in a workbook's XML.
 #
 # Reads the OOXML package directly, so it catches things the grid does not

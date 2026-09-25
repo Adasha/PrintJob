@@ -1,6 +1,9 @@
 Attribute VB_Name = "modMain"
 Option Explicit
 
+' This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
+' If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 ' Entry points bound to the on-sheet buttons.
 '
 ' These names are a contract with the Form Controls: renaming one silently

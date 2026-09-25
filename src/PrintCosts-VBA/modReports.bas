@@ -1,6 +1,9 @@
 Attribute VB_Name = "modReports"
 Option Explicit
 
+' This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
+' If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 ' Builds the Summary and Reports sheets.
 '
 ' This module writes LAYOUT AND FORMULAS ONCE. It does no reporting: every

@@ -1,6 +1,9 @@
 Attribute VB_Name = "modSnapshot"
 Option Explicit
 
+' This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
+' If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 ' Freezing the rates a record was costed at (design doc section 5).
 '
 ' This is what makes spec 12.6 and AT-09 hold. No formula on a job row reaches

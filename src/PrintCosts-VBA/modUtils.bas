@@ -1,6 +1,9 @@
 Attribute VB_Name = "modUtils"
 Option Explicit
 
+' This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
+' If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 ' Shared plumbing: application state, error reporting, table and name access.
 
 Public Const MARKER As String = "PRINTLOC/v1"

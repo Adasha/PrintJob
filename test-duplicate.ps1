@@ -1,4 +1,7 @@
-﻿# AT-13: duplicating a print room sheet must survive Refresh Locations.
+﻿# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
+# If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+# AT-13: duplicating a print room sheet must survive Refresh Locations.
 #
 # The duplication is done in VBA rather than over COM, because that is what a
 # user actually does (right-click > Move or Copy) and it keeps Excel's own event

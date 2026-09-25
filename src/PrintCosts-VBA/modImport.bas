@@ -1,6 +1,9 @@
 Attribute VB_Name = "modImport"
 Option Explicit
 
+' This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
+' If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 ' Restoring a backup, moving jobs between rooms, or pulling several rooms'
 ' exports into one copy for reporting - all the same mechanism (snag list
 ' Problem 1). Reads a file modExport wrote and merges it into one location's

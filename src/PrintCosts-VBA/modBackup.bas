@@ -1,6 +1,9 @@
 Attribute VB_Name = "modBackup"
 Option Explicit
 
+' This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
+' If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 ' Full-workbook backup and restore (snag list item 4a) - the ad-hoc "get me
 ' back to where I was" path, distinct from modExport's per-location job CSVs
 ' (which already exist and are reused here unchanged) and Export report's

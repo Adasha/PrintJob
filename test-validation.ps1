@@ -1,4 +1,7 @@
-﻿# Phase 7: the validation sweep.
+﻿# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
+# If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+# Phase 7: the validation sweep.
 #
 #   AT-11  student name/number conflict WARNS and never blocks
 #   AT-14  Clear All names the location, the count and the date range

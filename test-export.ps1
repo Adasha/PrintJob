@@ -1,4 +1,7 @@
-﻿# Phase 6: per-location export, the derived fingerprint, and the status line.
+﻿# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
+# If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+# Phase 6: per-location export, the derived fingerprint, and the status line.
 #
 # Exports a print room, reads the CSV back, then edits a row and confirms the
 # fingerprint notices. Closes the workbook WITHOUT saving; the CSV it writes

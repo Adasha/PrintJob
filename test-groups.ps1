@@ -1,3 +1,6 @@
+# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
+# If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
 # Column grouping cleanup (2026-09-22, follow-up to the reduced-clutter view
 # work): only the intended cost-column group (Paper Cost..Disregarded)
 # should carry an outline level above 1. Two other groups had crept in as a

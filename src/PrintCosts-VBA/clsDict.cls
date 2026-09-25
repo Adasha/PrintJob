@@ -9,6 +9,9 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
+' This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
+' If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 ' A keyed store built on Collection.
 '
 ' Excel for Mac has no ActiveX and no CreateObject, so Scripting.Dictionary is
