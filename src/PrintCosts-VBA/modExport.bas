@@ -208,6 +208,7 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
     Dim lastCol As Long, rng As Range, block As Variant, n As Long
     Dim path As String, wbOut As Workbook
     Dim promoted As Collection, header As Variant, full As Variant, tableHeaderRow As Long
+    Dim totalChargeable As Double, stillOwed As Double
 
     On Error GoTo Fail
     lastCol = LastHeaderColumn(repWs, HDR_ROW)
@@ -240,7 +241,17 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
     ' column. Live-sheet-only per the user's own answer on review: this
     ' happens here, at export time, never to the Reports sheet itself.
     block = PromoteUniformColumns(block, promoted)
-    header = SnapshotHeaderBlock(repWs, rng, n, promoted)
+
+    ' Total chargeable / Still owed reuse the Reports sheet's own "Matching"
+    ' totals (F13/O13, modReports.BuildReports) rather than re-summing here -
+    ' those are already computed over the exact same filter criteria the
+    ' export is a snapshot of, so there is exactly one place that knows how
+    ' "still owed" reconciles to "total chargeable minus paid".
+    totalChargeable = SafeNum(repWs.Range("F13").Value)
+    stillOwed = SafeNum(repWs.Range("O13").Value)
+
+    block = AppendTotalsRow(block)
+    header = SnapshotHeaderBlock(repWs, rng, n, promoted, totalChargeable, stillOwed)
     full = CombineBlocks(header, block)
     tableHeaderRow = UBound(header, 1) + 2   ' + 1 blank separator + 1 to reach the header row itself
 
@@ -259,9 +270,18 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
         .Range(.Cells(1, 1), .Cells(UBound(full, 1), UBound(full, 2))).Value = full
         .Range(.Cells(1, 1), .Cells(1, 2)).Font.Bold = True
         .Range(.Cells(1, 1), .Cells(1, 2)).Font.Size = 14
+        ' Total chargeable / Still owed, rows 8 and 9 of the header block -
+        ' see SnapshotHeaderBlock. Bolded and currency-formatted the same way
+        ' the on-sheet Matching totals (F13/O13) already are, so the numbers
+        ' read as money rather than bare decimals.
+        .Range(.Cells(8, 1), .Cells(9, 2)).Font.Bold = True
+        .Range(.Cells(8, 2), .Cells(9, 2)).NumberFormat = CurrencyFormatCode()
         .Rows(tableHeaderRow).Font.Bold = True
         .Rows(tableHeaderRow).Interior.Color = RGB(222, 232, 244)
         FormatSnapshotColumns wbOut.Worksheets(1), block
+        ' The totals row appended by AppendTotalsRow - last row of the table.
+        .Rows(tableHeaderRow + UBound(block, 1) - 1).Font.Bold = True
+        .Rows(tableHeaderRow + UBound(block, 1) - 1).Borders(xlEdgeTop).Weight = xlThin
         .Columns.AutoFit
     End With
     wbOut.SaveAs path, XLSX_FORMAT
@@ -309,6 +329,62 @@ Private Function LastHeaderColumn(ByVal ws As Worksheet, ByVal HdrRow As Long) A
         If c > 100 Then Exit Do
     Loop
     LastHeaderColumn = last
+End Function
+
+' The financial columns totalled by AppendTotalsRow below - the same set
+' FormatSnapshotColumns already currency-formats, minus nothing: every money
+' column in the results table gets a total, not a curated subset.
+Private Function MoneyHeaders() As Variant
+    MoneyHeaders = Array("Paper cost", "Consumable cost", "Gross", "Disregarded", "Chargeable")
+End Function
+
+Private Function IsMoneyHeader(ByVal Header As String, ByVal candidates As Variant) As Boolean
+    Dim i As Long
+    For i = LBound(candidates) To UBound(candidates)
+        If StrComp(Header, CStr(candidates(i)), vbTextCompare) = 0 Then
+            IsMoneyHeader = True
+            Exit Function
+        End If
+    Next i
+End Function
+
+' Appends one row to the bottom of BLOCK (header row 1, data rows 2..) summing
+' each financial column - Qty/Area m2 are numeric too but are not money, so
+' they are deliberately left blank on this row rather than summed. Runs AFTER
+' PromoteUniformColumns, so it totals exactly the columns that end up in the
+' file, whichever of the promotable ones (Location, Printer, ...) survived.
+Private Function AppendTotalsRow(ByVal block As Variant) As Variant
+    Dim rows As Long, cols As Long, r As Long, c As Long, hdr As String, s As Double
+    Dim candidates As Variant, out() As Variant
+
+    candidates = MoneyHeaders()
+    rows = UBound(block, 1)
+    cols = UBound(block, 2)
+
+    ReDim out(1 To rows + 1, 1 To cols)
+    For r = 1 To rows
+        For c = 1 To cols
+            out(r, c) = block(r, c)
+        Next c
+    Next r
+
+    out(rows + 1, 1) = "Total"
+    For c = 1 To cols
+        hdr = CStr(block(1, c))
+        If IsMoneyHeader(hdr, candidates) Then
+            s = 0
+            For r = 2 To rows
+                If IsNumeric(block(r, c)) Then s = s + CDbl(block(r, c))
+            Next r
+            out(rows + 1, c) = s
+        End If
+    Next c
+
+    AppendTotalsRow = out
+End Function
+
+Private Function SafeNum(ByVal v As Variant) As Double
+    If IsNumeric(v) Then SafeNum = CDbl(v)
 End Function
 
 ' Header candidates for single-value promotion (2b/2c). Student name/no are
@@ -405,8 +481,9 @@ End Function
 ' what schema/site it came from, the date range covered, when it was made,
 ' how many rows, then one line per field PromoteUniformColumns lifted out.
 Private Function SnapshotHeaderBlock(ByVal repWs As Worksheet, ByVal rng As Range, _
-                                     ByVal n As Long, ByVal promoted As Collection) As Variant
-    Const FIXED As Long = 7
+                                     ByVal n As Long, ByVal promoted As Collection, _
+                                     ByVal TotalChargeable As Double, ByVal StillOwed As Double) As Variant
+    Const FIXED As Long = 9
     Dim a() As Variant, r As Long, item As Variant
 
     ReDim a(1 To FIXED + promoted.Count, 1 To 2)
@@ -417,6 +494,11 @@ Private Function SnapshotHeaderBlock(ByVal repWs As Worksheet, ByVal rng As Rang
     a(5, 1) = "Date range":     a(5, 2) = DateRangeText(repWs, rng)
     a(6, 1) = "Generated":      a(6, 2) = Format$(Now, "yyyy-mm-dd hh:nn:ss")
     a(7, 1) = "Rows":           a(7, 2) = n
+    ' Snag list item 1c's "total minus paid" reconciliation, restated here for
+    ' the archive: Still owed is the same Chargeable total with paid charges
+    ' removed, not a separate figure that could drift from it.
+    a(8, 1) = "Total chargeable": a(8, 2) = TotalChargeable
+    a(9, 1) = "Still owed":       a(9, 2) = StillOwed
 
     r = FIXED
     For Each item In promoted
