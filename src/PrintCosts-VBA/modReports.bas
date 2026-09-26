@@ -304,10 +304,21 @@ Public Sub BuildReports()
     AddDateValidation ws.Range("B7"), "From date", "Leave blank for no start date."
     AddDateValidation ws.Range("B8"), "To date", "Jobs logged at any time on this date are included."
 
-    CritCell ws, "E5", "F5", "Technician", "Choose from the list, or leave blank for all."
-    CritCell ws, "E6", "F6", "Printer", "Choose from the list, or leave blank for all."
-    CritCell ws, "E7", "F7", "Paper stock", "Choose from the list, or leave blank for all."
-    CritCell ws, "E8", "F8", "Quantity", "Matched exactly."
+    ' Labels at D, not E (2026-09-26 fix): E is "Printer" in the results
+    ' table, one of the columns ApplyReportsMinimumColumns hides by header
+    ' name - and that Hidden reaches every row on the sheet, not just the
+    ' results table, so a label parked at E5:E8 rendered invisible under the
+    ' default view even though its own input cell (F, "Paper stock", always
+    ' kept) showed fine with nothing beside it. D ("Student no") is one of
+    ' the kept columns and unused on these rows - previously the blank
+    ' spacer between this group and the Student/Department one at A:B, now
+    ' doing double duty as the label column instead. The one-column visual
+    ' gap between groups is gone, but a readable label beats a tidy gap to a
+    ' label nobody could see.
+    CritCell ws, "D5", "F5", "Technician", "Choose from the list, or leave blank for all."
+    CritCell ws, "D6", "F6", "Printer", "Choose from the list, or leave blank for all."
+    CritCell ws, "D7", "F7", "Paper stock", "Choose from the list, or leave blank for all."
+    CritCell ws, "D8", "F8", "Quantity", "Matched exactly."
 
     ' Location (print room) filter, added 2026-09-25. N5/O5, not a third slot
     ' in the A-D/E-H groups: E/G/H (and I:M) are columns
@@ -325,7 +336,7 @@ Public Sub BuildReports()
     ' row 9 is the "name and number don't match" warning below, so this is the
     ' one free row between the filters and Matching.
     CritCell ws, "A10", "B10", "Sort by", "Leave blank for no sorting."
-    CritCell ws, "E10", "F10", "Sort direction", "Ascending is the default."
+    CritCell ws, "D10", "F10", "Sort direction", "Ascending is the default."
     AddList ws.Range("B10"), QuotedList(hdrs), "Sort by", "Which column to sort the results by."
     AddList ws.Range("F10"), """Ascending"",""Descending""", "Sort direction", "Which way to sort."
 
@@ -343,8 +354,9 @@ Public Sub BuildReports()
     ' F9 dropdown (F is "Paper stock", always kept visible) still showed with
     ' nothing beside it. N and O are "Chargeable"/"Paid" - both permanently
     ' kept - and free on this row, so label and dropdown survive the default
-    ' view together. (Sort direction's own E10/G10 label/hint have this same
-    ' latent problem and are left as found - out of scope here.)
+    ' view together. (Sort direction's own label has this same latent problem
+    ' and was fixed the same way, 2026-09-26 - see its own CritCell call
+    ' above, D10 rather than E10.)
     CritCell ws, "N10", "O10", "Show student/department name/no", "Yes shows them in the results and any export. No (the default) blanks them, for data protection."
     AddList ws.Range("O10"), """Yes"",""No""", "Show student/department name/no", "Yes shows them in the results and any export. No blanks them."
     If Len(Trim$(CStr(ws.Range("O10").Value))) = 0 Then ws.Range("O10").Value = "No"
