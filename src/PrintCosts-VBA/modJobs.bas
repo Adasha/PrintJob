@@ -229,10 +229,18 @@ Public Sub ClearAll(ByVal ws As Worksheet)
     AppOff
     LogAudit "Clear All", LocValue(ws, "LOC_Name"), n & " records deleted" & span
     UnlockSheet ws
-    For i = lo.ListRows.Count To 1 Step -1
+    ' Keep row 1 rather than deleting every row and calling ListRows.Add:
+    ' with DataBodyRange empty there is no existing row left for Excel to
+    ' copy cell formatting/row height from, so the freshly added row picks up
+    ' the header's shading and height instead of a normal data row's. Row 1
+    ' ClearContents'd (not deleted) keeps its own formatting intact and is
+    ' exactly the blank row AddPrintJob/AddCatalogRow already know to reuse
+    ' via the `Count = 1 And IsBlankRow(lo, 1)` check - and RowCount (modUtils)
+    ' already treats that state as zero records.
+    For i = lo.ListRows.Count To 2 Step -1
         lo.ListRows(i).Delete
     Next i
-    lo.ListRows.Add
+    lo.ListRows(1).Range.ClearContents
     RelockSheet ws
     AppOn
 
