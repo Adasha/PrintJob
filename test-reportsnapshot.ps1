@@ -40,11 +40,18 @@ try {
         $used = $wsCheck.UsedRange
         $rows = $used.Rows.Count
         $cols = $used.Columns.Count
+        # Stop at the table header ('Date/Time'), not at the first blank row -
+        # 2026-09-26's layout gaps (after the title, before the Chargeable/
+        # Still owed summary) put deliberate blank rows INSIDE the header
+        # block, so a blank row no longer means "header is over". Blank rows
+        # are skipped rather than added to Lines - callers check for presence
+        # of specific labels, not position, and gaps are asserted separately
+        # below by row number.
         $lines = New-Object System.Collections.Generic.List[string]
         for ($r = 1; $r -le $rows; $r++) {
             $a = [string]$wsCheck.Cells($r, 1).Value2
-            if ($a -eq '' -and [string]$wsCheck.Cells($r, 2).Value2 -eq '') { break }
-            $lines.Add($a)
+            if ($a -eq 'Date/Time') { break }
+            if ($a -ne '') { $lines.Add($a) }
             if ($lines.Count -gt 30) { break }
         }
         $result = [PSCustomObject]@{
@@ -71,15 +78,29 @@ try {
     try {
         Write-Host ("  header lines:`n    " + ($info.Lines -join "`n    "))
         Check ($info.Lines[0] -eq 'Print job report') "A1 is the report title"
-        Check ($info.Lines -contains 'Schema version') "Schema version line present"
         Check ($info.Lines -contains 'Site ID') "Site ID line present"
         Check ($info.Lines -contains 'Site name') "Site name line present"
         Check ($info.Lines -contains 'Date range') "Date range line present"
-        Check ($info.Lines -contains 'Generated') "Generated line present"
         Check ($info.Lines -contains 'Rows') "Rows line present"
+        Check ($info.Lines -contains 'Total chargeable') "Total chargeable line present"
+        Check ($info.Lines -contains 'Still owed') "Still owed line present"
+        Check (-not ($info.Lines -contains 'Schema version')) "Schema version NOT in the header block (moved below the table)"
+        Check (-not ($info.Lines -contains 'Generated')) "Generated NOT in the header block (moved below the table)"
         $printerLine = $info.Lines | Where-Object { $_ -like 'Printer:*' }
         Check ($null -ne $printerLine) "Printer promoted into the header ('$printerLine')"
         if ($printerLine) { Check ($printerLine -eq 'Printer: Epson SureColor P9500') "promoted value matches the filter ('$printerLine')" }
+
+        # 2026-09-26 layout gaps: a blank row below the title, and another
+        # above the Total chargeable/Still owed summary.
+        Check (([string]$info.Sheet.Cells(2, 1).Value2) -eq '' -and ([string]$info.Sheet.Cells(2, 2).Value2) -eq '') "row 2 is blank (gap below the title)"
+        $totalRow = 0
+        for ($r = 1; $r -le $info.Rows; $r++) {
+            if ([string]$info.Sheet.Cells($r, 1).Value2 -eq 'Total chargeable') { $totalRow = $r; break }
+        }
+        Check ($totalRow -gt 0) "Total chargeable row found (row $totalRow)"
+        if ($totalRow -gt 0) {
+            Check (([string]$info.Sheet.Cells($totalRow - 1, 1).Value2) -eq '' -and ([string]$info.Sheet.Cells($totalRow - 1, 2).Value2) -eq '') "row above Total chargeable is blank"
+        }
 
         # Find the table header row (first row containing 'Date/Time').
         $tableRow = 0
@@ -98,6 +119,22 @@ try {
         Check ($tableHeaders -contains 'Technician') "Technician column still present (was being silently dropped by the old .Hidden-bounded LastVisibleColumn)"
         Check ($tableHeaders -contains 'Notes') "Notes column still present (same old bug)"
         Check ($tableHeaders -contains 'Chargeable') "Chargeable column still present"
+
+        # 2026-09-26: Schema version / Generated moved below the table, with a
+        # blank gap, in low-contrast grey text (RGB(110,110,110) - same value
+        # in both directions since R=G=B, so no BGR/RGB ordering confusion).
+        $schemaRow = 0
+        for ($r = $tableRow; $r -le $info.Rows; $r++) {
+            if ([string]$info.Sheet.Cells($r, 1).Value2 -eq 'Schema version') { $schemaRow = $r; break }
+        }
+        Check ($schemaRow -gt 0) "Schema version found below the table (row $schemaRow)"
+        if ($schemaRow -gt 0) {
+            Check (([string]$info.Sheet.Cells($schemaRow - 1, 1).Value2) -eq '' -and ([string]$info.Sheet.Cells($schemaRow - 1, 2).Value2) -eq '') "row above Schema version is blank"
+            Check (([string]$info.Sheet.Cells($schemaRow + 1, 1).Value2) -eq 'Generated') "Generated immediately follows Schema version"
+            $expectedGrey = 110 + 110 * 256 + 110 * 65536
+            Check ($info.Sheet.Cells($schemaRow, 1).Font.Color -eq $expectedGrey) "Schema version is low-contrast grey"
+            Check ($info.Sheet.Cells($schemaRow + 1, 1).Font.Color -eq $expectedGrey) "Generated is low-contrast grey"
+        }
     }
     finally {
         $wbCheck.Close($false)

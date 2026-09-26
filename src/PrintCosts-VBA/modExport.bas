@@ -209,6 +209,7 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
     Dim path As String, wbOut As Workbook
     Dim promoted As Collection, header As Variant, full As Variant, tableHeaderRow As Long
     Dim totalChargeable As Double, stillOwed As Double
+    Dim footer As Variant, footerStartRow As Long
 
     On Error GoTo Fail
     lastCol = LastHeaderColumn(repWs, HDR_ROW)
@@ -255,6 +256,15 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
     full = CombineBlocks(header, block)
     tableHeaderRow = UBound(header, 1) + 2   ' + 1 blank separator + 1 to reach the header row itself
 
+    ' Schema version / Generated sit below the table, not above it - the
+    ' machine-facing provenance a person reads once, if ever, rather than the
+    ' report-about-what a person reads first. footerStartRow is the same
+    ' "+1 blank separator, +1 to reach the row itself" arithmetic as
+    ' tableHeaderRow above, measured from wherever the table actually ends.
+    footer = SnapshotFooterBlock()
+    footerStartRow = UBound(full, 1) + 2
+    full = CombineBlocks(full, footer)
+
     path = ReportSnapshotPath()
     If Len(path) = 0 Then
         Say "This report could not be exported.", _
@@ -282,6 +292,12 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
         ' The totals row appended by AppendTotalsRow - last row of the table.
         .Rows(tableHeaderRow + UBound(block, 1) - 1).Font.Bold = True
         .Rows(tableHeaderRow + UBound(block, 1) - 1).Borders(xlEdgeTop).Weight = xlThin
+        ' Schema version / Generated, below the table - de-emphasised the same
+        ' grey already used for read-only/reference text elsewhere in the
+        ' workbook (modReports.LegendRow's GreyText, CritCell's hint text),
+        ' so provenance reads as background information, not as part of the
+        ' report itself.
+        .Range(.Cells(footerStartRow, 1), .Cells(footerStartRow + UBound(footer, 1) - 1, 2)).Font.Color = RGB(110, 110, 110)
         .Columns.AutoFit
     End With
     wbOut.SaveAs path, XLSX_FORMAT
@@ -478,8 +494,15 @@ Private Function PromoteUniformColumns(ByVal block As Variant, ByRef promoted As
 End Function
 
 ' The metadata block written above the results table: what report this is,
-' what schema/site it came from, the date range covered, when it was made,
-' how many rows, then one line per field PromoteUniformColumns lifted out.
+' the site and date range it covers, how many rows, the Chargeable/Still owed
+' summary, then one line per field PromoteUniformColumns lifted out. Schema
+' version and Generated are provenance rather than report content, so they
+' live in SnapshotFooterBlock, below the table, instead.
+'
+' Blank rows after the title and after Rows are deliberate breathing room -
+' one groups "what this report is" (title), the next "what it covers" (site,
+' date range, row count), the next "what it totals to" (chargeable/owed) -
+' rather than nine lines running together as one undifferentiated list.
 Private Function SnapshotHeaderBlock(ByVal repWs As Worksheet, ByVal rng As Range, _
                                      ByVal n As Long, ByVal promoted As Collection, _
                                      ByVal TotalChargeable As Double, ByVal StillOwed As Double) As Variant
@@ -488,12 +511,12 @@ Private Function SnapshotHeaderBlock(ByVal repWs As Worksheet, ByVal rng As Rang
 
     ReDim a(1 To FIXED + promoted.Count, 1 To 2)
     a(1, 1) = "Print job report"
-    a(2, 1) = "Schema version": a(2, 2) = SCHEMA_VER
+    ' Row 2 left blank - gap below the title.
     a(3, 1) = "Site ID":        a(3, 2) = SettingText("SITE_ID", "SITE")
     a(4, 1) = "Site name":      a(4, 2) = SettingText("SITE_NAME")
     a(5, 1) = "Date range":     a(5, 2) = DateRangeText(repWs, rng)
-    a(6, 1) = "Generated":      a(6, 2) = Format$(Now, "yyyy-mm-dd hh:nn:ss")
-    a(7, 1) = "Rows":           a(7, 2) = n
+    a(6, 1) = "Rows":           a(6, 2) = n
+    ' Row 7 left blank - gap above the Chargeable/Still owed summary.
     ' Snag list item 1c's "total minus paid" reconciliation, restated here for
     ' the archive: Still owed is the same Chargeable total with paid charges
     ' removed, not a separate figure that could drift from it.
@@ -507,6 +530,18 @@ Private Function SnapshotHeaderBlock(ByVal repWs As Worksheet, ByVal rng As Rang
     Next item
 
     SnapshotHeaderBlock = a
+End Function
+
+' Provenance, below the table rather than above it - schema version and the
+' timestamp are for whatever machine or person re-reads this file later, not
+' part of the report a person opens it to read first. Font.Color is set by
+' the caller (ExportReportSnapshot), the same low-contrast grey already used
+' for read-only/reference text elsewhere in the workbook.
+Private Function SnapshotFooterBlock() As Variant
+    Dim a(1 To 2, 1 To 2) As Variant
+    a(1, 1) = "Schema version": a(1, 2) = SCHEMA_VER
+    a(2, 1) = "Generated":      a(2, 2) = Format$(Now, "yyyy-mm-dd hh:nn:ss")
+    SnapshotFooterBlock = a
 End Function
 
 ' The From/To filter boxes (B7/B8) name the range the user actually asked
