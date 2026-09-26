@@ -496,6 +496,15 @@ Public Sub BuildReports()
     BuildBreakdowns ws, ok
     FormatReports ws
 
+    ' The filter labels/hints (CritCell, above) were written and wrapped
+    ' before this point, while columns A/C/D/N still sat at Excel's
+    ' factory-default width - FormatReports's ColumnWidth calls, just above,
+    ' are the first thing to widen them. Re-fitting now, with the real widths
+    ' in place, is what keeps rows 5:10 sized for the text that actually
+    ' fits per line rather than for the cramped default - see CritCell's own
+    ' comment for how this was found.
+    ws.Rows("5:10").AutoFit
+
     ' Snag list item 2d: the results table keeps every column, but only the
     ' documented minimum stays visible by default - the rest are hidden
     ' (never removed), reusing the exact same technique as the location
@@ -862,22 +871,34 @@ Private Sub CritCell(ByVal ws As Worksheet, ByVal LabelAddr As String, ByVal Inp
         .Borders(xlEdgeLeft).Color = RGB(46, 100, 168)
         .Borders(xlEdgeLeft).Weight = xlMedium
     End With
+    ' Several of these hints land one column right of their input, in Qty or
+    ' Technician - both hidden by default - and are left UNWRITTEN rather
+    ' than merely unwrapped: tested directly (clearing these cells alone
+    ' dropped an inflated row from 101.5pt to 43.5pt, WrapText already False
+    ' on both), Excel's automatic row height still allocates space for a long
+    ' VALUE sitting in a to-be-hidden column, wrap or no wrap - only an empty
+    ' cell is guaranteed to cost nothing. These hints were already invisible
+    ' before this fix (their column has always been hidden), so nothing that
+    ' could previously be read is lost by not writing them at all.
     Set hintCell = ws.Range(InputAddr).Offset(0, 1)
-    hintCell.Value = Hint
-    hintCell.Font.Italic = True
-    hintCell.Font.Color = RGB(110, 110, 110)
-    ' Wrapped only when the hint's own column is one ApplyReportsMinimumColumns
-    ' keeps visible. Several of these hints land one column right of their
-    ' input, in Qty or Technician - both hidden by default - and Excel's
-    ' automatic row height counts every column's wrapped text, hidden or not
-    ' (confirmed: hiding a column afterwards does not shrink a row already
-    ' sized for it), so wrapping a cell nobody can see would only inflate the
-    ' row for text that isn't there.
-    If IsSafeReportsColumn(hintCell.Column) Then hintCell.WrapText = True
-    ' WrapText alone only takes effect once something recomputes the row's
-    ' height - AutoFit forces it immediately rather than leaving the wrapped
-    ' text clipped until the user resizes the row themselves.
-    ws.Range(LabelAddr).EntireRow.AutoFit
+    If IsSafeReportsColumn(hintCell.Column) Then
+        hintCell.Value = Hint
+        hintCell.Font.Italic = True
+        hintCell.Font.Color = RGB(110, 110, 110)
+        hintCell.WrapText = True
+    End If
+    ' No AutoFit here (deliberately - tried, then reverted). Columns A/C/D/N
+    ' are still at Excel's factory-default width at this point in the build:
+    ' the Reports sheet is recreated from scratch every run (SheetNamed adds
+    ' it fresh when missing), and FormatReports's own ColumnWidth calls, much
+    ' later in BuildReports, are the first thing to widen them. AutoFitting
+    ' now, against that pre-widen default, bakes in a height sized for a
+    ' column nothing will ever actually be that narrow at - confirmed
+    ' directly: identical content and font, only the column width different
+    ' (default vs. the real 14/22), gave 101.5pt instead of the correct
+    ' ~43.5pt - and nothing later re-fits a row once AutoFit has already set
+    ' its height. BuildReports does the one real AutoFit pass itself, right
+    ' after FormatReports sets the widths this depends on.
 End Sub
 
 Private Sub WriteHeaderRow(ByVal ws As Worksheet, ByVal RowNo As Long, ByVal Headers As Variant)
