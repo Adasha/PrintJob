@@ -296,10 +296,10 @@ Public Sub BuildReports()
     ' break every header-name lookup that already reads them, for no real
     ' capability gained), but the on-screen wording someone actually reads
     ' here reads sensibly either way.
-    CritCell ws, "A5", "B5", "Student/Department name", "Part of a name is enough - ""Smith"" finds ""Jane Smith""."
-    CritCell ws, "A6", "B6", "Student/Department number", "Matched exactly."
-    CritCell ws, "A7", "B7", "From date", "Pick a date, or leave blank for no start date."
-    CritCell ws, "A8", "B8", "To date", "Jobs logged at any time on this date are included."
+    CritCell ws, "A5", "B5", "Student/Department name"
+    CritCell ws, "A6", "B6", "Student/Department number"
+    CritCell ws, "A7", "B7", "From date"
+    CritCell ws, "A8", "B8", "To date"
     ws.Range("B7:B8").NumberFormat = "dd/mm/yyyy"
     AddDateValidation ws.Range("B7"), "From date", "Leave blank for no start date."
     AddDateValidation ws.Range("B8"), "To date", "Jobs logged at any time on this date are included."
@@ -315,10 +315,10 @@ Public Sub BuildReports()
     ' doing double duty as the label column instead. The one-column visual
     ' gap between groups is gone, but a readable label beats a tidy gap to a
     ' label nobody could see.
-    CritCell ws, "D5", "F5", "Technician", "Choose from the list, or leave blank for all."
-    CritCell ws, "D6", "F6", "Printer", "Choose from the list, or leave blank for all."
-    CritCell ws, "D7", "F7", "Paper stock", "Choose from the list, or leave blank for all."
-    CritCell ws, "D8", "F8", "Quantity", "Matched exactly."
+    CritCell ws, "D5", "F5", "Technician"
+    CritCell ws, "D6", "F6", "Printer"
+    CritCell ws, "D7", "F7", "Paper stock"
+    CritCell ws, "D8", "F8", "Quantity"
 
     ' Location (print room) filter, added 2026-09-25. N5/O5, not a third slot
     ' in the A-D/E-H groups: E/G/H (and I:M) are columns
@@ -329,14 +329,14 @@ Public Sub BuildReports()
     ' (Area m2 .. Disregarded, all hidden by default) already sitting blank
     ' between them and the Printer/Paper Stock/Quantity group as a natural
     ' gap - no existing cell moves.
-    CritCell ws, "N5", "O5", "Location (print room)", "Choose a print room, or leave blank for all."
+    CritCell ws, "N5", "O5", "Location (print room)"
 
     ' Sort by/direction sit below the filters, above the totals row (snag list
     ' item 3) rather than beside the Technician/Printer/Paper/Quantity group -
     ' row 9 is the "name and number don't match" warning below, so this is the
     ' one free row between the filters and Matching.
-    CritCell ws, "A10", "B10", "Sort by", "Leave blank for no sorting."
-    CritCell ws, "D10", "F10", "Sort direction", "Ascending is the default."
+    CritCell ws, "A10", "B10", "Sort by"
+    CritCell ws, "D10", "F10", "Sort direction"
     AddList ws.Range("B10"), QuotedList(hdrs), "Sort by", "Which column to sort the results by."
     AddList ws.Range("F10"), """Ascending"",""Descending""", "Sort direction", "Which way to sort."
 
@@ -357,8 +357,8 @@ Public Sub BuildReports()
     ' view together. (Sort direction's own label has this same latent problem
     ' and was fixed the same way, 2026-09-26 - see its own CritCell call
     ' above, D10 rather than E10.)
-    CritCell ws, "N10", "O10", "Show student/department name/no", "Yes shows them in the results and any export. No (the default) blanks them, for data protection."
-    AddList ws.Range("O10"), """Yes"",""No""", "Show student/department name/no", "Yes shows them in the results and any export. No blanks them."
+    CritCell ws, "N10", "O10", "Show names"
+    AddList ws.Range("O10"), """Yes"",""No""", "Show names", "Yes shows the student/department name and number in the results and any export. No (the default) blanks them, for data protection."
     If Len(Trim$(CStr(ws.Range("O10").Value))) = 0 Then ws.Range("O10").Value = "No"
 
     ' Spec 14.1: both criteria given, neither matching the other.
@@ -842,26 +842,16 @@ Private Sub MatchTotal(ByVal ws As Worksheet, ByVal ColLetter As String, ByVal L
     ws.Range(ColLetter & "13").Font.Bold = True
 End Sub
 
-' Columns ApplyReportsMinimumColumns keeps visible (Date/Time, Location,
-' Student name, Student no, Paper stock, Chargeable, Paid = A,B,C,D,F,N,O),
-' by index rather than by header-name lookup - row 15's headers haven't been
-' written yet when CritCell runs (WriteHeaderRow follows much later in
-' BuildReports), so there is nothing to look up by name this early. Mirrors
-' the same column set MatchTotal's own comment already names.
-Private Function IsSafeReportsColumn(ByVal ColIndex As Long) As Boolean
-    Dim safeCols As Variant, i As Long
-    safeCols = Array(1, 2, 3, 4, 6, 14, 15) ' A, B, C, D, F, N, O
-    For i = LBound(safeCols) To UBound(safeCols)
-        If ColIndex = safeCols(i) Then
-            IsSafeReportsColumn = True
-            Exit Function
-        End If
-    Next i
-End Function
-
+' Label + input formatting for one filter box. Used to also write a static
+' hint sentence one column right of the input ("Choose from the list, or
+' leave blank for all.", etc.) - removed 2026-09-26: a sentence a user reads
+' once and never again is pure visual clutter permanently, not help, and it
+' was also the whole reason these rows needed wrapping/AutoFit in the first
+' place. The same guidance still exists as an on-demand tooltip (AddList's
+' own Title/Msg, AddDateValidation) that shows only when the cell is
+' actually selected, instead of taking up screen space forever.
 Private Sub CritCell(ByVal ws As Worksheet, ByVal LabelAddr As String, ByVal InputAddr As String, _
-                     ByVal Label As String, ByVal Hint As String)
-    Dim hintCell As Range
+                     ByVal Label As String)
     ws.Range(LabelAddr).Value = Label
     ws.Range(LabelAddr).Font.Bold = True
     ws.Range(LabelAddr).WrapText = True
@@ -871,34 +861,13 @@ Private Sub CritCell(ByVal ws As Worksheet, ByVal LabelAddr As String, ByVal Inp
         .Borders(xlEdgeLeft).Color = RGB(46, 100, 168)
         .Borders(xlEdgeLeft).Weight = xlMedium
     End With
-    ' Several of these hints land one column right of their input, in Qty or
-    ' Technician - both hidden by default - and are left UNWRITTEN rather
-    ' than merely unwrapped: tested directly (clearing these cells alone
-    ' dropped an inflated row from 101.5pt to 43.5pt, WrapText already False
-    ' on both), Excel's automatic row height still allocates space for a long
-    ' VALUE sitting in a to-be-hidden column, wrap or no wrap - only an empty
-    ' cell is guaranteed to cost nothing. These hints were already invisible
-    ' before this fix (their column has always been hidden), so nothing that
-    ' could previously be read is lost by not writing them at all.
-    Set hintCell = ws.Range(InputAddr).Offset(0, 1)
-    If IsSafeReportsColumn(hintCell.Column) Then
-        hintCell.Value = Hint
-        hintCell.Font.Italic = True
-        hintCell.Font.Color = RGB(110, 110, 110)
-        hintCell.WrapText = True
-    End If
-    ' No AutoFit here (deliberately - tried, then reverted). Columns A/C/D/N
+    ' No AutoFit here (deliberately - tried, then reverted). Columns A/D/N
     ' are still at Excel's factory-default width at this point in the build:
     ' the Reports sheet is recreated from scratch every run (SheetNamed adds
     ' it fresh when missing), and FormatReports's own ColumnWidth calls, much
-    ' later in BuildReports, are the first thing to widen them. AutoFitting
-    ' now, against that pre-widen default, bakes in a height sized for a
-    ' column nothing will ever actually be that narrow at - confirmed
-    ' directly: identical content and font, only the column width different
-    ' (default vs. the real 14/22), gave 101.5pt instead of the correct
-    ' ~43.5pt - and nothing later re-fits a row once AutoFit has already set
-    ' its height. BuildReports does the one real AutoFit pass itself, right
-    ' after FormatReports sets the widths this depends on.
+    ' later in BuildReports, are the first thing to widen them. BuildReports
+    ' does the one real AutoFit pass itself, right after FormatReports sets
+    ' the widths this depends on.
 End Sub
 
 Private Sub WriteHeaderRow(ByVal ws As Worksheet, ByVal RowNo As Long, ByVal Headers As Variant)
