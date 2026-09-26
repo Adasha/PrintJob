@@ -204,8 +204,8 @@ Private Function Criteria() As String
     ' of TRUE the right height, and every criterion below multiplies into it.
     s = "(" & C("Job ID") & "<>"""")"
 
-    s = s & "*IF($B$5="""",TRUE,ISNUMBER(SEARCH($B$5," & C("Student Name") & ")))"
-    s = s & "*IF($B$6="""",TRUE,TRIM(" & C("Student No") & "&"""")=TRIM($B$6&""""))"
+    s = s & "*IF($B$4="""",TRUE,ISNUMBER(SEARCH($B$4," & C("Student Name") & ")))"
+    s = s & "*IF($B$5="""",TRUE,TRIM(" & C("Student No") & "&"""")=TRIM($B$5&""""))"
 
     ' Dates are coerced with *1 on BOTH sides. A user typing 16/09/2026 into
     ' an unformatted cell can leave text there, and number >= text compares as
@@ -215,6 +215,10 @@ Private Function Criteria() As String
     '
     ' The column holds date AND time, so the end test is < end+1: otherwise a
     ' job logged at 16:30 on the closing date falls outside its own range.
+    '
+    ' $B$7/$B$8, not $B$6/$B$7: row 6 is deliberately blank (2026-09-26) - a
+    ' gap between the Student/Department pair above and the date pair here,
+    ' the same row the date boxes already sat at before that gap was added.
     s = s & "*IF($B$7="""",TRUE,IF(ISERROR($B$7*1),TRUE," & _
         "IFERROR(" & C("Date/Time") & "*1,0)>=$B$7*1))"
     s = s & "*IF($B$8="""",TRUE,IF(ISERROR($B$8*1),TRUE," & _
@@ -223,22 +227,22 @@ Private Function Criteria() As String
     ' Technician, Printer and Paper Stock are dropdowns (RefreshReportFilterLists),
     ' not free text, so an exact match is what "choose one from the list"
     ' means - unlike Student name, there is no fragment to search for.
-    s = s & "*IF($F$5="""",TRUE," & C("Technician") & "=$F$5)"
-    s = s & "*IF($F$6="""",TRUE," & C("Printer") & "=$F$6)"
-    s = s & "*IF($F$7="""",TRUE," & C("Paper Stock") & "=$F$7)"
+    s = s & "*IF($F$4="""",TRUE," & C("Technician") & "=$F$4)"
+    s = s & "*IF($F$5="""",TRUE," & C("Printer") & "=$F$5)"
+    s = s & "*IF($F$6="""",TRUE," & C("Paper Stock") & "=$F$6)"
 
     ' Quantity: exact match, blank ignored, *1-coerced the same way the date
     ' boxes are so a value left as text by an unformatted cell is treated as
     ' no filter rather than as a quantity of zero.
-    s = s & "*IF($F$8="""",TRUE,IF(ISERROR($F$8*1),TRUE," & _
-        "IFERROR(" & C("Qty") & "*1,0)=$F$8*1))"
+    s = s & "*IF($F$7="""",TRUE,IF(ISERROR($F$7*1),TRUE," & _
+        "IFERROR(" & C("Qty") & "*1,0)=$F$7*1))"
 
     ' Location (print room), added 2026-09-25 - a dropdown of registered print
     ' rooms (RefreshReportFilterLists, AllLocationCodes), same exact-match
-    ' treatment as Technician/Printer/Paper Stock above. Parked at $O$5 (the
-    ' N5/O5 "third group" - see its CritCell call site below) rather than
-    ' extending the A-H layout rows 5-8 already fill.
-    s = s & "*IF($O$5="""",TRUE," & C("Location") & "=$O$5)"
+    ' treatment as Technician/Printer/Paper Stock above. Parked at $O$4 (the
+    ' N4/O4 "third group" - see its CritCell call site below) rather than
+    ' extending the A-H layout rows 4-8 already fill.
+    s = s & "*IF($O$4="""",TRUE," & C("Location") & "=$O$4)"
 
     Criteria = s
 End Function
@@ -296,8 +300,12 @@ Public Sub BuildReports()
     ' break every header-name lookup that already reads them, for no real
     ' capability gained), but the on-screen wording someone actually reads
     ' here reads sensibly either way.
-    CritCell ws, "A5", "B5", "Student/Department name"
-    CritCell ws, "A6", "B6", "Student/Department number"
+    CritCell ws, "A4", "B4", "Student/Department name"
+    CritCell ws, "A5", "B5", "Student/Department number"
+    ' Row 6 left blank (2026-09-26) - a gap between the Student/Department
+    ' pair above and the date pair below, freed up by trimming the two-row
+    ' gap under the title (rows 3-4) to one (row 3 only) rather than growing
+    ' the sheet by a row overall.
     CritCell ws, "A7", "B7", "From date"
     CritCell ws, "A8", "B8", "To date"
     ws.Range("B7:B8").NumberFormat = "dd/mm/yyyy"
@@ -307,7 +315,7 @@ Public Sub BuildReports()
     ' Labels at D, not E (2026-09-26 fix): E is "Printer" in the results
     ' table, one of the columns ApplyReportsMinimumColumns hides by header
     ' name - and that Hidden reaches every row on the sheet, not just the
-    ' results table, so a label parked at E5:E8 rendered invisible under the
+    ' results table, so a label parked at E4:E7 rendered invisible under the
     ' default view even though its own input cell (F, "Paper stock", always
     ' kept) showed fine with nothing beside it. D ("Student no") is one of
     ' the kept columns and unused on these rows - previously the blank
@@ -315,12 +323,17 @@ Public Sub BuildReports()
     ' doing double duty as the label column instead. The one-column visual
     ' gap between groups is gone, but a readable label beats a tidy gap to a
     ' label nobody could see.
-    CritCell ws, "D5", "F5", "Technician"
-    CritCell ws, "D6", "F6", "Printer"
-    CritCell ws, "D7", "F7", "Paper stock"
-    CritCell ws, "D8", "F8", "Quantity"
+    CritCell ws, "D4", "F4", "Technician"
+    CritCell ws, "D5", "F5", "Printer"
+    CritCell ws, "D6", "F6", "Paper stock"
+    CritCell ws, "D7", "F7", "Quantity"
+    ' Row 8 left blank (2026-09-26) - the gap freed up under the title (see
+    ' above) sits below Quantity on this side, not between two of these four
+    ' fields, so Technician/Printer/Paper Stock/Quantity stay one contiguous
+    ' block rather than being split the way the Student/Department pair and
+    ' the date pair now are on the left.
 
-    ' Location (print room) filter, added 2026-09-25. N5/O5, not a third slot
+    ' Location (print room) filter, added 2026-09-25. N4/O4, not a third slot
     ' in the A-D/E-H groups: E/G/H (and I:M) are columns
     ' ApplyReportsMinimumColumns hides entirely by results-header name, the
     ' same trap O10's own 2026-09-22 comment already names - a label or input
@@ -329,7 +342,7 @@ Public Sub BuildReports()
     ' (Area m2 .. Disregarded, all hidden by default) already sitting blank
     ' between them and the Printer/Paper Stock/Quantity group as a natural
     ' gap - no existing cell moves.
-    CritCell ws, "N5", "O5", "Location (print room)"
+    CritCell ws, "N4", "O4", "Location (print room)"
 
     ' Sort by/direction sit below the filters, above the totals row (snag list
     ' item 3) rather than beside the Technician/Printer/Paper/Quantity group -
@@ -362,7 +375,7 @@ Public Sub BuildReports()
     If Len(Trim$(CStr(ws.Range("O10").Value))) = 0 Then ws.Range("O10").Value = "No"
 
     ' Spec 14.1: both criteria given, neither matching the other.
-    ws.Range("A9").Formula2 = "=IF(OR($B$5="""",$B$6=""""),""""," & _
+    ws.Range("A9").Formula2 = "=IF(OR($B$4="""",$B$5=""""),""""," & _
         "IF(IFERROR(ROWS(FILTER(" & C("Job ID") & "," & ok & ")),0)=0," & _
         """That name and that number do not appear together on any record - check both."",""""))"
     ws.Range("A9").Font.Color = RGB(176, 0, 32)
@@ -500,10 +513,10 @@ Public Sub BuildReports()
     ' before this point, while columns A/C/D/N still sat at Excel's
     ' factory-default width - FormatReports's ColumnWidth calls, just above,
     ' are the first thing to widen them. Re-fitting now, with the real widths
-    ' in place, is what keeps rows 5:10 sized for the text that actually
+    ' in place, is what keeps rows 4:10 sized for the text that actually
     ' fits per line rather than for the cramped default - see CritCell's own
     ' comment for how this was found.
-    ws.Rows("5:10").AutoFit
+    ws.Rows("4:10").AutoFit
 
     ' Snag list item 2d: the results table keeps every column, but only the
     ' documented minimum stays visible by default - the rest are hidden
@@ -527,7 +540,7 @@ Public Sub BuildReports()
     ' without losing them. Grouping needs the sheet unprotected, same reason
     ' RefreshReportFilterLists' own ApplyTo calls do their own Unlock/Relock.
     UnlockSheet ws
-    ws.Rows("5:10").Group
+    ws.Rows("4:10").Group
     RelockSheet ws
 End Sub
 
@@ -1022,16 +1035,16 @@ Public Sub RefreshReportFilterLists(ByVal ws As Worksheet)
     ' Student name/no (snag list item 3): a dropdown of what has been
     ' recorded, for browsing and autocomplete - Strict:=False so it never
     ' blocks a fragment search or a number not yet logged.
-    ApplyTo ws, ws.Range("B5"), DistinctValues("Student Name"), "REP|StudentName", _
+    ApplyTo ws, ws.Range("B4"), DistinctValues("Student Name"), "REP|StudentName", _
         "Student/Department name", "Pick a recorded name, or type any text - part of a name is enough.", Strict:=False
-    ApplyTo ws, ws.Range("B6"), DistinctValues("Student No"), "REP|StudentNo", _
+    ApplyTo ws, ws.Range("B5"), DistinctValues("Student No"), "REP|StudentNo", _
         "Student/Department number", "Pick a recorded number, or type one that hasn't been logged yet.", Strict:=False
 
-    ApplyTo ws, ws.Range("F5"), DistinctValues("Technician"), "REP|Technician", _
+    ApplyTo ws, ws.Range("F4"), DistinctValues("Technician"), "REP|Technician", _
         "Technician", "Choose a technician, or leave blank to include all."
-    ApplyTo ws, ws.Range("F6"), AllActivePrinters(), "REP|Printer", _
+    ApplyTo ws, ws.Range("F5"), AllActivePrinters(), "REP|Printer", _
         "Printer", "Choose a printer, or leave blank to include all."
-    ApplyTo ws, ws.Range("F7"), AllActiveStocks(), "REP|Paper stock", _
+    ApplyTo ws, ws.Range("F6"), AllActiveStocks(), "REP|Paper stock", _
         "Paper stock", "Choose a paper stock, or leave blank to include all."
 
     ' Location (print room): every registered print room (modRegistry.
@@ -1039,7 +1052,7 @@ Public Sub RefreshReportFilterLists(ByVal ws As Worksheet)
     ' same "every catalogue entry" behaviour as Printer/Paper Stock above
     ' (AllActivePrinters/AllActiveStocks), so a room added today is
     ' immediately choosable here.
-    ApplyTo ws, ws.Range("O5"), AllLocationCodes(), "REP|Location", _
+    ApplyTo ws, ws.Range("O4"), AllLocationCodes(), "REP|Location", _
         "Location (print room)", "Choose a print room, or leave blank to include all."
 End Sub
 

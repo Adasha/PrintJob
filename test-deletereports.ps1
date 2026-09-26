@@ -32,10 +32,10 @@ try {
     $loAnnexe = $annexe.ListObjects('tblJobs_ANNEX')
 
     Write-Host '=== Export report ==='
-    # Filter to one printer (F6 is now a catalogue-wide exact-match dropdown)
+    # Filter to one printer (F5 is now a catalogue-wide exact-match dropdown)
     # so this is a genuine subset, not the whole workbook - exercises the
     # filtered-snapshot path.
-    $rep.Range('F6').Value2 = 'Epson SureColor P9500'
+    $rep.Range('F5').Value2 = 'Epson SureColor P9500'
     $xl.CalculateFullRebuild()
     $beforeJobs = [int]$rep.Range('B13').Text
     Write-Host ("  filtered to Printer = 'Epson SureColor P9500': {0} jobs" -f $beforeJobs)

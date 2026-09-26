@@ -64,7 +64,7 @@ try {
     }
 
     Write-Host '=== Filtered to one printer: Printer (and Location, single-room workbook) promote ==='
-    $rep.Range('F6').Value2 = 'Epson SureColor P9500'
+    $rep.Range('F5').Value2 = 'Epson SureColor P9500'
     $xl.CalculateFullRebuild()
     $rep.Activate()
     $xl.Run('btnExportReport')
@@ -153,7 +153,7 @@ try {
     # not a product bug - Export report is never run twice a second in
     # practice).
     Remove-Item $xlsx1.FullName -Force -ErrorAction SilentlyContinue
-    $rep.Range('F6').Value2 = ''
+    $rep.Range('F5').Value2 = ''
     $xl.CalculateFullRebuild()
     $rep.Activate()
     $xl.Run('btnExportReport')
