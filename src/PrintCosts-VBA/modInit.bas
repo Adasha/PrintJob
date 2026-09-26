@@ -170,11 +170,20 @@ Public Sub InitialiseWorkbook()
             DrawSmall ws, 3, 18, "-", "btnRemoveRowConsumable", 24
             SetFreeze ws, ""
         ElseIf StrComp(ws.Name, "Reports", vbTextCompare) = 0 Then
-            ' Rows 1-3, column F: clear of the title text (A1:A2) and above
-            ' the filter/sort boxes (rows 5+), so both buttons sit inside the
-            ' first screenful on any normal window - no scrolling needed.
-            DrawOne ws, 1, 6, "Export report...", "btnExportReport", 140
-            DrawOne ws, 3, 6, "Delete visible records...", "btnDeleteVisibleReports", 140
+            ' Rows 1-3, column T (2026-09-26, moved from F): F sat directly
+            ' above the results table/filter block (A:Q), so the buttons
+            ' floated over the top of that whole area rather than beside it.
+            ' T is clear on these rows - the breakdowns BuildBreakdowns draws
+            ' there ("By print room") don't start until row 15 - and is
+            ' already the column the breakdowns themselves use, so the
+            ' buttons now sit in the same right-hand strip as that content
+            ' instead of overlapping the table.
+            ' "DelVis" tag: "btnDeleteVisibleReports" (23 chars) + "_3_20"
+            ' (5, now two-digit) would put the shape's own Name at exactly
+            ' 32 characters - silently truncated by Excel/COM, per DrawOne's
+            ' own comment - without shortening what actually runs on click.
+            DrawOne ws, 1, 20, "Export report...", "btnExportReport", 140
+            DrawOne ws, 3, 20, "Delete visible records...", "btnDeleteVisibleReports", 140, "DelVis"
             ' Freezes above the print-job results table (row 15) so its
             ' header row and the filter/totals area above stay visible while
             ' scrolling through matches - snag list item 9.
@@ -773,11 +782,22 @@ Private Function CountButtons() As Long
     CountButtons = t
 End Function
 
-Public Sub DrawOne(ByVal ws As Worksheet, ByVal RowNo As Long, ByVal ColNo As Long, ByVal Caption As String, ByVal Macro As String, ByVal W As Single)
+' NameTag, optional: the shape's own identifying Name is BTN_TAG & NameTag
+' (or & Macro, when NameTag is blank) & "_" & RowNo & "_" & ColNo, capped at
+' 31 characters by Excel/COM with no error at 32+ (SetButtonName's own
+' comment; caught before for "btnToggleSettingsSheets" at row/col 5/15).
+' Macro itself - what actually runs on click, via .OnAction below - is never
+' shortened; NameTag only trims the internal uniqueness label for an
+' already-long macro name moved to a two-digit column, without renaming the
+' real Sub everywhere else it's referenced (modMain, test scripts).
+Public Sub DrawOne(ByVal ws As Worksheet, ByVal RowNo As Long, ByVal ColNo As Long, ByVal Caption As String, ByVal Macro As String, ByVal W As Single, Optional ByVal NameTag As String = "")
     Dim b As Button, c As Range
+    Dim tag As String
+    tag = Macro
+    If Len(NameTag) > 0 Then tag = NameTag
     Set c = ws.Cells(RowNo, ColNo)
     Set b = ws.Buttons.Add(c.Left, c.Top, W, 22)
-    SetButtonName b, BTN_TAG & Macro & "_" & RowNo & "_" & ColNo
+    SetButtonName b, BTN_TAG & tag & "_" & RowNo & "_" & ColNo
     b.Caption = Caption
     b.OnAction = Macro
     b.Characters.Font.Size = 10
