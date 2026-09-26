@@ -29,6 +29,15 @@ Fail:
     ReportError "Now"
 End Sub
 
+Public Sub btnRepeatJob()
+    On Error GoTo Fail
+    If Not RequireLocation Then Exit Sub
+    RepeatJob ActiveSheet
+    Exit Sub
+Fail:
+    ReportError "Repeat Job"
+End Sub
+
 Public Sub btnRemoveRow()
     On Error GoTo Fail
     If Not RequireLocation Then Exit Sub

@@ -57,6 +57,77 @@ Public Sub AddPrintJob(ByVal ws As Worksheet)
     CellIn(lo, n, "Student Name").Select
 End Sub
 
+' Repeat Job (direct user request): duplicates the selected row into a new
+' one rather than starting from the location's own batch defaults the way
+' AddPrintJob does - same Student Name/No, Printer, Paper Stock, Unit, Qty,
+' Print Width mm and both Disregard flags. Job ID, Date/Time and Paid are
+' always reset (a copy is its own job, logged now, unpaid), Technician
+' follows the copy-not-reference default AddPrintJob already uses (spec
+' 9.2/10.10), and a note records what it was copied from.
+'
+' Every value carried over came from a row that was already a real, valid
+' job a moment ago, so unlike AddPrintJob there is no printer/paper
+' compatibility re-check to make. StampRow still runs, though - Application.
+' EnableEvents is off for this whole operation (AppOff), so nothing else
+' will re-cost the copy at today's rates the way OnPrinterChanged/
+' OnStockChanged would if these same values had just been typed by hand.
+Public Sub RepeatJob(ByVal ws As Worksheet)
+    Dim lo As ListObject, srcRow As Long, r As ListRow, n As Long
+    Dim oldJobId As String, srcNotes As String
+
+    Set lo = JobsTable(ws)
+    If lo Is Nothing Then
+        Say "This sheet has no print job table.", "Repeat Job only works on a print room sheet.", "Switch to a print room tab and try again."
+        Exit Sub
+    End If
+
+    srcRow = SelectedRow(ws, lo)
+    If srcRow = 0 Then Exit Sub
+
+    oldJobId = Trim$(CStr(CellIn(lo, srcRow, "Job ID").Value))
+    If Len(oldJobId) = 0 Then
+        Say "This row has no print job to repeat.", "Repeat Job duplicates an existing print job, and the selected row is blank.", "Click a print job you want to repeat, then try again."
+        Exit Sub
+    End If
+
+    AppOff
+    UnlockSheet ws
+    Set r = lo.ListRows.Add
+    n = r.Index
+
+    CellIn(lo, n, "Student Name").Value = CellIn(lo, srcRow, "Student Name").Value
+    CellIn(lo, n, "Student No").Value = CellIn(lo, srcRow, "Student No").Value
+    CellIn(lo, n, "Printer").Value = CellIn(lo, srcRow, "Printer").Value
+    CellIn(lo, n, "Paper Stock").Value = CellIn(lo, srcRow, "Paper Stock").Value
+    CellIn(lo, n, "Unit").Value = CellIn(lo, srcRow, "Unit").Value
+    CellIn(lo, n, "Qty").Value = CellIn(lo, srcRow, "Qty").Value
+    CellIn(lo, n, "Print Width mm").Value = CellIn(lo, srcRow, "Print Width mm").Value
+    CellIn(lo, n, "Disregard Paper").Value = CellIn(lo, srcRow, "Disregard Paper").Value
+    CellIn(lo, n, "Disregard Consumable").Value = CellIn(lo, srcRow, "Disregard Consumable").Value
+
+    CellIn(lo, n, "Job ID").Value = NewJobId(ws, lo)
+    CellIn(lo, n, "Date/Time").Value = Now
+    CellIn(lo, n, "Paid").Value = "No"
+
+    CellIn(lo, n, "Technician").ClearContents
+    CopyDefault ws, "LOC_DefTech", CellIn(lo, n, "Technician")
+
+    srcNotes = Trim$(CStr(CellIn(lo, srcRow, "Notes").Value))
+    If Len(srcNotes) > 0 Then
+        CellIn(lo, n, "Notes").Value = srcNotes & vbCrLf & "Copy of " & oldJobId
+    Else
+        CellIn(lo, n, "Notes").Value = "Copy of " & oldJobId
+    End If
+
+    RelockSheet ws
+    BindStockCell ws, lo, n
+    BindPrinterCell ws, lo, n
+    StampRow ws, n
+    AppOn
+
+    CellIn(lo, n, "Student Name").Select
+End Sub
+
 Private Function DefaultOrNo(ByVal ws As Worksheet, ByVal RefName As String) As String
     Dim v As String
     v = LocValue(ws, RefName)

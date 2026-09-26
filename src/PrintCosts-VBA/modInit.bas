@@ -233,8 +233,16 @@ Private Sub DrawLocationButtons(ByVal ws As Worksheet)
     '    reduced-view setting hides - general protection, since
     '    SET_LOC_REDUCED_COLUMNS is user-editable and a fixed anchor choice
     '    can't stay safe forever (§4.1's own "not a general solution" note).
+    ' Three buttons, two columns apart each (comment above) - Repeat Job
+    ' slots into the same "skip a column, land the next button's overflow
+    ' harmlessly on empty space" pattern Add Print Job/Now already use, one
+    ' step further right: column 3 (Student No) rather than 5 (Printer) is
+    ' what keeps it nestled between the other two instead of past both of
+    ' them. Now moves from 3 to 5 to make room - its own 110pt overflows
+    ' column 5 (Printer) the same harmless way it used to overflow column 3.
     DrawOne ws, 11, 1, "Add Print Job", "btnAddPrintJob", 110
-    DrawOne ws, 11, 3, "Now", "btnNow", 110
+    DrawOne ws, 11, 3, "Repeat Job", "btnRepeatJob", 110
+    DrawOne ws, 11, 5, "Now", "btnNow", 110
 
     Dim c As Long
     For c = 1 To 15
@@ -1152,7 +1160,8 @@ End Sub
 ' preferred column once reduced view is switched off again.
 Private Sub RelocateAtRiskButtons(ByVal ws As Worksheet, ByVal lo As ListObject)
     RelocateButton ws, lo, "btnAddPrintJob", "Date/Time"
-    RelocateButton ws, lo, "btnNow", "Student No"
+    RelocateButton ws, lo, "btnRepeatJob", "Student No"
+    RelocateButton ws, lo, "btnNow", "Printer"
     RelocateButton ws, lo, "btnClearDefaults", "Technician"
 End Sub
 
