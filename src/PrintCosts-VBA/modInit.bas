@@ -1214,9 +1214,12 @@ End Function
 
 ' Narrower default widths for the columns that need the least room to show
 ' their actual content, freeing screen space for Student Name/Notes/etc.
-' Date/Time and Job ID get a fixed 100px rather than a cap - both hold
-' content that genuinely needs it (a full "dd/mm/yyyy hh:mm" stamp, or a
-' multi-digit correlation ID), so there is no narrower "good enough" to allow.
+' Job ID gets a fixed 100px rather than a cap - it holds a multi-digit
+' correlation ID that genuinely needs it, so there is no narrower "good
+' enough" to allow. Date/Time (180px), Print Width mm (120px) and the two
+' Disregard columns (130px each) are likewise fixed widths, not caps - a full
+' "dd/mm/yyyy hh:mm" stamp and the Yes/No dropdown labels were both getting
+' clipped at their old, narrower widths.
 ' modUtils.ColWidthForPx does the character-unit conversion; a header not
 ' present (e.g. a much older sheet mid-migration) is skipped via ColIdx's own
 ' error rather than aborting the rest.
@@ -1231,7 +1234,10 @@ Public Sub ApplyJobColumnWidths(ByVal ws As Worksheet)
     SetJobColWidth lo, "Area m2", ColWidthForPx(60)
     SetJobColWidth lo, "Paid", ColWidthForPx(40)
     SetJobColWidth lo, "Job ID", ColWidthForPx(100)
-    SetJobColWidth lo, "Date/Time", ColWidthForPx(100)
+    SetJobColWidth lo, "Date/Time", ColWidthForPx(180)
+    SetJobColWidth lo, "Print Width mm", ColWidthForPx(120)
+    SetJobColWidth lo, "Disregard Paper", ColWidthForPx(130)
+    SetJobColWidth lo, "Disregard Consumable", ColWidthForPx(130)
     RelockSheet ws
 End Sub
 

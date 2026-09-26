@@ -612,7 +612,7 @@ Private Sub FormatReports(ByVal ws As Worksheet)
     ws.Columns("A:Q").ColumnWidth = 14
     ws.Columns("B:F").ColumnWidth = 22
     ws.Columns("Q").ColumnWidth = 30
-    ws.Columns("A").ColumnWidth = ColWidthForPx(100)  ' Date/Time, 100px
+    ws.Columns("A").ColumnWidth = ColWidthForPx(180)  ' Date/Time, 180px
     ws.Columns("T").ColumnWidth = 22
     ws.Columns("X").ColumnWidth = 22
     ws.Rows(15).Font.Bold = True
