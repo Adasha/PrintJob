@@ -119,6 +119,7 @@ try {
         Check ($tableHeaders -contains 'Technician') "Technician column still present (was being silently dropped by the old .Hidden-bounded LastVisibleColumn)"
         Check ($tableHeaders -contains 'Notes') "Notes column still present (same old bug)"
         Check ($tableHeaders -contains 'Chargeable') "Chargeable column still present"
+        Check (-not ($tableHeaders -contains 'Area m2')) "Area m2 excluded from the export by default"
 
         # 2026-09-26: Schema version / Generated moved below the table, with a
         # blank gap, in low-contrast grey text (RGB(110,110,110) - same value
@@ -179,7 +180,12 @@ try {
         }
         Write-Host ("  table columns: " + ($tableHeaders2 -join ', '))
         Check ($tableHeaders2 -contains 'Printer') "Printer column present when unfiltered"
-        Check ($tableHeaders2.Count -eq 17) "all 17 result columns present (got $($tableHeaders2.Count))"
+        # 16, not 17: Area m2 is excluded from the export by default
+        # (2026-09-26, modExport.RemoveExcludedColumns) - derivable from Qty
+        # and the paper's own dimensions, not something read directly off an
+        # export. Still present on the live Reports sheet itself.
+        Check (-not ($tableHeaders2 -contains 'Area m2')) "Area m2 excluded from the export by default"
+        Check ($tableHeaders2.Count -eq 16) "all 16 exported result columns present (got $($tableHeaders2.Count))"
     }
     finally {
         $wbCheck2.Close($false)

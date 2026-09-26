@@ -235,6 +235,7 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
     n = rng.Rows.Count
 
     block = SnapshotBlock(repWs, rng, HDR_ROW, lastCol, n)
+    block = RemoveExcludedColumns(block)
     ' Snag list items 2b/2c: a field that holds the SAME value on every
     ' exported row is a fact about the whole report, not a per-row detail -
     ' promoted into the header block and dropped from the table so the file
@@ -345,6 +346,64 @@ Private Function LastHeaderColumn(ByVal ws As Worksheet, ByVal HdrRow As Long) A
         If c > 100 Then Exit Do
     Loop
     LastHeaderColumn = last
+End Function
+
+' Columns left out of the exported table by default - just Area m2 for now,
+' since it is derivable from Qty and the paper's own dimensions and isn't
+' something anyone reads directly off an export. Not user-configurable yet:
+' a fixed list here, same status as ApplyReportsMinimumColumns' own "keep"
+' set on the live Reports sheet (modReports) - a documented future
+' enhancement is letting someone choose which columns an export includes,
+' rather than a Settings toggle built now.
+Private Function ExcludedExportColumns() As Variant
+    ExcludedExportColumns = Array("Area m2")
+End Function
+
+Private Function IsExcludedColumn(ByVal Header As String, ByVal excluded As Variant) As Boolean
+    Dim i As Long
+    For i = LBound(excluded) To UBound(excluded)
+        If StrComp(Header, CStr(excluded(i)), vbTextCompare) = 0 Then
+            IsExcludedColumn = True
+            Exit Function
+        End If
+    Next i
+End Function
+
+' Drops the columns ExcludedExportColumns names and closes the gap, rather
+' than leaving a blank column behind - the same "keep" boolean-array
+' technique PromoteUniformColumns (below) already uses to drop a column.
+' Runs before PromoteUniformColumns: a column dropped here is simply gone,
+' never a promotion candidate either.
+Private Function RemoveExcludedColumns(ByVal block As Variant) As Variant
+    Dim excluded As Variant, c As Long, r As Long
+    Dim rows As Long, cols As Long, keep() As Boolean, nKeep As Long, outCol As Long
+    Dim out() As Variant
+
+    excluded = ExcludedExportColumns()
+    rows = UBound(block, 1)
+    cols = UBound(block, 2)
+    ReDim keep(1 To cols)
+    nKeep = 0
+    For c = 1 To cols
+        keep(c) = Not IsExcludedColumn(CStr(block(1, c)), excluded)
+        If keep(c) Then nKeep = nKeep + 1
+    Next c
+    If nKeep = cols Then
+        RemoveExcludedColumns = block
+        Exit Function
+    End If
+
+    ReDim out(1 To rows, 1 To nKeep)
+    For r = 1 To rows
+        outCol = 0
+        For c = 1 To cols
+            If keep(c) Then
+                outCol = outCol + 1
+                out(r, outCol) = block(r, c)
+            End If
+        Next c
+    Next r
+    RemoveExcludedColumns = out
 End Function
 
 ' The financial columns totalled by AppendTotalsRow below - the same set
