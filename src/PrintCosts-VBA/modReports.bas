@@ -833,19 +833,51 @@ Private Sub MatchTotal(ByVal ws As Worksheet, ByVal ColLetter As String, ByVal L
     ws.Range(ColLetter & "13").Font.Bold = True
 End Sub
 
+' Columns ApplyReportsMinimumColumns keeps visible (Date/Time, Location,
+' Student name, Student no, Paper stock, Chargeable, Paid = A,B,C,D,F,N,O),
+' by index rather than by header-name lookup - row 15's headers haven't been
+' written yet when CritCell runs (WriteHeaderRow follows much later in
+' BuildReports), so there is nothing to look up by name this early. Mirrors
+' the same column set MatchTotal's own comment already names.
+Private Function IsSafeReportsColumn(ByVal ColIndex As Long) As Boolean
+    Dim safeCols As Variant, i As Long
+    safeCols = Array(1, 2, 3, 4, 6, 14, 15) ' A, B, C, D, F, N, O
+    For i = LBound(safeCols) To UBound(safeCols)
+        If ColIndex = safeCols(i) Then
+            IsSafeReportsColumn = True
+            Exit Function
+        End If
+    Next i
+End Function
+
 Private Sub CritCell(ByVal ws As Worksheet, ByVal LabelAddr As String, ByVal InputAddr As String, _
                      ByVal Label As String, ByVal Hint As String)
+    Dim hintCell As Range
     ws.Range(LabelAddr).Value = Label
     ws.Range(LabelAddr).Font.Bold = True
+    ws.Range(LabelAddr).WrapText = True
     With ws.Range(InputAddr)
         .Locked = False
         .Interior.Color = RGB(255, 255, 255)
         .Borders(xlEdgeLeft).Color = RGB(46, 100, 168)
         .Borders(xlEdgeLeft).Weight = xlMedium
     End With
-    ws.Range(InputAddr).Offset(0, 1).Value = Hint
-    ws.Range(InputAddr).Offset(0, 1).Font.Italic = True
-    ws.Range(InputAddr).Offset(0, 1).Font.Color = RGB(110, 110, 110)
+    Set hintCell = ws.Range(InputAddr).Offset(0, 1)
+    hintCell.Value = Hint
+    hintCell.Font.Italic = True
+    hintCell.Font.Color = RGB(110, 110, 110)
+    ' Wrapped only when the hint's own column is one ApplyReportsMinimumColumns
+    ' keeps visible. Several of these hints land one column right of their
+    ' input, in Qty or Technician - both hidden by default - and Excel's
+    ' automatic row height counts every column's wrapped text, hidden or not
+    ' (confirmed: hiding a column afterwards does not shrink a row already
+    ' sized for it), so wrapping a cell nobody can see would only inflate the
+    ' row for text that isn't there.
+    If IsSafeReportsColumn(hintCell.Column) Then hintCell.WrapText = True
+    ' WrapText alone only takes effect once something recomputes the row's
+    ' height - AutoFit forces it immediately rather than leaving the wrapped
+    ' text clipped until the user resizes the row themselves.
+    ws.Range(LabelAddr).EntireRow.AutoFit
 End Sub
 
 Private Sub WriteHeaderRow(ByVal ws As Worksheet, ByVal RowNo As Long, ByVal Headers As Variant)
