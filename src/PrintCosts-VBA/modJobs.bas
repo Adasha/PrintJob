@@ -31,6 +31,12 @@ Public Sub AddPrintJob(ByVal ws As Worksheet)
     CellIn(lo, n, "Job ID").Value = NewJobId(ws, lo)
     CellIn(lo, n, "Date/Time").Value = Now
 
+    ' Same reason RepeatJob clears it (modValidation.MarkQtyRewritten's own
+    ' comment): a freshly appended ListRow copies whatever formatting the
+    ' table's previous last row had, Qty included - a blank new row starting
+    ' shaded, before anything has even been typed into it, is never correct.
+    MarkQtyRewritten CellIn(lo, n, "Qty"), False
+
     ' Spec 9.2 and 10.10: the location defaults seed the row, and from this
     ' moment the row's own values are independent of them. Copying rather than
     ' referencing is the whole of AT-07 and AT-08.
@@ -256,6 +262,10 @@ Public Sub ClearAll(ByVal ws As Worksheet)
         lo.ListRows(i).Delete
     Next i
     lo.ListRows(1).Range.ClearContents
+    ' ClearContents empties values, not formatting - if row 1 itself was
+    ' shaded (a real cm-derived value cleared along with everything else),
+    ' it would otherwise stay shaded forever with nothing left in it.
+    MarkQtyRewritten CellIn(lo, 1, "Qty"), False
     RelockSheet ws
     AppOn
 
