@@ -4,12 +4,20 @@
 # Snag list items 2b (export header block) and 2c (single-value promotion),
 # package 6b of the 2026-09-22 post-phase-8 snag list.
 #
-# Runs Export report twice: once filtered to a single printer (so Printer -
-# and, on this workbook, Location too - should be promoted into the header
-# and dropped from the table), and once unfiltered (so nothing promotes and
-# every column stays). Drives a COPY in %TEMP%, never src\PrintJob.xlsm.
+# Runs Export report twice: once filtered to a single printer (so Printer
+# should be promoted into the header and dropped from the table), and once
+# unfiltered (so Printer is not promoted and every column stays). Needs a
+# SECOND location sheet for the unfiltered case to mean anything: PrintCosts.
+# xlsx stopped shipping a pre-built Annexe sheet 2026-09-26 (test-fixture-
+# annexe.ps1's own note), so with only the one shipped "Example Print Room"
+# every row's Location is trivially uniform and PromoteUniformColumns
+# (working exactly as designed) promotes and drops it even when unfiltered -
+# not a defect in the export, but this test asserting a single-location
+# workbook behaves like the multi-location one it was written against.
+# Drives a COPY in %TEMP%, never src\PrintJob.xlsm.
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'test-fixture-annexe.ps1')
 $deliverable = Join-Path $PSScriptRoot 'src\PrintJob.xlsm'
 $workDir = Join-Path ([IO.Path]::GetTempPath()) ('PrintCostsTest-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $workDir | Out-Null
@@ -22,6 +30,7 @@ $xl.DisplayAlerts = $false
 $wb = $null
 try {
     $wb = $xl.Workbooks.Open($f)
+    Add-AnnexeFixture $xl $wb | Out-Null
     $xl.Run('SetQuiet', $true)
     $rep = $wb.Worksheets('Reports')
 
@@ -63,7 +72,7 @@ try {
         return @($result, $xl2, $wbCheck)
     }
 
-    Write-Host '=== Filtered to one printer: Printer (and Location, single-room workbook) promote ==='
+    Write-Host '=== Filtered to one printer: Printer promotes ==='
     # F6, not F5 (2026-09-27: Location took F4, Technician/Printer/Paper
     # Stock/Quantity shifted down one row).
     $rep.Range('F6').Value2 = 'Epson SureColor P9500'
@@ -182,6 +191,16 @@ try {
         }
         Write-Host ("  table columns: " + ($tableHeaders2 -join ', '))
         Check ($tableHeaders2 -contains 'Printer') "Printer column present when unfiltered"
+        # Location must survive unfiltered too - it is only genuinely uniform
+        # here because the Annexe fixture above gives the workbook a second
+        # room to spread across. Without that fixture this is the exact bug
+        # this test exists to catch: a single-location workbook makes every
+        # row's Location trivially uniform, so PromoteUniformColumns silently
+        # (and, for a single-location workbook, correctly) drops it - which
+        # looked identical to a real export defect until traced here.
+        $locationLine2 = $info2.Lines | Where-Object { $_ -like 'Location:*' }
+        Check ($null -eq $locationLine2) "Location NOT promoted when unfiltered (two rooms in the results)"
+        Check ($tableHeaders2 -contains 'Location') "Location column present when unfiltered"
         # 16, not 17: Area m2 is excluded from the export by default
         # (2026-09-26, modExport.RemoveExcludedColumns) - derivable from Qty
         # and the paper's own dimensions, not something read directly off an
