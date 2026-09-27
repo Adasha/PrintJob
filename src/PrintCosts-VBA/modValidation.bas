@@ -211,18 +211,48 @@ End Sub
 ' unit (a real job-row column feeding a calculated Qty, not this cell
 ' rewrite) - a real schema bump, not attempted here since it is a bigger
 ' change than what was asked for. See docs/ARCHITECTURE.md §16.3.
+'
+' Shaded (direct user report, 2026-09-27) means exactly one thing: the value
+' shown is not what was typed - it was rewritten by the cm->m divide below,
+' not entered directly. That has to be re-earned on every edit, not just set
+' once - MarkQtyRewritten runs first and clears it unconditionally, so a
+' technician who overwrites a shaded cm-derived Qty with a plain metres
+' figure (on this same row, whether newly added or long-existing) sees the
+' shading gone on that same edit, only coming back if the rewrite below
+' actually fires again.
 Private Sub OnQtyChanged(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal n As Long)
-    Dim stk As String, s As clsStock, q As Double
+    Dim stk As String, s As clsStock, q As Double, c As Range
+    Set c = CellIn(lo, n, "Qty")
+    MarkQtyRewritten c, False
+
     If StrComp(LocValue(ws, "LOC_RollUnit"), "Centimetres", vbTextCompare) <> 0 Then Exit Sub
-    If Len(CellIn(lo, n, "Qty").Value) = 0 Then Exit Sub
+    If Len(c.Value) = 0 Then Exit Sub
 
     stk = CStr(CellIn(lo, n, "Paper Stock").Value)
     If Len(stk) = 0 Then Exit Sub
     Set s = Stock(stk)
     If s.Measure <> "Roll" Then Exit Sub
 
-    q = NumOf(CellIn(lo, n, "Qty"))
-    If q > 0 Then CellIn(lo, n, "Qty").Value = q / 100
+    q = NumOf(c)
+    If q > 0 Then
+        c.Value = q / 100
+        MarkQtyRewritten c, True
+    End If
+End Sub
+
+' RGB(242,242,242)/RGB(128,128,128): the same grey-fill/grey-text look this
+' workbook already uses for a calculated cell (e.g. Unit, Area m2) - Qty
+' isn't calculated, but "shown value isn't what you typed" is close enough
+' in spirit that reusing the existing visual language beats inventing a new
+' colour nobody has a legend entry for.
+Private Sub MarkQtyRewritten(ByVal c As Range, ByVal Rewritten As Boolean)
+    If Rewritten Then
+        c.Interior.Color = RGB(242, 242, 242)
+        c.Font.Color = RGB(128, 128, 128)
+    Else
+        c.Interior.ColorIndex = xlNone
+        c.Font.ColorIndex = xlAutomatic
+    End If
 End Sub
 
 Private Sub OnWidthChanged(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal n As Long)
