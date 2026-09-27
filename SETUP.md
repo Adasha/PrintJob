@@ -114,7 +114,7 @@ needs protecting. Re-running is safe at any time — it removes the buttons it
 created before redrawing them.
 
 **Clear the sample data** before live use. Each print room has a **Clear All**
-button. Row `UNI-MAIN-00005` is deliberately invalid, to show the Status column
+button. Row `UNI-MAIN-00012` is deliberately invalid, to show the Status column
 working.
 
 **Sheets are protected without a password.** That stops accidental edits to
