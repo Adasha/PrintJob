@@ -93,6 +93,7 @@ Public Sub RefreshLocations()
         EnsureJobCountDisplay ws
         BindColumns ws
         ApplyReducedView ws
+        ApplyCostColumnsVisibility ws
         ProtectSheet ws
         n = n + 1
     Next v

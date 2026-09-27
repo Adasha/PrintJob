@@ -123,6 +123,14 @@ Fail:
     ReportError "Reduce clutter"
 End Sub
 
+Public Sub btnToggleCostColumns()
+    On Error GoTo Fail
+    ToggleCostColumns
+    Exit Sub
+Fail:
+    ReportError "Hide cost detail"
+End Sub
+
 Public Sub btnCheckSheet()
     On Error GoTo Fail
     If Not RequireLocation Then Exit Sub
