@@ -11,6 +11,7 @@
 # The workbook is closed WITHOUT saving.
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'TestCommon.ps1')
 # Drives a COPY in %TEMP%, never src\PrintJob.xlsm itself.
 #
 # Neither Close($false) nor AutoSaveOn is the protection it looks like.
@@ -128,7 +129,9 @@ $xl.Visible = $false
 $xl.DisplayAlerts = $false
 $wb = $xl.Workbooks.Open($f)
 try {
-    $m = $wb.VBProject.VBComponents.Add(1)
+    # Excel can still be settling from Workbook_Open's own macro work when
+    # this lands - retried the same way build.ps1 retries its SaveAs.
+    $m = Invoke-ComRetry { $wb.VBProject.VBComponents.Add(1) }
     $m.Name = 'modDupTest'
     $m.CodeModule.AddFromString($vba)
     Write-Host $xl.Run('TestDuplicate')

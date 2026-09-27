@@ -11,6 +11,7 @@
 # Drives the criteria cells, then closes WITHOUT saving.
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'TestCommon.ps1')
 # Drives a COPY in %TEMP%, never src\PrintJob.xlsm itself - see verify.ps1's
 # comment for why (AutoSave on a OneDrive-backed handle commits regardless of
 # Close($false)).
@@ -26,7 +27,9 @@ $xl.DisplayAlerts = $false
 $wb = $null
 try {
     $wb = $xl.Workbooks.Open($f)
-    $s = $wb.Worksheets('Summary')
+    # Excel can still be settling from Workbook_Open's own macro work when
+    # this lands - retried the same way build.ps1 retries its SaveAs.
+    $s = Invoke-ComRetry { $wb.Worksheets('Summary') }
     $c = $wb.Worksheets('Reports')
 
     # Reports' results columns moved on 2026-09-22 (Student Name/No and Paid

@@ -14,6 +14,7 @@
 # Closes WITHOUT saving.
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'TestCommon.ps1')
 # Drives a COPY in %TEMP%, never src\PrintJob.xlsm itself.
 #
 # Neither Close($false) nor AutoSaveOn is the protection it looks like.
@@ -57,7 +58,9 @@ $xl.DisplayAlerts = $false
 $wb = $null
 try {
     $wb = $xl.Workbooks.Open($f)
-    $main = $wb.Worksheets('Example Print Room')
+    # Excel can still be settling from Workbook_Open's own macro work when
+    # this lands - retried the same way build.ps1 retries its SaveAs.
+    $main = Invoke-ComRetry { $wb.Worksheets('Example Print Room') }
     $lo = $main.ListObjects('tblJobs_MAIN')
     $before = $lo.ListRows.Count
 

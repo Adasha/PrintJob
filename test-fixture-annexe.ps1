@@ -33,6 +33,8 @@
 # on the copy would only be deduplicated to something like "MAIN2" - not the
 # "ANNEX" every dependent test hardcodes via tblJobs_ANNEX.
 
+. (Join-Path $PSScriptRoot 'TestCommon.ps1')
+
 function Add-AnnexeFixture($xl, $wb) {
     $vba = @'
 Public Function CreateAnnexeFixture() As String
@@ -65,7 +67,10 @@ Fail:
     CreateAnnexeFixture = r & "ERROR " & Err.Number & ": " & Err.Description & vbCrLf
 End Function
 '@
-    $m = $wb.VBProject.VBComponents.Add(1)
+    # Excel can still be settling from Workbook_Open's own macro work when
+    # this lands, right after the caller's Open - retried the same way
+    # build.ps1 retries its SaveAs.
+    $m = Invoke-ComRetry { $wb.VBProject.VBComponents.Add(1) }
     $m.Name = 'modAnnexeFixture'
     $m.CodeModule.AddFromString($vba)
     $result = $xl.Run('CreateAnnexeFixture')
