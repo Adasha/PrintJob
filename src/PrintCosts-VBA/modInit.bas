@@ -166,6 +166,15 @@ Public Sub InitialiseWorkbook()
             DrawOne ws, settingsBottom + 4, 4, "Import (choose room)...", "btnImportGlobal", 130
             DrawOne ws, settingsBottom + 4, 7, "Backup workbook...", "btnBackupWorkbook", 130
             DrawOne ws, settingsBottom + 4, 10, "Restore workbook...", "btnRestoreWorkbook", 130
+            ' A third row, direct user request (2026-09-27): automates the
+            ' documented manual add-a-location procedure (ARCHITECTURE.md
+            ' §4.4 - modRegistry.AddPrintRoom's own comment). Its own row
+            ' rather than a fifth slot on either group above - it is neither
+            ' an "everyday workbook action" nor a data-movement action, and
+            ' the two existing rows are already full at four buttons each.
+            ' Flagged in ARCHITECTURE.md §16.3 for a later look at the
+            ' overall button arrangement once this settles in.
+            DrawOne ws, settingsBottom + 6, 1, "Add print room...", "btnAddPrintRoom", 130
             ' Small +/- buttons above the four lookup tables (snag list item
             ' 5). Row 4 is already the table's own subtitle ("Paper stock
             ' types" etc.) on this sheet, unlike the blank row 4 on Printers/

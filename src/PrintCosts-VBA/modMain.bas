@@ -149,6 +149,14 @@ Fail:
     ReportError "Refresh Locations"
 End Sub
 
+Public Sub btnAddPrintRoom()
+    On Error GoTo Fail
+    AddPrintRoom
+    Exit Sub
+Fail:
+    ReportError "Add print room"
+End Sub
+
 Public Sub btnCheckWorkbook()
     On Error GoTo Fail
     LoadCatalog True

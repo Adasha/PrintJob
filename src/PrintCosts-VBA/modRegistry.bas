@@ -678,3 +678,187 @@ Public Function SheetForCode(ByVal Code As String) As Worksheet
         End If
     Next ws
 End Function
+
+' ------------------------------------------------------------ add a room ---
+' Automates the documented manual procedure (ARCHITECTURE.md §4.4): copy a
+' location sheet, rename it, and guarantee the result is a genuine fresh
+' start - no job rows, batch defaults, disregard-cost defaults, roll-unit
+' preference or permitted-printers list carried over from whatever sheet it
+' was duplicated from. Direct user feedback (2026-09-27): the manual version
+' is easy to get partway through and skip a step, leaving a "new" room that
+' quietly still holds the old sheet's data.
+'
+' Split into a prompting wrapper (AddPrintRoom, bound to the Settings
+' button) and a parameter-driven core (CreatePrintRoom) a test script can
+' call directly without a dialog to answer - same shape as modImport.
+' ApplyImport/ApplyImportConfirmed, and this module's own RefreshLocations.
+'
+' Removing a room automatically is explicitly out of scope (ARCHITECTURE.md
+' §16.3) - the existing manual routes (§4.4, and deleting a sheet by hand)
+' are untouched by any of this.
+Public Sub AddPrintRoom()
+    Dim RoomName As String, Dept As String, ws As Worksheet
+
+    RoomName = PromptText("Name the new print room (this becomes its sheet tab).", "Add print room")
+    If Len(RoomName) = 0 Then Exit Sub
+
+    Dept = PromptText("Department for '" & RoomName & "' - optional, leave blank if not needed.", "Add print room", AllowBlank:=True)
+
+    Set ws = CreatePrintRoom(RoomName, Dept)
+    If ws Is Nothing Then Exit Sub
+
+    ' Refresh Locations (inside CreatePrintRoom) already confirmed
+    ' registration with its own dialog - straight into the one remaining
+    ' manual step, same order the documented procedure ends on (§4.4 step 4).
+    PickPrinters ws
+End Sub
+
+Private Function PromptText(ByVal Prompt As String, ByVal Title As String, Optional ByVal AllowBlank As Boolean = False) As String
+    Dim answer As Variant, s As String
+    Do
+        answer = Application.InputBox(Prompt, Title, Type:=2)
+        If VarType(answer) = vbBoolean Then Exit Function   ' Cancel
+        s = Trim$(CStr(answer))
+        If Len(s) > 0 Or AllowBlank Then
+            PromptText = s
+            Exit Function
+        End If
+        Say "A name is required.", "Every print room needs a name people will recognise on its sheet tab.", "Type a name, or Cancel to stop."
+    Loop
+End Function
+
+' The testable core. Duplicates the first registered location sheet, blanks
+' out everything a copy would otherwise inherit, sets the new room's name
+' and department, then runs the same Refresh Locations pass the documented
+' manual procedure ends with - AT-13's marker detection, code assignment,
+' button re-pointing, dropdown rebuild, protection and consolidated-range
+' rewrite all apply to the new sheet exactly as they would to a hand-copied
+' one, since RefreshLocations has no idea this call was automated.
+Public Function CreatePrintRoom(ByVal RoomName As String, Optional ByVal Dept As String = "") As Worksheet
+    Dim src As Worksheet, ws As Worksheet
+
+    On Error GoTo Fail
+    RoomName = Trim$(RoomName)
+    If Len(RoomName) = 0 Then Exit Function
+
+    Set src = TemplateLocationSheet()
+    If src Is Nothing Then
+        Say "No existing print room to copy.", "Add print room works by duplicating an existing print room sheet, and none was found.", "Run Refresh Locations first, or check that a location sheet's marker cell (" & MARKER_CELL & ") is intact."
+        Exit Function
+    End If
+
+    AppOff
+    src.Copy After:=src
+    Set ws = ActiveSheet
+    ws.Name = UniqueSheetName(SanitiseSheetName(RoomName))
+
+    UnlockSheet ws
+    ResetPrintRoom ws, RoomName, Dept
+    RelockSheet ws
+    AppOn
+
+    RefreshLocations
+    LogAudit "Add print room", RoomName, "Duplicated from '" & LocValue(src, "LOC_Name") & "'"
+
+    ws.Activate
+    Set CreatePrintRoom = ws
+    Exit Function
+Fail:
+    AppReset
+    ReportError "Add print room"
+End Function
+
+' Any location sheet will do - they are structurally interchangeable by
+' construction (self-healing InitialiseWorkbook/RefreshLocations) - so this
+' just takes the first one found in workbook order, deterministically.
+Private Function TemplateLocationSheet() As Worksheet
+    Dim sheets As Collection
+    Set sheets = LocationSheets()
+    If sheets.Count = 0 Then Exit Function
+    Set TemplateLocationSheet = sheets(1)
+End Function
+
+' Clears everything a straight sheet copy would otherwise carry over: job
+' rows (same effect as modJobs.ClearAll, minus its confirmation dialog - a
+' freshly duplicated sheet is not a user-initiated deletion), batch
+' defaults (same as modJobs.ClearDefaults), the two disregard-cost
+' defaults, the permitted-printers list, the roll-unit preference (blanked
+' so EnsureRollUnitSetting reapplies its own Metres default on the Refresh
+' Locations pass that follows, rather than keeping whatever the template
+' happened to have), and the location code (blanked so AssignCode derives a
+' fresh one from the new sheet name instead of colliding with the
+' template's).
+Private Sub ResetPrintRoom(ByVal ws As Worksheet, ByVal RoomName As String, ByVal Dept As String)
+    Dim lo As ListObject, i As Long, c As Range
+
+    Set lo = JobsTable(ws)
+    If Not lo Is Nothing Then
+        For i = lo.ListRows.Count To 2 Step -1
+            lo.ListRows(i).Delete
+        Next i
+        If lo.ListRows.Count = 1 Then
+            lo.ListRows(1).Range.ClearContents
+            MarkQtyRewritten CellIn(lo, 1, "Qty"), False
+        End If
+    End If
+
+    ClearLocCell ws, "LOC_DefTech"
+    ClearLocCell ws, "LOC_DefPrinter"
+    ClearLocCell ws, "LOC_DefPaper"
+    ClearLocCell ws, "LOC_DefDisPaper"
+    ClearLocCell ws, "LOC_DefDisCons"
+    ClearLocCell ws, "LOC_Printers"
+    ClearLocCell ws, "LOC_RollUnit"
+    ClearLocCell ws, "LOC_Code"
+
+    Set c = LocRange(ws, "LOC_Name")
+    If Not c Is Nothing Then c.Value = RoomName
+    Set c = LocRange(ws, "LOC_Dept")
+    If Not c Is Nothing Then c.Value = Dept
+End Sub
+
+Private Sub ClearLocCell(ByVal ws As Worksheet, ByVal RefName As String)
+    Dim c As Range
+    Set c = LocRange(ws, RefName)
+    If Not c Is Nothing Then c.ClearContents
+End Sub
+
+' Excel sheet names: 31 characters max, and none of : \ / ? * [ ] anywhere.
+Private Function SanitiseSheetName(ByVal s As String) As String
+    Dim bad As Variant, i As Long
+    bad = Array(":", "\", "/", "?", "*", "[", "]")
+    For i = LBound(bad) To UBound(bad)
+        s = Replace$(s, bad(i), "")
+    Next i
+    s = Trim$(s)
+    If Len(s) = 0 Then s = "Print Room"
+    If Len(s) > 31 Then s = Trim$(Left$(s, 31))
+    SanitiseSheetName = s
+End Function
+
+' Same shape as this module's own Uniquify (codes), just against sheet
+' names rather than the codes dictionary - a duplicate would otherwise fail
+' outright on ws.Name (Excel raises 1004 for a name already in use).
+Private Function UniqueSheetName(ByVal want As String) As String
+    Dim n As Long, try As String
+    If Not SheetExists(want) Then
+        UniqueSheetName = want
+        Exit Function
+    End If
+    For n = 2 To 99
+        try = Left$(want, 31 - Len(" " & CStr(n))) & " " & CStr(n)
+        If Not SheetExists(try) Then
+            UniqueSheetName = try
+            Exit Function
+        End If
+    Next n
+    UniqueSheetName = Left$(want, 25) & Format$(Timer * 100 Mod 100000, "00000")
+End Function
+
+Private Function SheetExists(ByVal Nm As String) As Boolean
+    Dim ws As Worksheet
+    On Error Resume Next
+    Set ws = ThisWorkbook.Worksheets(Nm)
+    On Error GoTo 0
+    SheetExists = Not ws Is Nothing
+End Function
