@@ -17,6 +17,7 @@
 # saving.
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'test-fixture-annexe.ps1')
 $deliverable = Join-Path $PSScriptRoot 'src\PrintCosts.xlsm'
 $workDir = Join-Path ([IO.Path]::GetTempPath()) ('PrintCostsTest-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $workDir | Out-Null
@@ -29,6 +30,7 @@ $xl.DisplayAlerts = $false
 $wb = $null
 try {
     $wb = $xl.Workbooks.Open($f)
+    Add-AnnexeFixture $xl $wb | Out-Null
     $xl.Run('SetQuiet', $true)
     $main = $wb.Worksheets('Main Print Room')
     $annex = $wb.Worksheets('Annexe')
@@ -136,6 +138,29 @@ try {
         return 0
     }
 
+    # Lowest-index match only, unlike ButtonColumn above: hiding a column
+    # collapses it to zero width, so the FIRST visible column after it slides
+    # left to share its exact pixel Left - the hidden column and the visible
+    # one it now touches are indistinguishable by position alone. A button
+    # relocated onto that visible neighbour is correctly placed, but
+    # ButtonColumn would report the hidden column instead, since it always
+    # returns the lowest column index at that Left. This variant returns the
+    # first VISIBLE column at that Left instead, which is the one the
+    # relocation logic actually cares about.
+    function ButtonColumnVisible($ws, $prefix) {
+        $n = $ws.Buttons().Count
+        for ($i = 1; $i -le $n; $i++) {
+            $b = $ws.Buttons($i)
+            if ([string]$b.Name -like "$prefix*") {
+                for ($c = 1; $c -le 60; $c++) {
+                    if ([Math]::Abs($ws.Cells(1, $c).Left - $b.Left) -lt 0.5 -and -not [bool]$ws.Columns($c).Hidden) { return $c }
+                }
+                return -1
+            }
+        }
+        return 0
+    }
+
     $techCol = $lo.Range.Column + (Col $lo 'Technician') - 1
 
     foreach ($p in 'pcb_btnRemoveRow', 'pcb_btnSelectPrinters', 'pcb_btnCheckSheet', 'pcb_btnClearAll', 'pcb_btnExport', 'pcb_btnToggleReducedView', 'pcb_btnImportLocation') {
@@ -147,9 +172,9 @@ try {
     [void]$xl.Run('ToggleReducedView')
     Start-Sleep -Milliseconds 300
     Check (IsHidden $main $lo 'Technician') "Technician is hidden (test-only hide list)"
-    $movedCol = ButtonColumn $main 'pcb_btnClearDefaults'
-    Check ($movedCol -ne $techCol) "btnClearDefaults relocated off Technician (was col $techCol, now $movedCol)"
-    Check ($movedCol -gt 0 -and -not [bool]$main.Columns($movedCol).Hidden) "btnClearDefaults' new column ($movedCol) is actually visible"
+    $movedCol = ButtonColumnVisible $main 'pcb_btnClearDefaults'
+    Check ($movedCol -gt 0) "btnClearDefaults relocated to a visible column (found col $movedCol; was anchored on Technician, col $techCol, now hidden)"
+    Check (-not [bool]$main.Columns($movedCol).Hidden) "btnClearDefaults' new column ($movedCol) is actually visible"
     foreach ($p in 'pcb_btnRemoveRow', 'pcb_btnSelectPrinters', 'pcb_btnCheckSheet', 'pcb_btnClearAll', 'pcb_btnExport', 'pcb_btnToggleReducedView', 'pcb_btnImportLocation') {
         Check ((ButtonColumn $main $p) -eq 36) "$p still in the side panel, unaffected by the test-only hide list"
     }
@@ -160,6 +185,97 @@ try {
     Check ((ButtonColumn $main 'pcb_btnClearDefaults') -eq $techCol) "btnClearDefaults moved back onto Technician now that it's visible"
 
     $wb.Names.Item('SET_LOC_REDUCED_COLUMNS').RefersToRange.Value = $list
+
+    # ------------------------------------- button width survives hide/reveal (2026-09-26 fix)
+    # User-reported: after hiding then revealing columns once, the Now button
+    # ended up straddling the D/E column border with only its "N" visible.
+    # Root cause was Buttons.Add defaulting to Placement:=xlMoveAndSize, so
+    # Excel silently shrank the button's own Width when Printer (its anchor
+    # column, and one of REDUCED_COLUMNS_DEFAULT's own entries) got hidden -
+    # RelocateButton only ever restored .Left, never .Width, so the shrunk
+    # width stuck even once the button landed back on a visible column. The
+    # position-only ButtonColumn check above would not have caught this
+    # (Width can be wrong while Left still happens to land on a cell edge),
+    # so this checks Width explicitly, across two full toggle cycles to
+    # mirror the reported "hide then reveal" sequence.
+    Write-Host ''
+    Write-Host '=== Now/Add Print Job/Repeat Job keep their width across repeated hide/reveal cycles ==='
+
+    function ButtonWidth($ws, $prefix) {
+        $n = $ws.Buttons().Count
+        for ($i = 1; $i -le $n; $i++) {
+            $b = $ws.Buttons($i)
+            if ([string]$b.Name -like "$prefix*") { return [double]$b.Width }
+        }
+        return -1
+    }
+    function ButtonPlacement($ws, $prefix) {
+        $n = $ws.Buttons().Count
+        for ($i = 1; $i -le $n; $i++) {
+            $b = $ws.Buttons($i)
+            if ([string]$b.Name -like "$prefix*") { return [int]$b.Placement }
+        }
+        return -1
+    }
+
+    $atRisk = 'pcb_btnAddPrintJob', 'pcb_btnRepeatJob', 'pcb_btnNow', 'pcb_btnClearDefaults'
+    for ($cycle = 1; $cycle -le 2; $cycle++) {
+        [void]$xl.Run('ToggleReducedView')
+        Start-Sleep -Milliseconds 300
+        [void]$xl.Run('ToggleReducedView')
+        Start-Sleep -Milliseconds 300
+        foreach ($p in $atRisk) {
+            Check ((ButtonWidth $main $p) -eq 110) "$p is still 110pt wide after hide/reveal cycle $cycle"
+            Check ((ButtonPlacement $main $p) -eq 3) "$p is xlFreeFloating (3) after hide/reveal cycle $cycle"
+        }
+    }
+    Check ((ButtonColumn $main 'pcb_btnNow') -gt 0) "btnNow's Left still lands cleanly on a column edge, not straddling a border"
+
+    # ---------------------------------- side panel tracks column 36 through toggles (2026-09-26 fix)
+    # User-reported, same session: once the at-risk buttons above stopped
+    # drifting, the side panel (Select printers.../Check this sheet/the
+    # toggle itself/Remove Row/Clear All/Export.../Import...) turned out to
+    # have its own version of the same bug - hiding the reduced-view
+    # shortlist shrinks the total width of everything to the LEFT of
+    # SIDE_PANEL_COL (column 36), which shifts that column's own pixel
+    # position left. With Placement:=xlFreeFloating (this fix's own change)
+    # the side panel no longer follows that shift automatically, so it ended
+    # up sitting further right of column 36 than before - the opposite
+    # direction from a naive guess, but exactly what "hiding clutter leaves
+    # them even further right" describes. ApplyReducedView now calls
+    # RepositionSidePanelButtons on every run (not just from setup) to keep
+    # them pinned to column 36's current position.
+    Write-Host ''
+    Write-Host '=== Side panel stays pinned to column 36 through a hide/reveal cycle ==='
+
+    function SidePanelLeft($ws, $prefix) {
+        $n = $ws.Buttons().Count
+        for ($i = 1; $i -le $n; $i++) {
+            $b = $ws.Buttons($i)
+            if ([string]$b.Name -like "$prefix*") { return [double]$b.Left }
+        }
+        return -1
+    }
+
+    $sidePanel = 'pcb_btnSelectPrinters', 'pcb_btnCheckSheet', 'pcb_btnToggleReducedView', 'pcb_btnRemoveRow', 'pcb_btnClearAll', 'pcb_btnExport', 'pcb_btnImportLocation'
+    $col36Before = [double]$main.Cells(1, 36).Left
+    foreach ($p in $sidePanel) {
+        Check ((SidePanelLeft $main $p) -eq $col36Before) "$p sits on column 36 before hiding (Left=$col36Before)"
+    }
+
+    [void]$xl.Run('ToggleReducedView')
+    Start-Sleep -Milliseconds 300
+    $col36Hidden = [double]$main.Cells(1, 36).Left
+    Check ($col36Hidden -ne $col36Before) "hiding the shortlist actually moved column 36 (was $col36Before, now $col36Hidden) - otherwise this check proves nothing"
+    foreach ($p in $sidePanel) {
+        Check ((SidePanelLeft $main $p) -eq $col36Hidden) "$p followed column 36 to its new position while hidden (Left=$col36Hidden)"
+    }
+
+    [void]$xl.Run('ToggleReducedView')
+    Start-Sleep -Milliseconds 300
+    foreach ($p in $sidePanel) {
+        Check ((SidePanelLeft $main $p) -eq $col36Before) "$p is back on column 36 after revealing (Left=$col36Before)"
+    }
 
     $xl.Run('SetQuiet', $false)
 }

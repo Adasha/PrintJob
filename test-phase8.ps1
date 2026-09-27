@@ -17,6 +17,7 @@
 # commits regardless of Close($false)). Closes WITHOUT saving.
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'test-fixture-annexe.ps1')
 $deliverable = Join-Path $PSScriptRoot 'src\PrintCosts.xlsm'
 $workDir = Join-Path ([IO.Path]::GetTempPath()) ('PrintCostsTest-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $workDir | Out-Null
@@ -29,6 +30,7 @@ $xl.DisplayAlerts = $false
 $wb = $null
 try {
     $wb = $xl.Workbooks.Open($f)
+    Add-AnnexeFixture $xl $wb | Out-Null
 
     # ---------------------------------------------------- warning: Status ---
     Write-Host '=== Warning state: Status column conditional formatting ==='

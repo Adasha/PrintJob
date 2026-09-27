@@ -57,6 +57,23 @@ Public Sub InitialiseWorkbook()
     EnsureReducedViewSettings
     EnsureStdSizeColumnName
 
+    ' Moved here from after the per-sheet loop below (2026-09-27,
+    ' user-reported: Settings-sheet buttons rendering over the top of
+    ' tblSettings). FormatSettingsNotes word-wraps and AutoFits tblSettings'
+    ' Notes column - which can grow several of its rows considerably taller
+    ' than the sheet's default - but the Settings-sheet buttons a few lines
+    ' into that loop (Refresh Locations etc.) are positioned from
+    ' TablesBottom(ws), read at THAT moment. Every EnsureXSetting call that
+    ' can add a row to tblSettings has already run by this point, so its
+    ' final row count - and hence its final row heights, once this runs - are
+    ' both settled before the loop ever measures TablesBottom for Settings.
+    ' Previously this went unnoticed because Buttons.Add's default
+    ' Placement:=xlMoveAndSize silently followed the table's growth spurt
+    ' when this ran afterward, same as every other button-drift bug fixed
+    ' this session; DrawOne now sets Placement:=xlFreeFloating, so a button
+    ' positioned before a later row-height change no longer tracks it.
+    FormatSettingsNotes
+
     ' Summary and Reports, likewise built here. Their formulas read
     ' _Data, which RefreshLocations writes at the end of this run - until then
     ' they sit on their IFERROR fallbacks rather than showing errors.
@@ -81,6 +98,9 @@ Public Sub InitialiseWorkbook()
             ApplyStatusFormat ws
             ApplyReducedView ws
             ApplyJobColumnWidths ws
+            ' Must run after every call above that can change column widths -
+            ' see RepositionLocationButtons' own comment.
+            RepositionLocationButtons ws
             n = n + 1
         ElseIf StrComp(ws.Name, "Summary", vbTextCompare) = 0 Then
             ' Column O onwards, clear of the A:M report table.
@@ -192,7 +212,6 @@ Public Sub InitialiseWorkbook()
     Next ws
 
     UnlockConfigInputs
-    FormatSettingsNotes
     ReorderSheetTabs
 
     Invalidate
@@ -805,6 +824,19 @@ Public Sub DrawOne(ByVal ws As Worksheet, ByVal RowNo As Long, ByVal ColNo As Lo
     If Len(NameTag) > 0 Then tag = NameTag
     Set c = ws.Cells(RowNo, ColNo)
     Set b = ws.Buttons.Add(c.Left, c.Top, W, 22)
+    ' xlFreeFloating (2026-09-26, user-reported): Buttons.Add defaults to
+    ' Placement:=xlMoveAndSize, which silently resizes/repositions the shape
+    ' whenever the column(s) beneath it change width - not just an explicit
+    ' .Left/.Width assignment, but ANY width change, including
+    ' ApplyColumnVisibility's Hidden toggling for the reduced-clutter view.
+    ' That is what let the Now button end up straddling the D/E border with
+    ' only its "N" visible after one hide-then-reveal cycle: hiding Printer
+    ' shrank the button's own Width (not just moved it), and
+    ' RelocateAtRiskButtons' RelocateButton only ever restored .Left, so the
+    ' shrunk width stuck. Free-floating detaches the shape from the
+    ' underlying cells entirely, so it only ever moves when this code moves
+    ' it.
+    b.Placement = xlFreeFloating
     SetButtonName b, BTN_TAG & tag & "_" & RowNo & "_" & ColNo
     b.Caption = Caption
     b.OnAction = Macro
@@ -824,6 +856,7 @@ End Sub
 Public Sub DrawOneAtTop(ByVal ws As Worksheet, ByVal ColNo As Long, ByVal Top As Double, ByVal Caption As String, ByVal Macro As String, ByVal W As Single)
     Dim b As Button
     Set b = ws.Buttons.Add(ws.Cells(1, ColNo).Left, Top, W, 22)
+    b.Placement = xlFreeFloating ' see DrawOne's comment - same column-resize drift risk
     SetButtonName b, BTN_TAG & Macro & "_px" & CLng(Top) & "_" & ColNo
     b.Caption = Caption
     b.OnAction = Macro
@@ -838,6 +871,7 @@ Public Sub DrawSmall(ByVal ws As Worksheet, ByVal RowNo As Long, ByVal ColNo As 
     Dim b As Button, c As Range
     Set c = ws.Cells(RowNo, ColNo)
     Set b = ws.Buttons.Add(c.Left, c.Top, W, 16)
+    b.Placement = xlFreeFloating ' see DrawOne's comment - same column-resize drift risk
     SetButtonName b, BTN_TAG & Macro & "_" & RowNo & "_" & ColNo
     b.Caption = Caption
     b.OnAction = Macro
@@ -1148,6 +1182,16 @@ Public Sub ApplyReducedView(ByVal ws As Worksheet)
     If lo Is Nothing Then Exit Sub
     ApplyColumnVisibility lo, SplitList(SettingText("LOC_REDUCED_COLUMNS", REDUCED_COLUMNS_DEFAULT)), ReducedViewOn()
     RelocateAtRiskButtons ws, lo
+    ' User-reported, 2026-09-26: hiding the shortlist (all of it left of
+    ' SIDE_PANEL_COL) shrinks the total width in front of the side panel, so
+    ' column 36's own pixel position shifts left - but with the side panel's
+    ' buttons now Placement:=xlFreeFloating (RepositionLocationButtons' own
+    ' comment), they no longer follow that shift and end up sitting further
+    ' right of column 36 than before, not on it. ToggleReducedView reaches
+    ' this Sub directly, without going through InitialiseWorkbook's separate
+    ' RepositionLocationButtons call, so the side panel needs re-settling
+    ' here too - on every call, not just from setup.
+    RepositionSidePanelButtons ws
 End Sub
 
 ' General fix for the column-hide-takes-a-button-with-it gap (§4.1) - only
@@ -1179,6 +1223,73 @@ Private Sub RelocateButton(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal 
     col = NearestVisibleColumn(lo, PreferredHeader)
     If col = 0 Then Exit Sub
     b.Left = ws.Cells(1, col).Left
+    ' Self-heal (2026-09-26, user-reported): restores Width/Height/Placement
+    ' too, not just Left, for any button built before DrawOne started setting
+    ' Placement:=xlFreeFloating. Those older buttons still have
+    ' Placement:=xlMoveAndSize (Excel's own default), so a reduced-view
+    ' hide/reveal cycle shrinks their Width along with moving them - fixing
+    ' only .Left left them stuck narrow (the reported Now button showing just
+    ' its "N" at the D/E border). All four buttons this Sub relocates are
+    ' drawn 110pt/22pt by DrawLocationButtons.
+    b.Width = 110
+    b.Height = 22
+    b.Placement = xlFreeFloating
+End Sub
+
+' Layout fix (2026-09-26, user-reported): the whole side panel had visibly
+' drifted right of SIDE_PANEL_COL. Root cause: DrawLocationButtons (which
+' positions every location button, side panel included, from the CURRENT
+' column widths at the moment it runs) is called early in InitialiseWorkbook's
+' per-sheet loop - before ReorderJobColumns, ApplyReducedView and
+' ApplyJobColumnWidths have finished changing those same widths. Previously
+' this went unnoticed because Buttons.Add's default Placement:=xlMoveAndSize
+' silently tracked the later width changes and dragged every shape along with
+' them - the same auto-tracking behaviour that caused the Now-button width
+' corruption fixed above (RelocateButton's own comment). Now that DrawOne/
+' DrawOneAtTop set Placement:=xlFreeFloating so hide/reveal cycles can no
+' longer corrupt a button's Width, that auto-tracking is gone too, so the
+' side panel's shapes stayed frozen at their too-early position instead of
+' following the columns to their final widths.
+'
+' Fixed the same way RelocateButton already fixes the four at-risk buttons:
+' re-settle position (and self-heal Width/Height/Placement) once more here,
+' called after every column-width-changing step in that loop has actually
+' run, rather than reordering the loop itself and risking the column-name
+' dependencies several of those Ensure/Reorder calls have on each other
+' (EnsureQtyColumnName/EnsurePaidColumn must still run before
+' ReorderJobColumns, which names both columns explicitly).
+Private Sub RepositionLocationButtons(ByVal ws As Worksheet)
+    Dim lo As ListObject
+    Set lo = JobsTable(ws)
+    If Not lo Is Nothing Then RelocateAtRiskButtons ws, lo
+    RepositionSidePanelButtons ws
+End Sub
+
+' The seven occasional-use buttons DrawLocationButtons stacks in
+' SIDE_PANEL_COL - see RepositionLocationButtons' comment for why they can
+' end up sitting to the right of that column instead of on it.
+Private Sub RepositionSidePanelButtons(ByVal ws As Worksheet)
+    Dim macros As Variant, i As Long, j As Long, b As Button, prefix As String
+    Dim targetLeft As Double
+    macros = Array("btnSelectPrinters", "btnCheckSheet", "btnToggleReducedView", "btnRemoveRow", "btnClearAll", "btnExport", "btnImportLocation")
+    targetLeft = ws.Cells(1, SIDE_PANEL_COL).Left
+
+    For i = LBound(macros) To UBound(macros)
+        prefix = BTN_TAG & CStr(macros(i))
+        Set b = Nothing
+        For j = 1 To ws.Buttons.Count
+            If Left$(ws.Buttons(j).Name, Len(prefix)) = prefix Then
+                Set b = ws.Buttons(j)
+                Exit For
+            End If
+        Next j
+        If Not b Is Nothing Then
+            b.Left = targetLeft
+            b.Width = 140
+            b.Height = 22
+            b.Placement = xlFreeFloating
+        End If
+    Next i
 End Sub
 
 ' The button's own preferred column if it's currently visible, else the
@@ -1201,7 +1312,7 @@ Private Function NearestVisibleColumn(ByVal lo As ListObject, ByVal PreferredHea
     End If
 
     For dist = 1 To lo.ListColumns.Count
-        For side = -1 To 1 Step 2
+        For side = 1 To -1 Step -2
             candidate = preferred + side * dist
             If candidate >= 1 And candidate <= lo.ListColumns.Count Then
                 If IsSafeAnchorColumn(lo, candidate) Then

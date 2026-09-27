@@ -10,6 +10,7 @@
 # %TEMP%, never src\PrintCosts.xlsm.
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'test-fixture-annexe.ps1')
 $deliverable = Join-Path $PSScriptRoot 'src\PrintCosts.xlsm'
 
 $workDirA = Join-Path ([IO.Path]::GetTempPath()) ('PrintCostsTest-' + [Guid]::NewGuid().ToString('N'))
@@ -38,6 +39,7 @@ $origPaperCount = 0
 $origAnnexeJobs = 0
 try {
     $wbA = $xlA.Workbooks.Open($fA)
+    Add-AnnexeFixture $xlA $wbA | Out-Null
     $xlA.Run('SetQuiet', $true)
 
     $origPrinterCount = $wbA.Worksheets('Printers').ListObjects('tblPrinters').ListRows.Count
@@ -72,6 +74,7 @@ $xlB.DisplayAlerts = $false
 $wbB = $null
 try {
     $wbB = $xlB.Workbooks.Open($fB)
+    Add-AnnexeFixture $xlB $wbB | Out-Null
     $xlB.Run('SetQuiet', $true)
 
     # Both sheets are protected (§9.4) - UnlockSheet/RelockSheet are the same
@@ -95,6 +98,15 @@ try {
 
     $xlB.Run('RestoreFromFileConfirmed', $printersCsv.FullName)
     Write-Host $xlB.Run('QuietLog')
+
+    # Settling pause (2026-09-27, reproduced directly): reading a ListObject's
+    # ListRows.Count immediately after RestoreFromFileConfirmed returns can
+    # come back stale (observed tblPapers.ListRows.Count as 0 right after the
+    # call, then correctly 9 moments later with no code in between other than
+    # a Write-Host) - the same class of Excel/COM property-read timing gotcha
+    # ToggleReducedView's own callers already pause for elsewhere in this
+    # test suite.
+    Start-Sleep -Milliseconds 300
 
     $loPrinters = $wbB.Worksheets('Printers').ListObjects('tblPrinters')
     $loPapers = $wbB.Worksheets('Papers').ListObjects('tblPapers')

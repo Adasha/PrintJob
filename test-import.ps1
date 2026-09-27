@@ -14,6 +14,7 @@
 # Drives a COPY in %TEMP%, never src\PrintCosts.xlsm itself - see verify.ps1.
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'test-fixture-annexe.ps1')
 $deliverable = Join-Path $PSScriptRoot 'src\PrintCosts.xlsm'
 $workDir = Join-Path ([IO.Path]::GetTempPath()) ('PrintCostsTest-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $workDir | Out-Null
@@ -26,6 +27,7 @@ $xl.DisplayAlerts = $false
 $wb = $null
 try {
     $wb = $xl.Workbooks.Open($f)
+    Add-AnnexeFixture $xl $wb | Out-Null
     $xl.Run('SetQuiet', $true)
     $main = $wb.Worksheets('Main Print Room')
     $annexe = $wb.Worksheets('Annexe')

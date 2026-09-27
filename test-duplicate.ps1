@@ -56,11 +56,17 @@ Public Function TestDuplicate() As String
     On Error GoTo Fail
     Application.DisplayAlerts = False
 
-    Set src = ThisWorkbook.Worksheets("Annexe")
+    ' Duplicates "Main Print Room" rather than a pre-built "Annexe" - the
+    ' latter was deliberately removed from PrintCosts.xlsx 2026-09-26
+    ' (ARCHITECTURE.md's addendum: a second pre-built sheet added nothing the
+    ' documented duplicate-and-rename procedure, SETUP §4.4, didn't already
+    ' give a user). This test only cares that duplicating SOME location sheet
+    ' survives Refresh Locations, not which one.
+    Set src = ThisWorkbook.Worksheets("Main Print Room")
     r = "job tables before:" & vbCrLf & TableList
     src.Copy After:=src
     Set ws = ActiveSheet
-    r = r & "duplicated 'Annexe' -> '" & ws.Name & "'" & vbCrLf
+    r = r & "duplicated 'Main Print Room' -> '" & ws.Name & "'" & vbCrLf
     r = r & "job tables straight after the copy:" & vbCrLf & TableList
 
     SetQuiet True
