@@ -2,9 +2,9 @@
 # If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # Column grouping cleanup (2026-09-22, follow-up to the reduced-clutter view
-# work): only the intended cost-column group (Paper Cost..Disregarded)
-# should carry an outline level above 1. Two other groups had crept in as a
-# side effect of EnsurePaidColumn inserting Paid right next to the
+# work). Originally, only the cost-column group (Paper Cost..Disregarded)
+# was meant to carry an outline level above 1; two other groups had crept in
+# as a side effect of EnsurePaidColumn inserting Paid right next to the
 # already-grouped H_Issues/snapshot block PrintCosts.xlsx ships:
 #
 #   - Notes + H_Issues ended up grouped together, and NOTES ITSELF was
@@ -18,6 +18,16 @@
 # outline level 1 outright (no re-grouping), and Notes is explicitly
 # unhidden. H_Issues/the snapshot columns stay invisible via their own
 # .Hidden state, which needs no outline group to hold it.
+#
+# 2026-09-27: the cost-column group itself was ALSO replaced by a plain
+# .Hidden toggle (modInit.ToggleCostColumns/ApplyCostColumnsVisibility,
+# docs/ARCHITECTURE.md §16.3's "button lag" writeup) - a native outline
+# group has no VBA event to hook, so buttons anchored beside it lagged by
+# one click after every collapse/expand. modInit.NormalizeJobColumnOutlines
+# (renamed from GroupJobColumns) now flattens that span too, via the same
+# FlattenOutline this test already exercises for Notes..S_SchemaVer. So the
+# whole job table should now carry NO outline group anywhere - see
+# test-costcolumns.ps1 for the toggle's own .Hidden behaviour.
 #
 # Drives a COPY in %TEMP%, never src\PrintJob.xlsm itself. Closes WITHOUT
 # saving.
@@ -50,14 +60,10 @@ try {
         Write-Host ("  {0}  {1}" -f $(if ($cond) { 'OK  ' } else { 'FAIL' }), $msg)
     }
 
-    Write-Host '=== The cost group is intact ==='
-    foreach ($h in 'Paper Cost', 'Consumable Cost', 'Gross Cost', 'Disregarded') {
+    Write-Host '=== The cost columns carry no outline group any more (2026-09-27) ==='
+    foreach ($h in 'Paper Cost', 'Consumable Cost', 'Gross Cost', 'Disregarded', 'Chargeable Cost', 'Paid') {
         $c = $main.Columns((SheetCol $h))
-        Check ($c.OutlineLevel -eq 2) "$h is at outline level 2 (got $($c.OutlineLevel))"
-    }
-    foreach ($h in 'Chargeable Cost', 'Paid') {
-        $c = $main.Columns((SheetCol $h))
-        Check ($c.OutlineLevel -eq 1) "$h stays OUTSIDE the group, level 1 (got $($c.OutlineLevel))"
+        Check ($c.OutlineLevel -eq 1) "$h is at outline level 1, no group (got $($c.OutlineLevel))"
     }
 
     Write-Host ''
@@ -75,14 +81,14 @@ try {
     }
 
     Write-Host ''
-    Write-Host '=== No stray outline level above 2 anywhere in the table ==='
+    Write-Host '=== No outline group anywhere in the table (2026-09-27: the last one, cost columns, was removed) ==='
     $maxLevel = 0
     for ($ci = 1; $ci -le $lo.ListColumns.Count; $ci++) {
         $sc = $lo.Range.Column + $ci - 1
         $lvl = $main.Columns($sc).OutlineLevel
         if ($lvl -gt $maxLevel) { $maxLevel = $lvl }
     }
-    Check ($maxLevel -eq 2) "max outline level across the whole table is 2 (got $maxLevel)"
+    Check ($maxLevel -eq 1) "max outline level across the whole table is 1 (got $maxLevel)"
 
     $xl.Run('SetQuiet', $false)
 }

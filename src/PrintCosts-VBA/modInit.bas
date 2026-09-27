@@ -55,6 +55,7 @@ Public Sub InitialiseWorkbook()
     EnsureSchemaSetting
     EnsureExportSettings
     EnsureReducedViewSettings
+    EnsureCostColumnsSetting
     EnsureStdSizeColumnName
 
     ' Moved here from after the per-sheet loop below (2026-09-27,
@@ -94,9 +95,10 @@ Public Sub InitialiseWorkbook()
             EnsureQtyColumnName ws
             ReorderJobColumns ws
             BindColumns ws
-            GroupJobColumns ws
+            NormalizeJobColumnOutlines ws
             ApplyStatusFormat ws
             ApplyReducedView ws
+            ApplyCostColumnsVisibility ws
             ApplyJobColumnWidths ws
             ' Must run after every call above that can change column widths -
             ' see RepositionLocationButtons' own comment.
@@ -311,8 +313,10 @@ Private Sub DrawLocationButtons(ByVal ws As Worksheet)
     ' current setting each time this runs, same as ConfigToggleCaption's
     ' button does.
     '
-    ' All seven now share one column (2026-09-25, user-reported: Import had
-    ' drifted onto SIDE_PANEL_COL2, away from the rest). Every-other-row
+    ' All eight now share one column (2026-09-25, user-reported: Import had
+    ' drifted onto SIDE_PANEL_COL2, away from the rest; joined 2026-09-27 by
+    ' the cost-columns toggle, moved here for the same reason the reduced-view
+    ' toggle was - see CostColumnsCaption's own comment). Every-other-row
     ' spacing only had room for six before the table header - packed instead
     ' via DrawOneAtTop at even pixel steps spanning the space actually
     ' available above the header (whatever row that currently is), so the
@@ -325,11 +329,11 @@ Private Sub DrawLocationButtons(ByVal ws As Worksheet)
         ' 8pt safety margin before the header - packing the last button's
         ' bottom edge flush against it left effectively no clearance at all.
         headerTop = ws.Cells(lo.Range.Row, 1).Top
-        stepPx = (headerTop - 22 - 8) / 6
+        stepPx = (headerTop - 22 - 8) / 7
         Dim capts() As Variant, macros() As Variant
-        capts = Array("Select printers...", "Check this sheet", ReducedViewCaption(), "Remove Row", "Clear All", "Export...", "Import...")
-        macros = Array("btnSelectPrinters", "btnCheckSheet", "btnToggleReducedView", "btnRemoveRow", "btnClearAll", "btnExport", "btnImportLocation")
-        For i = 0 To 6
+        capts = Array("Select printers...", "Check this sheet", ReducedViewCaption(), CostColumnsCaption(), "Remove Row", "Clear All", "Export...", "Import...")
+        macros = Array("btnSelectPrinters", "btnCheckSheet", "btnToggleReducedView", "btnToggleCostColumns", "btnRemoveRow", "btnClearAll", "btnExport", "btnImportLocation")
+        For i = 0 To 7
             DrawOneAtTop ws, SIDE_PANEL_COL, i * stepPx, CStr(capts(i)), CStr(macros(i)), 140
         Next i
     End If
@@ -1204,6 +1208,74 @@ Public Sub ApplyReducedView(ByVal ws As Worksheet)
     RepositionSidePanelButtons ws
 End Sub
 
+' --------------------------------------------------------- cost columns ---
+' Replaces the native-outline cost-columns group (docs/ARCHITECTURE.md
+' §16.3, "button lag" writeup, 2026-09-27). A workbook-wide toggle, same
+' shape as reduced-clutter view just above (simpler than per-sheet, and
+' keeps every location in step) - "Yes" hides Paper Cost, Consumable Cost,
+' Gross Cost and Disregarded on every location sheet; Chargeable Cost and
+' Paid are never hidden by this, same columns the old outline group already
+' kept outside it (2026-09-22 snag list item 1d).
+Private Sub EnsureCostColumnsSetting()
+    Dim c As Range
+    Set c = EnsureSetting("COST_COLS_HIDDEN", "Hide cost detail columns", "Yes hides Paper Cost/Consumable Cost/Gross Cost/Disregarded on every location sheet (toggled by the button on each one). No shows them. Chargeable Cost and Paid are never hidden by this.")
+    If Len(Trim$(CStr(c.Value))) = 0 Then c.Value = "No"
+End Sub
+
+Private Function CostColumnsHidden() As Boolean
+    CostColumnsHidden = (StrComp(SettingText("COST_COLS_HIDDEN", "No"), "Yes", vbTextCompare) = 0)
+End Function
+
+Private Function CostColumnsCaption() As String
+    CostColumnsCaption = IIf(CostColumnsHidden(), "Show cost detail", "Hide cost detail")
+End Function
+
+' Applies the CURRENT setting to one location sheet's table - called on
+' every InitialiseWorkbook/RefreshLocations run (so a freshly duplicated
+' sheet, or one predating the feature, always ends up in sync) and again
+' from ToggleCostColumns for every location sheet at once. Repositions
+' buttons in the same call for exactly the reason this replaced the native
+' outline control in the first place - see this section's own opening
+' comment - rather than relying on Workbook_SheetActivate/
+' Workbook_SheetSelectionChange to catch up on the next click.
+Public Sub ApplyCostColumnsVisibility(ByVal ws As Worksheet)
+    Dim lo As ListObject
+    Set lo = JobsTable(ws)
+    If lo Is Nothing Then Exit Sub
+    ApplyColumnVisibility lo, Array("Paper Cost", "Consumable Cost", "Gross Cost", "Disregarded"), CostColumnsHidden()
+    RelocateAtRiskButtons ws, lo
+    RepositionSidePanelButtons ws
+End Sub
+
+' modMain.btnToggleCostColumns' target. Flips the setting once, then
+' re-applies it to every location sheet and relabels every toggle button in
+' one pass, same shape as ToggleReducedView.
+Public Sub ToggleCostColumns()
+    Dim hideIt As Boolean, ws As Worksheet
+    hideIt = Not CostColumnsHidden()
+    SetSetting "COST_COLS_HIDDEN", IIf(hideIt, "Yes", "No")
+
+    AppOff
+    For Each ws In ThisWorkbook.Worksheets
+        If IsLocation(ws) Then
+            ApplyCostColumnsVisibility ws
+            RelabelCostColumnsButton ws
+        End If
+    Next ws
+    AppOn
+End Sub
+
+Private Sub RelabelCostColumnsButton(ByVal ws As Worksheet)
+    Dim i As Long, prefix As String
+    prefix = BTN_TAG & "btnToggleCostColumns"
+    For i = 1 To ws.Buttons.Count
+        If Left$(ws.Buttons(i).Name, Len(prefix)) = prefix Then
+            ws.Buttons(i).Caption = CostColumnsCaption()
+            Exit For
+        End If
+    Next i
+End Sub
+
 ' General fix for the column-hide-takes-a-button-with-it gap (§4.1) - only
 ' the handful of buttons DrawLocationButtons still anchors inside the job
 ' table's own column span (everything else lives in the side panel, immune
@@ -1283,13 +1355,13 @@ Public Sub RepositionLocationButtons(ByVal ws As Worksheet)
     RepositionSidePanelButtons ws
 End Sub
 
-' The seven occasional-use buttons DrawLocationButtons stacks in
+' The eight occasional-use buttons DrawLocationButtons stacks in
 ' SIDE_PANEL_COL - see RepositionLocationButtons' comment for why they can
 ' end up sitting to the right of that column instead of on it.
 Private Sub RepositionSidePanelButtons(ByVal ws As Worksheet)
     Dim macros As Variant, i As Long, j As Long, b As Button, prefix As String
     Dim targetLeft As Double
-    macros = Array("btnSelectPrinters", "btnCheckSheet", "btnToggleReducedView", "btnRemoveRow", "btnClearAll", "btnExport", "btnImportLocation")
+    macros = Array("btnSelectPrinters", "btnCheckSheet", "btnToggleReducedView", "btnToggleCostColumns", "btnRemoveRow", "btnClearAll", "btnExport", "btnImportLocation")
     targetLeft = ws.Cells(1, SIDE_PANEL_COL).Left
 
     For i = LBound(macros) To UBound(macros)
@@ -1437,27 +1509,37 @@ Private Sub RelabelReducedViewButton(ByVal ws As Worksheet)
 End Sub
 
 ' -------------------------------------------------------- column groups ---
-' Snag list item 14: the calculated cost columns collapse together, and so do
-' the S_ snapshot columns - neither is referenced day to day, and grouping
-' lets a user hide the detail without hiding the columns outright.
-Private Sub GroupJobColumns(ByVal ws As Worksheet)
+' Snag list item 14 originally grouped the calculated cost columns behind
+' Excel's native +/- outline control, same idea as the S_ snapshot columns
+' below. Replaced 2026-09-27 (docs/ARCHITECTURE.md §16.3, "button lag" writeup):
+' a manual outline collapse/expand is not a macro call, and VBA has no event
+' that fires on one, so a location's side-panel buttons (anchored beside the
+' group) went visibly stale for a moment after every click on the native
+' control, only self-healing on the NEXT click anywhere on the sheet. Cost
+' detail is now hidden/shown by ToggleCostColumns/ApplyCostColumnsVisibility
+' instead - an ordinary macro button, so it repositions every affected
+' button in the very same click, closing the gap outright rather than just
+' narrowing the window. This Sub now only clears outline groups (including
+' its own old one, migrating a workbook built under the previous scheme) -
+' it groups nothing any more.
+Private Sub NormalizeJobColumnOutlines(ByVal ws As Worksheet)
     Dim lo As ListObject
     Set lo = JobsTable(ws)
     If lo Is Nothing Then Exit Sub
 
     ' Clear whatever grouping already exists on the old (wrong) span first -
     ' re-running this against a workbook built before the 2026-09-22 fix
-    ' would otherwise leave Chargeable Cost nested in both the old and new
-    ' outline. Harmless no-op on a workbook that never had the old group.
+    ' would otherwise leave Chargeable Cost nested in the old outline.
+    ' Harmless no-op on a workbook that never had the old group.
     UngroupColumnRange lo, "Paper Cost", "Chargeable Cost"
 
-    ' Paper Cost, Consumable Cost, Gross Cost and Disregarded collapse
-    ' together; Chargeable Cost and Paid stay outside the group and always
-    ' visible even when it's collapsed (2026-09-22 snag list item 1d - the
-    ' previous range ran one column too far, to Chargeable Cost itself,
-    ' which hid the one cost figure a collapsed view most needs to keep
-    ' showing).
-    GroupColumnRange lo, "Paper Cost", "Disregarded"
+    ' Paper Cost through Disregarded: flattened to no outline group at all,
+    ' migrating a workbook built before 2026-09-27 (see this Sub's own
+    ' comment above). ApplyCostColumnsVisibility - called separately, same
+    ' per-sheet loop - is what now actually controls whether these four
+    ' columns are hidden; whatever state FlattenOutline leaves .Hidden in
+    ' here is immediately overwritten there.
+    FlattenOutline lo, "Paper Cost", "Disregarded"
 
     ' Notes through S_SchemaVer: flattened to NO grouping at all (2026-09-22),
     ' not re-grouped - this used to also GroupColumnRange S_PrinterID through
@@ -1472,16 +1554,6 @@ Private Sub GroupJobColumns(ByVal ws As Worksheet)
     ' the snapshot columns stay invisible regardless, via their own
     ' .Hidden state (§3.4/§5), which needs no outline group to hold it.
     FlattenOutline lo, "Notes", "S_SchemaVer"
-End Sub
-
-Private Sub GroupColumnRange(ByVal lo As ListObject, ByVal FirstHeader As String, ByVal LastHeader As String)
-    Dim c1 As Long, c2 As Long, ws As Worksheet
-    c1 = ColIdx(lo, FirstHeader)
-    c2 = ColIdx(lo, LastHeader)
-    Set ws = lo.Parent
-    UnlockSheet ws
-    ws.Range(lo.HeaderRowRange.Cells(1, c1), lo.HeaderRowRange.Cells(1, c2)).EntireColumn.Group
-    RelockSheet ws
 End Sub
 
 Private Sub UngroupColumnRange(ByVal lo As ListObject, ByVal FirstHeader As String, ByVal LastHeader As String)

@@ -105,19 +105,22 @@ try {
     $rUnpaid = [double]$rep.Range('L13').Value2
     Check ([Math]::Abs(($rPaid + $rUnpaid) - $rChargeable) -lt 0.01) "Paid + Unpaid reconciles to Chargeable on Reports ($rPaid + $rUnpaid = $($rPaid+$rUnpaid), Chargeable=$rChargeable)"
 
-    # -------------------------------------------------------- column grouping
+    # ------------------------------------------------------- cost visibility
+    # 2026-09-27: the outline group over Paper Cost..Disregarded was replaced
+    # by the ToggleCostColumns button (docs/ARCHITECTURE.md §16.3, "button
+    # lag" writeup) - test-costcolumns.ps1 covers that toggle directly. All
+    # this checks here is that Chargeable Cost and Paid are never touched by
+    # it, same guarantee the old outline group used to make.
     Write-Host ''
-    Write-Host '=== Column grouping: Chargeable Cost and Paid stay outside the group ==='
-    $paperCostCol = $lo.Range.Column + (Col $lo 'Paper Cost') - 1
-    $disregardedCol = $lo.Range.Column + (Col $lo 'Disregarded') - 1
-    $paperLevel = $main.Columns($paperCostCol).OutlineLevel
-    $disregardedLevel = $main.Columns($disregardedCol).OutlineLevel
-    $chgLevel = $main.Columns($sheetChgCol).OutlineLevel
-    $paidLevel = $main.Columns($sheetPaidCol).OutlineLevel
-    Check ($paperLevel -gt 1) "Paper Cost is inside a column group (level=$paperLevel)"
-    Check ($disregardedLevel -gt 1) "Disregarded is inside the same column group (level=$disregardedLevel)"
-    Check ($chgLevel -eq 1) "Chargeable Cost is OUTSIDE any group, always visible (level=$chgLevel)"
-    Check ($paidLevel -eq 1) "Paid is OUTSIDE any group, always visible (level=$paidLevel)"
+    Write-Host '=== Chargeable Cost and Paid are never hidden by the cost-columns toggle ==='
+    Check (-not [bool]$main.Columns($sheetChgCol).Hidden) "Chargeable Cost is visible by default (got hidden=$([bool]$main.Columns($sheetChgCol).Hidden))"
+    Check (-not [bool]$main.Columns($sheetPaidCol).Hidden) "Paid is visible by default (got hidden=$([bool]$main.Columns($sheetPaidCol).Hidden))"
+    [void]$xl.Run('btnToggleCostColumns')
+    Start-Sleep -Milliseconds 300
+    Check (-not [bool]$main.Columns($sheetChgCol).Hidden) "Chargeable Cost stays visible once cost detail is hidden (got hidden=$([bool]$main.Columns($sheetChgCol).Hidden))"
+    Check (-not [bool]$main.Columns($sheetPaidCol).Hidden) "Paid stays visible once cost detail is hidden (got hidden=$([bool]$main.Columns($sheetPaidCol).Hidden))"
+    [void]$xl.Run('btnToggleCostColumns')
+    Start-Sleep -Milliseconds 300
 
     $xl.Run('SetQuiet', $false)
 }
