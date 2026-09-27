@@ -65,6 +65,17 @@ Public Function TestAddRoom() As String
     r = r & "template unchanged: Rows=" & JobsTable(src).ListRows.Count & _
         " LOC_Code=" & LocValue(src, "LOC_Code") & vbCrLf
 
+    ' A second room with an explicit, deliberately messy code - proves the
+    ' prompt's own normalisation (uppercase, alphanumeric only, capped at
+    ' six) rather than just the derive-from-name fallback the first room
+    ' above exercises.
+    Dim ws2 As Worksheet
+    SetQuiet True
+    Set ws2 = CreatePrintRoom("Photo Lab", "Media Services", "photo lab 2026!!")
+    SetQuiet False
+    r = r & "second room: LOC_Name=" & LocValue(ws2, "LOC_Name") & _
+        " LOC_Code=" & LocValue(ws2, "LOC_Code") & vbCrLf
+
     r = r & "registry:" & vbCrLf & RegList
     r = r & "consolidated: " & SpillSize & vbCrLf
 
@@ -108,7 +119,19 @@ $xl.DisplayAlerts = $false
 $wb = $null
 try {
     $wb = $xl.Workbooks.Open($f)
-    $m = $wb.VBProject.VBComponents.Add(1)
+
+    # VBProject can come back momentarily unqueryable right after Open() on
+    # a workbook with a substantial VBA project (34 components here) -
+    # observed directly in this session, same "Excel rejects a COM call
+    # while busy" class build.ps1's own SaveAs retry guards against.
+    $m = $null
+    for ($attempt = 1; $attempt -le 5 -and -not $m; $attempt++) {
+        try { $m = $wb.VBProject.VBComponents.Add(1) }
+        catch {
+            if ($attempt -eq 5) { throw }
+            Start-Sleep -Seconds $attempt
+        }
+    }
     $m.Name = 'modAddRoomTest'
     $m.CodeModule.AddFromString($vba)
     Write-Host $xl.Run('TestAddRoom')

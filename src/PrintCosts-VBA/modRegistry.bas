@@ -48,6 +48,11 @@ Private Const LAST_JOB_COL As String = "Notes"
 Private Const HDR_ROW As Long = 9
 Private Const DATA_ROW As Long = 10
 Private Const CODE_MAX As Long = 8
+' Add print room's own job-ID code prompt (direct user request, 2026-09-27)
+' is deliberately shorter than CODE_MAX - a code someone is choosing on
+' purpose (e.g. "PHOTO") reads better capped at six than the eight-character
+' ceiling AssignCode falls back to when deriving one from a sheet name.
+Private Const SHORT_CODE_MAX As Long = 6
 
 ' ---------------------------------------------------------------- refresh ---
 Public Sub RefreshLocations()
@@ -156,13 +161,13 @@ Private Function AssignCode(ByVal ws As Worksheet, ByVal codes As clsDict) As St
     End If
 End Function
 
-Private Function CleanCode(ByVal s As String) As String
+Private Function CleanCode(ByVal s As String, Optional ByVal MaxLen As Long = CODE_MAX) As String
     Dim i As Long, ch As String, out As String
     s = UCase$(Trim$(s))
     For i = 1 To Len(s)
         ch = Mid$(s, i, 1)
         If (ch >= "A" And ch <= "Z") Or (ch >= "0" And ch <= "9") Then out = out & ch
-        If Len(out) >= CODE_MAX Then Exit For
+        If Len(out) >= MaxLen Then Exit For
     Next i
     CleanCode = out
 End Function
@@ -697,14 +702,17 @@ End Function
 ' §16.3) - the existing manual routes (§4.4, and deleting a sheet by hand)
 ' are untouched by any of this.
 Public Sub AddPrintRoom()
-    Dim RoomName As String, Dept As String, ws As Worksheet
+    Dim RoomName As String, Dept As String, code As String, ws As Worksheet
 
     RoomName = PromptText("Name the new print room (this becomes its sheet tab).", "Add print room")
     If Len(RoomName) = 0 Then Exit Sub
 
     Dept = PromptText("Department for '" & RoomName & "' - optional, leave blank if not needed.", "Add print room", AllowBlank:=True)
 
-    Set ws = CreatePrintRoom(RoomName, Dept)
+    code = PromptCode(RoomName)
+    If Len(code) = 0 Then Exit Sub
+
+    Set ws = CreatePrintRoom(RoomName, Dept, code)
     If ws Is Nothing Then Exit Sub
 
     ' Refresh Locations (inside CreatePrintRoom) already confirmed
@@ -727,6 +735,35 @@ Private Function PromptText(ByVal Prompt As String, ByVal Title As String, Optio
     Loop
 End Function
 
+' The short code a job ID is built from - e.g. "PHOTO" for job IDs reading
+' UNI-PHOTO-00001 (§3.2). Direct user request (2026-09-27): captured
+' explicitly here rather than only ever derived silently from the room name
+' (AssignCode's existing fallback, still what a manually-copied sheet with
+' a blank LOC_Code gets), since a good job-ID code and a good room name
+' often want to be different lengths and shapes. Suggested from the room
+' name so accepting the default is usually enough, but always editable -
+' CleanCode does the same uppercase-and-strip-to-alphanumeric normalising
+' either way, capped at SHORT_CODE_MAX rather than AssignCode's longer
+' CODE_MAX, so what is typed always ends up e.g. "PHOTO", regardless of
+' case or stray punctuation.
+Private Function PromptCode(ByVal RoomName As String) As String
+    Dim answer As Variant, s As String, suggestion As String
+    suggestion = CleanCode(RoomName, SHORT_CODE_MAX)
+    Do
+        answer = Application.InputBox( _
+            "Short code for this room's job IDs, e.g. PHOTO for job IDs reading UNI-PHOTO-00001." & vbCrLf & _
+            "Up to " & SHORT_CODE_MAX & " letters/numbers - always stored in capitals.", _
+            "Add print room", suggestion, Type:=2)
+        If VarType(answer) = vbBoolean Then Exit Function   ' Cancel
+        s = CleanCode(CStr(answer), SHORT_CODE_MAX)
+        If Len(s) > 0 Then
+            PromptCode = s
+            Exit Function
+        End If
+        Say "A code is required.", "It becomes this room's job ID prefix (e.g. UNI-PHOTO-00001) and needs at least one letter or number.", "Type a short code, or Cancel to stop."
+    Loop
+End Function
+
 ' The testable core. Duplicates the first registered location sheet, blanks
 ' out everything a copy would otherwise inherit, sets the new room's name
 ' and department, then runs the same Refresh Locations pass the documented
@@ -734,7 +771,13 @@ End Function
 ' button re-pointing, dropdown rebuild, protection and consolidated-range
 ' rewrite all apply to the new sheet exactly as they would to a hand-copied
 ' one, since RefreshLocations has no idea this call was automated.
-Public Function CreatePrintRoom(ByVal RoomName As String, Optional ByVal Dept As String = "") As Worksheet
+' Code, when given, is sanitised and capped the same way PromptCode's own
+' typed answer is (CleanCode, SHORT_CODE_MAX) - a test script passing raw
+' text gets the identical normalisation an interactive dialog answer would.
+' Left blank, the new sheet's LOC_Code is blanked too and AssignCode falls
+' back to its usual derive-from-sheet-name behaviour (unchanged, and still
+' what a manually-copied-and-renamed sheet gets).
+Public Function CreatePrintRoom(ByVal RoomName As String, Optional ByVal Dept As String = "", Optional ByVal Code As String = "") As Worksheet
     Dim src As Worksheet, ws As Worksheet
 
     On Error GoTo Fail
@@ -753,7 +796,7 @@ Public Function CreatePrintRoom(ByVal RoomName As String, Optional ByVal Dept As
     ws.Name = UniqueSheetName(SanitiseSheetName(RoomName))
 
     UnlockSheet ws
-    ResetPrintRoom ws, RoomName, Dept
+    ResetPrintRoom ws, RoomName, Dept, CleanCode(Code, SHORT_CODE_MAX)
     RelockSheet ws
     AppOn
 
@@ -785,10 +828,11 @@ End Function
 ' defaults, the permitted-printers list, the roll-unit preference (blanked
 ' so EnsureRollUnitSetting reapplies its own Metres default on the Refresh
 ' Locations pass that follows, rather than keeping whatever the template
-' happened to have), and the location code (blanked so AssignCode derives a
-' fresh one from the new sheet name instead of colliding with the
-' template's).
-Private Sub ResetPrintRoom(ByVal ws As Worksheet, ByVal RoomName As String, ByVal Dept As String)
+' happened to have), and the location code - set to the caller's chosen
+' Code when one was given (already cleaned by CreatePrintRoom), else
+' blanked so AssignCode falls back to deriving one from the new sheet name
+' instead of colliding with the template's.
+Private Sub ResetPrintRoom(ByVal ws As Worksheet, ByVal RoomName As String, ByVal Dept As String, ByVal Code As String)
     Dim lo As ListObject, i As Long, c As Range
 
     Set lo = JobsTable(ws)
@@ -809,7 +853,11 @@ Private Sub ResetPrintRoom(ByVal ws As Worksheet, ByVal RoomName As String, ByVa
     ClearLocCell ws, "LOC_DefDisCons"
     ClearLocCell ws, "LOC_Printers"
     ClearLocCell ws, "LOC_RollUnit"
-    ClearLocCell ws, "LOC_Code"
+
+    Set c = LocRange(ws, "LOC_Code")
+    If Not c Is Nothing Then
+        If Len(Code) > 0 Then c.Value = Code Else c.ClearContents
+    End If
 
     Set c = LocRange(ws, "LOC_Name")
     If Not c Is Nothing Then c.Value = RoomName
