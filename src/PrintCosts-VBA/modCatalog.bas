@@ -22,9 +22,31 @@ Private mPrinters As clsDict    ' by model
 Private mTechs As clsDict       ' by name -> TechID
 Private mBasis As clsDict       ' family -> "Sheet" / "Roll"
 Private mLoaded As Boolean
+Private mDirty As Boolean       ' set alongside mLoaded=False; cleared once
+                                 ' every print room's dropdowns have actually
+                                 ' been rebound (ThisWorkbook.Workbook_
+                                 ' SheetDeactivate) - see modLists.
+                                 ' RebindAllLocationDropdowns. Invalidate on
+                                 ' its own only clears the in-memory cache;
+                                 ' nothing pushes the change out to the
+                                 ' dropdowns already drawn on each sheet until
+                                 ' something rebinds them, and this flag is
+                                 ' how that "something" knows it is needed.
 
 Public Sub Invalidate()
     mLoaded = False
+    mDirty = True
+End Sub
+
+' True from the moment a catalogue edit invalidates the cache until
+' RebindAllLocationDropdowns next runs - i.e. "some print room's Printer/
+' Paper Stock/Technician dropdown may now be showing stale data".
+Public Function CatalogDirty() As Boolean
+    CatalogDirty = mDirty
+End Function
+
+Public Sub ClearCatalogDirty()
+    mDirty = False
 End Sub
 
 Public Sub LoadCatalog(Optional ByVal Force As Boolean = False)

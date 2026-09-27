@@ -97,6 +97,25 @@ No:
     HasValidation = False
 End Function
 
+' Pushes a changed catalogue (Printers/Papers/Print Technicians/Settings) out
+' to every print room's already-drawn Printer/Paper Stock/Technician
+' dropdowns, plus the Reports page's own filter lists (same staging-column
+' mechanism, see modReports.RefreshReportFilterLists). Called from
+' ThisWorkbook.Workbook_SheetDeactivate when leaving a catalogue sheet that
+' modCatalog.CatalogDirty() says was actually edited - RefreshLocations does
+' the same rebind as part of a much bigger pass (codes, table names, the
+' registry), which is more than a plain catalogue edit needs.
+Public Sub RebindAllLocationDropdowns()
+    Dim ws As Worksheet, v As Variant, repWs As Worksheet
+    For Each v In LocationSheets()
+        Set ws = v
+        BindColumns ws
+        BindDefaultCells ws
+    Next v
+    Set repWs = ReportsSheet()
+    If Not repWs Is Nothing Then RefreshReportFilterLists repWs
+End Sub
+
 Public Sub BindColumns(ByVal ws As Worksheet)
     Dim lo As ListObject, i As Long, model As String, stk As String
     Dim stockGroups As clsDict, printerGroups As clsDict, k As Variant

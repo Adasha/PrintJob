@@ -65,6 +65,31 @@ Private Sub Workbook_SheetActivate(ByVal Sh As Object)
     HideIfLeft Sh
 End Sub
 
+' Rebinds every print room's Printer/Paper Stock/Technician dropdown the
+' moment the user leaves a catalogue sheet they actually edited - not on
+' every keystroke inside the edit (Workbook_SheetChange already fires once
+' per cell, and thrashing a full rebind that often would make editing
+' tblPrinters/tblPapers/tblTechnicians feel sluggish), and not on every sheet
+' switch either (CatalogDirty is False the rest of the time, so merely
+' looking at Printers/Papers/Print Technicians/Settings costs nothing).
+Private Sub Workbook_SheetDeactivate(ByVal Sh As Object)
+    On Error GoTo Fail
+    If Not TypeOf Sh Is Worksheet Then Exit Sub
+    If Not CatalogDirty() Then Exit Sub
+
+    Select Case Sh.Name
+        Case "Papers", "Printers", "Print Technicians", "Settings"
+            AppOff
+            RebindAllLocationDropdowns
+            ClearCatalogDirty
+            AppOn
+    End Select
+    Exit Sub
+Fail:
+    AppReset
+    ReportError "refreshing dropdowns"
+End Sub
+
 Private Sub Workbook_SheetSelectionChange(ByVal Sh As Object, ByVal Target As Range)
     On Error GoTo Fail
     If Not TypeOf Sh Is Worksheet Then Exit Sub
