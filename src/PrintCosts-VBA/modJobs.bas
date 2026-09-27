@@ -108,6 +108,11 @@ Public Sub RepeatJob(ByVal ws As Worksheet)
     CellIn(lo, n, "Printer").Value = CellIn(lo, srcRow, "Printer").Value
     CellIn(lo, n, "Paper Stock").Value = CellIn(lo, srcRow, "Paper Stock").Value
     CellIn(lo, n, "Qty").Value = CellIn(lo, srcRow, "Qty").Value
+    ' The new row's Qty otherwise keeps whatever shading the table's
+    ' previous last row happened to have (see modValidation.MarkQtyRewritten's
+    ' own comment) - clear it here so a repeated row's shading reflects only
+    ' this copy, never a neighbour's.
+    MarkQtyRewritten CellIn(lo, n, "Qty"), False
     CellIn(lo, n, "Print Width mm").Value = CellIn(lo, srcRow, "Print Width mm").Value
     CellIn(lo, n, "Disregard Paper").Value = CellIn(lo, srcRow, "Disregard Paper").Value
     CellIn(lo, n, "Disregard Consumable").Value = CellIn(lo, srcRow, "Disregard Consumable").Value
@@ -119,9 +124,12 @@ Public Sub RepeatJob(ByVal ws As Worksheet)
     CellIn(lo, n, "Technician").ClearContents
     CopyDefault ws, "LOC_DefTech", CellIn(lo, n, "Technician")
 
+    ' No vbCrLf (direct user report): a line break here wraps the Notes cell
+    ' onto a second line, growing that row's height beyond every other row's
+    ' - a single space keeps the note on one line the same as any other.
     srcNotes = Trim$(CStr(CellIn(lo, srcRow, "Notes").Value))
     If Len(srcNotes) > 0 Then
-        CellIn(lo, n, "Notes").Value = srcNotes & vbCrLf & "Copy of " & oldJobId
+        CellIn(lo, n, "Notes").Value = srcNotes & " - Copy of " & oldJobId
     Else
         CellIn(lo, n, "Notes").Value = "Copy of " & oldJobId
     End If

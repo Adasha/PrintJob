@@ -245,7 +245,13 @@ End Sub
 ' isn't calculated, but "shown value isn't what you typed" is close enough
 ' in spirit that reusing the existing visual language beats inventing a new
 ' colour nobody has a legend entry for.
-Private Sub MarkQtyRewritten(ByVal c As Range, ByVal Rewritten As Boolean)
+'
+' Public: modJobs.RepeatJob also calls this (always with False) - a freshly
+' appended ListRow copies whatever formatting the table's PREVIOUS last row
+' happened to have, not the row being repeated, so a shaded row anywhere
+' else in the table would otherwise bleed its shading onto every new row
+' regardless of whether the one actually being repeated was shaded itself.
+Public Sub MarkQtyRewritten(ByVal c As Range, ByVal Rewritten As Boolean)
     If Rewritten Then
         c.Interior.Color = RGB(242, 242, 242)
         c.Font.Color = RGB(128, 128, 128)
