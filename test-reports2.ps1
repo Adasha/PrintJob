@@ -8,10 +8,10 @@
 # saving.
 
 $ErrorActionPreference = 'Stop'
-$deliverable = Join-Path $PSScriptRoot 'src\PrintCosts.xlsm'
+$deliverable = Join-Path $PSScriptRoot 'src\PrintJob.xlsm'
 $workDir = Join-Path ([IO.Path]::GetTempPath()) ('PrintCostsTest-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $workDir | Out-Null
-$f = Join-Path $workDir 'PrintCosts.xlsm'
+$f = Join-Path $workDir 'PrintJob.xlsm'
 Copy-Item $deliverable $f
 
 $xl = New-Object -ComObject Excel.Application

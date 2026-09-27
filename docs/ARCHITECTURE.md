@@ -2,7 +2,9 @@
 
 **This is the single source of truth for this project's design and implementation.** It supersedes and replaces `stage1-design-architecture.md`, `HANDOFF up to stage 7.md`, `snaglist-stage7handoff.txt` and `snaglist_2026-09-21.rtf`, which described the same system at different, now-stale points in time and had started to disagree with each other and with the code. Their content is folded in below; nothing that still mattered was dropped, but the historical changelog they were built from has been compressed into §16 rather than repeated inline.
 
-**Source of truth for the code itself:** `src\PrintCosts.xlsx` (everything a file can carry except VBA) plus `src\PrintCosts-VBA\*.bas` / `*.cls` (the authoritative VBA source). `src\PrintCosts.xlsm` is a **build output** — never hand-edit it. `src\PrintCosts-VBA\SETUP.md` is the separate, actively-maintained *operational* guide (how to build, test, and set up the workbook) and is not duplicated here; this document is design and architecture, SETUP.md is procedure.
+**Source of truth for the code itself:** `src\PrintCosts.xlsx` (everything a file can carry except VBA) plus `src\PrintCosts-VBA\*.bas` / `*.cls` (the authoritative VBA source). `src\PrintJob.xlsm` is a **build output** — never hand-edit it. `src\PrintCosts-VBA\SETUP.md` is the separate, actively-maintained *operational* guide (how to build, test, and set up the workbook) and is not duplicated here; this document is design and architecture, SETUP.md is procedure.
+
+**Naming inconsistency, flagged not fixed (2026-09-27).** The project folder is `PrintJob`, but the source workbook is `PrintCosts.xlsx` and the VBA source folder is `PrintCosts-VBA` — a mismatch that predates this note. `build.ps1`'s output was renamed to `PrintJob.xlsm` (2026-09-27, direct user request) specifically because that rename is free: `HealButtons` (§4.2) already re-qualifies every button's `OnAction` on open, so the workbook self-heals under any filename. Renaming the `.xlsx` source, `PrintCosts-VBA` folder, or the `PrintCosts-*` export/backup file prefixes (`modExport.bas`, `modBackup.bas`) would be a much larger, higher-risk pass with no equivalent self-healing mechanism, and was deliberately left alone. Worth a proper look in the future if the inconsistency keeps bothering people.
 
 **Current state, as verified against the actual VBA source on 2026-09-25:**
 
@@ -262,7 +264,7 @@ A sheet is a location if and only if `AZ1` reads `PRINTLOC/v1`. **Refresh Locati
 
 Any location with unexported changes is named in the refresh message. `Last export`, `Export sig` and `Job ID HWM` are captured before the registry rows are wiped and restored per sheet name afterward, so none of them resets on a routine refresh.
 
-**Button bindings need healing on open, too.** Excel re-qualifies every button's `OnAction` with the workbook's file name when it saves, so the shipped file reads `PrintCosts.xlsm!btnAddPrintJob` — which breaks if the file is renamed. `Workbook_Open` calls `HealButtons`, which rewrites only on a mismatch, so merely opening an untouched workbook never marks it dirty and prompts a save.
+**Button bindings need healing on open, too.** Excel re-qualifies every button's `OnAction` with the workbook's file name when it saves, so the shipped file reads `PrintJob.xlsm!btnAddPrintJob` — which breaks if the file is renamed. `Workbook_Open` calls `HealButtons`, which rewrites only on a mismatch, so merely opening an untouched workbook never marks it dirty and prompts a save. This is also what makes renaming the built `.xlsm` itself (§1's naming-inconsistency note) safe, whether done by `build.ps1` or by hand.
 
 ### 4.3 Deleted locations (D18, was O9)
 
@@ -483,11 +485,14 @@ A live `FILTER`+`SORTBY` driven by criteria cells; results update as criteria ar
 | B5 | Student name | Fragment search, case-insensitive |
 | B6 | Student number | Exact match after trimming |
 | B7 / B8 | Date From / To | `*1`-coerced (tolerant of text dates); To-date test is `< end + 1` so a job logged at 16:30 on the closing date is not excluded |
+| F4 | Location (print room) | Dropdown, exact match — every registered room, not just those with a job logged (2026-09-25; moved here from O4 2026-09-27, see below) |
 | F5 | Technician | Dropdown, exact match |
 | F6 | Printer | Dropdown, exact match |
 | F7 | Paper Stock | Dropdown, exact match |
 | F8 | Quantity | Dropdown, exact match |
 | O10 | **Show student/department name/no** | **Yes/No, defaults to No — snag 2a, see below** |
+
+**Filter block reordered (2026-09-27, direct user request).** Technician/Printer/Paper Stock/Quantity moved down one row each (`D4:D7`/`F4:F7` → `D5:D8`/`F5:F8`), and Location (print room) moved into the row they vacated (`D4`/`F4`) — previously at `N4`/`O4`, parked there only to dodge the columns `ApplyReportsMinimumColumns` hides by default (below). The whole block now reads top-to-bottom as one group: Location, Technician, Printer, Paper stock, Quantity.
 
 Layout convention (snag item 2, resolved): **label → input → hint → gap**, input immediately to the right of its label, with an unused trailing column separating the two filter groups — replacing the earlier NAME | gap | INPUT | hint arrangement.
 

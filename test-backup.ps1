@@ -7,20 +7,20 @@
 # Backs up a populated copy (A), corrupts a second fresh copy (B) by
 # emptying its Printers table and Annexe's job table, then restores B from
 # A's backup and checks it matches A's original state. Drives two COPIES in
-# %TEMP%, never src\PrintCosts.xlsm.
+# %TEMP%, never src\PrintJob.xlsm.
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'test-fixture-annexe.ps1')
-$deliverable = Join-Path $PSScriptRoot 'src\PrintCosts.xlsm'
+$deliverable = Join-Path $PSScriptRoot 'src\PrintJob.xlsm'
 
 $workDirA = Join-Path ([IO.Path]::GetTempPath()) ('PrintCostsTest-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $workDirA | Out-Null
-$fA = Join-Path $workDirA 'PrintCosts.xlsm'
+$fA = Join-Path $workDirA 'PrintJob.xlsm'
 Copy-Item $deliverable $fA
 
 $workDirB = Join-Path ([IO.Path]::GetTempPath()) ('PrintCostsTest-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $workDirB | Out-Null
-$fB = Join-Path $workDirB 'PrintCosts.xlsm'
+$fB = Join-Path $workDirB 'PrintJob.xlsm'
 Copy-Item $deliverable $fB
 
 $anyFail = $false

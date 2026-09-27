@@ -228,7 +228,7 @@ End Sub
 
 ' Excel re-qualifies every button's OnAction with the workbook file name when it
 ' saves a macro-enabled file, so the buttons in the shipped .xlsm read
-' "PrintCosts.xlsm!btnAddPrintJob". That works until somebody renames the file,
+' "PrintJob.xlsm!btnAddPrintJob". That works until somebody renames the file,
 ' at which point every button reports a missing macro.
 '
 ' Called from Workbook_Open. It compares the prefix against the file's current

@@ -28,17 +28,17 @@
 #   Canvas 914mm roll       -> Long Roll family -> only Epson fits   (singleton)
 #   Satin photo 610mm roll  -> Short Roll family -> Epson + HP DesignJet (2)
 #
-# Drives a COPY in %TEMP%, never src\PrintCosts.xlsm itself - see
+# Drives a COPY in %TEMP%, never src\PrintJob.xlsm itself - see
 # test-validation.ps1's header comment for why (Workbook_Open + AutoSave on a
 # cloud-backed handle commits changes regardless of Close($false)).
 #
 # Closes WITHOUT saving.
 
 $ErrorActionPreference = 'Stop'
-$deliverable = Join-Path $PSScriptRoot 'src\PrintCosts.xlsm'
+$deliverable = Join-Path $PSScriptRoot 'src\PrintJob.xlsm'
 $workDir = Join-Path ([IO.Path]::GetTempPath()) ('PrintCostsTest-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $workDir | Out-Null
-$f = Join-Path $workDir 'PrintCosts.xlsm'
+$f = Join-Path $workDir 'PrintJob.xlsm'
 Copy-Item $deliverable $f
 
 $xl = New-Object -ComObject Excel.Application

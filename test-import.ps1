@@ -11,14 +11,14 @@
 # the same split test-nextid.ps1 uses to reach past modJobs.RemoveRow's
 # Ask() gate.
 #
-# Drives a COPY in %TEMP%, never src\PrintCosts.xlsm itself - see verify.ps1.
+# Drives a COPY in %TEMP%, never src\PrintJob.xlsm itself - see verify.ps1.
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'test-fixture-annexe.ps1')
-$deliverable = Join-Path $PSScriptRoot 'src\PrintCosts.xlsm'
+$deliverable = Join-Path $PSScriptRoot 'src\PrintJob.xlsm'
 $workDir = Join-Path ([IO.Path]::GetTempPath()) ('PrintCostsTest-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $workDir | Out-Null
-$f = Join-Path $workDir 'PrintCosts.xlsm'
+$f = Join-Path $workDir 'PrintJob.xlsm'
 Copy-Item $deliverable $f
 
 $xl = New-Object -ComObject Excel.Application

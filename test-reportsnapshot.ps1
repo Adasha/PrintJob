@@ -7,13 +7,13 @@
 # Runs Export report twice: once filtered to a single printer (so Printer -
 # and, on this workbook, Location too - should be promoted into the header
 # and dropped from the table), and once unfiltered (so nothing promotes and
-# every column stays). Drives a COPY in %TEMP%, never src\PrintCosts.xlsm.
+# every column stays). Drives a COPY in %TEMP%, never src\PrintJob.xlsm.
 
 $ErrorActionPreference = 'Stop'
-$deliverable = Join-Path $PSScriptRoot 'src\PrintCosts.xlsm'
+$deliverable = Join-Path $PSScriptRoot 'src\PrintJob.xlsm'
 $workDir = Join-Path ([IO.Path]::GetTempPath()) ('PrintCostsTest-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $workDir | Out-Null
-$f = Join-Path $workDir 'PrintCosts.xlsm'
+$f = Join-Path $workDir 'PrintJob.xlsm'
 Copy-Item $deliverable $f
 
 $xl = New-Object -ComObject Excel.Application
@@ -64,7 +64,9 @@ try {
     }
 
     Write-Host '=== Filtered to one printer: Printer (and Location, single-room workbook) promote ==='
-    $rep.Range('F5').Value2 = 'Epson SureColor P9500'
+    # F6, not F5 (2026-09-27: Location took F4, Technician/Printer/Paper
+    # Stock/Quantity shifted down one row).
+    $rep.Range('F6').Value2 = 'Epson SureColor P9500'
     $xl.CalculateFullRebuild()
     $rep.Activate()
     $xl.Run('btnExportReport')
@@ -153,7 +155,7 @@ try {
     # not a product bug - Export report is never run twice a second in
     # practice).
     Remove-Item $xlsx1.FullName -Force -ErrorAction SilentlyContinue
-    $rep.Range('F5').Value2 = ''
+    $rep.Range('F6').Value2 = ''
     $xl.CalculateFullRebuild()
     $rep.Activate()
     $xl.Run('btnExportReport')

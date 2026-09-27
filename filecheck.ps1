@@ -37,7 +37,7 @@ function Peek($p) {
 }
 
 Write-Host '=== source and current build ==='
-foreach ($n in 'PrintCosts.xlsx', 'PrintCosts.xlsm') {
+foreach ($n in 'PrintCosts.xlsx', 'PrintJob.xlsm') {
     $p = Join-Path $dir $n
     if (Test-Path $p) { Peek $p } else { Write-Host "$n MISSING" }
 }

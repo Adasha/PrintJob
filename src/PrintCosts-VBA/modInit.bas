@@ -540,6 +540,7 @@ Public Sub EnsureJobCountDisplay(ByVal ws As Worksheet)
     UnlockSheet ws
     ws.Range("A8").Value = "Print jobs"
     ws.Range("A8").Font.Bold = True
+    ws.Range("A8").HorizontalAlignment = xlRight
     ws.Range("B8").Formula = "=ROWS(" & lo.Name & ")"
     ws.Range("B8").Locked = True
     RelockSheet ws

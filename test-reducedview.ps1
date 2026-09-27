@@ -13,15 +13,15 @@
 #   - The button caption flips between "Reduce clutter" and "Show all
 #     columns" on every location sheet at once.
 #
-# Drives a COPY in %TEMP%, never src\PrintCosts.xlsm itself. Closes WITHOUT
+# Drives a COPY in %TEMP%, never src\PrintJob.xlsm itself. Closes WITHOUT
 # saving.
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'test-fixture-annexe.ps1')
-$deliverable = Join-Path $PSScriptRoot 'src\PrintCosts.xlsm'
+$deliverable = Join-Path $PSScriptRoot 'src\PrintJob.xlsm'
 $workDir = Join-Path ([IO.Path]::GetTempPath()) ('PrintCostsTest-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $workDir | Out-Null
-$f = Join-Path $workDir 'PrintCosts.xlsm'
+$f = Join-Path $workDir 'PrintJob.xlsm'
 Copy-Item $deliverable $f
 
 $xl = New-Object -ComObject Excel.Application

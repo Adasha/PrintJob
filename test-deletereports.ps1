@@ -9,14 +9,14 @@
 # reason test-nextid.ps1/test-import.ps1 reach past modJobs.RemoveRow and
 # modImport.ApplyImport the same way.
 #
-# Drives a COPY in %TEMP%, never src\PrintCosts.xlsm itself - see verify.ps1.
+# Drives a COPY in %TEMP%, never src\PrintJob.xlsm itself - see verify.ps1.
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'test-fixture-annexe.ps1')
-$deliverable = Join-Path $PSScriptRoot 'src\PrintCosts.xlsm'
+$deliverable = Join-Path $PSScriptRoot 'src\PrintJob.xlsm'
 $workDir = Join-Path ([IO.Path]::GetTempPath()) ('PrintCostsTest-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $workDir | Out-Null
-$f = Join-Path $workDir 'PrintCosts.xlsm'
+$f = Join-Path $workDir 'PrintJob.xlsm'
 Copy-Item $deliverable $f
 
 $xl = New-Object -ComObject Excel.Application
@@ -34,10 +34,11 @@ try {
     $loAnnexe = $annexe.ListObjects('tblJobs_ANNEX')
 
     Write-Host '=== Export report ==='
-    # Filter to one printer (F5 is now a catalogue-wide exact-match dropdown)
-    # so this is a genuine subset, not the whole workbook - exercises the
-    # filtered-snapshot path.
-    $rep.Range('F5').Value2 = 'Epson SureColor P9500'
+    # Filter to one printer (F6 is now a catalogue-wide exact-match dropdown -
+    # moved from F5 2026-09-27 when Location took F4 and the rest shifted down
+    # one row) so this is a genuine subset, not the whole workbook - exercises
+    # the filtered-snapshot path.
+    $rep.Range('F6').Value2 = 'Epson SureColor P9500'
     $xl.CalculateFullRebuild()
     $beforeJobs = [int]$rep.Range('B13').Text
     Write-Host ("  filtered to Printer = 'Epson SureColor P9500': {0} jobs" -f $beforeJobs)

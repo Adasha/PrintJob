@@ -12,16 +12,16 @@
 #   - SET_CURRENCY wired into every NumberFormat/Format$ that used to
 #     hardcode ChrW(163).
 #
-# Drives a COPY in %TEMP%, never src\PrintCosts.xlsm itself - see
+# Drives a COPY in %TEMP%, never src\PrintJob.xlsm itself - see
 # test-validation.ps1's comment for why (AutoSave on a OneDrive-backed handle
 # commits regardless of Close($false)). Closes WITHOUT saving.
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'test-fixture-annexe.ps1')
-$deliverable = Join-Path $PSScriptRoot 'src\PrintCosts.xlsm'
+$deliverable = Join-Path $PSScriptRoot 'src\PrintJob.xlsm'
 $workDir = Join-Path ([IO.Path]::GetTempPath()) ('PrintCostsTest-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $workDir | Out-Null
-$f = Join-Path $workDir 'PrintCosts.xlsm'
+$f = Join-Path $workDir 'PrintJob.xlsm'
 Copy-Item $deliverable $f
 
 $xl = New-Object -ComObject Excel.Application

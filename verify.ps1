@@ -2,7 +2,7 @@
 # If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 $ErrorActionPreference = 'Stop'
-$f = Join-Path $PSScriptRoot 'src\PrintCosts.xlsm'
+$f = Join-Path $PSScriptRoot 'src\PrintJob.xlsm'
 Write-Host '=== version ==='
 
 # Document properties are read out of the OOXML package, not through Excel.

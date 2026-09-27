@@ -8,15 +8,15 @@
 # Also confirms the high-water mark survives a RefreshLocations rebuild,
 # since WriteRegistry deletes and re-adds every registry row on every run.
 #
-# Drives a COPY in %TEMP%, never src\PrintCosts.xlsm itself - see verify.ps1's
+# Drives a COPY in %TEMP%, never src\PrintJob.xlsm itself - see verify.ps1's
 # comment for why (AutoSave on a OneDrive-backed handle commits on Close/Quit
 # regardless of the Close($false) argument).
 
 $ErrorActionPreference = 'Stop'
-$deliverable = Join-Path $PSScriptRoot 'src\PrintCosts.xlsm'
+$deliverable = Join-Path $PSScriptRoot 'src\PrintJob.xlsm'
 $workDir = Join-Path ([IO.Path]::GetTempPath()) ('PrintCostsTest-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $workDir | Out-Null
-$f = Join-Path $workDir 'PrintCosts.xlsm'
+$f = Join-Path $workDir 'PrintJob.xlsm'
 Copy-Item $deliverable $f
 
 $xl = New-Object -ComObject Excel.Application

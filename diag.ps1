@@ -7,10 +7,10 @@ $ErrorActionPreference = 'Stop'
 # (it strips an IFERROR to expose the underlying error), and Workbook_Open
 # plus Excel's cloud-backed AutoSave mean edits reach the real file whether or
 # not it is ever saved - see the note at the top of the test-*.ps1 scripts.
-$deliverable = Join-Path $PSScriptRoot 'src\PrintCosts.xlsm'
+$deliverable = Join-Path $PSScriptRoot 'src\PrintJob.xlsm'
 $workDir = Join-Path ([IO.Path]::GetTempPath()) ('PrintCostsDiag-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $workDir | Out-Null
-$f = Join-Path $workDir 'PrintCosts.xlsm'
+$f = Join-Path $workDir 'PrintJob.xlsm'
 Copy-Item $deliverable $f
 $xl = New-Object -ComObject Excel.Application
 $xl.Visible = $false

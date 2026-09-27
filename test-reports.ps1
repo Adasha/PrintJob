@@ -11,13 +11,13 @@
 # Drives the criteria cells, then closes WITHOUT saving.
 
 $ErrorActionPreference = 'Stop'
-# Drives a COPY in %TEMP%, never src\PrintCosts.xlsm itself - see verify.ps1's
+# Drives a COPY in %TEMP%, never src\PrintJob.xlsm itself - see verify.ps1's
 # comment for why (AutoSave on a OneDrive-backed handle commits regardless of
 # Close($false)).
-$deliverable = Join-Path $PSScriptRoot 'src\PrintCosts.xlsm'
+$deliverable = Join-Path $PSScriptRoot 'src\PrintJob.xlsm'
 $workDir = Join-Path ([IO.Path]::GetTempPath()) ('PrintCostsTest-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $workDir | Out-Null
-$f = Join-Path $workDir 'PrintCosts.xlsm'
+$f = Join-Path $workDir 'PrintJob.xlsm'
 Copy-Item $deliverable $f
 
 $xl = New-Object -ComObject Excel.Application
@@ -135,29 +135,30 @@ try {
 
     Write-Host ''
     Write-Host '=== Reports: new filters (Technician / Printer / Paper Stock / Quantity) ==='
-    Write-Host '  (F4/F5/F6 are now dropdowns - Technician exact-matches recorded jobs, Printer/Paper stock list the whole active catalogue)'
-    $c.Range('F4').Value2 = 'J. Okonkwo'
+    Write-Host '  (F5/F6/F7 are now dropdowns - Technician exact-matches recorded jobs, Printer/Paper stock list the whole active catalogue)'
+    Write-Host '  (2026-09-27: Technician/Printer/Paper Stock/Quantity shifted down one row, F4:F7 -> F5:F8, to make room for Location at F4)'
+    $c.Range('F5').Value2 = 'J. Okonkwo'
     $xl.CalculateFullRebuild()
     Write-Host ("  Technician = 'J. Okonkwo': jobs={0}" -f $c.Range('B13').Text)
     if ([int]$c.Range('B13').Text -eq 0) { Write-Host 'FAIL: expected at least one match on Technician filter'; exit 1 }
-    $c.Range('F4').ClearContents() | Out-Null
+    $c.Range('F5').ClearContents() | Out-Null
 
-    $c.Range('F5').Value2 = 'Epson SureColor P9500'
+    $c.Range('F6').Value2 = 'Epson SureColor P9500'
     $xl.CalculateFullRebuild()
     Write-Host ("  Printer = 'Epson SureColor P9500': jobs={0}" -f $c.Range('B13').Text)
     if ([int]$c.Range('B13').Text -eq 0) { Write-Host 'FAIL: expected at least one match on Printer filter'; exit 1 }
-    $c.Range('F5').ClearContents() | Out-Null
+    $c.Range('F6').ClearContents() | Out-Null
 
-    $c.Range('F7').Value2 = 12
+    $c.Range('F8').Value2 = 12
     $xl.CalculateFullRebuild()
     Write-Host ("  Quantity = 12: jobs={0}" -f $c.Range('B13').Text)
     if ([int]$c.Range('B13').Text -eq 0) { Write-Host 'FAIL: expected at least one match on Quantity filter'; exit 1 }
-    $c.Range('F7').ClearContents() | Out-Null
+    $c.Range('F8').ClearContents() | Out-Null
     $xl.CalculateFullRebuild()
 
     Write-Host ''
     Write-Host '=== Reports: dropdown/date-picker UI controls ==='
-    foreach ($addr in 'F4', 'F5', 'F6', 'B10', 'F10') {
+    foreach ($addr in 'F5', 'F6', 'F7', 'B10', 'F10') {
         $t = $c.Range($addr).Validation.Type
         Write-Host ("  {0} validation type: {1} (3 = list/dropdown)" -f $addr, $t)
         if ($t -ne 3) { Write-Host "FAIL: $addr should be a list dropdown"; exit 1 }

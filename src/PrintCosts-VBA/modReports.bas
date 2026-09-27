@@ -227,22 +227,24 @@ Private Function Criteria() As String
     ' Technician, Printer and Paper Stock are dropdowns (RefreshReportFilterLists),
     ' not free text, so an exact match is what "choose one from the list"
     ' means - unlike Student name, there is no fragment to search for.
-    s = s & "*IF($F$4="""",TRUE," & C("Technician") & "=$F$4)"
-    s = s & "*IF($F$5="""",TRUE," & C("Printer") & "=$F$5)"
-    s = s & "*IF($F$6="""",TRUE," & C("Paper Stock") & "=$F$6)"
+    ' Rows shifted down one (2026-09-27, see the CritCell call sites) to make
+    ' room for Location at $F$4, immediately below.
+    s = s & "*IF($F$5="""",TRUE," & C("Technician") & "=$F$5)"
+    s = s & "*IF($F$6="""",TRUE," & C("Printer") & "=$F$6)"
+    s = s & "*IF($F$7="""",TRUE," & C("Paper Stock") & "=$F$7)"
 
     ' Quantity: exact match, blank ignored, *1-coerced the same way the date
     ' boxes are so a value left as text by an unformatted cell is treated as
     ' no filter rather than as a quantity of zero.
-    s = s & "*IF($F$7="""",TRUE,IF(ISERROR($F$7*1),TRUE," & _
-        "IFERROR(" & C("Qty") & "*1,0)=$F$7*1))"
+    s = s & "*IF($F$8="""",TRUE,IF(ISERROR($F$8*1),TRUE," & _
+        "IFERROR(" & C("Qty") & "*1,0)=$F$8*1))"
 
     ' Location (print room), added 2026-09-25 - a dropdown of registered print
     ' rooms (RefreshReportFilterLists, AllLocationCodes), same exact-match
-    ' treatment as Technician/Printer/Paper Stock above. Parked at $O$4 (the
-    ' N4/O4 "third group" - see its CritCell call site below) rather than
-    ' extending the A-H layout rows 4-8 already fill.
-    s = s & "*IF($O$4="""",TRUE," & C("Location") & "=$O$4)"
+    ' treatment as Technician/Printer/Paper Stock above. Moved from $O$4 to
+    ' $F$4 (2026-09-27, see its CritCell call site) once Technician/Printer/
+    ' Paper Stock/Quantity shifted down a row and freed it.
+    s = s & "*IF($F$4="""",TRUE," & C("Location") & "=$F$4)"
 
     Criteria = s
 End Function
@@ -315,7 +317,7 @@ Public Sub BuildReports()
     ' Labels at D, not E (2026-09-26 fix): E is "Printer" in the results
     ' table, one of the columns ApplyReportsMinimumColumns hides by header
     ' name - and that Hidden reaches every row on the sheet, not just the
-    ' results table, so a label parked at E4:E7 rendered invisible under the
+    ' results table, so a label parked at E4:E8 rendered invisible under the
     ' default view even though its own input cell (F, "Paper stock", always
     ' kept) showed fine with nothing beside it. D ("Student no") is one of
     ' the kept columns and unused on these rows - previously the blank
@@ -323,26 +325,26 @@ Public Sub BuildReports()
     ' doing double duty as the label column instead. The one-column visual
     ' gap between groups is gone, but a readable label beats a tidy gap to a
     ' label nobody could see.
-    CritCell ws, "D4", "F4", "Technician"
-    CritCell ws, "D5", "F5", "Printer"
-    CritCell ws, "D6", "F6", "Paper stock"
-    CritCell ws, "D7", "F7", "Quantity"
-    ' Row 8 left blank (2026-09-26) - the gap freed up under the title (see
-    ' above) sits below Quantity on this side, not between two of these four
-    ' fields, so Technician/Printer/Paper Stock/Quantity stay one contiguous
-    ' block rather than being split the way the Student/Department pair and
-    ' the date pair now are on the left.
+    '
+    ' Technician/Printer/Paper stock/Quantity moved down one row, D5:D8/F5:F8
+    ' (2026-09-27, direct user request), freeing D4/F4 for the Location
+    ' (print room) filter immediately below - see that CritCell call for why
+    ' it moved out of N4/O4.
+    CritCell ws, "D5", "F5", "Technician"
+    CritCell ws, "D6", "F6", "Printer"
+    CritCell ws, "D7", "F7", "Paper stock"
+    CritCell ws, "D8", "F8", "Quantity"
 
-    ' Location (print room) filter, added 2026-09-25. N4/O4, not a third slot
-    ' in the A-D/E-H groups: E/G/H (and I:M) are columns
-    ' ApplyReportsMinimumColumns hides entirely by results-header name, the
-    ' same trap O10's own 2026-09-22 comment already names - a label or input
-    ' parked there can render hidden or orphaned under the default view. N/O
-    ' are "Chargeable"/"Paid", both permanently kept visible, with I:M
-    ' (Area m2 .. Disregarded, all hidden by default) already sitting blank
-    ' between them and the Printer/Paper Stock/Quantity group as a natural
-    ' gap - no existing cell moves.
-    CritCell ws, "N4", "O4", "Location (print room)"
+    ' Location (print room) filter. Originally parked at N4/O4 (2026-09-25) to
+    ' dodge E/G/H/I:M, the columns ApplyReportsMinimumColumns hides entirely
+    ' by results-header name (the same trap O10's own 2026-09-22 comment
+    ' names) - a label or input parked there can render hidden or orphaned
+    ' under the default view. Moved to D4/F4 (2026-09-27, direct user
+    ' request) - the row the Technician/Printer/Paper Stock/Quantity group
+    ' vacated by shifting down one row (above) - rather than staying at N4/O4,
+    ' so the whole filter block reads top-to-bottom as one contiguous group:
+    ' Location, Technician, Printer, Paper stock, Quantity.
+    CritCell ws, "D4", "F4", "Location (print room)"
 
     ' Sort by/direction sit below the filters, above the totals row (snag list
     ' item 3) rather than beside the Technician/Printer/Paper/Quantity group -
@@ -1040,19 +1042,22 @@ Public Sub RefreshReportFilterLists(ByVal ws As Worksheet)
     ApplyTo ws, ws.Range("B5"), DistinctValues("Student No"), "REP|StudentNo", _
         "Student/Department number", "Pick a recorded number, or type one that hasn't been logged yet.", Strict:=False
 
-    ApplyTo ws, ws.Range("F4"), DistinctValues("Technician"), "REP|Technician", _
+    ' Rows shifted down one, F5:F8 (2026-09-27) - see BuildReports' CritCell
+    ' call sites for why.
+    ApplyTo ws, ws.Range("F5"), DistinctValues("Technician"), "REP|Technician", _
         "Technician", "Choose a technician, or leave blank to include all."
-    ApplyTo ws, ws.Range("F5"), AllActivePrinters(), "REP|Printer", _
+    ApplyTo ws, ws.Range("F6"), AllActivePrinters(), "REP|Printer", _
         "Printer", "Choose a printer, or leave blank to include all."
-    ApplyTo ws, ws.Range("F6"), AllActiveStocks(), "REP|Paper stock", _
+    ApplyTo ws, ws.Range("F7"), AllActiveStocks(), "REP|Paper stock", _
         "Paper stock", "Choose a paper stock, or leave blank to include all."
 
     ' Location (print room): every registered print room (modRegistry.
     ' AllLocationCodes, tblLocations), not just those with a job logged yet -
     ' same "every catalogue entry" behaviour as Printer/Paper Stock above
     ' (AllActivePrinters/AllActiveStocks), so a room added today is
-    ' immediately choosable here.
-    ApplyTo ws, ws.Range("O4"), AllLocationCodes(), "REP|Location", _
+    ' immediately choosable here. Moved from O4 to F4 (2026-09-27) - see
+    ' BuildReports' CritCell call site.
+    ApplyTo ws, ws.Range("F4"), AllLocationCodes(), "REP|Location", _
         "Location (print room)", "Choose a print room, or leave blank to include all."
 End Sub
 

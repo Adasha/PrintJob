@@ -8,7 +8,7 @@
 # is left for inspection and removed at the end.
 
 $ErrorActionPreference = 'Stop'
-# Drives a COPY in %TEMP%, never src\PrintCosts.xlsm itself.
+# Drives a COPY in %TEMP%, never src\PrintJob.xlsm itself.
 #
 # Neither Close($false) nor AutoSaveOn is the protection it looks like.
 # Workbook_Open does real work on every open - ProtectAll unprotects and
@@ -43,10 +43,10 @@ $ErrorActionPreference = 'Stop'
 # $src is the copy's folder, so the export lands there and is read back
 # from there. It also means this script no longer deletes the real
 # exports in src\ to find its own - which it used to do on every run.
-$deliverable = Join-Path $PSScriptRoot 'src\PrintCosts.xlsm'
+$deliverable = Join-Path $PSScriptRoot 'src\PrintJob.xlsm'
 $src = Join-Path ([IO.Path]::GetTempPath()) ('PrintCostsTest-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $src | Out-Null
-$f = Join-Path $src 'PrintCosts.xlsm'
+$f = Join-Path $src 'PrintJob.xlsm'
 Copy-Item $deliverable $f
 $workDir = $src
 

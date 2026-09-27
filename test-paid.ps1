@@ -11,14 +11,14 @@
 #     Cost and Paid stay outside it (ungrouped, always visible).
 #   - Export/Import carry Paid through.
 #
-# Drives a COPY in %TEMP%, never src\PrintCosts.xlsm itself. Closes WITHOUT
+# Drives a COPY in %TEMP%, never src\PrintJob.xlsm itself. Closes WITHOUT
 # saving except where noted.
 
 $ErrorActionPreference = 'Stop'
-$deliverable = Join-Path $PSScriptRoot 'src\PrintCosts.xlsm'
+$deliverable = Join-Path $PSScriptRoot 'src\PrintJob.xlsm'
 $workDir = Join-Path ([IO.Path]::GetTempPath()) ('PrintCostsTest-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $workDir | Out-Null
-$f = Join-Path $workDir 'PrintCosts.xlsm'
+$f = Join-Path $workDir 'PrintJob.xlsm'
 Copy-Item $deliverable $f
 
 $xl = New-Object -ComObject Excel.Application

@@ -10,7 +10,7 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 
 `build.ps1` does steps 2 to 5 below in one go: it backs up any existing
 `.xlsm`, imports every module into a fresh copy of the `.xlsx`, pastes in the
-`ThisWorkbook` code, runs `InitialiseWorkbook`, and saves `src\PrintCosts.xlsm`.
+`ThisWorkbook` code, runs `InitialiseWorkbook`, and saves `src\PrintJob.xlsm`.
 Step 1 is still needed once, and Excel must be closed on that file.
 
 It prints whatever `InitialiseWorkbook` would have shown in a dialog, because
@@ -178,7 +178,7 @@ reads the Clear All confirmation by putting the workbook in quiet mode first:
 `Ask` then returns **False** and logs its prompt, so the exact text can be
 checked while the deletion it guards never happens.
 
-**Every test script drives a copy in `%TEMP%`, not `src\PrintCosts.xlsm`.** This
+**Every test script drives a copy in `%TEMP%`, not `src\PrintJob.xlsm`.** This
 is the part that makes the sentence above true, and it was added in 0.7.1 after
 the original mechanism turned out not to work.
 
@@ -215,9 +215,9 @@ disagree about the figures with nothing wrong in the workbook at all.
 If you are checking that for yourself, hash the file either side of a run:
 
 ```
-$h = (Get-FileHash src\PrintCosts.xlsm -Algorithm SHA256).Hash
+$h = (Get-FileHash src\PrintJob.xlsm -Algorithm SHA256).Hash
 powershell -ExecutionPolicy Bypass -File test-reports.ps1
-(Get-FileHash src\PrintCosts.xlsm -Algorithm SHA256).Hash -eq $h
+(Get-FileHash src\PrintJob.xlsm -Algorithm SHA256).Hash -eq $h
 ```
 
 It should print `True`.

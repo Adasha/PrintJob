@@ -1,7 +1,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
 # If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 #
-# Builds src\PrintCosts.xlsm from src\PrintCosts.xlsx + src\PrintCosts-VBA\*.
+# Builds src\PrintJob.xlsm from src\PrintCosts.xlsx + src\PrintCosts-VBA\*.
 #
 # Replaces steps 2 to 5 of PrintCosts-VBA\SETUP.md. Requires Excel, and
 # "Trust access to the VBA project object model" ticked in the Trust Center.
@@ -13,7 +13,7 @@ $ErrorActionPreference = 'Stop'
 $root = Join-Path $PSScriptRoot 'src'
 $vba  = Join-Path $root 'PrintCosts-VBA'
 $src  = Join-Path $root 'PrintCosts.xlsx'
-$dst  = Join-Path $root 'PrintCosts.xlsm'
+$dst  = Join-Path $root 'PrintJob.xlsm'
 
 if (-not (Test-Path $src)) { throw "Not found: $src" }
 
@@ -50,7 +50,7 @@ try {
 finally { $zsrc.Dispose() }
 
 if (Test-Path $dst) {
-    $bak = Join-Path $root ('PrintCosts.' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.bak.xlsm')
+    $bak = Join-Path $root ('PrintJob.' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.bak.xlsm')
     Copy-Item $dst $bak
     Write-Host "backed up existing xlsm -> $(Split-Path $bak -Leaf)"
 }

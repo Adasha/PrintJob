@@ -11,7 +11,7 @@
 # The workbook is closed WITHOUT saving.
 
 $ErrorActionPreference = 'Stop'
-# Drives a COPY in %TEMP%, never src\PrintCosts.xlsm itself.
+# Drives a COPY in %TEMP%, never src\PrintJob.xlsm itself.
 #
 # Neither Close($false) nor AutoSaveOn is the protection it looks like.
 # Workbook_Open does real work on every open - ProtectAll unprotects and
@@ -42,10 +42,10 @@ $ErrorActionPreference = 'Stop'
 # Left unfixed, this rewrites the artefact under test: the phase 5-7 runs did,
 # and a later script read an earlier one's edits back as though they were the
 # build.
-$deliverable = Join-Path $PSScriptRoot 'src\PrintCosts.xlsm'
+$deliverable = Join-Path $PSScriptRoot 'src\PrintJob.xlsm'
 $workDir = Join-Path ([IO.Path]::GetTempPath()) ('PrintCostsTest-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $workDir | Out-Null
-$f = Join-Path $workDir 'PrintCosts.xlsm'
+$f = Join-Path $workDir 'PrintJob.xlsm'
 Copy-Item $deliverable $f
 
 $vba = @'

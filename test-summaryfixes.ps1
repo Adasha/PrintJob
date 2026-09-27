@@ -3,13 +3,13 @@
 #
 # Snag list items 3a (ToggleConfigSheets stays on Summary) and 3b (Go to
 # Settings button removed), package 7 of the 2026-09-22 post-phase-8 snag
-# list. Drives a COPY in %TEMP%, never src\PrintCosts.xlsm.
+# list. Drives a COPY in %TEMP%, never src\PrintJob.xlsm.
 
 $ErrorActionPreference = 'Stop'
-$deliverable = Join-Path $PSScriptRoot 'src\PrintCosts.xlsm'
+$deliverable = Join-Path $PSScriptRoot 'src\PrintJob.xlsm'
 $workDir = Join-Path ([IO.Path]::GetTempPath()) ('PrintCostsTest-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $workDir | Out-Null
-$f = Join-Path $workDir 'PrintCosts.xlsm'
+$f = Join-Path $workDir 'PrintJob.xlsm'
 Copy-Item $deliverable $f
 
 $xl = New-Object -ComObject Excel.Application

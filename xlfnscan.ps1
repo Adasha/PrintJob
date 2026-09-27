@@ -6,7 +6,7 @@
 # Reads the OOXML package directly, so it catches things the grid does not
 # show: hidden and very-hidden sheets, conditional formatting rules, data
 # validation formulas, and defined names.
-param([string] $File = 'src\PrintCosts.xlsm')
+param([string] $File = 'src\PrintJob.xlsm')
 
 $ErrorActionPreference = 'Stop'
 $path = if ([IO.Path]::IsPathRooted($File)) { $File } else { Join-Path $PSScriptRoot $File }

@@ -5,7 +5,7 @@
 #
 #   probe.ps1                        whole workbook: sheets, tables, columns, names
 #   probe.ps1 -Sheet Settings        one sheet, cell by cell, for placing new content
-#   probe.ps1 -File src\PrintCosts.xlsm -Sheet _Data
+#   probe.ps1 -File src\PrintJob.xlsm -Sheet _Data
 #
 # Opens read-only and closes without saving, so it is safe to run against the
 # deliverable.
