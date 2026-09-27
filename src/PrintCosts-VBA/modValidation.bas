@@ -185,14 +185,6 @@ Private Sub OnStockChanged(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal 
             Say "Print width does not apply to sheet stock.", "For sheets the whole sheet is treated as printed, so a print width " & "would have no effect.", "The value has been cleared."
         End If
     End If
-
-    ' Order-dependency fix (§16.3): a roll length typed before Paper Stock
-    ' was chosen never got its cm->m conversion, since that used to only run
-    ' on Qty's own Change event. Catches it here too, the moment Paper Stock
-    ' resolves to a Roll stock - ConvertQtyIfCentimetres's own guards (blank
-    ' Qty, already-converted, Sheet stock) make this a no-op whenever there
-    ' is nothing to do.
-    ConvertQtyIfCentimetres ws, lo, n
 End Sub
 
 ' modInit.EnsureRollUnitSetting's LOC_RollUnit (per-location, spec: "let some
@@ -204,11 +196,21 @@ End Sub
 ' stock is left alone: Qty there counts sheets, not a length, whatever this
 ' setting says.
 '
-' Whatever is in the cell the moment Qty itself is edited is always treated
-' as fresh raw input - MarkQtyRewritten False first, unconditionally, then
-' ConvertQtyIfCentimetres decides whether to rewrite it. See that function's
-' own comment for the order-dependency gap this used to have (fixed
-' 2026-09-27) and why OnStockChanged (below) now also calls it.
+' Order-dependent, same as OnWidthChanged: this only fires on Qty's own
+' Change event, so a length typed before Paper Stock is chosen is left as
+' raw, un-converted centimetres until Qty is edited again - Paper Stock sits
+' to Qty's left in the table, so choosing it first (the natural left-to-right
+' order) avoids this in normal use.
+'
+' NOTE (revisit, 2026-09-25): that order-dependency is a real correctness
+' gap, not just UX - a length typed before Paper Stock, on a Centimetres
+' location, silently lands in Qty 100x too large as metres, and nothing in
+' CheckSheet/CheckWorkbook flags it. LOC_RollUnit is also a per-LOCATION
+' setting, so one sheet cannot mix cm and m entry job-by-job. If either
+' turns out to matter in practice, the more robust fix is a genuine per-row
+' unit (a real job-row column feeding a calculated Qty, not this cell
+' rewrite) - a real schema bump, not attempted here since it is a bigger
+' change than what was asked for. See docs/ARCHITECTURE.md §16.3.
 '
 ' Shaded (direct user report, 2026-09-27) means exactly one thing: the value
 ' shown is not what was typed - it was rewritten by the cm->m divide below,
@@ -219,36 +221,12 @@ End Sub
 ' shading gone on that same edit, only coming back if the rewrite below
 ' actually fires again.
 Private Sub OnQtyChanged(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal n As Long)
-    MarkQtyRewritten CellIn(lo, n, "Qty"), False
-    ConvertQtyIfCentimetres ws, lo, n
-End Sub
-
-' Shared by OnQtyChanged (Qty itself just edited) and OnStockChanged (Paper
-' Stock just chosen or changed) - the real fix for the order-dependency gap
-' recorded in docs/ARCHITECTURE.md §16.3 (2026-09-25 NOTE, resolved
-' 2026-09-27). A roll length typed before Paper Stock is chosen used to sit
-' as raw, un-converted centimetres forever, since the conversion only ever
-' ran on Qty's own Change event - on a Centimetres location that meant a job
-' silently stored 100x too large in metres, with nothing in CheckSheet/
-' CheckWorkbook to catch it. Now OnStockChanged calls this too, the moment a
-' Roll stock is chosen, so the conversion finally happens regardless of which
-' of the two cells was filled in first.
-'
-' MarkQtyRewritten's own shading is reused as the "already converted" flag,
-' rather than adding a new one - it already means exactly that (see
-' OnQtyChanged's comment above), and is the only place this state is
-' recorded. Guarding on it here is what stops a value the *Qty* handler
-' already converted from being divided by 100 a second time when Paper Stock
-' happens to change again afterwards (e.g. swapping between two Roll
-' stocks): QtyMarkedRewritten catches that and does nothing, leaving an
-' already-correct metres value alone.
-Private Sub ConvertQtyIfCentimetres(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal n As Long)
     Dim stk As String, s As clsStock, q As Double, c As Range
     Set c = CellIn(lo, n, "Qty")
+    MarkQtyRewritten c, False
 
     If StrComp(LocValue(ws, "LOC_RollUnit"), "Centimetres", vbTextCompare) <> 0 Then Exit Sub
     If Len(c.Value) = 0 Then Exit Sub
-    If QtyMarkedRewritten(c) Then Exit Sub
 
     stk = CStr(CellIn(lo, n, "Paper Stock").Value)
     If Len(stk) = 0 Then Exit Sub
@@ -261,10 +239,6 @@ Private Sub ConvertQtyIfCentimetres(ByVal ws As Worksheet, ByVal lo As ListObjec
         MarkQtyRewritten c, True
     End If
 End Sub
-
-Private Function QtyMarkedRewritten(ByVal c As Range) As Boolean
-    QtyMarkedRewritten = (c.Interior.Color = RGB(242, 242, 242))
-End Function
 
 ' RGB(242,242,242)/RGB(128,128,128): the same grey-fill/grey-text look this
 ' workbook already uses for a calculated cell (e.g. Unit, Area m2) - Qty
