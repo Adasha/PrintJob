@@ -25,7 +25,7 @@ $wb = $null
 try {
     $wb = $xl.Workbooks.Open($f)
     $xl.Run('SetQuiet', $true)
-    $main = $wb.Worksheets('Main Print Room')
+    $main = $wb.Worksheets('Example Print Room')
     $lo = $main.ListObjects('tblJobs_MAIN')
 
     function Check([bool]$cond, [string]$msg) {
@@ -51,7 +51,7 @@ try {
     # ------------------------------------------------------------- header block
     Write-Host ''
     Write-Host '=== Header block survives before toggling ==='
-    Check ([string]$main.Range('B1').Text -eq 'Main Print Room') "B1 (room name) reads correctly before toggle"
+    Check ([string]$main.Range('B1').Text -eq 'Example Print Room') "B1 (room name) reads correctly before toggle"
     Check ([string]$main.Range('B2').Text -eq 'Print Services') "B2 (department) reads correctly before toggle"
 
     Write-Host ''
@@ -60,7 +60,7 @@ try {
     Start-Sleep -Milliseconds 300
     Check (-not [bool]$main.Columns('A').Hidden) "column A is NOT hidden (header block lives there)"
     Check (-not [bool]$main.Columns('B').Hidden) "column B is NOT hidden (header block lives there)"
-    Check ([string]$main.Range('B1').Text -eq 'Main Print Room') "B1 (room name) still reads correctly with reduced view ON"
+    Check ([string]$main.Range('B1').Text -eq 'Example Print Room') "B1 (room name) still reads correctly with reduced view ON"
     Check ([string]$main.Range('B2').Text -eq 'Print Services') "B2 (department) still reads correctly with reduced view ON"
 
     $sheetStatusCol = $lo.Range.Column + $statusIdx - 1

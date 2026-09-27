@@ -15,7 +15,7 @@
 #     narrows auto-fill.
 #   - Clear defaults empties all three.
 #
-# Uses the same Main Print Room catalogue data as test-dropdowns.ps1.
+# Uses the same Example Print Room catalogue data as test-dropdowns.ps1.
 #
 # Drives a COPY in %TEMP%, never src\PrintJob.xlsm itself. Closes WITHOUT
 # saving.
@@ -34,7 +34,7 @@ $wb = $null
 try {
     $wb = $xl.Workbooks.Open($f)
     $xl.Run('SetQuiet', $true)
-    $main = $wb.Worksheets('Main Print Room')
+    $main = $wb.Worksheets('Example Print Room')
     $lo = $main.ListObjects('tblJobs_MAIN')
 
     function Col($lo, $name) {

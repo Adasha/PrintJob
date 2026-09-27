@@ -36,7 +36,7 @@ $wb = $null
 try {
     $wb = $xl.Workbooks.Open($f)
     $xl.Run('SetQuiet', $true)
-    $main = $wb.Worksheets('Main Print Room')
+    $main = $wb.Worksheets('Example Print Room')
     $lo = $main.ListObjects('tblJobs_MAIN')
 
     function Col($lo, $name) {

@@ -1,4 +1,4 @@
-﻿# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
+# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
 # If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # AT-13: duplicating a print room sheet must survive Refresh Locations.
@@ -56,17 +56,17 @@ Public Function TestDuplicate() As String
     On Error GoTo Fail
     Application.DisplayAlerts = False
 
-    ' Duplicates "Main Print Room" rather than a pre-built "Annexe" - the
+    ' Duplicates "Example Print Room" rather than a pre-built "Annexe" - the
     ' latter was deliberately removed from PrintCosts.xlsx 2026-09-26
     ' (ARCHITECTURE.md's addendum: a second pre-built sheet added nothing the
     ' documented duplicate-and-rename procedure, SETUP §4.4, didn't already
     ' give a user). This test only cares that duplicating SOME location sheet
     ' survives Refresh Locations, not which one.
-    Set src = ThisWorkbook.Worksheets("Main Print Room")
+    Set src = ThisWorkbook.Worksheets("Example Print Room")
     r = "job tables before:" & vbCrLf & TableList
     src.Copy After:=src
     Set ws = ActiveSheet
-    r = r & "duplicated 'Main Print Room' -> '" & ws.Name & "'" & vbCrLf
+    r = r & "duplicated 'Example Print Room' -> '" & ws.Name & "'" & vbCrLf
     r = r & "job tables straight after the copy:" & vbCrLf & TableList
 
     SetQuiet True

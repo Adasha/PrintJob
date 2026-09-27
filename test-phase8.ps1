@@ -34,7 +34,7 @@ try {
 
     # ---------------------------------------------------- warning: Status ---
     Write-Host '=== Warning state: Status column conditional formatting ==='
-    foreach ($sheetTable in @(@('Main Print Room', 'tblJobs_MAIN'), @('Annexe', 'tblJobs_ANNEX'))) {
+    foreach ($sheetTable in @(@('Example Print Room', 'tblJobs_MAIN'), @('Annexe', 'tblJobs_ANNEX'))) {
         $ws = $wb.Worksheets($sheetTable[0])
         $lo = $ws.ListObjects($sheetTable[1])
         $rng = $lo.ListColumns('Status').DataBodyRange
@@ -53,7 +53,7 @@ try {
 
     # Sample row UNI-MAIN-00005 (SETUP.md:117) is deliberately invalid -
     # confirms the rule actually fires, not just that it exists.
-    $main = $wb.Worksheets('Main Print Room')
+    $main = $wb.Worksheets('Example Print Room')
     $mlo = $main.ListObjects('tblJobs_MAIN')
     $lastRow = $mlo.ListRows($mlo.ListRows.Count).Range
     $statusCell = $lastRow.Cells(1, 1)

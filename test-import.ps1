@@ -29,7 +29,7 @@ try {
     $wb = $xl.Workbooks.Open($f)
     Add-AnnexeFixture $xl $wb | Out-Null
     $xl.Run('SetQuiet', $true)
-    $main = $wb.Worksheets('Main Print Room')
+    $main = $wb.Worksheets('Example Print Room')
     $annexe = $wb.Worksheets('Annexe')
     $loMain = $main.ListObjects('tblJobs_MAIN')
 
@@ -48,7 +48,7 @@ try {
     $xl.Run('btnExportAll')
     Write-Host $xl.Run('QuietLog')
     $mainCsv = Get-ChildItem $workDir -Filter 'PrintCosts-*-MAIN-*.csv' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-    if (-not $mainCsv) { Write-Host 'FAIL: no CSV produced for Main Print Room'; exit 1 }
+    if (-not $mainCsv) { Write-Host 'FAIL: no CSV produced for Example Print Room'; exit 1 }
     Write-Host ("  {0}" -f $mainCsv.Name)
 
     # --- capture the row we are about to delete, then delete it ----------
@@ -67,7 +67,7 @@ try {
         if ([string]$loMain.ListRows($i).Range.Cells(1, $idCol).Value2 -eq $victimId) { $stillThere = $true }
     }
     if ($stillThere) { throw 'victim row was not actually deleted' }
-    Write-Host 'deleted from Main Print Room'
+    Write-Host 'deleted from Example Print Room'
 
     # --- restore it via import into the SAME room -------------------------
     Write-Host ''

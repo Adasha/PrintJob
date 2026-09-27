@@ -1,4 +1,4 @@
-﻿# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
+# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
 # If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # Phase 6: per-location export, the derived fingerprint, and the status line.
@@ -56,7 +56,7 @@ $xl.DisplayAlerts = $false
 $wb = $null
 try {
     $wb = $xl.Workbooks.Open($f)
-    $ws = $wb.Worksheets('Main Print Room')
+    $ws = $wb.Worksheets('Example Print Room')
     $xl.Run('SetQuiet', $true)
 
     Write-Host '=== status before export ==='

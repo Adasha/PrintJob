@@ -32,7 +32,7 @@ try {
     $wb = $xl.Workbooks.Open($f)
     Add-AnnexeFixture $xl $wb | Out-Null
     $xl.Run('SetQuiet', $true)
-    $main = $wb.Worksheets('Main Print Room')
+    $main = $wb.Worksheets('Example Print Room')
     $annex = $wb.Worksheets('Annexe')
     $lo = $main.ListObjects('tblJobs_MAIN')
 
@@ -61,7 +61,7 @@ try {
     Write-Host ''
     Write-Host '=== Full view initially: nothing in the shortlist is hidden ==='
     foreach ($h in 'Status', 'Job ID', 'Printer', 'Area m2', 'Disregard Paper', 'Disregard Consumable') {
-        Check (-not (IsHidden $main $lo $h)) "$h is visible on Main Print Room"
+        Check (-not (IsHidden $main $lo $h)) "$h is visible on Example Print Room"
     }
     $hIssuesHiddenBefore = IsHidden $main $lo 'H_Issues'
     Check $hIssuesHiddenBefore "H_Issues (permanently hidden, unrelated to this toggle) starts hidden"
@@ -73,7 +73,7 @@ try {
     Start-Sleep -Milliseconds 300
     $aloAnnex = $annex.ListObjects('tblJobs_ANNEX')
     foreach ($h in 'Status', 'Job ID', 'Printer', 'Area m2', 'Disregard Paper', 'Disregard Consumable') {
-        Check (IsHidden $main $lo $h) "$h is hidden on Main Print Room"
+        Check (IsHidden $main $lo $h) "$h is hidden on Example Print Room"
         Check (IsHidden $annex $aloAnnex $h) "$h is hidden on Annexe too (workbook-wide, not per-sheet)"
     }
     Check (-not (IsHidden $main $lo 'Chargeable Cost')) "Chargeable Cost (not in the shortlist) stays visible"
@@ -101,7 +101,7 @@ try {
     [void]$xl.Run('ToggleReducedView')
     Start-Sleep -Milliseconds 300
     foreach ($h in 'Status', 'Job ID', 'Printer', 'Area m2', 'Disregard Paper', 'Disregard Consumable') {
-        Check (-not (IsHidden $main $lo $h)) "$h is visible again on Main Print Room"
+        Check (-not (IsHidden $main $lo $h)) "$h is visible again on Example Print Room"
     }
     Check ((IsHidden $main $lo 'H_Issues') -eq $hIssuesHiddenBefore) "H_Issues' state is STILL untouched (stays permanently hidden)"
     $btnCaption2 = FindButtonCaption $main $prefix

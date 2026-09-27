@@ -28,7 +28,7 @@ try {
     Add-AnnexeFixture $xl $wb | Out-Null
     $xl.Run('SetQuiet', $true)
     $rep = $wb.Worksheets('Reports')
-    $main = $wb.Worksheets('Main Print Room')
+    $main = $wb.Worksheets('Example Print Room')
     $loMain = $main.ListObjects('tblJobs_MAIN')
     $annexe = $wb.Worksheets('Annexe')
     $loAnnexe = $annexe.ListObjects('tblJobs_ANNEX')

@@ -18,7 +18,7 @@
 # exactly the AT-05 "incompatible combination" path, reached via the
 # dropdown instead of by typing over an already-filled cell.
 #
-# Uses Main Print Room's real catalogue data (see Printers/Papers sheets):
+# Uses Example Print Room's real catalogue data (see Printers/Papers sheets):
 #   Xerox Versant 180    -> Sheet only                  (permitted here)
 #   Epson SureColor P9500 -> Short Roll + Long Roll      (permitted here)
 #   HP DesignJet Z9+      -> Short Roll only             (permitted here)
@@ -48,7 +48,7 @@ $wb = $null
 try {
     $wb = $xl.Workbooks.Open($f)
     $xl.Run('SetQuiet', $true)
-    $main = $wb.Worksheets('Main Print Room')
+    $main = $wb.Worksheets('Example Print Room')
     $lo = $main.ListObjects('tblJobs_MAIN')
     $work = $wb.Worksheets('_Work')
 
@@ -117,7 +117,7 @@ try {
     Start-Sleep -Milliseconds 300
     $got = [string]$main.Cells($r3, $prnCol).Text
     Check ([string]::IsNullOrEmpty($got)) "Short Roll stock (2 compatible printers) leaves Printer blank, not auto-filled (got '$got')"
-    $staged = Staged 'PRN|Main Print Room|Satin photo 610mm roll'
+    $staged = Staged 'PRN|Example Print Room|Satin photo 610mm roll'
     Check ($staged.Count -eq 3) ("Printer list still shows all 3 permitted printers, not narrowed (got {0}: {1})" -f $staged.Count, ($staged -join ', '))
     Check ($staged -contains 'Xerox Versant 180 (unavailable)') "the incompatible printer (Sheet only) is listed but marked unavailable (got: $($staged -join ', '))"
     Check ($staged -contains 'Epson SureColor P9500') "the compatible Epson is listed, unmarked (got: $($staged -join ', '))"

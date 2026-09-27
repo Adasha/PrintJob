@@ -28,7 +28,7 @@
 #
 # The new sheet's LOC_Code is set to "ANNEX" before Refresh Locations runs,
 # rather than left as the copied "MAIN": AssignCode (modRegistry) reads
-# whatever LOC_Code already holds first, and Main Print Room reaches the
+# whatever LOC_Code already holds first, and Example Print Room reaches the
 # refresh loop first (it's earlier in the workbook), so an unchanged "MAIN"
 # on the copy would only be deduplicated to something like "MAIN2" - not the
 # "ANNEX" every dependent test hardcodes via tblJobs_ANNEX.
@@ -41,11 +41,11 @@ Public Function CreateAnnexeFixture() As String
     On Error GoTo Fail
     Application.DisplayAlerts = False
 
-    Set src = ThisWorkbook.Worksheets("Main Print Room")
+    Set src = ThisWorkbook.Worksheets("Example Print Room")
     src.Copy After:=src
     Set ws = ActiveSheet
     ws.Name = "Annexe"
-    r = "created 'Annexe' by duplicating 'Main Print Room' (" & ws.ListObjects(1).ListRows.Count & " rows carried over)" & vbCrLf
+    r = "created 'Annexe' by duplicating 'Example Print Room' (" & ws.ListObjects(1).ListRows.Count & " rows carried over)" & vbCrLf
 
     UnlockSheet ws
     Set codeCell = LocRange(ws, "LOC_Code")

@@ -88,8 +88,8 @@ try {
     }
 
     Write-Host ''
-    Write-Host '=== buttons on Main Print Room ==='
-    $ws = $wb.Worksheets('Main Print Room')
+    Write-Host '=== buttons on Example Print Room ==='
+    $ws = $wb.Worksheets('Example Print Room')
     foreach ($b in $ws.Buttons()) { Write-Host ("  {0,-34} -> {1}" -f $b.Name, $b.OnAction) }
 }
 finally {

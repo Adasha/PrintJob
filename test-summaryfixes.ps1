@@ -39,9 +39,9 @@ try {
 
     Write-Host ''
     Write-Host '=== 3a: ToggleConfigSheets stays on (or returns to) Summary ==='
-    $main = $wb.Worksheets('Main Print Room')
+    $main = $wb.Worksheets('Example Print Room')
     $main.Activate()
-    Check ($wb.ActiveSheet.Name -eq 'Main Print Room') "active sheet is Main Print Room before toggling (got '$($wb.ActiveSheet.Name)')"
+    Check ($wb.ActiveSheet.Name -eq 'Example Print Room') "active sheet is Example Print Room before toggling (got '$($wb.ActiveSheet.Name)')"
     $xl.Run('ToggleConfigSheets')
     Check ($wb.ActiveSheet.Name -eq 'Summary') "active sheet is Summary after ToggleConfigSheets (got '$($wb.ActiveSheet.Name)')"
 

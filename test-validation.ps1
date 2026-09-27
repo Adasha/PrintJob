@@ -1,4 +1,4 @@
-﻿# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
+# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
 # If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # Phase 7: the validation sweep.
@@ -57,7 +57,7 @@ $xl.DisplayAlerts = $false
 $wb = $null
 try {
     $wb = $xl.Workbooks.Open($f)
-    $main = $wb.Worksheets('Main Print Room')
+    $main = $wb.Worksheets('Example Print Room')
     $lo = $main.ListObjects('tblJobs_MAIN')
     $before = $lo.ListRows.Count
 
@@ -78,7 +78,7 @@ try {
     $after = $lo.ListRows.Count
     Write-Host ("  rows before={0} after={1}  {2}" -f $before, $after,
         $(if ($before -eq $after) { 'NOT DELETED - Ask returned False as designed' } else { 'DELETED - BUG' }))
-    foreach ($need in 'Main Print Room', '5 print job', '15/09/2026', '17/09/2026', 'cannot be undone') {
+    foreach ($need in 'Example Print Room', '5 print job', '15/09/2026', '17/09/2026', 'cannot be undone') {
         Write-Host ("  contains '{0,-18}' {1}" -f $need, $(if ($log -like "*$need*") { 'yes' } else { 'NO' }))
     }
 
