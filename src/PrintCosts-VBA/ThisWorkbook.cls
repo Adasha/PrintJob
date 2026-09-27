@@ -28,6 +28,12 @@ Private Sub Workbook_Open()
     ' Repairs the buttons if the file has been renamed since it was saved, and
     ' nothing otherwise.
     HealButtons
+
+    ' Default to Summary sheet with cursor at column A
+    On Error Resume Next
+    ThisWorkbook.Sheets("Summary").Activate
+    ThisWorkbook.Sheets("Summary").Range("A1").Select
+    On Error GoTo 0
 End Sub
 
 Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)
