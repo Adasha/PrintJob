@@ -60,9 +60,21 @@ End Sub
 ' The picker is a worksheet pretending to be a dialog, and it cannot be modal.
 ' Activating any other sheet therefore counts as cancelling it, so it never
 ' lingers in the tab list.
+'
+' Arriving on Reports also refreshes its own Technician/Printer/Paper Stock/
+' Location filter dropdowns (modReports.RefreshReportFilterLists). Technician
+' there is sourced from what has actually been recorded on _Data, not the
+' catalogue (see that sub's own comment) - so unlike the catalogue-driven
+' dropdowns above, it goes stale from a job being added, removed or cleared
+' on ANY print room, not from a catalogue edit. Rather than chase every place
+' a job row can change, refreshing on arrival guarantees it is current
+' whenever it is actually looked at.
 Private Sub Workbook_SheetActivate(ByVal Sh As Object)
     On Error Resume Next
     HideIfLeft Sh
+    If TypeOf Sh Is Worksheet Then
+        If Sh.Name = "Reports" Then RefreshReportFilterLists Sh
+    End If
 End Sub
 
 ' Rebinds every print room's Printer/Paper Stock/Technician dropdown the
