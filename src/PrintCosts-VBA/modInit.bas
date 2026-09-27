@@ -1259,7 +1259,15 @@ End Sub
 ' dependencies several of those Ensure/Reorder calls have on each other
 ' (EnsureQtyColumnName/EnsurePaidColumn must still run before
 ' ReorderJobColumns, which names both columns explicitly).
-Private Sub RepositionLocationButtons(ByVal ws As Worksheet)
+' Public: also ThisWorkbook's own self-heal for the one drift path this
+' loop's callers don't cover - the user manually collapsing/expanding the
+' cost-columns outline group (GroupJobColumns) via Excel's native +/- control.
+' That's not a macro call, so nothing here runs when it happens; VBA has no
+' event that fires on an outline collapse/expand to hook instead. ThisWorkbook
+' calls this from Workbook_SheetActivate and Workbook_SheetSelectionChange as
+' the closest available proxies - the next time the user switches to/from the
+' sheet, or clicks anywhere on it, whichever comes first.
+Public Sub RepositionLocationButtons(ByVal ws As Worksheet)
     Dim lo As ListObject
     Set lo = JobsTable(ws)
     If Not lo Is Nothing Then RelocateAtRiskButtons ws, lo

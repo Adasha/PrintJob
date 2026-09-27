@@ -74,6 +74,10 @@ Private Sub Workbook_SheetActivate(ByVal Sh As Object)
     HideIfLeft Sh
     If TypeOf Sh Is Worksheet Then
         If Sh.Name = "Reports" Then RefreshReportFilterLists Sh
+        ' Catches a location sheet's buttons drifting from a manually
+        ' collapsed/expanded cost-columns group left over from the last visit
+        ' - see modInit.RepositionLocationButtons' own comment.
+        If IsLocation(Sh) Then RepositionLocationButtons Sh
     End If
 End Sub
 
@@ -107,6 +111,12 @@ Private Sub Workbook_SheetSelectionChange(ByVal Sh As Object, ByVal Target As Ra
     If Not TypeOf Sh Is Worksheet Then Exit Sub
     If Not IsLocation(Sh) Then Exit Sub
     OnSelection Sh, Target
+    ' Same self-heal as Workbook_SheetActivate, for the case where the user
+    ' collapses/expands the cost-columns group without ever leaving the
+    ' sheet - the next click anywhere on it re-settles the buttons. Cheap
+    ' (a handful of shape/lookup ops against the table's ~30 headers, not the
+    ' data rows) and idempotent, so running it on every selection is fine.
+    RepositionLocationButtons Sh
     Exit Sub
 Fail:
     Application.EnableEvents = True
