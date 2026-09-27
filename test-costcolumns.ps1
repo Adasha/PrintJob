@@ -102,6 +102,15 @@ try {
     # here would let a hypothetical regression back to the old lag pass
     # unnoticed by giving Workbook_SheetActivate/SelectionChange time to
     # paper over it - this test wants to catch exactly that gap reopening.
+    #
+    # A single throwaway probe read IS wrapped in Invoke-ComRetry, though -
+    # not to wait for the fix (the button positions are already correct the
+    # instant Run() returns, a synchronous call), but because toggling two
+    # sheets' worth of columns/buttons is real work, and Excel can reject the
+    # very next COM call outright while still settling from it (TestCommon.
+    # ps1's own docstring). This retries OUR read of already-correct state,
+    # not the macro call itself, so it does not mask a real lag regression.
+    Invoke-ComRetry { $main.Columns(1).Hidden } | Out-Null
 
     foreach ($h in 'Paper Cost', 'Consumable Cost', 'Gross Cost', 'Disregarded') {
         Check (IsHidden $main $lo $h) "$h is hidden on Example Print Room"
@@ -129,6 +138,7 @@ try {
     Write-Host ''
     Write-Host '=== Toggling OFF shows the span again, same click, no lag ==='
     [void]$xl.Run('btnToggleCostColumns')
+    Invoke-ComRetry { $main.Columns(1).Hidden } | Out-Null
     foreach ($h in 'Paper Cost', 'Consumable Cost', 'Gross Cost', 'Disregarded') {
         Check (-not (IsHidden $main $lo $h)) "$h is visible again on Example Print Room"
     }

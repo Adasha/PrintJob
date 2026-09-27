@@ -34,6 +34,15 @@ Private Const SIDE_PANEL_COL As Long = 36
 ' itself was syntactically fine on its own.
 Private Const REDUCED_COLUMNS_DEFAULT As String = "Status;Job ID;Printer;Area m2;Disregard Paper;Disregard Consumable;S_SchemaVer"
 
+' SidePanelButtonLayout's own inputs (2026-09-27, cost-columns toggle) -
+' declared here with this module's other module-level constants for exactly
+' the reason REDUCED_COLUMNS_DEFAULT's own comment just above gives. Learn
+' from that one: a first draft of this pair was declared mid-file, next to
+' SidePanelButtonLayout itself, and hit the identical "Variable not defined"
+' compile failure this comment already warns about.
+Private Const SIDE_PANEL_BTN_COUNT As Long = 8
+Private Const SIDE_PANEL_MIN_GAP As Double = 3
+
 ' Set by a setup run and consumed by the message Refresh Locations shows, so a
 ' full setup can say how many buttons it drew without a second dialog.
 Public gButtonsDrawn As Long
@@ -323,18 +332,16 @@ Private Sub DrawLocationButtons(ByVal ws As Worksheet)
     ' whole stack fits in one column with a consistent, if tighter, gap
     ' between buttons - narrower than a full spare row, but comfortably more
     ' than nothing.
-    Dim lo As ListObject, headerTop As Double, stepPx As Double, i As Long
+    Dim lo As ListObject, headerTop As Double, stepPx As Double, btnH As Double, i As Long
     Set lo = JobsTable(ws)
     If Not lo Is Nothing Then
-        ' 8pt safety margin before the header - packing the last button's
-        ' bottom edge flush against it left effectively no clearance at all.
         headerTop = ws.Cells(lo.Range.Row, 1).Top
-        stepPx = (headerTop - 22 - 8) / 7
+        SidePanelButtonLayout headerTop, btnH, stepPx
         Dim capts() As Variant, macros() As Variant
         capts = Array("Select printers...", "Check this sheet", ReducedViewCaption(), CostColumnsCaption(), "Remove Row", "Clear All", "Export...", "Import...")
         macros = Array("btnSelectPrinters", "btnCheckSheet", "btnToggleReducedView", "btnToggleCostColumns", "btnRemoveRow", "btnClearAll", "btnExport", "btnImportLocation")
         For i = 0 To 7
-            DrawOneAtTop ws, SIDE_PANEL_COL, i * stepPx, CStr(capts(i)), CStr(macros(i)), 140
+            DrawOneAtTop ws, SIDE_PANEL_COL, i * stepPx, CStr(capts(i)), CStr(macros(i)), 140, btnH
         Next i
     End If
 
@@ -345,6 +352,46 @@ Private Sub DrawLocationButtons(ByVal ws As Worksheet)
     ' inside the table's column span, so RelocateAtRiskButtons covers it
     ' (below).
     DrawOne ws, 4, 4, "Clear defaults", "btnClearDefaults", 110
+End Sub
+
+' The side panel's shared button height and vertical step, derived from
+' whatever room is actually available above the table's CURRENT header row
+' rather than a hardcoded figure (same "read at runtime" reasoning
+' DrawOneAtTop's own comment gives for pixel-based stacking generally).
+'
+' Direct user report, 2026-09-27: adding the cost-columns toggle as an
+' EIGHTH button at the original fixed 22pt height made every button overlap
+' its neighbour by roughly half a point, compounding to several points by
+' the last one - the seven-button layout had run flush against the
+' available space with nothing to spare from the day it was built (7*22 +
+' 6*3pt gaps already came to within half a point of the full budget), so
+' adding one more at the same height literally could not fit, gap or no
+' gap. Growing the available space isn't a small change here: the panel
+' already starts at row 1 with nowhere to extend upward, and pushing the
+' table header down another row touches far more of the sheet's layout than
+' this warrants - see this section's own history of layout bugs (the
+' row-scope bug, column drift, button-width corruption, all above) for why
+' that is not a change to make lightly. Shrinking the button height instead
+' is genuinely self-contained: nothing outside DrawLocationButtons and
+' RepositionSidePanelButtons (which MUST use this same function, not a
+' second hardcoded height, or every reposition call would silently grow the
+' buttons back to 22pt and reopen this exact bug) reads or assumes a side
+' panel button's height.
+'
+' MIN_GAP is a floor, not a target - a real gap, however small, so eight
+' buttons still read as eight buttons rather than one fused block. Height
+' shrinks only as far as fitting the current count actually requires,
+' capped at the standard 22pt so seven-or-fewer buttons (or a future build
+' with SET_LOC_REDUCED_COLUMNS-style flexibility removing one) look exactly
+' as they always did.
+Private Sub SidePanelButtonLayout(ByVal HeaderTop As Double, ByRef ButtonHeight As Double, ByRef StepPx As Double)
+    Dim available As Double
+    ' 8pt safety margin before the header - packing the last button's bottom
+    ' edge flush against it left effectively no clearance at all.
+    available = HeaderTop - 8
+    ButtonHeight = (available - (SIDE_PANEL_BTN_COUNT - 1) * SIDE_PANEL_MIN_GAP) / SIDE_PANEL_BTN_COUNT
+    If ButtonHeight > 22 Then ButtonHeight = 22
+    StepPx = ButtonHeight + SIDE_PANEL_MIN_GAP
 End Sub
 
 ' Yes/No validation on the two location defaults (spec 9.2). These seed each
@@ -866,10 +913,13 @@ End Sub
 ' elsewhere, which is what forced Import out to SIDE_PANEL_COL2 in the first
 ' place. Pixel-based stacking sidesteps the row grid entirely, so seven
 ' buttons fit in one column, evenly spaced, with room to spare above the
-' table header - see DrawLocationButtons for the actual spacing constant.
-Public Sub DrawOneAtTop(ByVal ws As Worksheet, ByVal ColNo As Long, ByVal Top As Double, ByVal Caption As String, ByVal Macro As String, ByVal W As Single)
+' table header - see SidePanelButtonLayout for the actual spacing/height
+' calculation. H defaults to the standard 22pt but SidePanelButtonLayout can
+' hand back something shorter when the current button count needs it
+' (2026-09-27) - see that function's own comment for why.
+Public Sub DrawOneAtTop(ByVal ws As Worksheet, ByVal ColNo As Long, ByVal Top As Double, ByVal Caption As String, ByVal Macro As String, ByVal W As Single, Optional ByVal H As Double = 22)
     Dim b As Button
-    Set b = ws.Buttons.Add(ws.Cells(1, ColNo).Left, Top, W, 22)
+    Set b = ws.Buttons.Add(ws.Cells(1, ColNo).Left, Top, W, H)
     b.Placement = xlFreeFloating ' see DrawOne's comment - same column-resize drift risk
     SetButtonName b, BTN_TAG & Macro & "_px" & CLng(Top) & "_" & ColNo
     b.Caption = Caption
@@ -1360,9 +1410,17 @@ End Sub
 ' end up sitting to the right of that column instead of on it.
 Private Sub RepositionSidePanelButtons(ByVal ws As Worksheet)
     Dim macros As Variant, i As Long, j As Long, b As Button, prefix As String
-    Dim targetLeft As Double
+    Dim targetLeft As Double, lo As ListObject, btnH As Double, stepPx As Double
     macros = Array("btnSelectPrinters", "btnCheckSheet", "btnToggleReducedView", "btnToggleCostColumns", "btnRemoveRow", "btnClearAll", "btnExport", "btnImportLocation")
     targetLeft = ws.Cells(1, SIDE_PANEL_COL).Left
+
+    ' Must use the SAME height DrawLocationButtons drew these at (2026-09-27)
+    ' - not a second hardcoded 22, which ran every button back to full size
+    ' on the very next InitialiseWorkbook/RefreshLocations/toggle call and
+    ' silently reopened the overlap SidePanelButtonLayout exists to prevent.
+    btnH = 22
+    Set lo = JobsTable(ws)
+    If Not lo Is Nothing Then SidePanelButtonLayout ws.Cells(lo.Range.Row, 1).Top, btnH, stepPx
 
     For i = LBound(macros) To UBound(macros)
         prefix = BTN_TAG & CStr(macros(i))
@@ -1376,7 +1434,7 @@ Private Sub RepositionSidePanelButtons(ByVal ws As Worksheet)
         If Not b Is Nothing Then
             b.Left = targetLeft
             b.Width = 140
-            b.Height = 22
+            b.Height = btnH
             b.Placement = xlFreeFloating
         End If
     Next i
