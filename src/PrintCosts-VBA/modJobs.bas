@@ -59,11 +59,19 @@ End Sub
 
 ' Repeat Job (direct user request): duplicates the selected row into a new
 ' one rather than starting from the location's own batch defaults the way
-' AddPrintJob does - same Student Name/No, Printer, Paper Stock, Unit, Qty,
-' Print Width mm and both Disregard flags. Job ID, Date/Time and Paid are
-' always reset (a copy is its own job, logged now, unpaid), Technician
-' follows the copy-not-reference default AddPrintJob already uses (spec
-' 9.2/10.10), and a note records what it was copied from.
+' AddPrintJob does - same Student Name/No, Printer, Paper Stock, Qty, Print
+' Width mm and both Disregard flags. Job ID, Date/Time and Paid are always
+' reset (a copy is its own job, logged now, unpaid), Technician follows the
+' copy-not-reference default AddPrintJob already uses (spec 9.2/10.10), and
+' a note records what it was copied from.
+'
+' Unit is deliberately NOT among those copied values, unlike modImport's own
+' WriteImportedRow - it is a calculated column (table11.xml's own
+' calculatedColumnFormula reads S_Measure), not a plain input, so writing
+' .Value into it replaces the live formula with a frozen string for that one
+' row. Leaving the cell alone lets ListRows.Add's normal copy-down carry the
+' formula forward, same as every other calculated column here; StampRow's
+' S_Measure write below is what it then recalculates from.
 '
 ' Every value carried over came from a row that was already a real, valid
 ' job a moment ago, so unlike AddPrintJob there is no printer/paper
@@ -99,7 +107,6 @@ Public Sub RepeatJob(ByVal ws As Worksheet)
     CellIn(lo, n, "Student No").Value = CellIn(lo, srcRow, "Student No").Value
     CellIn(lo, n, "Printer").Value = CellIn(lo, srcRow, "Printer").Value
     CellIn(lo, n, "Paper Stock").Value = CellIn(lo, srcRow, "Paper Stock").Value
-    CellIn(lo, n, "Unit").Value = CellIn(lo, srcRow, "Unit").Value
     CellIn(lo, n, "Qty").Value = CellIn(lo, srcRow, "Qty").Value
     CellIn(lo, n, "Print Width mm").Value = CellIn(lo, srcRow, "Print Width mm").Value
     CellIn(lo, n, "Disregard Paper").Value = CellIn(lo, srcRow, "Disregard Paper").Value
