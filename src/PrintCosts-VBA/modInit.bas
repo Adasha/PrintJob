@@ -183,9 +183,13 @@ Public Sub InitialiseWorkbook()
             ' rather than a fifth slot on either group above - it is neither
             ' an "everyday workbook action" nor a data-movement action, and
             ' the two existing rows are already full at four buttons each.
-            ' Flagged in ARCHITECTURE.md §16.3 for a later look at the
-            ' overall button arrangement once this settles in.
+            ' Remove print room (2026-09-27, same day) sits right next to it
+            ' rather than opening a fourth row - Add/Remove read as one pair,
+            ' and this is the "later look at button arrangement" §16.3
+            ' flagged: putting the new button beside its natural counterpart
+            ' instead of picking its own spot in isolation.
             DrawOne ws, settingsBottom + 6, 1, "Add print room...", "btnAddPrintRoom", 130
+            DrawOne ws, settingsBottom + 6, 4, "Remove print room...", "btnRemovePrintRoom", 130
             ' Small +/- buttons above the four lookup tables (snag list item
             ' 5). Row 4 is already the table's own subtitle ("Paper stock
             ' types" etc.) on this sheet, unlike the blank row 4 on Printers/

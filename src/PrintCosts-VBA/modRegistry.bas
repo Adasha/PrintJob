@@ -911,3 +911,151 @@ Private Function SheetExists(ByVal Nm As String) As Boolean
     On Error GoTo 0
     SheetExists = Not ws Is Nothing
 End Function
+
+' --------------------------------------------------------- remove a room ---
+' The deliberate, in-app counterpart to AddPrintRoom, until now explicitly
+' out of scope (ARCHITECTURE.md §4.3/§16.3, and this module's own
+' AddPrintRoom comment above) - direct user request (2026-09-27) to finally
+' scope it rather than leave it undecided indefinitely. The manual route
+' (right-click the tab -> Delete) remains fully supported and untouched;
+' this is an additional guarded route, not a replacement.
+'
+' Excel raises no event on sheet deletion (§4.3), so nothing can intercept,
+' undo or audit it after the fact - the safety has to be entirely up front:
+' name what will be lost (record count, date span, export status) before
+' asking, and require the room's own name typed back exactly rather than a
+' plain Yes/No, since "Yes" is one keystroke away from a loss with no undo.
+' Removing the workbook's last remaining room is refused outright rather
+' than merely warned about - AddPrintRoom (TemplateLocationSheet) needs at
+' least one existing room to duplicate, so deleting the last one would break
+' the very button sitting next to this one.
+'
+' Split the same way AddPrintRoom/CreatePrintRoom and modImport.
+' ApplyImport/ApplyImportConfirmed are: a prompting wrapper
+' (RemovePrintRoom, bound to the Settings button) and a parameter-driven
+' core (DeletePrintRoom) a test script can call directly without a dialog to
+' answer - Ask()/Application.InputBox both go unanswered under SetQuiet
+' anyway (modUtils.Ask declines; an unattended InputBox call would hang), so
+' an automated run could never get through the typed-name confirmation and
+' has to drive DeletePrintRoom directly, same reasoning as ApplyImport's own
+' split.
+Public Sub RemovePrintRoom()
+    Dim ws As Worksheet, detail As String
+
+    Set ws = PickRoomToRemove()
+    If ws Is Nothing Then Exit Sub
+
+    If LocationSheets().Count <= 1 Then
+        Say "'" & LocValue(ws, "LOC_Name") & "' is the only print room left.", _
+            "Add print room works by duplicating an existing print room, so removing the last one would leave nothing to duplicate.", _
+            "Add a second print room first, or delete this sheet by hand (right-click the tab -> Delete) if the workbook itself is being retired."
+        Exit Sub
+    End If
+
+    detail = RoomRemovalSummary(ws)
+
+    If NeedsExport(ws) Then
+        If Not Ask(detail & vbCrLf & vbCrLf & "This room has unexported changes - they will be lost for good, not just removed from this sheet. Export it first unless that is acceptable." & vbCrLf & vbCrLf & "Continue to the final confirmation?", "Remove print room - unexported changes") Then Exit Sub
+    End If
+
+    If Not ConfirmRoomRemoval(ws, detail) Then Exit Sub
+
+    DeletePrintRoom ws
+End Sub
+
+Private Function PickRoomToRemove() As Worksheet
+    Dim ws As Worksheet, list As String, code As String, answer As Variant
+
+    For Each ws In LocationSheets()
+        list = list & "- " & LocValue(ws, "LOC_Code") & "  (" & LocValue(ws, "LOC_Name") & ")" & vbCrLf
+    Next ws
+    If Len(list) = 0 Then
+        Say "No print rooms were found.", "Run Refresh Locations first."
+        Exit Function
+    End If
+
+    Do
+        answer = Application.InputBox( _
+            "Which print room should be removed? Type its code." & vbCrLf & vbCrLf & list, _
+            "Remove print room - choose a room", Type:=2)
+        If VarType(answer) = vbBoolean Then Exit Function   ' Cancel
+        code = Trim$(CStr(answer))
+        If Len(code) > 0 Then
+            Set ws = SheetForCode(code)
+            If Not ws Is Nothing Then
+                Set PickRoomToRemove = ws
+                Exit Function
+            End If
+            Say "'" & code & "' is not one of the print rooms listed.", "", "Check the code and try again."
+        End If
+    Loop
+End Function
+
+' Same detail spec 11 already requires of ClearAll's own confirmation
+' (location, record count, date range) - SpanOf is this module's own helper,
+' already used by WriteRegistry for the same figures.
+Private Function RoomRemovalSummary(ByVal ws As Worksheet) As String
+    Dim lo As ListObject, n As Long, fd As Double, ld As Double, span As String
+
+    Set lo = JobsTable(ws)
+    If Not lo Is Nothing Then SpanOf lo, n, fd, ld
+    If fd > 0 Then span = " dated " & Format$(fd, "dd/mm/yyyy") & " to " & Format$(ld, "dd/mm/yyyy")
+
+    RoomRemovalSummary = "'" & LocValue(ws, "LOC_Name") & "' (" & LocValue(ws, "LOC_Code") & ")" & vbCrLf & _
+        n & " print job" & IIf(n = 1, "", "s") & span & "." & vbCrLf & _
+        ExportStatusText(ws)
+End Function
+
+Private Function ConfirmRoomRemoval(ByVal ws As Worksheet, ByVal Detail As String) As Boolean
+    Dim answer As Variant, roomName As String
+    roomName = LocValue(ws, "LOC_Name")
+    answer = Application.InputBox( _
+        Detail & vbCrLf & vbCrLf & _
+        "This permanently deletes the sheet and every record on it. It cannot be undone." & vbCrLf & vbCrLf & _
+        "Type the room's name exactly to confirm: " & roomName, _
+        "Remove print room", Type:=2)
+    If VarType(answer) = vbBoolean Then Exit Function   ' Cancel
+
+    If StrComp(Trim$(CStr(answer)), roomName, vbTextCompare) = 0 Then
+        ConfirmRoomRemoval = True
+    Else
+        Say "That didn't match '" & roomName & "' exactly.", "Nothing was removed.", "Run Remove print room again if you still want to remove it."
+    End If
+End Function
+
+' The testable core. No prompts, no confirmation - a caller (RemovePrintRoom,
+' or a test script) is expected to have already decided this delete should
+' happen. Deletes the sheet, then runs the same Refresh Locations pass
+' AddPrintRoom's own CreatePrintRoom ends with: RefreshLocations already
+' compares its registry against the sheets actually present (MissingSheets)
+' and names anything gone, which is exactly the "self-healing afterwards"
+' story §4.3 documents for a manual deletion - this command gets that for
+' free rather than needing its own copy of it.
+'
+' Application.DisplayAlerts is toggled locally, not via AppOff/AppOn (which
+' does not touch it - nothing before this deleted an object Excel would ask
+' about) - Excel shows its own "data may exist" prompt on Worksheet.Delete
+' otherwise, which would be a second, unlabelled confirmation stacked on top
+' of the one this command already gave.
+Public Sub DeletePrintRoom(ByVal ws As Worksheet)
+    Dim RoomName As String, detail As String
+
+    On Error GoTo Fail
+    RoomName = LocValue(ws, "LOC_Name")
+    detail = RoomRemovalSummary(ws)
+
+    AppOff
+    LogAudit "Remove print room", RoomName, detail
+
+    Application.DisplayAlerts = False
+    ws.Delete
+    Application.DisplayAlerts = True
+    AppOn
+
+    RefreshLocations
+    Exit Sub
+Fail:
+    Application.DisplayAlerts = True
+    AppReset
+    ReportError "Remove print room"
+End Sub

@@ -165,6 +165,14 @@ Fail:
     ReportError "Add print room"
 End Sub
 
+Public Sub btnRemovePrintRoom()
+    On Error GoTo Fail
+    RemovePrintRoom
+    Exit Sub
+Fail:
+    ReportError "Remove print room"
+End Sub
+
 Public Sub btnCheckWorkbook()
     On Error GoTo Fail
     LoadCatalog True
