@@ -125,7 +125,13 @@ Private Sub Show(ByVal Mode As String, ByVal Target As String, ByVal ReturnTo As
     RelockSheet ws
     AppOn
     ws.Activate
+    ' Cosmetic only - just scrolls the picker to its top-left corner. The
+    ' dialog above is already fully built and visible by this point, so a
+    ' Select failure here (same COM/automation fragility as SetFreeze in
+    ' modInit.bas) must not be allowed to abort the whole picker.
+    On Error Resume Next
     ws.Cells(R_TITLE, COL_ITEM).Select
+    On Error GoTo 0
 End Sub
 
 ' A tinted, bordered panel so the sheet reads as a temporary dialog rather than
