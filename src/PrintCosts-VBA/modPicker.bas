@@ -4,8 +4,13 @@ Option Explicit
 ' This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
 ' If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-' Multi-select for the two many-to-many fields: which paper families a printer
-' supports, and which printers a print room has.
+' Multi-select for which printers a print room has. (Used to also cover
+' which paper families a printer supports - modPicker.PickFamilies,
+' removed by the printer/paper compatibility rework: a printer's capability
+' is now the numeric Max roll width mm / Max sheet size fields on the
+' Printers sheet, not a family multi-select. The Show/btnPickerOK
+' machinery below is generic over a Mode, so PRINTERS is simply the one
+' remaining mode.)
 '
 ' A worksheet standing in for a dialog. The design document called for a
 ' UserForm, but a UserForm is a .frm plus a binary .frx, and a .frx cannot be
@@ -41,32 +46,6 @@ Public Sub PickPrinters(ByVal ws As Worksheet)
     Next i
     chosen = LocValue(ws, "LOC_Printers")
     Show "PRINTERS", ws.Name, ws.Name, items, chosen, "Printers at " & LocValue(ws, "LOC_Name"), "Tick every printer this print room has. Only these can be chosen for its print jobs."
-End Sub
-
-Public Sub PickFamilies()
-    Dim lo As ListObject, i As Long, items As Collection, n As Long, chosen As String
-    If StrComp(ActiveSheet.Name, "Printers", vbTextCompare) <> 0 Then
-        Say "Select families works on the Printers sheet.", "It sets which paper families the selected printer can use.", "Go to the Printers sheet, click the printer's row, then try again."
-        Exit Sub
-    End If
-
-    Set lo = Tbl("tblPrinters")
-    If lo.DataBodyRange Is Nothing Then Exit Sub
-    If Application.Intersect(Selection.Cells(1, 1).EntireRow, lo.DataBodyRange) Is Nothing Then
-        Say "No printer row is selected.", "This sets the paper families for one printer.", "Click any cell in that printer's row, then try again."
-        Exit Sub
-    End If
-    n = Selection.Cells(1, 1).Row - lo.DataBodyRange.Row + 1
-
-    Set items = New Collection
-    Dim fl As ListObject
-    Set fl = Tbl("tblPaperFamilies")
-    For i = 1 To fl.ListRows.Count
-        If Len(CellIn(fl, i, "Family").Value) > 0 Then items.Add CStr(CellIn(fl, i, "Family").Value)
-    Next i
-
-    chosen = CStr(CellIn(lo, n, "Supported families").Value)
-    Show "FAMILIES", CStr(n), "Printers", items, chosen, "Paper families for " & CStr(CellIn(lo, n, "Model").Value), "Tick every paper family this printer can print on. A stock can only be used on a printer that supports its family."
 End Sub
 
 Private Sub Show(ByVal Mode As String, ByVal Target As String, ByVal ReturnTo As String, ByVal items As Collection, ByVal Chosen As String, ByVal Title As String, ByVal Help As String)
@@ -195,13 +174,6 @@ Public Sub btnPickerOK()
         LocRange(t, "LOC_Printers").Value = out
         RelockSheet t
         BindColumns t
-    ElseIf mode = "FAMILIES" Then
-        Dim lo As ListObject
-        Set lo = Tbl("tblPrinters")
-        UnlockSheet ThisWorkbook.Worksheets("Printers")
-        CellIn(lo, CLng(target), "Supported families").Value = out
-        RelockSheet ThisWorkbook.Worksheets("Printers")
-        Invalidate
     End If
     AppOn
     Close_

@@ -67,6 +67,17 @@ Public Sub InitialiseWorkbook()
     EnsureCostColumnsSetting
     EnsureStdSizeColumnName
 
+    ' Printer/paper compatibility rework: add the new capacity columns,
+    ' derive their values from whatever the OLD "Supported families"
+    ' multi-select already allowed (before that column is removed), then
+    ' merge the legacy roll-width-band families it stood in for, then seed
+    ' the two student-supplied catalogue rows. Order matters - see each
+    ' Sub's own comment (modCatalog.bas) for why.
+    EnsurePrinterCapacityColumns
+    MigratePrinterCapacities
+    MigrateRollFamilies
+    EnsureSuppliedByStudentColumn
+
     ' Moved here from after the per-sheet loop below (2026-09-27,
     ' user-reported: Settings-sheet buttons rendering over the top of
     ' tblSettings). FormatSettingsNotes word-wraps and AutoFits tblSettings'
@@ -102,6 +113,7 @@ Public Sub InitialiseWorkbook()
             EnsureJobCountDisplay ws
             EnsurePaidColumn ws
             EnsureQtyColumnName ws
+            EnsureSheetSizeJobColumn ws
             ReorderJobColumns ws
             BindColumns ws
             NormalizeJobColumnOutlines ws
@@ -133,7 +145,6 @@ Public Sub InitialiseWorkbook()
             EnsureTableGap ws, "tblPrinters", 6
             DrawOne ws, 4, 1, "Add row", "btnAddRowPrinters", 110
             DrawOne ws, 4, 3, "Remove row", "btnRemoveRowPrinters", 110
-            DrawOne ws, 11, 8, "Select families...", "btnSelectFamilies", 130
             SetFreeze ws, ""
         ElseIf StrComp(ws.Name, "Papers", vbTextCompare) = 0 Then
             EnsureTableGap ws, "tblPapers", 6
@@ -619,8 +630,9 @@ End Sub
 
 ' Same white-fill, blue-left-border treatment every unlocked input cell gets
 ' elsewhere (§11's visual design table; modReports.CritCell is the same
-' pattern for the Reports page's own filter cells).
-Private Sub StyleInputCell(ByVal target As Range)
+' pattern for the Reports page's own filter cells). Public: modCatalog's
+' printer-capacity/supplied-by-student column setup reuses it too.
+Public Sub StyleInputCell(ByVal target As Range)
     target.Locked = False
     target.Interior.Color = RGB(255, 255, 255)
     target.Borders(xlEdgeLeft).Color = RGB(46, 100, 168)
@@ -692,6 +704,45 @@ Public Sub EnsureQtyColumnName(ByVal ws As Worksheet)
     On Error Resume Next
     lo.ListColumns("Quantity").Name = "Qty"
     On Error GoTo 0
+    RelockSheet ws
+End Sub
+
+' ------------------------------------------------------- Sheet size col ---
+' Genuine new job-row column (SCHEMA_VER 1.1 -> 1.2, modUtils), same shape
+' as EnsurePaidColumn - only ever ADDS the column, checked-first so it never
+' runs twice. The student-supplied-stock sheet-size override: meaningful
+' only on a row whose Paper Stock is "Supplied (Sheet)", where it plays the
+' same role Print Width mm already plays for "Supplied (Roll)" - the row's
+' own real-world size, since there is no catalogue size to fall back on for
+' either. Ignored on every other row, same as Print Width mm is harmless
+' but meaningless on a Sheet-stock row.
+Public Sub EnsureSheetSizeJobColumn(ByVal ws As Worksheet)
+    Dim lo As ListObject, lc As ListColumn, i As Long
+    Set lo = JobsTable(ws)
+    If lo Is Nothing Then Exit Sub
+
+    For i = 1 To lo.ListColumns.Count
+        If StrComp(lo.ListColumns(i).Name, "Sheet size", vbTextCompare) = 0 Then Exit Sub
+    Next i
+
+    UnlockSheet ws
+    Set lc = lo.ListColumns.Add(ColIdx(lo, "Print Width mm") + 1)
+    lc.Name = "Sheet size"
+    If Not lc.DataBodyRange Is Nothing Then
+        StyleInputCell lc.DataBodyRange
+        With lc.DataBodyRange.Validation
+            .Delete
+            .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Formula1:="=RNG_STD_SIZES"
+            .IgnoreBlank = True
+            .InCellDropdown = True
+            .ShowInput = True
+            .ShowError = True
+            .InputTitle = "Sheet size"
+            .InputMessage = "Required only for 'Supplied (Sheet)' - the nearest standard size to the sheet the student brought. Ignored for every other paper stock."
+            .ErrorTitle = "Sheet size"
+            .ErrorMessage = "Choose one of the standard sizes listed on Settings."
+        End With
+    End If
     RelockSheet ws
 End Sub
 
@@ -793,10 +844,28 @@ Public Sub EnsureJobColumnValidation(ByVal ws As Worksheet, ByVal lo As ListObje
         .ShowInput = True
         .ShowError = True
         .InputTitle = "Print width"
-        .InputMessage = "Optional, roll stock only, in millimetres. Leave blank to use the full width of the roll. It must not exceed the stock width."
+        .InputMessage = "Optional, roll stock only, in millimetres. Leave blank to use the full width of the roll. It must not exceed the stock width. Required for 'Supplied (Roll)'."
         .ErrorTitle = "Print width"
         .ErrorMessage = "Optional, roll stock only, in millimetres. Leave blank to use the full width of the roll. It must not exceed the stock width."
     End With
+
+    Dim sheetSizeCol As ListColumn
+    On Error Resume Next
+    Set sheetSizeCol = lo.ListColumns("Sheet size")
+    On Error GoTo 0
+    If Not sheetSizeCol Is Nothing Then
+        With sheetSizeCol.DataBodyRange.Validation
+            .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Formula1:="=RNG_STD_SIZES"
+            .IgnoreBlank = True
+            .InCellDropdown = True
+            .ShowInput = True
+            .ShowError = True
+            .InputTitle = "Sheet size"
+            .InputMessage = "Required only for 'Supplied (Sheet)' - the nearest standard size to the sheet the student brought. Ignored for every other paper stock."
+            .ErrorTitle = "Sheet size"
+            .ErrorMessage = "Choose one of the standard sizes listed on Settings."
+        End With
+    End If
 
     With lo.ListColumns("Disregard Paper").DataBodyRange.Validation
         .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Formula1:="Yes,No"
@@ -834,6 +903,79 @@ Public Sub EnsureJobColumnValidation(ByVal ws As Worksheet, ByVal lo As ListObje
     RelockSheet ws
 End Sub
 
+' Extends the calculated H_Issues column PrintCosts.xlsx ships (§5, §7.3)
+' with the two required-field checks the student-supplied stock options
+' need: Print Width mm on a "Supplied (Roll)" row and Sheet size on a
+' "Supplied (Sheet)" row have no catalogue size to fall back on the way an
+' ordinary stock does, so a value left blank there would otherwise cost a
+' real print job nothing rather than being caught by Check sheet/Check
+' workbook the way every other required field already is.
+'
+' Asserted here rather than left as a static xlsx formula, the same
+' reasoning EnsureJobColumnValidation (above) already applies to this
+' table's validation rules: H_Issues is never hand-maintained per sheet, so
+' restating its full text in VBA is what lets an old or duplicated sheet
+' self-heal on the next refresh, rather than PrintCosts.xlsx itself needing
+' a hand-edited calculated-column formula (§5's own note on how easy that
+' class of edit is to get subtly wrong). Table-name-parameterised via
+' lo.Name, the same idiom EnsurePrintersDisplay/EnsureJobCountDisplay
+' already use for their own per-sheet formulas - so this keeps working
+' whatever the table is currently named (tblJobs_MAIN, tblJobs_ANNEX, ...).
+' Called from modLists.BindColumns, right after EnsureJobColumnValidation -
+' the same entry point every other self-healing table-structure fix in this
+' project already reaches from setup, Refresh Locations, Check workbook/
+' sheet and the picker.
+Public Sub EnsureJobIssuesFormula(ByVal ws As Worksheet, ByVal lo As ListObject)
+    Dim f As String, firstCell As Range
+    If lo.DataBodyRange Is Nothing Then Exit Sub
+    If Not ColumnExists(lo, "H_Issues") Then Exit Sub
+    If Not ColumnExists(lo, "Sheet size") Then Exit Sub
+
+    f = BuildJobIssuesFormula(lo.Name)
+
+    ' Checked-first: BindColumns calls this on every setup run, Refresh
+    ' Locations, Check workbook/sheet and the picker (module comment above),
+    ' none of which are rare - unlike EnsureJobColumnValidation's cheaper
+    ' Delete+Add, writing a ~1.5KB formula across the whole column is real
+    ' work, and doing it unconditionally on every one of those calls was
+    ' observed to make Excel's own recalculation noticeably heavier on a
+    ' table already carrying a dozen rows. Comparing against the first
+    ' cell's current formula (structurally identical down every row, same
+    ' as the shipped column always was) is enough to know the rest matches
+    ' too.
+    Set firstCell = lo.ListColumns("H_Issues").DataBodyRange.Cells(1, 1)
+    If firstCell.Formula2 = f Then Exit Sub
+
+    UnlockSheet ws
+    ' Formula2, not Formula: this formula runs well past 255 characters, and
+    ' Range.Formula raises 1004 for anything longer when set via VBA/COM -
+    ' the same limit EnsurePrintersDisplay's own B7 formula (above) already
+    ' works around the same way.
+    lo.ListColumns("H_Issues").DataBodyRange.Formula2 = f
+    RelockSheet ws
+End Sub
+
+Private Function BuildJobIssuesFormula(ByVal t As String) As String
+    Dim q As String, f As String
+    q = Chr(34)
+
+    f = "=IF(" & t & "[[#This Row],[Job ID]]=" & q & q & "," & q & q & "," & _
+        "IF(" & t & "[[#This Row],[Date/Time]]=" & q & q & "," & q & "; Date and time required" & q & "," & q & q & ")" & _
+        "&IF(AND(" & t & "[[#This Row],[Student Name]]=" & q & q & "," & t & "[[#This Row],[Student No]]=" & q & q & ")," & q & "; Student name or number required" & q & "," & q & q & ")" & _
+        "&IF(" & t & "[[#This Row],[Technician]]=" & q & q & "," & q & "; Technician required" & q & "," & q & q & ")" & _
+        "&IF(" & t & "[[#This Row],[Printer]]=" & q & q & "," & q & "; Printer required" & q & "," & q & q & ")" & _
+        "&IF(" & t & "[[#This Row],[Paper Stock]]=" & q & q & "," & q & "; Paper stock required" & q & "," & q & q & ")" & _
+        "&IF(" & t & "[[#This Row],[Qty]]=" & q & q & "," & q & "; Quantity required" & q & ",IF(" & t & "[[#This Row],[Qty]]<=0," & q & "; Quantity must be greater than zero" & q & "," & q & q & "))" & _
+        "&IF(AND(" & t & "[[#This Row],[S_Measure]]=" & q & "Sheet" & q & "," & t & "[[#This Row],[Qty]]<>" & q & q & "," & t & "[[#This Row],[Qty]]<>INT(" & t & "[[#This Row],[Qty]]))," & q & "; Sheet quantity must be a whole number" & q & "," & q & q & ")" & _
+        "&IF(AND(" & t & "[[#This Row],[S_Measure]]=" & q & "Sheet" & q & "," & t & "[[#This Row],[Print Width mm]]<>" & q & q & ")," & q & "; Print width does not apply to sheet stock" & q & "," & q & q & ")" & _
+        "&IF(AND(" & t & "[[#This Row],[Print Width mm]]<>" & q & q & "," & t & "[[#This Row],[Print Width mm]]>" & t & "[[#This Row],[S_StockWidth_mm]])," & q & "; Print width exceeds stock width" & q & "," & q & q & ")" & _
+        "&IF(AND(" & t & "[[#This Row],[Paper Stock]]=" & q & "Supplied (Roll)" & q & "," & t & "[[#This Row],[Print Width mm]]=" & q & q & ")," & q & "; Print width required for student-supplied roll stock" & q & "," & q & q & ")" & _
+        "&IF(AND(" & t & "[[#This Row],[Paper Stock]]=" & q & "Supplied (Sheet)" & q & "," & t & "[[#This Row],[Sheet size]]=" & q & q & ")," & q & "; Sheet size required for student-supplied sheet stock" & q & "," & q & q & ")" & _
+        ")"
+
+    BuildJobIssuesFormula = f
+End Function
+
 Public Sub ReorderJobColumns(ByVal ws As Worksheet)
     Dim lo As ListObject, order As Variant, i As Long, want As String, have As String
     Set lo = JobsTable(ws)
@@ -841,7 +983,7 @@ Public Sub ReorderJobColumns(ByVal ws As Worksheet)
 
     order = Array( _
         "Date/Time", "Student Name", "Student No", "Technician", "Printer", _
-        "Paper Stock", "Unit", "Qty", "Print Width mm", "Disregard Paper", _
+        "Paper Stock", "Unit", "Qty", "Print Width mm", "Sheet size", "Disregard Paper", _
         "Disregard Consumable", "Area m2", "Paper Cost", "Consumable Cost", _
         "Gross Cost", "Disregarded", "Chargeable Cost", "Paid", "Status", "Job ID", _
         "Notes", "H_Issues", _
@@ -1616,6 +1758,50 @@ Private Sub NormalizeJobColumnOutlines(ByVal ws As Worksheet)
     ' the snapshot columns stay invisible regardless, via their own
     ' .Hidden state (§3.4/§5), which needs no outline group to hold it.
     FlattenOutline lo, "Notes", "S_SchemaVer"
+    ReassertSnapshotHidden lo
+
+    ' Sheet size, Status, Job ID: none of these fall inside either
+    ' FlattenOutline span above, but inserting the new Sheet size column
+    ' (printer/paper compatibility rework) shifts every column from
+    ' Disregard Paper onward through a cut+insert cycle the first time
+    ' ReorderJobColumns runs afterward - and Job ID, which lands right next
+    ' to the snapshot block's own outline history, was observed to pick up
+    ' a stray level-2 group from that neighbour during the move
+    ' (test-groups.ps1 caught it). None of these three should ever be
+    ' grouped, so reset unconditionally rather than only when found wrong.
+    Dim colName As Variant, sws As Worksheet
+    Set sws = lo.Parent
+    UnlockSheet sws
+    For Each colName In Array("Sheet size", "Status", "Job ID")
+        If ColumnExists(lo, CStr(colName)) Then
+            lo.ListColumns(CStr(colName)).Range.EntireColumn.OutlineLevel = 1
+        End If
+    Next colName
+    RelockSheet sws
+End Sub
+
+' §5's Cut+Insert warning ("moves cell content and formatting correctly,
+' but two things are keyed by column index rather than content: validation
+' ranges, column width") turns out to have a third casualty: .Hidden.
+' Adding the Sheet size job-row column (printer/paper compatibility
+' rework) shifts every column from Disregard Paper onward through a
+' cut+insert cycle the very first time ReorderJobColumns runs afterward
+' (nothing needed to move before that column existed), and H_Issues/the
+' snapshot block's Hidden=True state was observed not to survive that
+' shuffle intact (test-groups.ps1 caught it: S_StampedBy came back
+' visible). Reasserted explicitly here rather than trusted to have
+' travelled with the cut - the same "restore what Cut+Insert can silently
+' disturb" idiom EnsureJobColumnValidation/ApplyJobColumnWidths already
+' apply to validation and widths.
+Private Sub ReassertSnapshotHidden(ByVal lo As ListObject)
+    Dim ws As Worksheet, h As Variant
+    Set ws = lo.Parent
+    UnlockSheet ws
+    For Each h In Array("H_Issues", "S_PrinterID", "S_StockID", "S_TechID", "S_Family", "S_Measure", _
+        "S_UnitCost", "S_StockWidth_mm", "S_SheetHeight_mm", "S_ConsRate", "S_StampedAt", "S_StampedBy", "S_SchemaVer")
+        If ColumnExists(lo, CStr(h)) Then lo.ListColumns(CStr(h)).Range.EntireColumn.Hidden = True
+    Next h
+    RelockSheet ws
 End Sub
 
 Private Sub UngroupColumnRange(ByVal lo As ListObject, ByVal FirstHeader As String, ByVal LastHeader As String)

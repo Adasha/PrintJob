@@ -46,7 +46,7 @@ Private Const EXPORT_CELL As String = "$AM$6"
 Private Function ExportColumns() As Variant
     ExportColumns = Array( _
         "Job ID", "Date/Time", "Student Name", "Student No", "Technician", _
-        "Printer", "Paper Stock", "Unit", "Qty", "Print Width mm", _
+        "Printer", "Paper Stock", "Unit", "Qty", "Print Width mm", "Sheet size", _
         "Disregard Paper", "Disregard Consumable", "Area m2", _
         "Paper Cost", "Consumable Cost", "Gross Cost", "Disregarded", _
         "Chargeable Cost", "Paid", "Notes", "Status", _

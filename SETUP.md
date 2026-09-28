@@ -140,6 +140,17 @@ standard sizes, consumables) don't have their own buttons; their cells are
 unlocked, so a row added the normal Excel Table way (Tab at the last cell,
 or right-click > Insert > Table Rows) keeps its formatting and validation.
 
+**Review Printers' Max roll width mm / Max sheet size after upgrading from
+before the printer/paper compatibility rework (`docs/ARCHITECTURE.md`
+§16.5).** The first `InitialiseWorkbook` run after upgrading auto-derives
+these two fields from whatever the printer's old `Supported families`
+setting already allowed - safe in that it preserves the workbook's existing
+compatibility exactly, but the derived numbers reflect what the catalogue
+already contained, not necessarily the printer's real physical specs.
+Check them against each printer's actual maximum roll width and largest
+supported sheet size before relying on the workbook to reject a genuinely
+oversized job.
+
 ## Adding a print room
 
 1. Right-click a print room tab, **Move or Copy**, tick **Create a copy**.
@@ -171,6 +182,7 @@ job IDs already carry it.
 | `test-nextid.ps1` | The persisted Job ID high-water mark: deleting the top row must not reissue its ID, and the mark must survive RefreshLocations |
 | `test-import.ps1` | Export All Locations, and Import restoring into origin and into a different room |
 | `test-deletereports.ps1` | Export report (a static-value `.xlsx` snapshot) and the Reports-page bulk delete, including the audit log entry |
+| `test-suppliedstock.ps1` | Printer/paper compatibility rework: "Supplied by student" paper stock — zero Paper Cost with normal Consumable Cost, Print Width mm/Sheet size required-field enforcement, and rejection when an entered width/size exceeds the chosen printer's capacity |
 | `prune-backups.ps1` | Keeps the N most recent `*.bak.xlsm` and removes the rest. `build.ps1` calls it with `-Keep 5` |
 
 **The tests are non-destructive by construction, not by care.** `test-validation.ps1`

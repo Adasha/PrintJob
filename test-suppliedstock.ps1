@@ -1,0 +1,184 @@
+# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
+# If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+# "Supplied by student" paper stock (printer/paper compatibility rework,
+# requirement 2): a student brings their own paper. Two real tblPapers
+# catalogue rows, "Supplied (Roll)" / "Supplied (Sheet)", Cost = 0 - so
+# Paper Cost computes to zero with no change to any formula (S_UnitCost = 0
+# is read exactly like any other stock's). Ink/consumable cost is charged
+# normally from the printer's own rate, still waivable per-row via the
+# existing Disregard Consumable flag. The real size is entered per job
+# rather than read from a catalogue row: Print Width mm becomes required
+# for 'Supplied (Roll)' (validated against the chosen printer's Max roll
+# width mm), and the new job-row "Sheet size" column plays the same role
+# for 'Supplied (Sheet)' (validated against Max sheet size).
+#
+# Uses Example Print Room's migrated catalogue data:
+#   Epson SureColor P9500 -> Max roll width 1370mm
+#   Xerox Versant 180     -> Max sheet size A1 (841x594mm)
+#   HP DesignJet Z9+      -> Max roll width 610mm, no sheet capacity at all
+#
+# Drives a COPY in %TEMP%, never src\PrintJob.xlsm itself. Closes WITHOUT
+# saving.
+
+$ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'TestCommon.ps1')
+$deliverable = Join-Path $PSScriptRoot 'src\PrintJob.xlsm'
+$workDir = Join-Path ([IO.Path]::GetTempPath()) ('PrintCostsTest-' + [Guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $workDir | Out-Null
+$f = Join-Path $workDir 'PrintJob.xlsm'
+Copy-Item $deliverable $f
+
+$xl = New-Object -ComObject Excel.Application
+$xl.Visible = $false
+$xl.DisplayAlerts = $false
+$wb = $null
+try {
+    $wb = Invoke-ComRetry { $xl.Workbooks.Open($f) }
+    $xl.Run('SetQuiet', $true)
+    $main = $wb.Worksheets('Example Print Room')
+    $lo = $main.ListObjects('tblJobs_MAIN')
+
+    function Col($lo, $name) {
+        for ($i = 1; $i -le $lo.ListColumns.Count; $i++) {
+            if ($lo.ListColumns($i).Name -eq $name) { return $i }
+        }
+        throw "column '$name' not found"
+    }
+    $prnCol = Col $lo 'Printer'
+    $stkCol = Col $lo 'Paper Stock'
+    $qtyCol = Col $lo 'Qty'
+    $widthCol = Col $lo 'Print Width mm'
+    $sizeCol = Col $lo 'Sheet size'
+    $areaCol = Col $lo 'Area m2'
+    $paperCostCol = Col $lo 'Paper Cost'
+    $consCostCol = Col $lo 'Consumable Cost'
+    $statusCol = Col $lo 'Status'
+
+    function New-Row {
+        [void]$main.Activate()
+        [void]$xl.Run('btnAddPrintJob')
+        return $lo.ListRows($lo.ListRows.Count).Range.Row
+    }
+    function Check([bool]$cond, [string]$msg) {
+        Write-Host ("  {0}  {1}" -f $(if ($cond) { 'OK  ' } else { 'FAIL' }), $msg)
+    }
+
+    # ---------------------------------------------------- roll, zero paper cost
+    Write-Host '=== Supplied (Roll): zero paper cost, normal consumable cost ==='
+    $r1 = New-Row
+    $main.Cells($r1, $prnCol).Value2 = 'Epson SureColor P9500'
+    $main.Cells($r1, $stkCol).Value2 = 'Supplied (Roll)'
+    Start-Sleep -Milliseconds 300
+    $main.Cells($r1, $widthCol).Value2 = 900
+    $main.Cells($r1, $qtyCol).Value2 = 5
+    Start-Sleep -Milliseconds 300
+
+    $paperCost = [double]$main.Cells($r1, $paperCostCol).Value2
+    $consCost = [double]$main.Cells($r1, $consCostCol).Value2
+    $area = [double]$main.Cells($r1, $areaCol).Value2
+    Check ($paperCost -eq 0) "Paper Cost is 0 (got $paperCost)"
+    Check ($consCost -gt 0) "Consumable Cost is charged normally (got $consCost)"
+    Check ([Math]::Abs($area - (0.9 * 5)) -lt 0.001) "Area m2 uses the entered Print Width, not a catalogue width (got $area)"
+
+    # ---------------------------------------------------------- roll, required
+    Write-Host ''
+    Write-Host '=== Supplied (Roll): Print Width mm required ==='
+    $r2 = New-Row
+    $main.Cells($r2, $prnCol).Value2 = 'Epson SureColor P9500'
+    $main.Cells($r2, $stkCol).Value2 = 'Supplied (Roll)'
+    $main.Cells($r2, $qtyCol).Value2 = 3
+    Start-Sleep -Milliseconds 300
+    $status = [string]$main.Cells($r2, $statusCol).Value2
+    Check ($status -like '*Print width required for student-supplied roll stock*') "Status flags the missing width (got '$status')"
+
+    # ----------------------------------------------- roll, exceeds printer max
+    Write-Host ''
+    Write-Host '=== Supplied (Roll): width exceeding the printer max is rejected ==='
+    $r3 = New-Row
+    $main.Cells($r3, $prnCol).Value2 = 'HP DesignJet Z9+'   # Max roll width 610mm
+    $main.Cells($r3, $stkCol).Value2 = 'Supplied (Roll)'
+    Start-Sleep -Milliseconds 300
+    $main.Cells($r3, $widthCol).Value2 = 900
+    Start-Sleep -Milliseconds 300
+    $widthAfter = [string]$main.Cells($r3, $widthCol).Value2
+    Check ([string]::IsNullOrEmpty($widthAfter)) "900mm on a 610mm-max printer is cleared, not accepted (got '$widthAfter')"
+    $log = [string]$xl.Run('QuietLog')
+    Check ($log -like '*maximum roll width*') 'a warning naming the printer''s maximum roll width was raised'
+
+    # --------------------------------------------------- sheet, zero paper cost
+    Write-Host ''
+    Write-Host '=== Supplied (Sheet): zero paper cost, normal consumable cost ==='
+    $r4 = New-Row
+    $main.Cells($r4, $prnCol).Value2 = 'Xerox Versant 180'   # Max sheet size A1
+    $main.Cells($r4, $stkCol).Value2 = 'Supplied (Sheet)'
+    Start-Sleep -Milliseconds 300
+    $main.Cells($r4, $sizeCol).Value2 = 'A3'
+    $main.Cells($r4, $qtyCol).Value2 = 10
+    Start-Sleep -Milliseconds 300
+
+    $paperCost4 = [double]$main.Cells($r4, $paperCostCol).Value2
+    $consCost4 = [double]$main.Cells($r4, $consCostCol).Value2
+    Check ($paperCost4 -eq 0) "Paper Cost is 0 (got $paperCost4)"
+    Check ($consCost4 -gt 0) "Consumable Cost is charged normally (got $consCost4)"
+
+    # -------------------------------------------------------- sheet, required
+    Write-Host ''
+    Write-Host '=== Supplied (Sheet): Sheet size required ==='
+    $r5 = New-Row
+    $main.Cells($r5, $prnCol).Value2 = 'Xerox Versant 180'
+    $main.Cells($r5, $stkCol).Value2 = 'Supplied (Sheet)'
+    $main.Cells($r5, $qtyCol).Value2 = 4
+    Start-Sleep -Milliseconds 300
+    $status5 = [string]$main.Cells($r5, $statusCol).Value2
+    Check ($status5 -like '*Sheet size required for student-supplied sheet stock*') "Status flags the missing size (got '$status5')"
+
+    # -------------------------------------- sheet, exceeds a smaller printer max
+    Write-Host ''
+    Write-Host '=== Supplied (Sheet): size exceeding a smaller printer max is rejected ==='
+    $printers = $wb.Worksheets('Printers').ListObjects('tblPrinters')
+    $maxSizeCol = 0
+    for ($i = 1; $i -le $printers.ListColumns.Count; $i++) {
+        if ($printers.ListColumns($i).Name -eq 'Max sheet size') { $maxSizeCol = $i; break }
+    }
+    $xeroxRow = $null
+    for ($i = 1; $i -le $printers.ListRows.Count; $i++) {
+        if ([string]$printers.ListRows($i).Range.Cells(1, 2).Value2 -eq 'Xerox Versant 180') { $xeroxRow = $i; break }
+    }
+    $wb.Worksheets('Printers').Unprotect()
+    $printers.ListRows($xeroxRow).Range.Cells(1, $maxSizeCol).Value2 = 'SRA3'
+    $wb.Worksheets('Printers').Protect()
+    $xl.Run('Invalidate') | Out-Null
+
+    $r6 = New-Row
+    $main.Cells($r6, $prnCol).Value2 = 'Xerox Versant 180'
+    $main.Cells($r6, $stkCol).Value2 = 'Supplied (Sheet)'
+    Start-Sleep -Milliseconds 300
+    $main.Cells($r6, $sizeCol).Value2 = 'A1'   # bigger than the now-reduced SRA3 max
+    Start-Sleep -Milliseconds 300
+    $sizeAfter = [string]$main.Cells($r6, $sizeCol).Value2
+    Check ([string]::IsNullOrEmpty($sizeAfter)) "A1 on an SRA3-max printer is cleared, not accepted (got '$sizeAfter')"
+    $log6 = [string]$xl.Run('QuietLog')
+    Check ($log6 -like '*maximum sheet size*') 'a warning naming the printer''s maximum sheet size was raised'
+
+    # ------------------------------------------------------- Disregard Consumable still works
+    Write-Host ''
+    Write-Host '=== Disregard Consumable still waives ink cost on a supplied-stock row ==='
+    $disregardCol = Col $lo 'Disregard Consumable'
+    $chargeableCol = Col $lo 'Chargeable Cost'
+    $main.Cells($r1, $disregardCol).Value2 = 'Yes'
+    Start-Sleep -Milliseconds 300
+    $chargeable1 = [double]$main.Cells($r1, $chargeableCol).Value2
+    Check ($chargeable1 -eq 0) "Chargeable Cost drops to 0 once Disregard Consumable is set (got $chargeable1, Paper Cost was already 0)"
+
+    $xl.Run('SetQuiet', $false)
+}
+finally {
+    if ($wb) { try { $wb.Close($false) } catch {} }
+    $xl.Quit()
+    [void][Runtime.InteropServices.Marshal]::ReleaseComObject($xl)
+}
+Write-Host ''
+Write-Host 'closed without saving'
+
+Remove-Item $workDir -Recurse -Force -ErrorAction SilentlyContinue

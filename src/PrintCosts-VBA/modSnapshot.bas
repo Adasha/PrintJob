@@ -12,6 +12,7 @@ Option Explicit
 
 Public Sub StampRow(ByVal ws As Worksheet, ByVal RowNo As Long)
     Dim lo As ListObject, s As clsStock, p As clsPrinterDef
+    Dim stockW As Double, stockH As Double
     Set lo = JobsTable(ws)
     If lo Is Nothing Then Exit Sub
 
@@ -25,9 +26,24 @@ Public Sub StampRow(ByVal ws As Worksheet, ByVal RowNo As Long)
     CellIn(lo, RowNo, "S_Family").Value = s.Family
     CellIn(lo, RowNo, "S_Measure").Value = s.Measure
     CellIn(lo, RowNo, "S_UnitCost").Value = IIf(s.Found, s.Cost, Empty)
-    CellIn(lo, RowNo, "S_StockWidth_mm").Value = IIf(s.Found, s.WidthMM, Empty)
+
+    stockW = s.WidthMM
+    stockH = s.HeightMM
+    ' Student-supplied sheet stock has no catalogue size - the row's own
+    ' "Sheet size" pick (the nearest standard size) is what the Area
+    ' formula's Sheet branch needs stamped here instead. Roll needs no
+    ' equivalent: Print Width mm is required for 'Supplied (Roll)'
+    ' (modValidation), and the Area formula always uses it in preference to
+    ' S_StockWidth_mm once it's set, so a stamped 0 there is never read.
+    If s.Found And s.SuppliedByStudent And s.Measure = "Sheet" Then
+        If ColumnExists(lo, "Sheet size") Then
+            StdSizeDims CStr(CellIn(lo, RowNo, "Sheet size").Value), stockW, stockH
+        End If
+    End If
+
+    CellIn(lo, RowNo, "S_StockWidth_mm").Value = IIf(s.Found, stockW, Empty)
     If s.Found And s.Measure = "Sheet" Then
-        CellIn(lo, RowNo, "S_SheetHeight_mm").Value = s.HeightMM
+        CellIn(lo, RowNo, "S_SheetHeight_mm").Value = stockH
     Else
         CellIn(lo, RowNo, "S_SheetHeight_mm").ClearContents
     End If

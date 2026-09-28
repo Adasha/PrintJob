@@ -26,6 +26,58 @@ Option Explicit
 ' acceptance passes at the end of the sequence.
 
 Public Const APP_NAME As String = "Print Cost Management"
+' 0.10.0 - printer/paper compatibility rework, direct user request: testing
+' showed the family-based compatibility model was too coarse for real
+' printer/stock combinations - tblPaperFamilies was standing in for roll-
+' width bands ("Short Roll" <=24in, "Long Roll" >24in), and a printer opting
+' into "Sheet" accepted any sheet size at all, with no real numeric check
+' anywhere. Real new functionality, not just fixes, so the phase digit
+' moves.
+'
+' Compatibility is now a genuine size fit rather than family membership:
+'   - tblPrinters gains Max roll width mm and Max sheet size (picked from
+'     tblStandardSizes) in place of the old Supported families multi-select
+'     - a printer takes roll stock iff the first is set, sheet stock iff
+'     the second is set, and both can be set on the same printer.
+'     modCatalog.Compatible checks the stock's own size against whichever
+'     applies (FitsWithinMaxSheet allows either orientation for sheet
+'     stock). modPicker.PickFamilies and its "Select families..." button
+'     are removed - clsPrinterDef.Families is gone with them.
+'   - modCatalog.MigratePrinterCapacities derives each printer's new fields
+'     from whatever it was compatible with under the OLD family-list rule,
+'     one-time and idempotent, before removing the legacy column - existing
+'     compatibility is preserved by construction rather than guessed at,
+'     though real printer specs are worth reviewing afterward (SETUP.md).
+'   - modCatalog.MigrateRollFamilies merges "Short Roll"/"Long Roll" into a
+'     single "Roll" family, since families no longer need one row per width
+'     band - only Sheet vs Roll matters to Compatible() now. Family/Measure
+'     stay as two separate columns regardless (Measure remains the only
+'     thing formulas key off, per the existing I2 rule); the duplication
+'     concern this was raised alongside is resolved by Printers no longer
+'     referencing family at all, not by removing the label.
+'
+' A new "Supplied by student" option on Paper Stock, for when a student
+' brings their own paper: paper cost is always zero (real tblPapers catalogue
+' rows, Cost = 0 - "Supplied (Roll)"/"Supplied (Sheet)", modCatalog.
+' EnsureSuppliedByStudentColumn), ink/consumable cost is charged normally
+' from the printer's rate exactly as before (still waivable per-row via the
+' existing Disregard Consumable flag - no new mechanism needed there). The
+' size is entered per job rather than read from a catalogue row: Print Width
+' mm becomes required (not optional) for 'Supplied (Roll)', and a new job-row
+' column, Sheet size (a Standard Sizes pick), plays the same role for
+' 'Supplied (Sheet)' - both validated against the chosen printer's own
+' capacity (modValidation.OnWidthChanged/OnSheetSizeChanged/
+' RevalidateSuppliedSize), and both required-if-blank checks are added to
+' the H_Issues calculated column so Check sheet/Check workbook catch a
+' forgotten one the same way they already catch every other required field
+' (modInit.EnsureJobIssuesFormula, new - asserted in VBA rather than a
+' static xlsx formula edit, the same self-healing reasoning
+' EnsureJobColumnValidation already applies to this table's validation).
+'
+' Sheet size is a genuine new job-row column, so SCHEMA_VER (modUtils) moves
+' 1.1 -> 1.2 - the second bump since inception, same shape as the Paid
+' column's own 1.0 -> 1.1 (§16.1/§3.5).
+'
 ' 0.9.20 - Import button reunited with the rest of the side panel, direct
 ' user report (2026-09-25): "the import button seems to have wandered over
 ' to the right. it should be with the other right-hand-side buttons." It had
@@ -581,7 +633,7 @@ Public Const APP_NAME As String = "Print Cost Management"
 ' A patch increment, not a phase: the phase digit still reads 7 because phase
 ' 8 has not been built. The revision digit is what "0.<phase>.<revision>"
 ' exists for.
-Public Const APP_VERSION As String = "0.9.20"
+Public Const APP_VERSION As String = "0.10.0"
 Public Const APP_AUTHOR As String = "Adam Shailer"
 
 Public Function VersionString() As String

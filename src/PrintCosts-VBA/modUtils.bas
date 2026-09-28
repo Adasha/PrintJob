@@ -8,11 +8,14 @@ Option Explicit
 
 Public Const MARKER As String = "PRINTLOC/v1"
 Public Const MARKER_CELL As String = "AZ1"
-' 1.1 (2026-09-22, snag list item 1c): added the Paid job-row column. The
-' first schema bump since inception - every earlier 0.x.x release left the
-' job-row shape untouched (§3.5: reordering or adding a registry/settings
-' column never counts, only a genuine job-row column does).
-Public Const SCHEMA_VER As String = "1.1"
+' 1.1 (2026-09-22, snag list item 1c): added the Paid job-row column.
+' 1.2 (printer/paper compatibility rework): added the "Sheet size" job-row
+' column (the student-supplied-stock size override for sheet jobs, mirroring
+' Print Width mm's existing role for roll jobs). Second schema bump since
+' inception - every other 0.x.x release left the job-row shape untouched
+' (§3.5: reordering or adding a registry/settings column never counts, only
+' a genuine job-row column does).
+Public Const SCHEMA_VER As String = "1.2"
 Public Const JOBS_PREFIX As String = "tblJobs_"
 Public Const LIST_SEP As String = ";"
 
@@ -146,6 +149,20 @@ End Function
 
 Public Function CellIn(ByVal lo As ListObject, ByVal RowNo As Long, ByVal Header As String) As Range
     Set CellIn = lo.ListRows(RowNo).Range.Cells(1, ColIdx(lo, Header))
+End Function
+
+' Whether a column exists, without ColIdx's raise-if-missing behaviour -
+' for code that reads an optional/newly-added column (the printer capacity
+' columns, "Supplied by student", "Sheet size") and must not fail against a
+' workbook that hasn't had the matching Ensure* migration run yet.
+Public Function ColumnExists(ByVal lo As ListObject, ByVal Header As String) As Boolean
+    Dim i As Long
+    For i = 1 To lo.ListColumns.Count
+        If StrComp(lo.ListColumns(i).Name, Header, vbTextCompare) = 0 Then
+            ColumnExists = True
+            Exit Function
+        End If
+    Next i
 End Function
 
 ' Range.ColumnWidth is in "characters of the Normal-style font" (Calibri 11

@@ -14,6 +14,7 @@
 # Drives a COPY in %TEMP%, never src\PrintJob.xlsm itself - see verify.ps1.
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'TestCommon.ps1')
 . (Join-Path $PSScriptRoot 'test-fixture-annexe.ps1')
 $deliverable = Join-Path $PSScriptRoot 'src\PrintJob.xlsm'
 $workDir = Join-Path ([IO.Path]::GetTempPath()) ('PrintCostsTest-' + [Guid]::NewGuid().ToString('N'))
@@ -75,6 +76,15 @@ try {
     $rows = $xl.Run('ReadImportRows', $mainCsv.FullName)
     $xl.Run('ApplyImportConfirmed', $main, $rows)
     Write-Host $xl.Run('QuietLog')
+    # ApplyImportConfirmed's own Check-workbook sweep (H_Issues/Status) can
+    # still be settling in the background when control returns - even the
+    # very next COM call (CalculateFullRebuild itself) intermittently hit
+    # RPC_E_CALL_REJECTED ("Call was rejected by callee") while Excel was
+    # still busy. Same root cause TestCommon.ps1's own comment describes
+    # for Workbook_Open, just triggered here by ApplyImportConfirmed's
+    # heavier Check-sheet sweep instead.
+    Invoke-ComRetry { $xl.CalculateFullRebuild() } | Out-Null
+    Start-Sleep -Milliseconds 300
 
     $foundRow = 0
     for ($i = 1; $i -le $loMain.ListRows.Count; $i++) {

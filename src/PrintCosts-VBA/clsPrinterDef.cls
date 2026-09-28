@@ -19,6 +19,9 @@ Public PrinterID As String
 Public Model As String
 Public Consumable As String
 Public RatePerM2 As Double
-Public Families As String           ' delimited with LIST_SEP
+Public MaxRollWidthMM As Double     ' 0 = not roll-capable
+Public MaxSheetSize As String       ' tblStandardSizes[Size name]; "" = not sheet-capable
+Public MaxSheetWidthMM As Double    ' resolved from MaxSheetSize at load time
+Public MaxSheetHeightMM As Double   ' "
 Public Active As Boolean
 Public Found As Boolean

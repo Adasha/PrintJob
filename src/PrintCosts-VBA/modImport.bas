@@ -25,8 +25,8 @@ Option Explicit
 '
 ' Only the input and snapshot columns are written - Job ID, Date/Time,
 ' Student Name, Student No, Technician, Printer, Paper Stock, Unit, Qty,
-' Print Width mm, Disregard Paper, Disregard Consumable, Paid, Notes, and
-' every S_* column. The calculated columns (Area m2, Paper Cost, Consumable
+' Print Width mm, Sheet size, Disregard Paper, Disregard Consumable, Paid,
+' Notes, and every S_* column. The calculated columns (Area m2, Paper Cost, Consumable
 ' Cost, Gross Cost, Disregarded, Chargeable Cost) and Status are left alone -
 ' the job table's own per-row formulas reproduce the historical figures
 ' exactly from the snapshot, the same way a locally entered job does.
@@ -232,6 +232,10 @@ Private Sub WriteImportedRow(ByVal lo As ListObject, ByVal RowNo As Long, ByVal 
     WriteText lo, RowNo, "Unit", d
     WriteNum lo, RowNo, "Qty", d
     WriteNum lo, RowNo, "Print Width mm", d
+    ' Missing from a file exported before this column existed (schema < 1.2)
+    ' - d.Item returns Empty, which writes blank, same graceful degradation
+    ' as Paid's own comment above.
+    WriteText lo, RowNo, "Sheet size", d
     WriteText lo, RowNo, "Disregard Paper", d
     WriteText lo, RowNo, "Disregard Consumable", d
     ' Missing from a file exported before 2026-09-22 (schema 1.0) - d.Item

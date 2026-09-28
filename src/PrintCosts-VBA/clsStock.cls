@@ -29,4 +29,5 @@ Public WidthMM As Double
 Public HeightMM As Double
 Public Cost As Double               ' per sheet, or per metre
 Public Active As Boolean
+Public SuppliedByStudent As Boolean ' the two "Supplied (Roll)"/"Supplied (Sheet)" catalogue rows
 Public Found As Boolean

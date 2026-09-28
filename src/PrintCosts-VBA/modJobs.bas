@@ -120,6 +120,9 @@ Public Sub RepeatJob(ByVal ws As Worksheet)
     ' this copy, never a neighbour's.
     MarkQtyRewritten CellIn(lo, n, "Qty"), False
     CellIn(lo, n, "Print Width mm").Value = CellIn(lo, srcRow, "Print Width mm").Value
+    If ColumnExists(lo, "Sheet size") Then
+        CellIn(lo, n, "Sheet size").Value = CellIn(lo, srcRow, "Sheet size").Value
+    End If
     CellIn(lo, n, "Disregard Paper").Value = CellIn(lo, srcRow, "Disregard Paper").Value
     CellIn(lo, n, "Disregard Consumable").Value = CellIn(lo, srcRow, "Disregard Consumable").Value
 

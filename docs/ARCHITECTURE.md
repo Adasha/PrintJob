@@ -6,10 +6,10 @@
 
 **Naming inconsistency, flagged not fixed (2026-09-27).** The project folder is `PrintJob`, but the source workbook is `PrintCosts.xlsx` and the VBA source folder is `PrintCosts-VBA` — a mismatch that predates this note. `build.ps1`'s output was renamed to `PrintJob.xlsm` (2026-09-27, direct user request) specifically because that rename is free: `HealButtons` (§4.2) already re-qualifies every button's `OnAction` on open, so the workbook self-heals under any filename. Renaming the `.xlsx` source, `PrintCosts-VBA` folder, or the `PrintCosts-*` export/backup file prefixes (`modExport.bas`, `modBackup.bas`) would be a much larger, higher-risk pass with no equivalent self-healing mechanism, and was deliberately left alone. Worth a proper look in the future if the inconsistency keeps bothering people.
 
-**Current state, as verified against the actual VBA source on 2026-09-25:**
+**Current state, as verified against the actual VBA source on 2026-09-28:**
 
-- Workbook version reported in-code: `0.9.19` (`modVersion.APP_VERSION`) — `0.8.0` reflected the NextId fix, Export/Import, the Reports rework and the 2026-09-21 snag list; `0.8.1` closed out phase 8's own original scope (§16.1); `0.9.0`–`0.9.19` are phase 9's packages and post-package addenda so far — see §16.4 and `modVersion.bas`'s own changelog comment for the fixes beyond `0.9.11` (per-location roll-length unit, the Mac default-compatibility fix, the job-table validation-corruption fix, and 2026-09-25's reduced-view visibility rework — §4.1).
-- Data schema version: `1.1` (`modUtils.SCHEMA_VER`) — unchanged since inception through every 0.8.x release; bumped for the first time by phase 9's Paid column (snag 1c, §5), which also surfaced and fixed a gap in how `SET_SCHEMA` stayed in sync with the constant (§3.3, §3.5).
+- Workbook version reported in-code: `0.10.0` (`modVersion.APP_VERSION`) — `0.8.0` reflected the NextId fix, Export/Import, the Reports rework and the 2026-09-21 snag list; `0.8.1` closed out phase 8's own original scope (§16.1); `0.9.0`–`0.9.20` are phase 9's packages and post-package addenda — see `modVersion.bas`'s own changelog comment for the fixes beyond `0.9.11`; `0.10.0` is the printer/paper compatibility rework (§16.5): capacity-based printer/stock compatibility in place of the old paper-family width bands, and student-supplied paper stock.
+- Data schema version: `1.2` (`modUtils.SCHEMA_VER`) — `1.0` since inception; bumped to `1.1` by phase 9's Paid column (snag 1c, §5), which also surfaced and fixed a gap in how `SET_SCHEMA` stayed in sync with the constant (§3.3, §3.5); bumped to `1.2` by the printer/paper compatibility rework's new job-row "Sheet size" column (§5, §16.5).
 - Everything in the original design document's phases 1–7 is built and verified.
 - Phase 8's original scope (visual polish) is **fully built** — see §16.2.
 - The "larger changes" plan (`snaglist-stage7handoff.txt`: NextId fix, Import/Export rework, Reports rework, bulk delete) is **fully built**.
@@ -66,22 +66,23 @@ An Excel `.xlsm` (Microsoft 365 only, Windows and Mac) for logging print jobs pe
 ```
 Settings (global key/value)
 PaperType ──┐
-            ├──< PaperStock >──── PaperFamily ──< PrinterFamily >── Printer ──── ConsumableType
-StandardSize┘         │                                               │
-                      │                                               │
-                      └───────────┐                   ┌───────────────┘
-                                  │                   │
-Technician ──────────────────────>PrintJob<───────────┘
+            ├──< PaperStock >──── PaperFamily
+StandardSize┘         │                │
+                      │                │ (Measurement basis only - Sheet/Roll -
+                      │                │  no longer a width band, §16.5)
+Technician ───────────┼──>PrintJob<────┘
+                      │                
+                      └───────────────────── Printer ──── ConsumableType
                                   │
                               Location (one sheet each)
                                   │
                               Site (one workbook each)
 ```
 
-- A **Printer** supports one-or-more **PaperFamily** (delimited list on the printer row).
-- A **PaperStock** belongs to exactly one **PaperFamily** and one **PaperType**.
+- A **PaperStock** belongs to exactly one **PaperFamily** and one **PaperType**. A family's only job is to distinguish `Sheet` from `Roll` stock (its **Measurement basis** — I2 still holds: behaviour keys off the basis, never the family name) — it no longer needs one row per width band the way `Short Roll`/`Long Roll` used to (merged into a single `Roll` family, §16.5).
 - A **PrintJob** references one Technician, one Printer and one PaperStock, and belongs to one Location.
-- A stock is valid for a printer only when the stock's family appears in that printer's supported families.
+- A stock is valid for a printer purely by size, not by family: a Roll stock's width against the printer's **Max roll width mm**, a Sheet stock's dimensions (either orientation) against the printer's **Max sheet size** (a Standard Size). A **Printer** no longer references PaperFamily at all — the old `Supported families` multi-select is gone (§3.3, §16.5).
+- The two **"Supplied (Roll)"/"Supplied (Sheet)"** stock rows (student-supplied paper) skip the size comparison entirely — compatible with any printer that has the matching capacity field set at all, since the real size is entered per job rather than read from the catalogue row (§5, §16.5).
 - A **Location** permits a subset of printers.
 - A **Site** is one workbook file. In v1 there is one site per workbook and nothing collates them automatically (§12) — though see §12.4 for the manual route that now exists.
 
@@ -113,7 +114,7 @@ Current mechanism (`modRegistry.NextJobId`, `modRegistry.bas:570`):
 | `tblSettings` | Key, Setting, Value, Notes |
 | `tblPaperTypes` | Paper type, Active |
 | `tblStandardSizes` | Size name, Width mm, Height mm |
-| `tblPaperFamilies` | Family, **Measurement basis** (`Sheet`/`Roll`), Notes |
+| `tblPaperFamilies` | Family, **Measurement basis** (`Sheet`/`Roll`), Notes — two rows since the printer/paper compatibility rework (§16.5) merged the old `Short Roll`/`Long Roll` width-band families into one `Roll` family; a family only needs to distinguish Sheet from Roll now |
 | `tblConsumables` | Consumable type, Active |
 
 Each setting is exposed as a workbook-scoped defined name so formulas and VBA reference meaning rather than cell addresses: `SET_SITE_ID`, `SET_SITE_NAME`, `SET_ORG`, `SET_DEPT`, `SET_CURRENCY`, `SET_ROUND_DP`, `SET_EXPORT_FOLDER`, plus read-only `SET_SCHEMA`, `SET_LASTREF`, `SET_APP_VER`, `SET_BUILT`, `SET_BUILT_BY`.
@@ -121,8 +122,8 @@ Each setting is exposed as a workbook-scoped defined name so formulas and VBA re
 `modSettings` addresses every setting as `SET_<KEY>`, so the defined name — not the row — is what makes an entry a real setting. Settings that don't ship in the `.xlsx` are self-provisioned by VBA via `modVersion.EnsureSetting`: `APP_VER`/`BUILT`/`BUILT_BY` (`modVersion.EnsureVersionSettings`), `SCHEMA` (`modVersion.EnsureSchemaSetting`, new 2026-09-22 — see §5's Paid column note for why) and `EXPORT_FOLDER` (`modExport.EnsureExportSettings`, called from `modInit.InitialiseWorkbook`). The rest — `SITE_ID`, `SITE_NAME`, `ORG`, `DEPT`, `ROUND_DP`, `CURRENCY` — ship directly in `PrintCosts.xlsx`.
 
 **Print Technicians** — `tblTechnicians`: TechID, Name, Department, Active.
-**Printers** — `tblPrinters`: PrinterID, Model, Consumable type, **Cost per m2**, Supported families, Active.
-**Papers** — `tblPapers`: StockID, Description, Paper type, Family, *Measure* (calc), Size mode, Std. size (renamed from "Standard size" 0.9.14 — `modCatalog.EnsureStdSizeColumnName`), **Width mm**, **Height mm**, **Cost**, *Cost unit* (calc), Active.
+**Printers** — `tblPrinters`: PrinterID, Model, Consumable type, **Cost per m2**, **Max roll width mm**, **Max sheet size**, Active. The last two (printer/paper compatibility rework, §16.5) replace the old `Supported families` multi-select: a printer takes roll stock iff the first is set, sheet stock iff the second is set (a Standard Size name), and both can be set on the same printer. `modCatalog.EnsurePrinterCapacityColumns` adds them; `MigratePrinterCapacities` derives their initial values from whatever the printer was compatible with under the old family-list rule, then removes the legacy column.
+**Papers** — `tblPapers`: StockID, Description, Paper type, Family, *Measure* (calc), Size mode, Std. size (renamed from "Standard size" 0.9.14 — `modCatalog.EnsureStdSizeColumnName`), **Width mm**, **Height mm**, **Cost**, *Cost unit* (calc), **Supplied by student** (Yes/No, printer/paper compatibility rework, §16.5), Active. Exactly two rows hold `Supplied by student = Yes` — `Supplied (Roll)`/`Supplied (Sheet)`, `Cost = 0`, Width/Height mm blank — real catalogue rows rather than synthetic in-memory stock, so every existing Reports/Summary lookup handles them with no further code (§16.5).
 
 All dimensions are stored in millimetres; metres appear only as a transaction quantity for roll stock.
 
@@ -327,18 +328,21 @@ Anyone reordering job-table columns directly in `PrintCosts.xlsx` again (as oppo
 | 6 | Paper Stock | input | Dropdown, active ∩ compatible with printer |
 | 7 | Unit | calc | `sheets` or `metres` |
 | 8 | Qty (renamed from "Quantity" 0.9.14 — `modInit.EnsureQtyColumnName`) | input | > 0; whole number for sheet stock (I3) |
-| 9 | Print Width mm | input | Roll only; blank = full stock width; ≤ stock width |
-| 10 | Disregard Paper | input | Yes/No, seeded from location default |
-| 11 | Disregard Consumable | input | Yes/No, seeded from location default |
-| 12 | Area m2 | calc | Printed area |
-| 13–17 | Paper Cost, Consumable Cost, Gross Cost, Disregarded, Chargeable Cost | calc | §5.1 |
-| 18 | Paid | input | Yes/No, blank on rows that predate it (2026-09-22 snag list item 1c) — see below |
-| 19 | Status | calc | `OK` or a warning; conditionally formatted |
-| 20 | Job ID | VBA | `<SITE>-<LOC>-00001`, never re-used (§3.2) |
-| 21 | Notes | input | Optional |
-| 22 | H_Issues | calc | Hidden working column behind Status |
+| 9 | Print Width mm | input | Roll only; blank = full stock width; ≤ stock width. Required, not optional, when Paper Stock is `Supplied (Roll)` — see below |
+| 10 | Sheet size | input | New, printer/paper compatibility rework (§16.5). Meaningful only when Paper Stock is `Supplied (Sheet)`, where it's required — a Standard Sizes pick, the nearest size to the sheet the student brought. Ignored (and cleared) on every other row |
+| 11 | Disregard Paper | input | Yes/No, seeded from location default |
+| 12 | Disregard Consumable | input | Yes/No, seeded from location default |
+| 13 | Area m2 | calc | Printed area |
+| 14–18 | Paper Cost, Consumable Cost, Gross Cost, Disregarded, Chargeable Cost | calc | §5.1 |
+| 19 | Paid | input | Yes/No, blank on rows that predate it (2026-09-22 snag list item 1c) — see below |
+| 20 | Status | calc | `OK` or a warning; conditionally formatted |
+| 21 | Job ID | VBA | `<SITE>-<LOC>-00001`, never re-used (§3.2) |
+| 22 | Notes | input | Optional |
+| 23 | H_Issues | calc | Hidden working column behind Status |
 
-**Snapshot block (23–34)** — locked, grey, collapsed group headed *Historical record — do not edit*: `S_PrinterID`, `S_StockID`, `S_TechID`, `S_Family`, `S_Measure`, `S_UnitCost`, `S_StockWidth_mm`, `S_SheetHeight_mm`, `S_ConsRate`, `S_StampedAt`, `S_StampedBy`, `S_SchemaVer`.
+**Snapshot block (24–35)** — locked, grey, collapsed group headed *Historical record — do not edit*: `S_PrinterID`, `S_StockID`, `S_TechID`, `S_Family`, `S_Measure`, `S_UnitCost`, `S_StockWidth_mm`, `S_SheetHeight_mm`, `S_ConsRate`, `S_StampedAt`, `S_StampedBy`, `S_SchemaVer`.
+
+**Sheet size (printer/paper compatibility rework, §16.5) — the second genuine job-row column since inception, `modUtils.SCHEMA_VER` 1.1 → 1.2.** Added via `modInit.EnsureSheetSizeJobColumn`, same idempotent `ListColumns.Add` shape as `EnsurePaidColumn`. Plays the same role for `Supplied (Sheet)` that `Print Width mm` already played for roll stock: there's no catalogue size to fall back on for student-supplied paper, so the real size is entered per job and stamped into `S_StockWidth_mm`/`S_SheetHeight_mm` by `modSnapshot.StampRow` (resolved via a `tblStandardSizes` lookup, `modCatalog.StdSizeDims`) exactly as if it had come from a catalogue row — **no change to any cost formula was needed** (§5.1). Both `Print Width mm` (now required, not optional, for `Supplied (Roll)`) and `Sheet size` are validated against the *printer's* capacity, not a stock's nominal size (`modValidation.OnWidthChanged`/`OnSheetSizeChanged`/`RevalidateSuppliedSize`) — and a blank value on a row that needs one is caught by `H_Issues` (`modInit.EnsureJobIssuesFormula`, asserted in VBA rather than a static `.xlsx` formula edit, same self-healing reasoning as `EnsureJobColumnValidation`) the same way every other required field already is, so Check sheet/Check workbook catch a forgotten one.
 
 Column *order* is not load-bearing anywhere: formulas use structured references, VBA resolves columns by header name, reports resolve `_Data` by header name (§6.2), imports write by header name (§10.5), and exports carry a header row read by name (§10.4). Reordering is free and does not bump the schema version — proven in practice by the 2026-09-22 move above, which touched nothing but `modInit` (the reorder itself) and `modRegistry`'s `FIRST_JOB_COL` constant (the one place a column's *name*, not position, was baked in as a span boundary — see §8.1).
 
@@ -399,7 +403,7 @@ A **Re-stamp prices** command exists for the genuine correction case. Deliberate
 | Paper cost edited | None — from `S_UnitCost` (AT-09) |
 | Consumable £/m² edited | None — from `S_ConsRate` |
 | Printer renamed | None — row holds `S_PrinterID` |
-| Printer families changed | None — compatibility validated at entry (AT-05) |
+| Printer capacity (Max roll width mm / Max sheet size) changed | None — compatibility validated at entry (AT-05); §16.5 |
 | Stock dimensions changed | None — area from the stamped dimensions |
 | **Record set Inactive** | **None — remains in reports; excluded only from new dropdowns (AT-16, verified phase 7)** |
 | Location defaults changed | None — flags copied into the row at creation (AT-07, AT-08) |
@@ -1083,6 +1087,35 @@ Example Print Room's twelve sample rows (`UNI-MAIN-00001`–`00012`, up from fiv
 Edited via Excel COM automation on a `%TEMP%` copy, never opening `PrintCosts.xlsx` directly, for the same OneDrive/AutoSave reason `build.ps1` never does either (§13.1) — confirmed the hard way mid-task, when a throwaway diagnostic that opened the live file directly (to chase an unrelated PowerShell/COM bug, next paragraph) had its test values committed to the tracked file by AutoSave despite closing with `SaveChanges:=False`, recovered via `git checkout`.
 
 **PowerShell/COM gotcha worth recording alongside §13.2's existing ones: a shared function that sets `Range.Value2` gets `InvalidCastException` the second time it's called with a different argument type at that same call site.** Writing many typed cell values through one `SetCell($lo, $colName, $rowIdx, $value)` helper — `$cell.Value2 = $value` — worked for the first assignment (a `[DateTime]`, converted to an OLE Automation date first) and threw `Specified cast is not valid` on the very next call with a plain string, even though either assignment succeeds fine in isolation or written out inline. PowerShell 5.1's DLR caches the dynamic dispatch for a COM property setter per call site rather than per argument type; a shared helper invoked with varying argument types across a loop is exactly the shape that trips it. Fixed by dropping the dynamic `.Value2 =` syntax in favour of late-bound reflection, which has no such cache: `$cell.GetType().InvokeMember('Value2', [Reflection.BindingFlags]::SetProperty, $null, $cell, @($value))`.
+
+### 16.5 Printer/paper compatibility rework (0.10.0, 2026-09-28) — built
+
+Direct user request, from real-world testing: the family-based compatibility model was too coarse. `tblPaperFamilies` was standing in for roll-width bands (`Short Roll` ≤24in, `Long Roll` >24in), so a printer opting into `Long Roll` accepted *any* roll stock from 914mm to 1370mm+ with no real width check, and a printer opting into `Sheet` accepted any sheet size at all, A4 up to A0, with no size check either. Two requirements, delivered together as one phased-but-single-session change (see the approved plan for the original phase breakdown; phases 1–3 landed as one build/verify cycle rather than separately, since each was too small on its own to verify in isolation against real Excel behaviour).
+
+**Requirement 1 — capacity-based compatibility, replacing family membership.**
+
+- `tblPrinters` gains **Max roll width mm** (numeric) and **Max sheet size** (a Standard Sizes pick) in place of the old `Supported families` multi-select — a printer takes roll stock iff the first is set, sheet stock iff the second is set, both can be set on the same printer (`modCatalog.EnsurePrinterCapacityColumns`).
+- `modCatalog.Compatible` is a real size fit now: `stock.WidthMM <= printer.MaxRollWidthMM` for roll, `FitsWithinMaxSheet` (either orientation, so a sheet can be fed either way round) for sheet. `clsPrinterDef.Families` is gone; `modPicker.PickFamilies` and the Printers-sheet "Select families..." button are removed outright (`modMain.btnSelectFamilies` too) — a printer's capability is fully described by the two numeric fields, nothing left to multi-select.
+- `modCatalog.MigratePrinterCapacities` is the one-time, idempotent migration: for each printer, it derives Max roll width mm as the widest Roll-family stock the *old* family-list rule already let it take, and Max sheet size as the smallest catalogue Standard Size whose bounding box (either orientation) contains every Sheet-family stock it already took — a principled translation of the old semantics into the new model, not a guess, so upgrading a workbook doesn't silently change what any printer can already do. Must run before the family merge below, while `tblPapers`' Family values still say `Short Roll`/`Long Roll` and can still be matched against the legacy `Supported families` text; removes that legacy column itself once every printer has been read, which is what makes the whole migration a true one-off (the next `InitialiseWorkbook` run exits immediately on the missing column).
+- `modCatalog.MigrateRollFamilies` merges `Short Roll`/`Long Roll` into a single `Roll` family, since families only need to distinguish Sheet from Roll now (§3.1). `Family` and `Measure` stay two separate columns regardless — `Measure` remains the only thing formulas key off (I2), and `Family` is now purely a grouping/reporting label; the "family and measure look like the same thing" duplication the request flagged is resolved by Printers no longer referencing family at all, not by collapsing the columns. The `Family` → "Paper Format" rename floated during planning was **deliberately not done** — every `CellIn`/`ColIdx` call site and `modBackup.CatalogKeyHeader` reference it by that name, and the rename bought nothing once Printers stopped depending on it; a pure cosmetic simplification, safely deferrable.
+
+**Requirement 2 — "Supplied by student" paper stock**, for when a student brings their own paper.
+
+- Two ordinary `tblPapers` rows, not synthetic in-memory stock — `Supplied (Roll)`/`Supplied (Sheet)`, `Cost = 0`, Width/Height mm blank (`modCatalog.EnsureSuppliedByStudentColumn`, a new `Supplied by student` Yes/No column). Being real catalogue rows is what let every existing Reports/Summary Family/Type/Unit lookup and the dropdown-staging path handle them with zero further code — `modCatalog.Compatible` is the one place that needs to know a stock is one of these (`clsStock.SuppliedByStudent`), skipping the size-fit check since there isn't a size until job entry.
+- `S_UnitCost = 0` for both rows means `Paper Cost` computes to zero automatically (§5.1's `ROUND(Qty * 0, dp)`) — **no cost formula was touched**. Consumable Cost is unaffected (still `Area × S_ConsRate` from the printer), so ink is charged normally and can still be waived per row via the existing Disregard Consumable flag, exactly as asked.
+- The real size is entered per job: `Print Width mm` becomes *required* (not optional) for `Supplied (Roll)`, and the new **Sheet size** job-row column (§5, schema 1.1 → 1.2) plays the same role for `Supplied (Sheet)` — both validated against the *chosen printer's* capacity (`modValidation.OnWidthChanged`/`OnSheetSizeChanged`), and re-validated if the printer changes afterward on an already-sized row (`RevalidateSuppliedSize` — the same order-dependency class of bug §16.3 already fixed once for `LOC_RollUnit`/centimetres, applied here pre-emptively rather than found the hard way). A blank required value is caught by `H_Issues`/Status (`modInit.EnsureJobIssuesFormula`) the same way every other required field already is.
+- The two rows are kept at the bottom of the Paper Stock dropdown by construction, not a sort tie-break: `modLists`' stock-staging routine preserves `tblPapers` row order, and `EnsureSuppliedByStudentColumn` always appends via a bare `ListRows.Add` (no `Position` argument).
+
+**Two real bugs found building this, both worth remembering for future VBA work:**
+
+1. **`Range.Formula` (not `.Formula2`) is capped well under the length `EnsureJobIssuesFormula`'s new H_Issues clauses needed**, raising a bare 1004 ("Application-defined or object-defined error") with no length-related message. Same limit `EnsurePrintersDisplay`'s own `B7` formula already worked around (§4.1) — `.Formula2` has no such cap. Found by bisecting the formula clause-by-clause via a temporary VBA test Sub until the exact failing assignment was isolated, since the error itself gives no hint it's about length.
+2. **An object's public field passed as a `ByRef` output parameter doesn't reliably write back over COM.** `modCatalog.LoadCatalog` called `StdSizeDims(p.MaxSheetSize, p.MaxSheetWidthMM, p.MaxSheetHeightMM)` directly against `clsPrinterDef`'s own fields — `StdSizeDims` returned `True` with the correct values every time, but `p.MaxSheetWidthMM`/`MaxSheetHeightMM` stayed `0` regardless, silently breaking every sheet-stock compatibility check (a printer with a correctly-migrated `Max sheet size` name rejected every real stock, while `Supplied (Sheet)` — which skips the size check — still worked, which is what made this look at first like a migration bug rather than a ByRef one). Fixed by routing through plain local `Double` scratch variables and assigning the class fields afterward; the other `StdSizeDims` call sites (`modSnapshot.StampRow`, `modValidation`) already used local variables and were unaffected.
+
+**A third issue, in the test harness rather than the product: `EnsureJobIssuesFormula` running unconditionally on every `BindColumns` call (setup, Refresh Locations, Check workbook/sheet, the picker) made an already-marginal COM timing race worse.** Rewriting a ~1.5KB formula across a whole table column on every one of those calls — most of which previously did nothing to `H_Issues` at all — occasionally left Excel still settling a recalculation when the next COM call landed, intermittently raising `RPC_E_CALL_REJECTED` ("Call was rejected by callee") in `test-import.ps1`, right after `ApplyImportConfirmed`'s own Check-sheet sweep. Fixed two ways: `EnsureJobIssuesFormula` is now checked-first (compares the target formula against the first cell's current one, skipping the write entirely when nothing would change — the common case after the first run), and `test-import.ps1` now waits on `TestCommon.ps1`'s `Invoke-ComRetry` (previously only used right after `Workbooks.Open`, generalised in its own comment to cover this second site) rather than assuming `CalculateFullRebuild` always returns settled.
+
+**A structural side effect worth flagging for the next person who adds a job-row column: inserting one shifts every later column through a cut+insert cycle the next time `ReorderJobColumns` runs, and `.Hidden`/`OutlineLevel` don't reliably travel with that shift any more than the validation ranges and widths §5's own note already warns about.** Adding the Sheet size column left `S_StampedBy` (and the rest of the snapshot block) visibly un-hidden, and `Job ID` picked up a stray outline level 2 — both caught by `test-groups.ps1`, neither near the column that actually moved. Fixed by two small, unconditional reassertions in `modInit.NormalizeJobColumnOutlines` (`ReassertSnapshotHidden`, and a explicit `OutlineLevel = 1` on `Sheet size`/`Status`/`Job ID`) rather than trusting Cut+Insert to have preserved them — the same "restore what Cut+Insert can silently disturb" idiom `EnsureJobColumnValidation`/`ApplyJobColumnWidths` already apply to validation and widths, now extended to `.Hidden`/`OutlineLevel` too.
+
+Verified by the full existing regression suite (all green; `test-dropdowns.ps1` and `test-paid.ps1` updated for the new capacity-based compatibility model and the schema bump respectively, `test-import.ps1` fixed for the COM-timing issue above) plus new `test-suppliedstock.ps1`: zero Paper Cost with normal Consumable Cost for both roll and sheet, required-field enforcement, rejection when an entered width/size exceeds the chosen printer's capacity (roll and sheet), and Disregard Consumable still waiving ink cost on a supplied-stock row.
 
 ---
 

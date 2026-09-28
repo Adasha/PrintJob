@@ -18,15 +18,19 @@
 # exactly the AT-05 "incompatible combination" path, reached via the
 # dropdown instead of by typing over an already-filled cell.
 #
-# Uses Example Print Room's real catalogue data (see Printers/Papers sheets):
-#   Xerox Versant 180    -> Sheet only                  (permitted here)
-#   Epson SureColor P9500 -> Short Roll + Long Roll      (permitted here)
-#   HP DesignJet Z9+      -> Short Roll only             (permitted here)
-#   HP Latex 335          -> Long Roll only              (NOT permitted here)
+# Uses Example Print Room's real catalogue data (see Printers/Papers sheets).
+# Compatibility is a numeric capacity fit (printer/paper compatibility
+# rework), not the family-band membership this comment used to describe -
+# migrated from the original "Supported families" data so the same
+# combinations below still hold:
+#   Xerox Versant 180     -> Max sheet size A1, no roll capacity (permitted here)
+#   Epson SureColor P9500 -> Max roll width 1370mm              (permitted here)
+#   HP DesignJet Z9+      -> Max roll width 610mm                (permitted here)
+#   HP Latex 335          -> Max roll width 1370mm               (NOT permitted here)
 #
-#   Gloss 200gsm SRA3 sheet -> Sheet family    -> only Xerox fits    (singleton)
-#   Canvas 914mm roll       -> Long Roll family -> only Epson fits   (singleton)
-#   Satin photo 610mm roll  -> Short Roll family -> Epson + HP DesignJet (2)
+#   Gloss 200gsm SRA3 sheet -> fits only Xerox's A1 max         (singleton)
+#   Canvas 914mm roll       -> exceeds HP DesignJet's 610mm max, fits only Epson (singleton)
+#   Satin photo 610mm roll  -> fits both Epson and HP DesignJet's roll max (2)
 #
 # Drives a COPY in %TEMP%, never src\PrintJob.xlsm itself - see
 # test-validation.ps1's header comment for why (Workbook_Open + AutoSave on a
@@ -139,12 +143,18 @@ try {
     # ------------------------------------------------------- printer -> stock
     Write-Host ''
     Write-Host '=== Printer chosen first still narrows/auto-fills Paper Stock ==='
+    # HP DesignJet Z9+ used to have exactly one compatible stock (Satin
+    # photo 610mm roll, the only Short Roll family stock) and auto-filled
+    # it. The printer/paper compatibility rework's "Supplied (Roll)" option
+    # is compatible with every roll-capable printer regardless of width, so
+    # this printer now has TWO compatible stocks and no longer auto-fills -
+    # same as Xerox Versant 180 below, which already had more than one.
     $r4 = New-Row
     $c = $main.Cells($r4, $prnCol)
     $c.Value2 = 'HP DesignJet Z9+'
     Start-Sleep -Milliseconds 300
     $got = [string]$main.Cells($r4, $stkCol).Text
-    Check ($got -eq 'Satin photo 610mm roll') "HP DesignJet Z9+ auto-fills its one compatible stock (got '$got')"
+    Check ([string]::IsNullOrEmpty($got)) "HP DesignJet Z9+ (2 compatible stocks: Satin photo roll + Supplied (Roll)) leaves Paper Stock blank (got '$got')"
 
     $r5 = New-Row
     $c = $main.Cells($r5, $prnCol)

@@ -191,14 +191,6 @@ Fail:
     ReportError "Select printers"
 End Sub
 
-Public Sub btnSelectFamilies()
-    On Error GoTo Fail
-    PickFamilies
-    Exit Sub
-Fail:
-    ReportError "Select families"
-End Sub
-
 Public Sub btnReStamp()
     On Error GoTo Fail
     LoadCatalog True

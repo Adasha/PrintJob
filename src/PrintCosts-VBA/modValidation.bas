@@ -38,6 +38,8 @@ Public Function OnCellChanged(ByVal ws As Worksheet, ByVal Target As Range) As B
             OnQtyChanged ws, lo, n
         Case "Print Width mm"
             OnWidthChanged ws, lo, n
+        Case "Sheet size"
+            OnSheetSizeChanged ws, lo, n
         Case "Student Name", "Student No"
             CheckStudent ws, lo, n
         Case "Technician"
@@ -74,10 +76,10 @@ Private Function OnDefaultCellChanged(ByVal ws As Worksheet, ByVal Target As Ran
             Set p = Prn(model)
             If changedPrinter Then
                 stkCell.ClearContents
-                Say "'" & stk & "' cannot be used on " & model & ".", "That printer does not support the " & s.Family & " paper family.", "The default paper stock has been cleared."
+                Say "'" & stk & "' cannot be used on " & model & ".", "That printer takes " & CapacityText(p) & ".", "The default paper stock has been cleared."
             Else
                 prnCell.ClearContents
-                Say "'" & stk & "' cannot be used on " & model & ".", "That stock is in the " & s.Family & " family, which this printer does not support.", "The default printer has been cleared."
+                Say "'" & stk & "' cannot be used on " & model & ".", "'" & stk & "' doesn't fit what that printer can take (" & CapacityText(p) & ").", "The default printer has been cleared."
             End If
         End If
     End If
@@ -95,7 +97,7 @@ End Function
 ' that event having fired, so it calls this to clean and re-check the
 ' defaults itself right before copying them into the new row.
 Public Sub EnsureDefaultsClean(ByVal ws As Worksheet)
-    Dim prnCell As Range, stkCell As Range, model As String, stk As String, s As clsStock
+    Dim prnCell As Range, stkCell As Range, model As String, stk As String, s As clsStock, p As clsPrinterDef
     Set prnCell = LocRange(ws, "LOC_DefPrinter")
     Set stkCell = LocRange(ws, "LOC_DefPaper")
     If prnCell Is Nothing Or stkCell Is Nothing Then Exit Sub
@@ -105,8 +107,9 @@ Public Sub EnsureDefaultsClean(ByVal ws As Worksheet)
     If Len(model) > 0 And Len(stk) > 0 Then
         If Not Compatible(model, stk) Then
             Set s = Stock(stk)
+            Set p = Prn(model)
             stkCell.ClearContents
-            Say "'" & stk & "' cannot be used on " & model & ".", "That printer does not support the " & s.Family & " paper family.", "The default paper stock has been cleared before adding this job."
+            Say "'" & stk & "' cannot be used on " & model & ".", "That printer takes " & CapacityText(p) & ".", "The default paper stock has been cleared before adding this job."
             BindDefaultCells ws
         End If
     End If
@@ -131,22 +134,66 @@ End Function
 ' had to be cleared for incompatibility, or when this field was cleared
 ' outright and the other field's list was previously narrowed by it.
 Private Sub OnPrinterChanged(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal n As Long)
-    Dim model As String, stk As String, s As clsStock
+    Dim model As String, stk As String, s As clsStock, p As clsPrinterDef
     model = Clean(CellIn(lo, n, "Printer"))
     stk = Clean(CellIn(lo, n, "Paper Stock"))
 
     ' A printer change can strand a stock that was valid a moment ago (AT-05).
     If Len(stk) > 0 And Len(model) > 0 Then
+        Set p = Prn(model)
         If Not Compatible(model, stk) Then
             Set s = Stock(stk)
             CellIn(lo, n, "Paper Stock").ClearContents
-            Say "'" & stk & "' cannot be used on " & model & ".", "That printer does not support the " & s.Family & " paper family.", "The paper stock has been cleared. Choose a stock this printer supports."
+            Say "'" & stk & "' cannot be used on " & model & ".", "That printer takes " & CapacityText(p) & ".", "The paper stock has been cleared. Choose a stock this printer supports."
+        Else
+            ' Compatible (roll/sheet-capable at all) doesn't mean the row's
+            ' OWN entered size still fits, for student-supplied stock - the
+            ' mirror of the order-dependency class of bug already fixed
+            ' once in this module for Qty/centimetres (§16.3): the size was
+            ' checked against the printer at the time it was entered, and
+            ' nothing else re-checks it if the printer changes afterward.
+            RevalidateSuppliedSize ws, lo, n, model
         End If
     End If
 
     BindStockCell ws, lo, n
     BindPrinterCell ws, lo, n
     StampRow ws, n
+End Sub
+
+' See OnPrinterChanged's own comment above for why this exists.
+Private Sub RevalidateSuppliedSize(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal n As Long, ByVal Model As String)
+    Dim stk As String, s As clsStock, p As clsPrinterDef
+    Dim w As Double, h As Double, sizeName As String
+
+    stk = CStr(CellIn(lo, n, "Paper Stock").Value)
+    If Len(stk) = 0 Then Exit Sub
+    Set s = Stock(stk)
+    If Not s.SuppliedByStudent Then Exit Sub
+    Set p = Prn(Model)
+    If Not p.Found Then Exit Sub
+
+    If s.Measure = "Roll" Then
+        If p.MaxRollWidthMM > 0 Then
+            w = NumOf(CellIn(lo, n, "Print Width mm"))
+            If w > 0 And w > p.MaxRollWidthMM Then
+                CellIn(lo, n, "Print Width mm").ClearContents
+                Say "Print width " & Format$(w, "#,##0") & " mm is wider than " & Model & " can take.", Model & "'s maximum roll width is " & Format$(p.MaxRollWidthMM, "#,##0") & " mm.", "Enter " & Format$(p.MaxRollWidthMM, "#,##0") & " mm or less."
+            End If
+        End If
+    ElseIf s.Measure = "Sheet" Then
+        If ColumnExists(lo, "Sheet size") Then
+            sizeName = Trim$(CStr(CellIn(lo, n, "Sheet size").Value))
+            If Len(sizeName) > 0 And Len(p.MaxSheetSize) > 0 Then
+                If StdSizeDims(sizeName, w, h) Then
+                    If Not FitsWithinMaxSheet(w, h, p.MaxSheetWidthMM, p.MaxSheetHeightMM) Then
+                        CellIn(lo, n, "Sheet size").ClearContents
+                        Say "'" & sizeName & "' is bigger than " & Model & " can take.", Model & "'s maximum sheet size is " & p.MaxSheetSize & ".", "Choose a smaller size."
+                    End If
+                End If
+            End If
+        End If
+    End If
 End Sub
 
 Private Sub OnStockChanged(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal n As Long)
@@ -166,7 +213,7 @@ Private Sub OnStockChanged(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal 
             Set s = Stock(stk)
             Set p = Prn(model)
             CellIn(lo, n, "Paper Stock").ClearContents
-            Say "'" & stk & "' cannot be used on " & model & ".", "That stock is in the " & s.Family & " family, which this printer does " & "not support.", "Choose a stock in one of: " & p.Families
+            Say "'" & stk & "' cannot be used on " & model & ".", "That printer takes " & CapacityText(p) & ".", "Choose a stock that fits, or a different printer."
             BindStockCell ws, lo, n
             BindPrinterCell ws, lo, n
             Exit Sub
@@ -183,6 +230,17 @@ Private Sub OnStockChanged(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal 
         If Len(CellIn(lo, n, "Print Width mm").Value) > 0 Then
             CellIn(lo, n, "Print Width mm").ClearContents
             Say "Print width does not apply to sheet stock.", "For sheets the whole sheet is treated as printed, so a print width " & "would have no effect.", "The value has been cleared."
+        End If
+    End If
+
+    ' Sheet size is meaningless for anything except 'Supplied (Sheet)' - the
+    ' same tidy-up as Print Width mm just above, mirrored for the sheet case.
+    If ColumnExists(lo, "Sheet size") Then
+        If s.Measure <> "Sheet" Or Not s.SuppliedByStudent Then
+            If Len(CellIn(lo, n, "Sheet size").Value) > 0 Then
+                CellIn(lo, n, "Sheet size").ClearContents
+                Say "Sheet size only applies to 'Supplied (Sheet)'.", "This row's paper stock is now '" & stk & "'.", "The value has been cleared."
+            End If
         End If
     End If
 
@@ -288,7 +346,7 @@ Public Sub MarkQtyRewritten(ByVal c As Range, ByVal Rewritten As Boolean)
 End Sub
 
 Private Sub OnWidthChanged(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal n As Long)
-    Dim w As Double, sw As Double, stk As String, s As clsStock
+    Dim w As Double, sw As Double, stk As String, s As clsStock, model As String, p As clsPrinterDef
     If Len(CellIn(lo, n, "Print Width mm").Value) = 0 Then Exit Sub
 
     stk = CStr(CellIn(lo, n, "Paper Stock").Value)
@@ -302,6 +360,25 @@ Private Sub OnWidthChanged(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal 
     End If
 
     w = NumOf(CellIn(lo, n, "Print Width mm"))
+
+    If s.SuppliedByStudent Then
+        ' No catalogue width to compare against - the material is whatever
+        ' the student brought. The only real limit left is the printer
+        ' itself, so AT-04's own check is applied against its capacity
+        ' rather than a stock's nominal width.
+        model = Trim$(CStr(CellIn(lo, n, "Printer").Value))
+        If Len(model) > 0 Then
+            Set p = Prn(model)
+            If p.Found And p.MaxRollWidthMM > 0 Then
+                If w > p.MaxRollWidthMM Then
+                    CellIn(lo, n, "Print Width mm").ClearContents
+                    Say "Print width " & Format$(w, "#,##0") & " mm is wider than " & model & " can take.", model & "'s maximum roll width is " & Format$(p.MaxRollWidthMM, "#,##0") & " mm.", "Enter " & Format$(p.MaxRollWidthMM, "#,##0") & " mm or less."
+                End If
+            End If
+        End If
+        Exit Sub
+    End If
+
     sw = NumOf(CellIn(lo, n, "S_StockWidth_mm"))
     If sw = 0 Then sw = s.WidthMM
 
@@ -310,6 +387,46 @@ Private Sub OnWidthChanged(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal 
         CellIn(lo, n, "Print Width mm").ClearContents
         Say "Print width " & Format$(w, "#,##0") & " mm is wider than the stock.", "'" & stk & "' is " & Format$(sw, "#,##0") & " mm wide, so a print cannot " & "be wider than that.", "Enter " & Format$(sw, "#,##0") & " mm or less, or leave it blank to use " & "the full width of the roll."
     End If
+End Sub
+
+' The sheet-side mirror of OnWidthChanged's student-supplied branch above:
+' 'Supplied (Sheet)' has no catalogue size either, so the row's own "Sheet
+' size" pick (the nearest standard size) is what stands in for it, checked
+' against the chosen printer's Max sheet size the same way Print Width mm
+' is checked against Max roll width mm.
+Private Sub OnSheetSizeChanged(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal n As Long)
+    Dim sizeName As String, stk As String, s As clsStock, model As String, p As clsPrinterDef
+    Dim w As Double, h As Double
+
+    sizeName = Trim$(CStr(CellIn(lo, n, "Sheet size").Value))
+    If Len(sizeName) = 0 Then Exit Sub
+
+    stk = CStr(CellIn(lo, n, "Paper Stock").Value)
+    Set s = Stock(stk)
+    If Not s.SuppliedByStudent Or s.Measure <> "Sheet" Then
+        CellIn(lo, n, "Sheet size").ClearContents
+        Say "Sheet size only applies to 'Supplied (Sheet)'.", "This row's paper stock is '" & stk & "'.", "The value has been cleared."
+        Exit Sub
+    End If
+
+    If Not StdSizeDims(sizeName, w, h) Then Exit Sub
+
+    model = Trim$(CStr(CellIn(lo, n, "Printer").Value))
+    If Len(model) > 0 Then
+        Set p = Prn(model)
+        If p.Found And Len(p.MaxSheetSize) > 0 Then
+            If Not FitsWithinMaxSheet(w, h, p.MaxSheetWidthMM, p.MaxSheetHeightMM) Then
+                CellIn(lo, n, "Sheet size").ClearContents
+                Say "'" & sizeName & "' is bigger than " & model & " can take.", model & "'s maximum sheet size is " & p.MaxSheetSize & ".", "Choose a smaller size."
+                Exit Sub
+            End If
+        End If
+    End If
+
+    ' Re-stamp so Area m2/Paper Cost pick up the newly-chosen dimensions
+    ' immediately - StampRow reads this cell whenever the stock is
+    ' 'Supplied (Sheet)' (modSnapshot).
+    StampRow ws, n
 End Sub
 
 ' ----------------------------------------------------------------- student ---
