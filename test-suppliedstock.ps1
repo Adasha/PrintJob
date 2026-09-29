@@ -171,6 +171,32 @@ try {
     $chargeable1 = [double]$main.Cells($r1, $chargeableCol).Value2
     Check ($chargeable1 -eq 0) "Chargeable Cost drops to 0 once Disregard Consumable is set (got $chargeable1, Paper Cost was already 0)"
 
+    # ------------------------------------------------------- setup restores a deleted supplied row
+    Write-Host ''
+    Write-Host '=== Setup restores a deleted "Supplied" catalogue row, never duplicates ==='
+    $pap = $null
+    foreach ($s in $wb.Worksheets) { foreach ($l in $s.ListObjects) { if ($l.Name -eq 'tblPapers') { $pap = $l } } }
+    function SuppliedCount($pap, $desc) {
+        $dc = Col $pap 'Description'; $n = 0
+        for ($i = 1; $i -le $pap.ListRows.Count; $i++) { if ([string]$pap.DataBodyRange.Cells($i, $dc).Value2 -eq $desc) { $n++ } }
+        return $n
+    }
+    $xl.Run('EnsureSuppliedStockRows')
+    Check ((SuppliedCount $pap 'Supplied (Roll)') -eq 1) 'existing Supplied (Roll) row is left alone (no duplicate)'
+    $dc = Col $pap 'Description'
+    $pap.Parent.Unprotect()
+    for ($i = $pap.ListRows.Count; $i -ge 1; $i--) {
+        if ([string]$pap.DataBodyRange.Cells($i, $dc).Value2 -eq 'Supplied (Roll)') { $pap.ListRows($i).Delete() }
+    }
+    Check ((SuppliedCount $pap 'Supplied (Roll)') -eq 0) 'Supplied (Roll) row deleted for the test'
+    $xl.Run('EnsureSuppliedStockRows')
+    Check ((SuppliedCount $pap 'Supplied (Roll)') -eq 1) 'setup restores the deleted Supplied (Roll) row'
+    Check ((SuppliedCount $pap 'Supplied (Sheet)') -eq 1) 'Supplied (Sheet) row still present exactly once'
+    $last = $pap.ListRows.Count
+    $famVal = [string]$pap.DataBodyRange.Cells($last, (Col $pap 'Family')).Value2
+    $costVal = $pap.DataBodyRange.Cells($last, (Col $pap 'Cost')).Value2
+    $supVal = [string]$pap.DataBodyRange.Cells($last, (Col $pap 'Supplied by student')).Value2
+    Check (($famVal -eq 'Roll') -and ($costVal -eq 0) -and ($supVal -eq 'Yes')) "restored row is Family=Roll, Cost=0, Supplied by student=Yes (got $famVal/$costVal/$supVal)"
     $xl.Run('SetQuiet', $false)
 }
 finally {

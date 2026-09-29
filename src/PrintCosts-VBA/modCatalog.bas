@@ -485,3 +485,36 @@ Public Sub EnsureStdSizesName()
     On Error GoTo 0
     ThisWorkbook.Names.Add Name:="RNG_STD_SIZES", RefersTo:="=tblStandardSizes[Size name]"
 End Sub
+
+' -------------------------------------------------- student-supplied stock -
+' "Supplied (Roll)"/"Supplied (Sheet)" ship as ordinary tblPapers rows (Cost 0,
+' Supplied by student = Yes). Setup only restores one if it has been deleted:
+' an existing row is never touched. Appended at the bottom so the Paper Stock
+' dropdown keeps both supplied options last (StocksFor follows row order).
+Public Sub EnsureSuppliedStockRows()
+    RestoreSuppliedStockRow "Supplied (Roll)", "Roll"
+    RestoreSuppliedStockRow "Supplied (Sheet)", "Sheet"
+End Sub
+
+Private Sub RestoreSuppliedStockRow(ByVal Description As String, ByVal Family As String)
+    Dim lo As ListObject, i As Long, r As ListRow, ws As Worksheet
+    Set lo = Tbl("tblPapers")
+    If lo Is Nothing Then Exit Sub
+    Set ws = lo.Parent
+
+    For i = 1 To lo.ListRows.Count
+        If StrComp(Trim$(CStr(CellIn(lo, i, "Description").Value)), Description, vbTextCompare) = 0 Then Exit Sub
+    Next i
+
+    UnlockSheet ws
+    Set r = lo.ListRows.Add
+    r.Range.Cells(1, ColIdx(lo, "StockID")).Value = "STK-SUP-" & UCase$(Family)
+    r.Range.Cells(1, ColIdx(lo, "Description")).Value = Description
+    r.Range.Cells(1, ColIdx(lo, "Paper type")).Value = "Student supplied"
+    r.Range.Cells(1, ColIdx(lo, "Family")).Value = Family
+    r.Range.Cells(1, ColIdx(lo, "Cost")).Value = 0
+    r.Range.Cells(1, ColIdx(lo, "Active")).Value = "Yes"
+    r.Range.Cells(1, ColIdx(lo, "Supplied by student")).Value = "Yes"
+    RelockSheet ws
+    Invalidate
+End Sub

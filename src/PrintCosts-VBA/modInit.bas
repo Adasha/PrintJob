@@ -66,6 +66,7 @@ Public Sub InitialiseWorkbook()
     EnsureReducedViewSettings
     EnsureCostColumnsSetting
     EnsureStdSizesName
+    EnsureSuppliedStockRows
 
     ' Moved here from after the per-sheet loop below (2026-09-27,
     ' user-reported: Settings-sheet buttons rendering over the top of
