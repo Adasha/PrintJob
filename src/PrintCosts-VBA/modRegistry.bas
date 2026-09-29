@@ -294,15 +294,8 @@ Public Sub EnsureSystemSheets()
     ' what the file ships exactly - inventing new ones silently orphans the
     ' table that is already there.
     Set ws = SheetOrNew(REG_SHEET)
-    EnsureTable ws, REG_TABLE, Array("SheetName", "Code", "Name", "Department", "Rows", "First date", "Last date", "State")
+    EnsureTable ws, REG_TABLE, Array("SheetName", "Code", "Name", "Department", "Rows", "First date", "Last date", "State", "Last export", "Export sig", "Job ID HWM")
 
-    ' The shipped .xlsx predates the export feature, so these two are added to
-    ' the existing table rather than being part of its creation.
-    EnsureColumn REG_TABLE, "Last export"
-    EnsureColumn REG_TABLE, "Export sig"
-
-    ' Likewise predates the persisted Job ID high-water mark (see NextJobId).
-    EnsureColumn REG_TABLE, "Job ID HWM"
 
     Set ws = SheetOrNew(AUDIT_SHEET)
     EnsureTable ws, AUDIT_TABLE, Array("When", "User", "Action", "Location", "Detail")
@@ -327,20 +320,6 @@ Private Function SheetOrNew(ByVal Nm As String) As Worksheet
     If ws.Visible <> xlSheetVeryHidden Then ws.Visible = xlSheetVeryHidden
     Set SheetOrNew = ws
 End Function
-
-Private Sub EnsureColumn(ByVal TableName As String, ByVal Header As String)
-    Dim lo As ListObject, i As Long, lc As ListColumn
-    Set lo = Tbl(TableName)
-    If lo Is Nothing Then Exit Sub
-    For i = 1 To lo.ListColumns.Count
-        If StrComp(lo.ListColumns(i).Name, Header, vbTextCompare) = 0 Then Exit Sub
-    Next i
-    UnlockSheet lo.Parent
-    Set lc = lo.ListColumns.Add
-    lc.Name = Header
-    lo.Range.Columns.AutoFit
-    RelockSheet lo.Parent
-End Sub
 
 Private Sub EnsureTable(ByVal ws As Worksheet, ByVal TableName As String, ByVal Headers As Variant)
     Dim lo As ListObject, i As Long

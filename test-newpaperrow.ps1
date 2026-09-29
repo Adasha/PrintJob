@@ -68,8 +68,8 @@ try {
         $r.Cells(1, (Col $plo 'Family')).Value2 = $family
         $r.Cells(1, (Col $plo 'Size mode')).Value2 = $mode
         if ($std) { $r.Cells(1, (Col $plo 'Std. size')).Value2 = $std }
-        if ($null -ne $w) { $r.Cells(1, (Col $plo 'Width mm')).Value2 = $w }
-        if ($null -ne $h) { $r.Cells(1, (Col $plo 'Height mm')).Value2 = $h }
+        if ($null -ne $w) { $r.Cells(1, (Col $plo 'Width mm')).Value2 = [double]$w }
+        if ($null -ne $h) { $r.Cells(1, (Col $plo 'Height mm')).Value2 = [double]$h }
         $r.Cells(1, (Col $plo 'Cost')).Value2 = 0.5
         Start-Sleep -Milliseconds 300
         return $row

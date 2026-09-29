@@ -65,18 +65,7 @@ Public Sub InitialiseWorkbook()
     EnsureExportSettings
     EnsureReducedViewSettings
     EnsureCostColumnsSetting
-    EnsureStdSizeColumnName
-
-    ' Printer/paper compatibility rework: add the new capacity columns,
-    ' derive their values from whatever the OLD "Supported families"
-    ' multi-select already allowed (before that column is removed), then
-    ' merge the legacy roll-width-band families it stood in for, then seed
-    ' the two student-supplied catalogue rows. Order matters - see each
-    ' Sub's own comment (modCatalog.bas) for why.
-    EnsurePrinterCapacityColumns
-    MigratePrinterCapacities
-    MigrateRollFamilies
-    EnsureSuppliedByStudentColumn
+    EnsureStdSizesName
 
     ' Moved here from after the per-sheet loop below (2026-09-27,
     ' user-reported: Settings-sheet buttons rendering over the top of
@@ -111,12 +100,7 @@ Public Sub InitialiseWorkbook()
             EnsureRollUnitSetting ws
             EnsurePrintersDisplay ws
             EnsureJobCountDisplay ws
-            EnsurePaidColumn ws
-            EnsureQtyColumnName ws
-            EnsureSheetSizeJobColumn ws
-            ReorderJobColumns ws
             BindColumns ws
-            NormalizeJobColumnOutlines ws
             ApplyStatusFormat ws
             ApplyReducedView ws
             ApplyCostColumnsVisibility ws
@@ -639,167 +623,16 @@ Public Sub StyleInputCell(ByVal target As Range)
     target.Borders(xlEdgeLeft).Weight = xlMedium
 End Sub
 
-' -------------------------------------------------------------- Paid col ---
-' Snag list item 1c: a genuine new job-row column (SCHEMA_VER bumped to 1.1,
-' modUtils), so this only ever ADDS the column - it never runs against a
-' sheet that already has it (checked first, so re-running setup is still
-' idempotent). Positioned right after Chargeable Cost, ahead of Notes and the
-' locked snapshot block - column order isn't load-bearing anywhere (§5.1),
-' every consumer resolves it by header name.
-'
-' Left blank on existing rows deliberately, not force-defaulted to "No": a
-' blank Paid means "not recorded either way" for a job that predates the
-' column, and every consumer (Summary/Reports totals, export, import) treats
-' blank the same as "No" rather than requiring a value. New rows still
-' default to "No" explicitly - modJobs.AddPrintJob, same as the disregard
-' flags.
-Public Sub EnsurePaidColumn(ByVal ws As Worksheet)
-    Dim lo As ListObject, lc As ListColumn, i As Long
-    Set lo = JobsTable(ws)
-    If lo Is Nothing Then Exit Sub
+' NOTE: SET_LOC_REDUCED_COLUMNS must not name a column that shares a sheet
+' column with the location config block or batch-defaults rows above the table
+' (hiding a column hides it on every row). Status/Job ID sit clear of A/B for that
+' reason; a more robust decoupling is still an open idea.
 
-    For i = 1 To lo.ListColumns.Count
-        If StrComp(lo.ListColumns(i).Name, "Paid", vbTextCompare) = 0 Then Exit Sub
-    Next i
-
-    UnlockSheet ws
-    Set lc = lo.ListColumns.Add(ColIdx(lo, "Chargeable Cost") + 1)
-    lc.Name = "Paid"
-    If Not lc.DataBodyRange Is Nothing Then
-        StyleInputCell lc.DataBodyRange
-        With lc.DataBodyRange.Validation
-            .Delete
-            .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Formula1:="Yes,No"
-            .IgnoreBlank = True
-            .InCellDropdown = True
-            .ShowInput = True
-            .ShowError = True
-            .InputTitle = "Paid"
-            .InputMessage = "Whether this chargeable cost has been paid. Blank means not recorded either way and counts as unpaid in totals."
-            .ErrorTitle = "Paid"
-            .ErrorMessage = "Choose Yes or No."
-        End With
-    End If
-    RelockSheet ws
-End Sub
-
-' A pure rename (0.9.14, "shorten headers to save space"), not a new column -
-' ListColumns(...).Name = handles the Table's internal bookkeeping (structured
-' references, the _Data consolidation's own copy of this header) the same way
-' Excel would if a person renamed it by hand, so every C("Qty")/SumBy("Qty")-
-' style lookup elsewhere just needs to ask for the new name; nothing here
-' migrates old data since nothing about the DATA changed, only its header
-' text. Checked-first, like EnsurePaidColumn, so a sheet already renamed is
-' left alone.
-Public Sub EnsureQtyColumnName(ByVal ws As Worksheet)
-    Dim lo As ListObject, i As Long
-    Set lo = JobsTable(ws)
-    If lo Is Nothing Then Exit Sub
-
-    For i = 1 To lo.ListColumns.Count
-        If StrComp(lo.ListColumns(i).Name, "Qty", vbTextCompare) = 0 Then Exit Sub
-    Next i
-
-    UnlockSheet ws
-    On Error Resume Next
-    lo.ListColumns("Quantity").Name = "Qty"
-    On Error GoTo 0
-    RelockSheet ws
-End Sub
-
-' ------------------------------------------------------- Sheet size col ---
-' Genuine new job-row column (SCHEMA_VER 1.1 -> 1.2, modUtils), same shape
-' as EnsurePaidColumn - only ever ADDS the column, checked-first so it never
-' runs twice. The student-supplied-stock sheet-size override: meaningful
-' only on a row whose Paper Stock is "Supplied (Sheet)", where it plays the
-' same role Print Width mm already plays for "Supplied (Roll)" - the row's
-' own real-world size, since there is no catalogue size to fall back on for
-' either. Ignored on every other row, same as Print Width mm is harmless
-' but meaningless on a Sheet-stock row.
-Public Sub EnsureSheetSizeJobColumn(ByVal ws As Worksheet)
-    Dim lo As ListObject, lc As ListColumn, i As Long
-    Set lo = JobsTable(ws)
-    If lo Is Nothing Then Exit Sub
-
-    For i = 1 To lo.ListColumns.Count
-        If StrComp(lo.ListColumns(i).Name, "Sheet size", vbTextCompare) = 0 Then Exit Sub
-    Next i
-
-    UnlockSheet ws
-    Set lc = lo.ListColumns.Add(ColIdx(lo, "Print Width mm") + 1)
-    lc.Name = "Sheet size"
-    If Not lc.DataBodyRange Is Nothing Then
-        StyleInputCell lc.DataBodyRange
-        With lc.DataBodyRange.Validation
-            .Delete
-            .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Formula1:="=RNG_STD_SIZES"
-            .IgnoreBlank = True
-            .InCellDropdown = True
-            .ShowInput = True
-            .ShowError = True
-            .InputTitle = "Sheet size"
-            .InputMessage = "Required only for 'Supplied (Sheet)' - the nearest standard size to the sheet the student brought. Ignored for every other paper stock."
-            .ErrorTitle = "Sheet size"
-            .ErrorMessage = "Choose one of the standard sizes listed on Settings."
-        End With
-    End If
-    RelockSheet ws
-End Sub
-
-' ---------------------------------------------------------- column order ---
-' Moves Status and Job ID from the start of the table (columns 1-2) to just
-' after Paid, ahead of Notes/H_Issues/the snapshot block. Fixes a real bug
-' found in the reduced-clutter view (snag 1e, above): Status and Job ID are
-' two of its six hidden-by-default columns, but they used to sit at sheet
-' columns A/B - the SAME columns the location config block above the table
-' (room name, department, code, defaults - §4.1) occupies in rows 1-9.
-' Hiding a column hides the WHOLE column, every row, not just the table's -
-' so toggling reduced view was also blanking the room name/department/code
-' the user needs to keep sight of. Moving Status/Job ID off columns A/B
-' removes the collision without touching the config block at all.
-'
-' Column order is not load-bearing anywhere in this project (§5.1) -
-' formulas use structured references, everything else resolves columns by
-' header name - so this is free to do purely for layout reasons. The one
-' exception needing a matching fix: modRegistry's consolidated-range span
-' bounds itself by column NAME ("Job ID" to "Notes"), so moving Job ID away
-' from being the leftmost column meant that bound had to move too (now
-' "Date/Time" to "Notes" - still spans every real column, Status and Job ID
-' included, since they now sit inside that span rather than starting it).
-'
-' NOTE (revisit): this fixes today's specific collision (columns A/B) but
-' isn't a general solution - if SET_LOC_REDUCED_COLUMNS is ever edited to
-' name a column that collides with the config block or the batch-defaults
-' row for some other reason, the same class of bug could resurface. A more
-' robust fix (decouple the config block's columns from the table's
-' entirely, or keep them in sync some other way) is worth doing properly
-' later rather than patching column-by-column.
-' Static, non-catalog-driven validation for the job table (2026-09-25 bug
-' report: every column from Unit through Chargeable Cost was showing a
-' dropdown to pick a technician's name, and picking one overwrote the cell
-' - breaking that row's formulas).
-'
-' Root cause, confirmed against the built .xlsm: ReorderJobColumns (below)
-' moves columns via repeated Range.Cut + Range.Insert Shift:=xlToRight
-' inside the table. Excel extends a validated column's rule onto cells
-' newly shifted in beside it as each Insert runs, and the ~30 inserts one
-' full reorder performs compound that into a wide, wrong span - Technician's
-' own list (meant for one column) ended up the Formula1 on Unit through
-' Chargeable Cost, and the Date/Time rule ended up on Student Name and
-' Student No too. The values re-applied below are exactly what
-' PrintCosts.xlsx ships on Date/Time, Qty, Print Width mm, Disregard Paper
-' and Disregard Consumable - the same shipped rules ReorderJobColumns can
-' disturb, restated in code so a refresh can restore them.
-'
-' Called from modLists.BindColumns - the same "rebuild dependent dropdowns,
-' self-heal, never trust what a previous run left behind" reasoning that
-' function already applies to Technician/Printer/Paper Stock covers these
-' columns too, and reaches every existing BindColumns caller (setup,
-' Refresh Locations, Check workbook/sheet, the picker) for free. Clearing
-' the whole table body first means no stray rule from any past reorder can
-' survive a refresh, whichever columns it ended up on - and cheap enough to
-' do unconditionally, since none of those callers fire on every keystroke
-' (OnPrinterChanged/OnStockChanged rebind a single row, never the table).
+' Re-applies the job table's fixed validation rules (Date/Time, Qty, Print Width,
+' Sheet size, Disregard flags, Paid) after clearing the table body, called from
+' modLists.BindColumns so setup, Refresh Locations, Check workbook/sheet and the
+' picker all restore them. Qty's message depends on the room's LOC_RollUnit, which
+' is why this is code rather than only what the .xlsx ships.
 Public Sub EnsureJobColumnValidation(ByVal ws As Worksheet, ByVal lo As ListObject)
     Dim paidCol As ListColumn
     If lo.DataBodyRange Is Nothing Then Exit Sub
@@ -975,36 +808,6 @@ Private Function BuildJobIssuesFormula(ByVal t As String) As String
 
     BuildJobIssuesFormula = f
 End Function
-
-Public Sub ReorderJobColumns(ByVal ws As Worksheet)
-    Dim lo As ListObject, order As Variant, i As Long, want As String, have As String
-    Set lo = JobsTable(ws)
-    If lo Is Nothing Then Exit Sub
-
-    order = Array( _
-        "Date/Time", "Student Name", "Student No", "Technician", "Printer", _
-        "Paper Stock", "Unit", "Qty", "Print Width mm", "Sheet size", "Disregard Paper", _
-        "Disregard Consumable", "Area m2", "Paper Cost", "Consumable Cost", _
-        "Gross Cost", "Disregarded", "Chargeable Cost", "Paid", "Status", "Job ID", _
-        "Notes", "H_Issues", _
-        "S_PrinterID", "S_StockID", "S_TechID", "S_Family", "S_Measure", _
-        "S_UnitCost", "S_StockWidth_mm", "S_SheetHeight_mm", "S_ConsRate", _
-        "S_StampedAt", "S_StampedBy", "S_SchemaVer")
-
-    UnlockSheet ws
-    For i = 1 To UBound(order) - LBound(order) + 1
-        want = CStr(order(LBound(order) + i - 1))
-        have = lo.ListColumns(i).Name
-        If StrComp(have, want, vbTextCompare) <> 0 Then
-            ' Cut+insert scoped to the table's own range (ListColumn.Range is
-            ' header+data only, never the full column) - rows 1-11 above the
-            ' table are never touched by this, whichever column is moving.
-            lo.ListColumns(want).Range.Cut
-            lo.ListColumns(i).Range.Insert Shift:=xlToRight
-        End If
-    Next i
-    RelockSheet ws
-End Sub
 
 Private Function CountButtons() As Long
     Dim ws As Worksheet, i As Long, t As Long
@@ -1710,136 +1513,6 @@ Private Sub RelabelReducedViewButton(ByVal ws As Worksheet)
             Exit For
         End If
     Next i
-End Sub
-
-' -------------------------------------------------------- column groups ---
-' Snag list item 14 originally grouped the calculated cost columns behind
-' Excel's native +/- outline control, same idea as the S_ snapshot columns
-' below. Replaced 2026-09-27 (docs/ARCHITECTURE.md §16.3, "button lag" writeup):
-' a manual outline collapse/expand is not a macro call, and VBA has no event
-' that fires on one, so a location's side-panel buttons (anchored beside the
-' group) went visibly stale for a moment after every click on the native
-' control, only self-healing on the NEXT click anywhere on the sheet. Cost
-' detail is now hidden/shown by ToggleCostColumns/ApplyCostColumnsVisibility
-' instead - an ordinary macro button, so it repositions every affected
-' button in the very same click, closing the gap outright rather than just
-' narrowing the window. This Sub now only clears outline groups (including
-' its own old one, migrating a workbook built under the previous scheme) -
-' it groups nothing any more.
-Private Sub NormalizeJobColumnOutlines(ByVal ws As Worksheet)
-    Dim lo As ListObject
-    Set lo = JobsTable(ws)
-    If lo Is Nothing Then Exit Sub
-
-    ' Clear whatever grouping already exists on the old (wrong) span first -
-    ' re-running this against a workbook built before the 2026-09-22 fix
-    ' would otherwise leave Chargeable Cost nested in the old outline.
-    ' Harmless no-op on a workbook that never had the old group.
-    UngroupColumnRange lo, "Paper Cost", "Chargeable Cost"
-
-    ' Paper Cost through Disregarded: flattened to no outline group at all,
-    ' migrating a workbook built before 2026-09-27 (see this Sub's own
-    ' comment above). ApplyCostColumnsVisibility - called separately, same
-    ' per-sheet loop - is what now actually controls whether these four
-    ' columns are hidden; whatever state FlattenOutline leaves .Hidden in
-    ' here is immediately overwritten there.
-    FlattenOutline lo, "Paper Cost", "Disregarded"
-
-    ' Notes through S_SchemaVer: flattened to NO grouping at all (2026-09-22),
-    ' not re-grouped - this used to also GroupColumnRange S_PrinterID through
-    ' S_SchemaVer, but PrintCosts.xlsx already ships that whole span
-    ' (H_Issues onward) pre-grouped and hidden, so the explicit re-group
-    ' nested a SECOND outline level on top of it - one clean lvl-2 span
-    ' became a stray lvl-2 group over Notes+H_Issues (Notes wrongly pulled
-    ' in and hidden - see below) plus a separate lvl-3 group over most of
-    ' the snapshot block, two extra collapsible groups cluttering the
-    ' outline pane right next to the one cost group that matters day to
-    ' day. Flattening removes the outline controls entirely; H_Issues and
-    ' the snapshot columns stay invisible regardless, via their own
-    ' .Hidden state (§3.4/§5), which needs no outline group to hold it.
-    FlattenOutline lo, "Notes", "S_SchemaVer"
-    ReassertSnapshotHidden lo
-
-    ' Sheet size, Status, Job ID: none of these fall inside either
-    ' FlattenOutline span above, but inserting the new Sheet size column
-    ' (printer/paper compatibility rework) shifts every column from
-    ' Disregard Paper onward through a cut+insert cycle the first time
-    ' ReorderJobColumns runs afterward - and Job ID, which lands right next
-    ' to the snapshot block's own outline history, was observed to pick up
-    ' a stray level-2 group from that neighbour during the move
-    ' (test-groups.ps1 caught it). None of these three should ever be
-    ' grouped, so reset unconditionally rather than only when found wrong.
-    Dim colName As Variant, sws As Worksheet
-    Set sws = lo.Parent
-    UnlockSheet sws
-    For Each colName In Array("Sheet size", "Status", "Job ID")
-        If ColumnExists(lo, CStr(colName)) Then
-            lo.ListColumns(CStr(colName)).Range.EntireColumn.OutlineLevel = 1
-        End If
-    Next colName
-    RelockSheet sws
-End Sub
-
-' §5's Cut+Insert warning ("moves cell content and formatting correctly,
-' but two things are keyed by column index rather than content: validation
-' ranges, column width") turns out to have a third casualty: .Hidden.
-' Adding the Sheet size job-row column (printer/paper compatibility
-' rework) shifts every column from Disregard Paper onward through a
-' cut+insert cycle the very first time ReorderJobColumns runs afterward
-' (nothing needed to move before that column existed), and H_Issues/the
-' snapshot block's Hidden=True state was observed not to survive that
-' shuffle intact (test-groups.ps1 caught it: S_StampedBy came back
-' visible). Reasserted explicitly here rather than trusted to have
-' travelled with the cut - the same "restore what Cut+Insert can silently
-' disturb" idiom EnsureJobColumnValidation/ApplyJobColumnWidths already
-' apply to validation and widths.
-Private Sub ReassertSnapshotHidden(ByVal lo As ListObject)
-    Dim ws As Worksheet, h As Variant
-    Set ws = lo.Parent
-    UnlockSheet ws
-    For Each h In Array("H_Issues", "S_PrinterID", "S_StockID", "S_TechID", "S_Family", "S_Measure", _
-        "S_UnitCost", "S_StockWidth_mm", "S_SheetHeight_mm", "S_ConsRate", "S_StampedAt", "S_StampedBy", "S_SchemaVer")
-        If ColumnExists(lo, CStr(h)) Then lo.ListColumns(CStr(h)).Range.EntireColumn.Hidden = True
-    Next h
-    RelockSheet ws
-End Sub
-
-Private Sub UngroupColumnRange(ByVal lo As ListObject, ByVal FirstHeader As String, ByVal LastHeader As String)
-    Dim c1 As Long, c2 As Long, ws As Worksheet
-    c1 = ColIdx(lo, FirstHeader)
-    c2 = ColIdx(lo, LastHeader)
-    Set ws = lo.Parent
-    UnlockSheet ws
-    ' Ungroup raises 1004 outright when the range was never grouped (the
-    ' ordinary case on a fresh build, which never had the old wider group to
-    ' begin with) - expected and harmless, so this is the one place a bare
-    ' On Error Resume Next is warranted rather than a real failure to report.
-    On Error Resume Next
-    ws.Range(lo.HeaderRowRange.Cells(1, c1), lo.HeaderRowRange.Cells(1, c2)).EntireColumn.Ungroup
-    On Error GoTo 0
-    RelockSheet ws
-End Sub
-
-' Sets OutlineLevel back to 1 (no grouping at all) across the given span,
-' regardless of what it was before - a single deterministic reset rather
-' than a bare .Ungroup, which only removes one level at a time and would
-' leave a doubly-nested span (2026-09-22's bug, see GroupJobColumns) still
-' one level deep. Also resets Notes specifically back to visible: it's a
-' genuine input column, not part of the historical/snapshot block, and can
-' end up swept into H_Issues/the snapshot block's hidden state as a side
-' effect of where Paid gets inserted right next to it (EnsurePaidColumn).
-' Every OTHER column in the span keeps whatever .Hidden state it already
-' has - H_Issues and the snapshot columns ship hidden in PrintCosts.xlsx
-' (§3.4/§5) and that is untouched here, on purpose.
-Private Sub FlattenOutline(ByVal lo As ListObject, ByVal FirstHeader As String, ByVal LastHeader As String)
-    Dim c1 As Long, c2 As Long, ws As Worksheet
-    c1 = ColIdx(lo, FirstHeader)
-    c2 = ColIdx(lo, LastHeader)
-    Set ws = lo.Parent
-    UnlockSheet ws
-    ws.Range(lo.HeaderRowRange.Cells(1, c1), lo.HeaderRowRange.Cells(1, c2)).EntireColumn.OutlineLevel = 1
-    lo.ListColumns(FirstHeader).Range.EntireColumn.Hidden = False
-    RelockSheet ws
 End Sub
 
 ' ------------------------------------------------------- status colour ---
