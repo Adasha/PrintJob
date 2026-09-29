@@ -17,6 +17,7 @@
 # saving.
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'TestCommon.ps1')
 . (Join-Path $PSScriptRoot 'test-fixture-annexe.ps1')
 $deliverable = Join-Path $PSScriptRoot 'src\PrintJob.xlsm'
 $workDir = Join-Path ([IO.Path]::GetTempPath()) ('PrintCostsTest-' + [Guid]::NewGuid().ToString('N'))
@@ -46,8 +47,11 @@ try {
         Write-Host ("  {0}  {1}" -f $(if ($cond) { 'OK  ' } else { 'FAIL' }), $msg)
     }
     function IsHidden($ws, $lo, $header) {
-        $c = $lo.Range.Column + (Col $lo $header) - 1
-        return [bool]$ws.Columns($c).Hidden
+        return [bool](Invoke-ComRetry -Attempts 5 {
+            $c = $lo.Range.Column + (Col $lo $header) - 1
+            if ($c -lt 1) { throw "column lookup failed for '$header'" }
+            $ws.Columns($c).Hidden
+        })
     }
 
     # -------------------------------------------------------------- setting
