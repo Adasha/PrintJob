@@ -2,10 +2,12 @@
 # If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # "Supplied by student" paper stock (printer/paper compatibility rework,
-# requirement 2): a student brings their own paper. Two real tblPapers
-# catalogue rows, "Supplied (Roll)" / "Supplied (Sheet)", Cost = 0 - so
-# Paper Cost computes to zero with no change to any formula (S_UnitCost = 0
-# is read exactly like any other stock's). Ink/consumable cost is charged
+# requirement 2): a student brings their own paper. Two built-in
+# stocks, "Supplied (Roll)" / "Supplied (Sheet)", Cost = 0 - built into
+# modCatalog.LoadCatalog rather than stored as tblPapers rows, so they cannot
+# be deleted or renamed. Paper Cost computes to zero with no change to any
+# formula (S_UnitCost = 0 is read exactly like any other stock's). A
+# tblPapers row with Supplied by student = Yes is also charged zero for paper. Ink/consumable cost is charged
 # normally from the printer's own rate, still waivable per-row via the
 # existing Disregard Consumable flag. The real size is entered per job
 # rather than read from a catalogue row: Print Width mm becomes required
@@ -171,32 +173,125 @@ try {
     $chargeable1 = [double]$main.Cells($r1, $chargeableCol).Value2
     Check ($chargeable1 -eq 0) "Chargeable Cost drops to 0 once Disregard Consumable is set (got $chargeable1, Paper Cost was already 0)"
 
-    # ------------------------------------------------------- setup restores a deleted supplied row
+    # ------------------------------------- built in, not rows of tblPapers
     Write-Host ''
-    Write-Host '=== Setup restores a deleted "Supplied" catalogue row, never duplicates ==='
+    Write-Host '=== Supplied (Roll)/(Sheet) are built in, not tblPapers rows ==='
     $pap = $null
     foreach ($s in $wb.Worksheets) { foreach ($l in $s.ListObjects) { if ($l.Name -eq 'tblPapers') { $pap = $l } } }
-    function SuppliedCount($pap, $desc) {
+    $papWs = $pap.Parent
+    function DescCount($pap, $desc) {
         $dc = Col $pap 'Description'; $n = 0
         for ($i = 1; $i -le $pap.ListRows.Count; $i++) { if ([string]$pap.DataBodyRange.Cells($i, $dc).Value2 -eq $desc) { $n++ } }
         return $n
     }
-    $xl.Run('EnsureSuppliedStockRows')
-    Check ((SuppliedCount $pap 'Supplied (Roll)') -eq 1) 'existing Supplied (Roll) row is left alone (no duplicate)'
-    $dc = Col $pap 'Description'
-    $pap.Parent.Unprotect()
-    for ($i = $pap.ListRows.Count; $i -ge 1; $i--) {
-        if ([string]$pap.DataBodyRange.Cells($i, $dc).Value2 -eq 'Supplied (Roll)') { $pap.ListRows($i).Delete() }
-    }
-    Check ((SuppliedCount $pap 'Supplied (Roll)') -eq 0) 'Supplied (Roll) row deleted for the test'
-    $xl.Run('EnsureSuppliedStockRows')
-    Check ((SuppliedCount $pap 'Supplied (Roll)') -eq 1) 'setup restores the deleted Supplied (Roll) row'
-    Check ((SuppliedCount $pap 'Supplied (Sheet)') -eq 1) 'Supplied (Sheet) row still present exactly once'
-    $last = $pap.ListRows.Count
-    $famVal = [string]$pap.DataBodyRange.Cells($last, (Col $pap 'Family')).Value2
-    $costVal = $pap.DataBodyRange.Cells($last, (Col $pap 'Cost')).Value2
-    $supVal = [string]$pap.DataBodyRange.Cells($last, (Col $pap 'Supplied by student')).Value2
-    Check (($famVal -eq 'Roll') -and ($costVal -eq 0) -and ($supVal -eq 'Yes')) "restored row is Family=Roll, Cost=0, Supplied by student=Yes (got $famVal/$costVal/$supVal)"
+    function SetPap($row, $name, $val) { $pap.DataBodyRange.Cells($row, (Col $pap $name)).Value2 = $val }
+    function GetPap($row, $name) { return $pap.DataBodyRange.Cells($row, (Col $pap $name)).Value2 }
+
+    # A workbook built before this change still carries the two rows until
+    # Setup runs; the migration is what Setup calls.
+    $xl.Run('RemoveLegacySuppliedRows')
+    Check ((DescCount $pap 'Supplied (Roll)') -eq 0) 'no Supplied (Roll) row in tblPapers'
+    Check ((DescCount $pap 'Supplied (Sheet)') -eq 0) 'no Supplied (Sheet) row in tblPapers'
+    $xl.Run('RemoveLegacySuppliedRows')
+    Check ((DescCount $pap 'Supplied (Roll)') -eq 0) 'running the migration again is harmless'
+    Check ([bool]$xl.Run('Compatible', 'Epson SureColor P9500', 'Supplied (Roll)')) 'Supplied (Roll) is still usable on a roll printer'
+    Check (-not [bool]$xl.Run('Compatible', 'HP DesignJet Z9+', 'Supplied (Sheet)')) 'Supplied (Sheet) is refused by a printer with no sheet capacity'
+
+    Write-Host ''
+    Write-Host '=== A legacy Supplied row is removed by the migration ==='
+    $papWs.Unprotect()
+    $xl.EnableEvents = $false
+    [void]$pap.ListRows.Add()
+    $ln = $pap.ListRows.Count
+    SetPap $ln 'StockID' 'STK-SUP-ROLL'
+    SetPap $ln 'Description' 'Supplied (Roll)'
+    SetPap $ln 'Family' 'Roll'
+    SetPap $ln 'Cost' 0
+    SetPap $ln 'Active' 'Yes'
+    SetPap $ln 'Supplied by student' 'Yes'
+    $xl.EnableEvents = $true
+    Check ((DescCount $pap 'Supplied (Roll)') -eq 1) 'legacy row planted for the test'
+    $xl.Run('RemoveLegacySuppliedRows')
+    Check ((DescCount $pap 'Supplied (Roll)') -eq 0) 'the migration removes it'
+
+    Write-Host ''
+    Write-Host '=== Typing a reserved name into the Papers table is rejected ==='
+    $papWs.Activate()
+    $xl.Run('AddCatalogRow', 'tblPapers')
+    $n = $pap.ListRows.Count
+    Check ([string](GetPap $n 'Active') -eq 'Yes') 'new row defaults Active to Yes'
+    Check ([string](GetPap $n 'Supplied by student') -eq 'No') "Add Row defaults Supplied by student to No (got '$([string](GetPap $n 'Supplied by student'))')"
+    $papWs.Unprotect()
+    SetPap $n 'Description' 'Supplied (Sheet)'
+    Start-Sleep -Milliseconds 300
+    Check ([string]::IsNullOrEmpty([string](GetPap $n 'Description'))) 'the reserved name is cleared, not accepted'
+    Check (([string]$xl.Run('QuietLog')) -like '*built-in paper stock*') 'a warning explained why'
+
+    # ------------------------------------------- Supplied by student = Yes rows
+    Write-Host ''
+    Write-Host '=== A new stock defaults to Supplied by student = No ==='
+    $papWs.Unprotect()
+    SetPap $n 'Description' 'Bulk test roll'
+    Start-Sleep -Milliseconds 300
+    Check ([string](GetPap $n 'Supplied by student') -eq 'No') "Supplied by student defaults to No (got '$([string](GetPap $n 'Supplied by student'))')"
+    $papWs.Unprotect()
+    SetPap $n 'Family' 'Roll'
+    SetPap $n 'Size mode' 'Roll'
+    SetPap $n 'Width mm' 610
+    SetPap $n 'Cost' 7
+    Start-Sleep -Milliseconds 300
+
+    Write-Host ''
+    Write-Host '=== Supplied by student = No: paper is charged ==='
+    $r7 = New-Row
+    $main.Cells($r7, $prnCol).Value2 = 'Epson SureColor P9500'
+    $main.Cells($r7, $stkCol).Value2 = 'Bulk test roll'
+    $main.Cells($r7, $qtyCol).Value2 = 4
+    Start-Sleep -Milliseconds 300
+    $paper7 = [double]$main.Cells($r7, $paperCostCol).Value2
+    Check ($paper7 -gt 0) "Paper Cost is charged for an ordinary stock (got $paper7)"
+
+    Write-Host ''
+    Write-Host '=== Supplied by student = Yes: cost forced to zero ==='
+    $papWs.Unprotect()
+    SetPap $n 'Supplied by student' 'Yes'
+    Start-Sleep -Milliseconds 300
+    Check ([double](GetPap $n 'Cost') -eq 0) "the Cost cell is reset to 0 (got $([string](GetPap $n 'Cost')))"
+    Check (([string]$xl.Run('QuietLog')) -like '*not charged for*') 'a warning explained why'
+    $r8 = New-Row
+    $main.Cells($r8, $prnCol).Value2 = 'Epson SureColor P9500'
+    $main.Cells($r8, $stkCol).Value2 = 'Bulk test roll'
+    $main.Cells($r8, $qtyCol).Value2 = 4
+    Start-Sleep -Milliseconds 300
+    $paper8 = [double]$main.Cells($r8, $paperCostCol).Value2
+    $cons8 = [double]$main.Cells($r8, $consCostCol).Value2
+    Check ($paper8 -eq 0) "Paper Cost is 0 (got $paper8)"
+    Check ($cons8 -gt 0) "Consumable Cost is charged normally (got $cons8)"
+
+    Write-Host ''
+    Write-Host '=== The flag decides, not the Cost cell (a cost written behind the events) ==='
+    $papWs.Unprotect()
+    $xl.EnableEvents = $false
+    SetPap $n 'Cost' 7
+    $xl.EnableEvents = $true
+    $xl.Run('Invalidate')
+    $r9 = New-Row
+    $main.Cells($r9, $prnCol).Value2 = 'Epson SureColor P9500'
+    $main.Cells($r9, $stkCol).Value2 = 'Bulk test roll'
+    $main.Cells($r9, $qtyCol).Value2 = 4
+    Start-Sleep -Milliseconds 300
+    $paper9 = [double]$main.Cells($r9, $paperCostCol).Value2
+    Check ($paper9 -eq 0) "Paper Cost is still 0 with Cost = 7 and Supplied by student = Yes (got $paper9)"
+
+    Write-Host ''
+    Write-Host '=== Such a stock keeps its catalogue size (no per-job size) ==='
+    $r10 = New-Row
+    $main.Cells($r10, $prnCol).Value2 = 'HP DesignJet Z9+'   # Max roll width 610mm - fits exactly
+    $main.Cells($r10, $stkCol).Value2 = 'Bulk test roll'
+    Start-Sleep -Milliseconds 300
+    Check ([string]$main.Cells($r10, $stkCol).Value2 -eq 'Bulk test roll') 'a 610mm bulk roll is accepted on a 610mm-max printer'
+    $status10 = [string]$main.Cells($r10, $statusCol).Value2
+    Check ($status10 -notlike '*Print width required*') "Print width is NOT demanded for it (status '$status10')"
     $xl.Run('SetQuiet', $false)
 }
 finally {

@@ -169,7 +169,7 @@ Private Sub RevalidateSuppliedSize(ByVal ws As Worksheet, ByVal lo As ListObject
     stk = CStr(CellIn(lo, n, "Paper Stock").Value)
     If Len(stk) = 0 Then Exit Sub
     Set s = Stock(stk)
-    If Not s.SuppliedByStudent Then Exit Sub
+    If Not s.PerJobSize Then Exit Sub
     Set p = Prn(Model)
     If Not p.Found Then Exit Sub
 
@@ -236,7 +236,7 @@ Private Sub OnStockChanged(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal 
     ' Sheet size is meaningless for anything except 'Supplied (Sheet)' - the
     ' same tidy-up as Print Width mm just above, mirrored for the sheet case.
     If ColumnExists(lo, "Sheet size") Then
-        If s.Measure <> "Sheet" Or Not s.SuppliedByStudent Then
+        If s.Measure <> "Sheet" Or Not s.PerJobSize Then
             If Len(CellIn(lo, n, "Sheet size").Value) > 0 Then
                 CellIn(lo, n, "Sheet size").ClearContents
                 Say "Sheet size only applies to 'Supplied (Sheet)'.", "This row's paper stock is now '" & stk & "'.", "The value has been cleared."
@@ -361,7 +361,7 @@ Private Sub OnWidthChanged(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal 
 
     w = NumOf(CellIn(lo, n, "Print Width mm"))
 
-    If s.SuppliedByStudent Then
+    If s.PerJobSize Then
         ' No catalogue width to compare against - the material is whatever
         ' the student brought. The only real limit left is the printer
         ' itself, so AT-04's own check is applied against its capacity
@@ -403,7 +403,7 @@ Private Sub OnSheetSizeChanged(ByVal ws As Worksheet, ByVal lo As ListObject, By
 
     stk = CStr(CellIn(lo, n, "Paper Stock").Value)
     Set s = Stock(stk)
-    If Not s.SuppliedByStudent Or s.Measure <> "Sheet" Then
+    If Not s.PerJobSize Or s.Measure <> "Sheet" Then
         CellIn(lo, n, "Sheet size").ClearContents
         Say "Sheet size only applies to 'Supplied (Sheet)'.", "This row's paper stock is '" & stk & "'.", "The value has been cleared."
         Exit Sub

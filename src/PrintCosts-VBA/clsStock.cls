@@ -29,5 +29,7 @@ Public WidthMM As Double
 Public HeightMM As Double
 Public Cost As Double               ' per sheet, or per metre
 Public Active As Boolean
-Public SuppliedByStudent As Boolean ' the two "Supplied (Roll)"/"Supplied (Sheet)" catalogue rows
+Public SuppliedByStudent As Boolean ' paper the student supplies: LoadCatalog forces Cost to 0 whatever the Papers sheet says
+Public PerJobSize As Boolean        ' the two built-in "Supplied (Roll)"/"Supplied (Sheet)" stocks only (modCatalog): no
+                                    ' catalogue size - the real size is entered on each job
 Public Found As Boolean
