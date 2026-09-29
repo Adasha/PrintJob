@@ -150,8 +150,10 @@ Private Sub Workbook_SheetSelectionChange(ByVal Sh As Object, ByVal Target As Ra
     If Not IsLocation(Sh) Then Exit Sub
     OnSelection Sh, Target
     ' Same self-heal as Workbook_SheetActivate, for the case where the user
-    ' collapses/expands the cost-columns group without ever leaving the
-    ' sheet - the next click anywhere on it re-settles the buttons. Cheap
+    ' hides/unhides columns by hand (or collapses/expands the cost-columns
+    ' group) without ever leaving the sheet - the next click anywhere on it
+    ' re-settles the buttons. Needed: without it the side panel stays at
+    ' column 36's old position (test-manualhide.ps1). Cheap
     ' (a handful of shape/lookup ops against the table's ~30 headers, not the
     ' data rows) and idempotent, so running it on every selection is fine.
     RepositionLocationButtons Sh
