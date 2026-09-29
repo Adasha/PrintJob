@@ -207,12 +207,68 @@ try {
         # export. Still present on the live Reports sheet itself.
         Check (-not ($tableHeaders2 -contains 'Area m2')) "Area m2 excluded from the export by default"
         Check ($tableHeaders2.Count -eq 16) "all 16 exported result columns present (got $($tableHeaders2.Count))"
+
+        # Export names (Reports!O10, 2026-09-29): defaults to No, so the
+        # exported Student name/no VALUES are blank even though the live
+        # results show them (test-reports2.ps1 covers the live side).
+        Check ([string]$rep.Range('O10').Text -eq 'No') "Export names is No for this export"
+        $nameIdx = [array]::IndexOf($tableHeaders2, 'Student name') + 1
+        $noIdx = [array]::IndexOf($tableHeaders2, 'Student no') + 1
+        Check ($nameIdx -gt 0 -and $noIdx -gt 0) "Student name/no columns still present in the export (blank, not dropped)"
+        $leak = 0
+        for ($r = $tableRow2 + 1; $r -lt $info2.Rows; $r++) {   # stops before the Total row
+            if ($nameIdx -gt 0 -and [string]$info2.Sheet.Cells($r, $nameIdx).Value2 -ne '') { $leak++ }
+            if ($noIdx -gt 0 -and [string]$info2.Sheet.Cells($r, $noIdx).Value2 -ne '') { $leak++ }
+        }
+        Check ($leak -eq 0) "exported Student name/no are all blank while Export names is No ($leak non-blank)"
     }
     finally {
         $wbCheck2.Close($false)
         $xl3.Quit()
         [void][Runtime.InteropServices.Marshal]::ReleaseComObject($xl3)
     }
+
+    Write-Host ''
+    Write-Host '=== Export names = Yes: the export includes them ==='
+    Remove-Item $xlsx2.FullName -Force -ErrorAction SilentlyContinue
+    $rep.Range('O10').Value2 = 'Yes'
+    $xl.CalculateFullRebuild()
+    $rep.Activate()
+    $xl.Run('btnExportReport')
+    Write-Host $xl.Run('QuietLog')
+    Start-Sleep -Milliseconds 300
+    $xlsx3 = Get-ChildItem $workDir -Filter 'PrintCosts-Report-*.xlsx' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    Check ($null -ne $xlsx3) "a third .xlsx was produced"
+    $res3 = OpenAndReadHeader $xlsx3.FullName
+    $info3 = $res3[0]; $xl4 = $res3[1]; $wbCheck3 = $res3[2]
+    try {
+        $tableRow3 = 0
+        for ($r = 1; $r -le $info3.Rows; $r++) {
+            if ([string]$info3.Sheet.Cells($r, 1).Value2 -eq 'Date/Time') { $tableRow3 = $r; break }
+        }
+        $tableHeaders3 = @()
+        for ($c = 1; $c -le $info3.Cols; $c++) {
+            $h = [string]$info3.Sheet.Cells($tableRow3, $c).Value2
+            if ($h -eq '') { break }
+            $tableHeaders3 += $h
+        }
+        $nameIdx3 = [array]::IndexOf($tableHeaders3, 'Student name') + 1
+        $anyName3 = $false
+        if ($nameIdx3 -gt 0) {
+            for ($r = $tableRow3 + 1; $r -lt $info3.Rows; $r++) {
+                if ([string]$info3.Sheet.Cells($r, $nameIdx3).Value2 -ne '') { $anyName3 = $true }
+            }
+        }
+        # A single shared name is promoted to a header line instead of a column.
+        $promotedName3 = @($info3.Lines | Where-Object { $_ -like 'Student name:*' }).Count -gt 0
+        Check ($anyName3 -or $promotedName3) "exported file contains student names when Export names is Yes"
+    }
+    finally {
+        $wbCheck3.Close($false)
+        $xl4.Quit()
+        [void][Runtime.InteropServices.Marshal]::ReleaseComObject($xl4)
+    }
+    $rep.Range('O10').Value2 = 'No'
 
     $xl.Run('SetQuiet', $false)
 }

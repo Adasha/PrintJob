@@ -1,8 +1,9 @@
 # This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
 # If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 #
-# Snag list items 2a (student name/no visibility toggle) and 2d (Reports
-# minimum-columns view). Package 6a of the 2026-09-22 post-phase-8 snag list.
+# Snag list items 2a (student name/no toggle, now "Export names": export-only
+# since 2026-09-29, the live view always shows names - the export side is
+# covered by test-reportsnapshot.ps1) and 2d (Reports minimum-columns view). Package 6a of the 2026-09-22 post-phase-8 snag list.
 #
 # Drives the toggle cell and inspects the results table, then closes WITHOUT
 # saving.
@@ -34,7 +35,8 @@ try {
     }
 
     # -------------------------------------------------- 2a: default state
-    Write-Host '=== Student name/no toggle: defaults to No (data protection) ==='
+    Write-Host '=== Export names toggle: defaults to No (data protection), live view unaffected ==='
+    Check ([string]$c.Range('N10').Text -eq 'Export names') "N10 label reads 'Export names' (got '$($c.Range('N10').Text)')"
     Check ([string]$c.Range('O10').Text -eq 'No') "O10 defaults to No (got '$($c.Range('O10').Text)')"
     $xl.CalculateFullRebuild()
     $nameCol = ReportsCol 'Student name'
@@ -42,15 +44,15 @@ try {
     Check ($nameCol -gt 0) "Student name column exists in the results table (col $nameCol)"
     Check ($noCol -gt 0) "Student no column exists in the results table (col $noCol)"
     $sp = $c.Range('A16').SpillingToRange
-    $blank = $true
+    $anyNameNo = $false
     for ($r = 1; $r -le $sp.Rows.Count; $r++) {
-        if ([string]$sp.Cells($r, $nameCol).Value2 -ne '' -or [string]$sp.Cells($r, $noCol).Value2 -ne '') { $blank = $false }
+        if ([string]$sp.Cells($r, $nameCol).Value2 -ne '') { $anyNameNo = $true }
     }
-    Check $blank "every row's Student name/no is blank while the toggle is No"
+    Check $anyNameNo "the live results still show Student names while Export names is No"
 
     # ------------------------------------------------------- 2a: toggled on
     Write-Host ''
-    Write-Host '=== Student name/no toggle: Yes reveals them ==='
+    Write-Host '=== Export names = Yes: live view still shows them ==='
     $c.Range('O10').Value2 = 'Yes'
     $xl.CalculateFullRebuild()
     $sp = $c.Range('A16').SpillingToRange
@@ -58,7 +60,7 @@ try {
     for ($r = 1; $r -le $sp.Rows.Count; $r++) {
         if ([string]$sp.Cells($r, $nameCol).Value2 -ne '') { $anyName = $true }
     }
-    Check $anyName "at least one row shows a Student name once the toggle is Yes"
+    Check $anyName "at least one row shows a Student name with Export names Yes"
     $sampleName = [string]$sp.Cells(1, $nameCol).Value2
     Write-Host "  sample: '$sampleName'"
 

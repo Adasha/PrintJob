@@ -235,6 +235,11 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
     n = rng.Rows.Count
 
     block = SnapshotBlock(repWs, rng, HDR_ROW, lastCol, n)
+    ' "Export names" (Reports!O10): the live results always show student
+    ' name/no; only the exported file honours the toggle, so blank them here
+    ' unless it is Yes. Before PromoteUniformColumns, which leaves an
+    ' all-blank column alone.
+    block = BlankNameColumns(block, repWs)
     block = RemoveExcludedColumns(block)
     ' Snag list items 2b/2c: a field that holds the SAME value on every
     ' exported row is a fact about the whole report, not a per-row detail -
@@ -359,6 +364,30 @@ Private Function ExcludedExportColumns() As Variant
     ExcludedExportColumns = Array("Area m2")
 End Function
 
+' Blanks the Student name / Student no VALUES (not the columns) of BLOCK
+' (header row 1, data rows 2..) unless the Reports sheet's Export names
+' toggle (O10) is exactly "Yes" - so anything else, including an empty cell,
+' is treated as No (data protection: opt in to reveal, not opt out).
+' Matches by header text, like the rest of this module, so it does not care
+' where the columns sit.
+Private Function BlankNameColumns(ByVal block As Variant, ByVal repWs As Worksheet) As Variant
+    Dim c As Long, r As Long, hdr As String
+
+    If StrComp(Trim$(CStr(repWs.Range("O10").Value)), "Yes", vbTextCompare) = 0 Then
+        BlankNameColumns = block
+        Exit Function
+    End If
+    For c = 1 To UBound(block, 2)
+        hdr = CStr(block(1, c))
+        If StrComp(hdr, "Student name", vbTextCompare) = 0 Or StrComp(hdr, "Student no", vbTextCompare) = 0 Then
+            For r = 2 To UBound(block, 1)
+                block(r, c) = ""
+            Next r
+        End If
+    Next c
+    BlankNameColumns = block
+End Function
+
 Private Function IsExcludedColumn(ByVal Header As String, ByVal excluded As Variant) As Boolean
     Dim i As Long
     For i = LBound(excluded) To UBound(excluded)
@@ -463,7 +492,7 @@ Private Function SafeNum(ByVal v As Variant) As Double
 End Function
 
 ' Header candidates for single-value promotion (2b/2c). Student name/no are
-' included even though the 2a toggle usually blanks them - when the toggle is
+' included even though the Export names toggle usually blanks them - when the toggle is
 ' off every value is blank, so PromoteUniformColumns' own "at least one
 ' non-blank value" rule already leaves them alone with no special-casing
 ' needed here.

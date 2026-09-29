@@ -3,6 +3,19 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.10.5 - "Export names", direct user request: the Reports toggle at O10
+("Show names") now affects the exported report only, not the live view.
+  - Live results: Student name/no always shown. The results formula in A16
+    no longer references O10 (modReports).
+  - Export report: modExport.BlankNameColumns blanks the Student name/no
+    values unless O10 is Yes (default No, unchanged); the blank columns stay
+    in the file. Applied before PromoteUniformColumns/RemoveExcludedColumns.
+  - Label at N10 reads "Export names"; the dropdown's input message now
+    says the results shown on the sheet always include names.
+  - test-reports2.ps1: live view shows names under No and Yes; label check.
+    test-reportsnapshot.ps1: export blank under No, populated under Yes.
+  - No schema change, no migration (workbook not released).
+
 0.10.4 - site-prefixed catalogue IDs, direct user request: TechID, PrinterID
 and StockID are now allocated automatically, so configuration from another
 workbook can be combined without overwriting anything. Before this nothing

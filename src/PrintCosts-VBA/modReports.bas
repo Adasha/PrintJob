@@ -360,9 +360,12 @@ Public Sub BuildReports()
     AddList ws.Range("B10"), QuotedList(hdrs), "Sort by", "Which column to sort the results by."
     AddList ws.Range("F10"), """Ascending"",""Descending""", "Sort direction", "Which way to sort."
 
-    ' Snag list item 2a: student name/number are not shown or exported
-    ' unless switched on - defaults to No (data protection: opt in to
-    ' reveal, not opt out). This is a display option, not a filter criterion,
+    ' Snag list item 2a: student name/number are not EXPORTED unless switched
+    ' on - defaults to No (data protection: opt in to reveal, not opt out).
+    ' Renamed "Export names" 2026-09-29 (direct user request): it governs the
+    ' exported report only (modExport.ExportReportSnapshot); the live results
+    ' table always shows names. This is an export option, not a filter
+    ' criterion,
     ' so it moves onto the sort-controls row rather than sharing row 9 with
     ' the (unrelated) name/number warning, where it used to sit at E9/F9.
     '
@@ -377,8 +380,8 @@ Public Sub BuildReports()
     ' view together. (Sort direction's own label has this same latent problem
     ' and was fixed the same way, 2026-09-26 - see its own CritCell call
     ' above, D10 rather than E10.)
-    CritCell ws, "N10", "O10", "Show names"
-    AddList ws.Range("O10"), """Yes"",""No""", "Show names", "Yes shows the student/department name and number in the results and any export. No (the default) blanks them, for data protection."
+    CritCell ws, "N10", "O10", "Export names"
+    AddList ws.Range("O10"), """Yes"",""No""", "Export names", "Yes includes the student/department name and number in an exported report. No (the default) leaves them blank in the export, for data protection. The results shown here always include them."
     If Len(Trim$(CStr(ws.Range("O10").Value))) = 0 Then ws.Range("O10").Value = "No"
 
     ' Spec 14.1: both criteria given, neither matching the other.
@@ -450,36 +453,30 @@ Public Sub BuildReports()
     ' when there is nothing to sort - SORTBY on that text would otherwise
     ' error and the outer IFERROR would show the wrong one of the two
     ' messages.
-    ' Student Name/No (snag 2a): the toggle at O10 blanks the VALUES, not
-    ' just the column - satisfies data protection even if someone unhides
-    ' the column, since there is nothing behind it to reveal. ExportReport
-    ' Snapshot copies these live values as-is, so the toggle is respected
-    ' by the export automatically with no separate export-side logic.
+    ' Student Name/No: always shown here. The "Export names" toggle at O10
+    ' (snag 2a) used to blank these values in this formula, which hid them
+    ' from the live view too; since 2026-09-29 it is applied at export time
+    ' instead (modExport.BlankNameColumns), so this formula has no reference
+    ' to O10 at all.
     '
     ' Built with Chr(34) for the formula's own empty-string literal rather
     ' than hand-counting doubled quotes in a VBA string literal - a single
     ' wrong quote count here is a silent formula-text bug, not a compile
     ' error, so it is worth avoiding the manual counting entirely.
     '
-    ' IF($O$10="Yes", <column array>, "") is NOT the same as an elementwise
-    ' per-row blank - the CONDITION here is a bare scalar (one toggle cell),
-    ' so with O10="No" the whole IF collapses to the single scalar "" rather
-    ' than a column of blanks the same height as every other HSTACK
-    ' argument. HSTACK does not broadcast a scalar against a column
-    ' (modRegistry's own §7.1 comment already names this trap for the
-    ' consolidated-range formula) - the visible symptom here was rows
-    ' beyond the first silently showing FILTER's "no data" fallback text
-    ' instead of real job data. Fixed by nesting the toggle INSIDE an outer
-    ' IF whose own condition (Job ID <> "") is already a real per-row array
-    ' - once the outer IF is evaluating elementwise, the inner one is too,
-    ' so $O$10="Yes" correctly re-tests against the SAME scalar for every
-    ' row while Student Name/No resolve per row as normal.
-    Dim q As String, studentOn As String, rowShape As String, sName As String, sNo As String
+    ' History, kept as a warning: when the O10 toggle lived in this formula,
+    ' IF($O$10="Yes", <column array>, "") was NOT an elementwise blank - the
+    ' CONDITION was a bare scalar, so with O10="No" the whole IF collapsed to
+    ' the single scalar "" rather than a column of blanks the same height as
+    ' every other HSTACK argument, and HSTACK does not broadcast a scalar
+    ' against a column (modRegistry's own §7.1 comment names the same trap).
+    ' The per-row IF(Job ID <> "", ...) wrapper below is what made that work
+    ' and is kept as-is; do not reintroduce a scalar-conditioned IF here.
+    Dim q As String, rowShape As String, sName As String, sNo As String
     q = Chr(34)
-    studentOn = "$O$10=" & q & "Yes" & q
     rowShape = C("Job ID") & "<>" & q & q
-    sName = "IF(" & rowShape & ",IF(" & studentOn & "," & C("Student Name") & "," & q & q & ")," & q & q & ")"
-    sNo = "IF(" & rowShape & ",IF(" & studentOn & "," & C("Student No") & "," & q & q & ")," & q & q & ")"
+    sName = "IF(" & rowShape & "," & C("Student Name") & "," & q & q & ")"
+    sNo = "IF(" & rowShape & "," & C("Student No") & "," & q & q & ")"
 
     ' A row that predates the Paid column (§5, blank Paid counts as unpaid)
     ' reads back from INDEX as the NUMBER 0, not an empty string - the
