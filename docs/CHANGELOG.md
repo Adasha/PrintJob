@@ -3,6 +3,30 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.10.7 - Reports: Paid is directly editable, direct user request. The Paid
+cells of the results table now take the same Yes/No dropdown as the room
+sheets, and a choice is written straight to the job record it belongs to.
+  - The results are one spilled formula: typing into a cell of it blocks the
+    spill and blanks the whole row, so the record's Job ID/Location cannot
+    be read once Change fires. modReports.RememberReportsPaidCell therefore
+    notes which job the selected Paid cell shows (on selection and on sheet
+    arrival, keeping the previous selection's note as well - Excel can move
+    the selection before or after raising Change), and
+    OnReportsPaidEdited (Workbook_SheetChange) applies the edit to that job
+    and clears the typed constant so the spill returns.
+  - Refused, with the constant cleared and nothing changed: a cell that is
+    not a record's Paid cell, a value that is not Yes/No, a multi-cell
+    paste/fill, a record no longer found, and a record whose Paid value has
+    changed since the cell was selected (stale note). Re-picking the value
+    already shown is a no-op.
+  - Logged to the audit trail as "Paid edited (Reports)". Costs: the write
+    clears Undo; one cell at a time (Mark all as... is the bulk route).
+  - Paid cells (rows 16-2000) unlocked with Yes/No validation; the rest of
+    the results table stays locked. ResnapReportsSelection is also called
+    after Mark all as... and Delete visible.
+  - test-paidedit.ps1 (new). ARCHITECTURE.md section 10.10.
+  - No schema change, no migration (workbook not released).
+
 0.10.6 - Reports "Mark all as..." Paid/Unpaid, direct user request, plus an
 at-least-one-filter safeguard on the bulk commands.
   - New cluster in the Reports header, 1 column x 3 rows at O1:O3: label

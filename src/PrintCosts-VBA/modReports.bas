@@ -29,6 +29,24 @@ Private Const DATA_HDR As String = "_Data!$A$9:$AZ$9"
 Private Const EXPORT_SIG_CELL As String = "AN1"
 Private Const EXPORT_WHEN_CELL As String = "AN2"
 
+' The results table's data rows, for the editable Paid column (see "edit Paid
+' on Reports" below). 2000 matches the number formats FormatReports applies.
+Private Const RESULTS_FIRST_ROW As Long = 16
+Private Const RESULTS_LAST_ROW As Long = 2000
+
+' Which job a results-table Paid cell showed when it was selected - see "edit
+' Paid on Reports". Declared here, with the module's other declarations, not
+' beside the code that uses it (a module-level declaration after the first
+' Sub has failed to compile in this project before - see modInit's comment).
+Private Type PaidSnap
+    Addr As String
+    Job As String
+    Loc As String
+    Paid As String
+End Type
+Private mCur As PaidSnap
+Private mPrev As PaidSnap
+
 ' A column of the consolidated range, found by its header text.
 Private Function C(ByVal Header As String) As String
     C = "INDEX(" & DATA_SPILL & ",,MATCH(""" & Header & """," & DATA_HDR & ",0))"
@@ -530,6 +548,7 @@ Public Sub BuildReports()
 
     BuildBreakdowns ws, ok
     FormatReports ws
+    MakePaidEditable ws
 
     ' The filter labels/hints (CritCell, above) were written and wrapped
     ' before this point, while columns A/C/D/N still sat at Excel's
@@ -768,6 +787,7 @@ Public Sub DeleteVisibleReportsConfirmed(ByVal ws As Worksheet, ByVal rng As Ran
         End If
     Next i
     AppOn
+    ResnapReportsSelection   ' see "edit Paid here"
 
     detail = deleted & " record" & IIf(deleted = 1, "", "s") & " deleted from the Reports page."
     If missing > 0 Then detail = detail & " " & missing & " could not be found (already removed?)."
@@ -778,6 +798,215 @@ Public Sub DeleteVisibleReportsConfirmed(ByVal ws As Worksheet, ByVal rng As Ran
 Fail:
     AppReset
     ReportError "Delete visible records"
+End Sub
+
+' ======================================================= edit Paid here ===
+' (2026-09-29, direct user request) The Paid cells of the results table take
+' the same Yes/No dropdown as the room sheets, and a choice is written back to
+' the job record the row belongs to.
+'
+' The catch is that the results are ONE spilled formula. Typing into a cell of
+' a spill range puts a constant there, turns the anchor (A16) into #SPILL!,
+' and so blanks every cell of the table - including the row's Job ID and
+' Location, which are exactly what identify the record. By the time the Change
+' event fires they can no longer be read from the sheet. So:
+'
+'   - RememberReportsPaidCell runs whenever a cell is selected and notes which
+'     job the selected Paid cell shows (and keeps the PREVIOUS selection's
+'     note too, because Excel can move the selection after Enter either
+'     before or after it raises Change - both orders are handled).
+'   - OnReportsPaidEdited, from Workbook_SheetChange, applies the edit to that
+'     job, then clears the typed constant so the spill comes back.
+'
+' Anything it cannot attribute to a real record - a cell below the results, a
+' pasted block, a value that is not Yes/No, a record that changed since it was
+' drawn - is cleared and refused, never left behind: an orphan constant in the
+' results area would block the spill the next time the results grew that far.
+'
+' Two costs, both inherent: the sheet's Undo history is cleared by the write
+' (Ctrl+Z will not undo a Paid change - change it back instead), and only one
+' cell can be edited at a time (Mark all as... is the bulk route).
+'
+' The Paid cells are unlocked and given the dropdown by MakePaidEditable; the
+' rest of the results table stays locked.
+Private Sub MakePaidEditable(ByVal ws As Worksheet)
+    Dim c As Long, rng As Range
+    c = ColByHeader(ws, 15, "Paid")
+    If c = 0 Then Exit Sub
+    Set rng = ws.Range(ws.Cells(RESULTS_FIRST_ROW, c), ws.Cells(RESULTS_LAST_ROW, c))
+    rng.Locked = False
+    With rng.Validation
+        .Delete
+        .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Formula1:="Yes,No"
+        .IgnoreBlank = True
+        .InCellDropdown = True
+        .ShowInput = True
+        .ShowError = True
+        .InputTitle = "Paid"
+        .InputMessage = "Choose Yes or No. This updates the job record itself, in its print room, straight away. Blank means not recorded and counts as unpaid."
+        .ErrorTitle = "Paid"
+        .ErrorMessage = "Choose Yes or No."
+    End With
+End Sub
+
+' Notes which job a selected Paid cell shows. Called on every selection change
+' on Reports, so the early exits come first and cost almost nothing.
+Public Sub RememberReportsPaidCell(ByVal ws As Worksheet, ByVal Target As Range)
+    mPrev = mCur
+    TakeSnapshot ws, Target
+End Sub
+
+' Re-reads the note for the active cell without demoting the current one - for
+' after something changed the results underneath a selection that has not
+' moved (an edit, Mark all as..., Delete visible). The previous note is
+' dropped: it described the results as they were.
+Public Sub ResnapReportsSelection()
+    Dim ws As Worksheet
+    Dim blank As PaidSnap
+    On Error Resume Next
+    Set ws = ReportsSheet()
+    If ws Is Nothing Then Exit Sub
+    mPrev = blank
+    If ActiveSheet Is ws Then TakeSnapshot ws, ActiveCell
+    On Error GoTo 0
+End Sub
+
+Private Sub TakeSnapshot(ByVal ws As Worksheet, ByVal Target As Range)
+    Dim blank As PaidSnap, a As Variant, locCol As Long, jobCol As Long
+    mCur = blank
+    If Target Is Nothing Then Exit Sub
+    If Target.Cells.Count <> 1 Then Exit Sub
+    If Target.Row < RESULTS_FIRST_ROW Or Target.Row > RESULTS_LAST_ROW Then Exit Sub
+    If StrComp(CStr(ws.Cells(15, Target.Column).Value), "Paid", vbTextCompare) <> 0 Then Exit Sub
+
+    ' A real record on this row: Date/Time, column A, is a number. (Empty when
+    ' the row is past the results, text for FILTER's "no jobs match" message,
+    ' an error while a typed constant is blocking the spill.)
+    a = ws.Cells(Target.Row, 1).Value2
+    If IsError(a) Then Exit Sub
+    If IsEmpty(a) Then Exit Sub
+    If Not IsNumeric(a) Then Exit Sub
+
+    locCol = ColByHeader(ws, 15, "Location")
+    jobCol = ColByHeader(ws, 15, "Job ID")
+    If locCol = 0 Or jobCol = 0 Then Exit Sub
+    If IsError(ws.Cells(Target.Row, jobCol).Value2) Then Exit Sub
+
+    mCur.Job = Trim$(CStr(ws.Cells(Target.Row, jobCol).Value2))
+    If Len(mCur.Job) = 0 Then Exit Sub
+    mCur.Loc = CStr(ws.Cells(Target.Row, locCol).Value2)
+    If IsError(Target.Value2) Then
+        mCur.Paid = ""
+    Else
+        mCur.Paid = Trim$(CStr(Target.Value2))
+    End If
+    mCur.Addr = Target.Address
+End Sub
+
+' Workbook_SheetChange calls this for EVERY edit on Reports, so it returns at
+' once unless the edit touches the Paid column of the results table.
+Public Sub OnReportsPaidEdited(ByVal ws As Worksheet, ByVal Target As Range)
+    Dim c As Long, area As Range, hit As Range, v As Variant
+    Dim snap As PaidSnap, found As Boolean
+    Dim newV As String, oldV As String
+    Dim targetWs As Worksheet, lo As ListObject, rowIdx As Long, cel As Range
+
+    c = ColByHeader(ws, 15, "Paid")
+    If c = 0 Then Exit Sub
+    Set area = ws.Range(ws.Cells(RESULTS_FIRST_ROW, c), ws.Cells(RESULTS_LAST_ROW, c))
+    Set hit = Intersect(Target, area)
+    If hit Is Nothing Then Exit Sub
+
+    ' From here the edit is ours, and however it ends the typed constant has
+    ' to go so the spill can come back.
+    On Error GoTo Fail
+
+    If Target.Cells.Count > 1 Then
+        RestoreResults ws, hit
+        Say "Change one Paid cell at a time.", "Pasting or filling several cells is not supported here.", "To mark many records at once, set a filter and use Mark all as..."
+        Exit Sub
+    End If
+
+    If StrComp(mCur.Addr, hit.Address, vbBinaryCompare) = 0 And Len(mCur.Job) > 0 Then
+        snap = mCur
+        found = True
+    ElseIf StrComp(mPrev.Addr, hit.Address, vbBinaryCompare) = 0 And Len(mPrev.Job) > 0 Then
+        snap = mPrev
+        found = True
+    End If
+    If Not found Then
+        RestoreResults ws, hit
+        Say "That cell is not a job record, so nothing was changed.", "Only the Paid cell of a row that shows a record can be edited."
+        Exit Sub
+    End If
+
+    v = hit.Value2
+    If IsError(v) Then newV = "" Else newV = Trim$(CStr(v))
+    If StrComp(newV, "Yes", vbTextCompare) = 0 Then
+        newV = "Yes"
+    ElseIf StrComp(newV, "No", vbTextCompare) = 0 Then
+        newV = "No"
+    Else
+        RestoreResults ws, hit
+        Say "Paid must be Yes or No.", "Nothing was changed.", "Pick Yes or No from the dropdown."
+        Exit Sub
+    End If
+
+    ' Same as the row already showed: nothing to write, just put the spill back.
+    oldV = snap.Paid
+    If StrComp(newV, oldV, vbTextCompare) = 0 Then
+        RestoreResults ws, hit
+        Exit Sub
+    End If
+
+    Set targetWs = SheetForCode(snap.Loc)
+    If Not targetWs Is Nothing Then Set lo = JobsTable(targetWs)
+    If Not lo Is Nothing Then rowIdx = FindReportRow(lo, snap.Job)
+    If rowIdx = 0 Then
+        RestoreResults ws, hit
+        Say "That record could not be found.", "It may have been removed or moved since the report was drawn. Nothing was changed."
+        Exit Sub
+    End If
+
+    ' The guard against a stale note: the record's own Paid value must still be
+    ' what this row showed when it was selected.
+    Set cel = CellIn(lo, rowIdx, "Paid")
+    If StrComp(Trim$(CStr(cel.Value)), oldV, vbTextCompare) <> 0 Then
+        RestoreResults ws, hit
+        Say "That record has changed since it was drawn.", "Its Paid value is no longer what this row showed, so nothing was changed.", "Look at the row again, then retry."
+        Exit Sub
+    End If
+
+    AppOff
+    UnlockSheet targetWs
+    cel.Value = newV
+    RelockSheet targetWs
+    LogAudit "Paid edited (Reports)", snap.Loc, snap.Job & ": " & IIf(Len(oldV) = 0, "(blank)", oldV) & " -> " & newV
+    RestoreResults ws, hit
+    AppOn
+    ResnapReportsSelection
+    Exit Sub
+Fail:
+    ' Best effort to leave no constant behind, then report.
+    On Error Resume Next
+    If Not targetWs Is Nothing Then RelockSheet targetWs
+    UnlockSheet ws
+    hit.ClearContents
+    RelockSheet ws
+    On Error GoTo 0
+    AppReset
+    ReportError "Edit Paid"
+End Sub
+
+' Removes the constant a Paid edit left in the results area, so the spilled
+' formula can fill it again, and re-notes the selection afterwards.
+Private Sub RestoreResults(ByVal ws As Worksheet, ByVal rng As Range)
+    AppOff
+    UnlockSheet ws
+    rng.ClearContents
+    RelockSheet ws
+    AppOn
+    ResnapReportsSelection
 End Sub
 
 ' ====================================================== filter safeguard ===
@@ -1011,6 +1240,9 @@ Public Sub MarkVisibleReportsConfirmed(ByVal ws As Worksheet, ByVal rng As Range
 
     RelockRooms los
     AppOn
+    ' The results have just changed under whatever cell is selected - see
+    ' "edit Paid here".
+    ResnapReportsSelection
 
     detail = changed & " record" & IIf(changed = 1, "", "s") & " marked " & label & " from the Reports page."
     If unchanged > 0 Then detail = detail & " " & unchanged & " already " & IIf(unchanged = 1, "was", "were") & " " & label & "."
