@@ -1049,11 +1049,19 @@ End Sub
 
 Private Sub UnlockTableBody(ByVal TableName As String)
     Dim lo As ListObject
+    Dim idHdr As String, idCode As String, nameHdr As String, hwmKey As String
     Set lo = Tbl(TableName)
     If lo Is Nothing Then Exit Sub
     If lo.DataBodyRange Is Nothing Then Exit Sub
     UnlockSheet lo.Parent
     lo.DataBodyRange.Locked = False
+    ' Technicians, printers and papers have a managed ID column (modCatalog
+    ' "catalogue IDs"): VBA writes it, nobody types it, so it stays locked
+    ' while the rest of the row is open. A row added later inherits this
+    ' from the row above it, and Setup re-applies it on every run.
+    If CatalogIdSpec(TableName, idHdr, idCode, nameHdr, hwmKey) Then
+        If ColumnExists(lo, idHdr) Then lo.ListColumns(idHdr).DataBodyRange.Locked = True
+    End If
     RelockSheet lo.Parent
 End Sub
 

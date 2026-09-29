@@ -472,8 +472,8 @@ End Sub
 ' Technicians, printers and papers each carry a synthetic ID (TechID,
 ' PrinterID, StockID) that nobody types by hand. It is allocated the way a
 ' Job ID is (modRegistry.NextJobId): the site (SET_SITE_ID), a table code and
-' a five-digit number taken from a persisted high-water mark that only ever
-' rises, e.g. MAIN-PRN-00001. The reason is the same too - two workbooks that
+' a four-digit number taken from a persisted high-water mark that only ever
+' rises, e.g. MAIN-PRN-0001. The reason is the same too - two workbooks that
 ' each number from 1 would issue the same ID to different things, and a
 ' backup restore (modBackup.ApplyCatalogRows) matches rows by exactly this ID,
 ' so it would overwrite one site's printer with another's. With the site in
@@ -552,7 +552,7 @@ Public Function NextCatalogId(ByVal lo As ListObject, ByVal TableName As String)
     hi = CLng(Application.WorksheetFunction.Max(hi, ScanMaxSuffix(lo, idHdr, prefix)))
     hi = hi + 1
     SetCatalogHwm hwmKey, hi
-    NextCatalogId = prefix & Format$(hi, "00000")
+    NextCatalogId = prefix & Format$(hi, "0000")
 End Function
 
 ' Gives table row RowNo its ID if it has none; never touches an existing one.

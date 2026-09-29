@@ -348,9 +348,10 @@ not a scan of the sheet's current rows, so deleting the highest-numbered job
 cannot cause its ID to be reissued.
 
 Technician, printer and paper IDs (`TechID`, `PrinterID`, `StockID`) are
-allocated the same way, with the site code in front (`<SITE>-PRN-00001`), so
+allocated the same way, with the site code in front (`<SITE>-PRN-0001`), so
 Restore workbook can combine another workbook's configuration with this one
-without overwriting it (`modCatalog.NextCatalogId`). Nobody types them; the
+without overwriting it (`modCatalog.NextCatalogId`). Nobody types them (the ID
+columns are locked), and the number is four digits; the
 counters are the `Read-only` rows `TECH_ID_HWM`, `PRINTER_ID_HWM` and
 `STOCK_ID_HWM` on Settings. A restored row whose name is already taken by a
 different row is kept and renamed `Name (SITE)`.

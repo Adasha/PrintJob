@@ -4,7 +4,7 @@
 # Prerequisite: site-prefixed catalogue IDs (modCatalog "catalogue IDs").
 #
 # Technician / printer / paper IDs (TechID, PrinterID, StockID) are allocated
-# like Job IDs - SITE-CODE-00001 from a persisted high-water mark - so that
+# like Job IDs - SITE-CODE-0001 from a persisted high-water mark - so that
 # combining another workbook's configuration adds rows instead of overwriting.
 #
 #   1. Every named row already has a unique, well-formed ID (Setup back-fill).
@@ -80,12 +80,12 @@ try {
         Write-Host ("=== {0} ===" -f $s.Table)
         $ws = $wb.Worksheets($s.Sheet); $lo = $ws.ListObjects($s.Table)
         $idC = ColIdx $lo $s.Id; $nmC = ColIdx $lo $s.Name
-        $pattern = "^$tag-$($s.Code)-\d{5}$"
+        $pattern = "^$tag-$($s.Code)-\d{4}$"
 
         $rows = Get-Named $s
         Check ($rows.Count -gt 0) "starts with named rows (got $($rows.Count))"
         Check (@($rows | Where-Object { [string]::IsNullOrWhiteSpace($_.Id) }).Count -eq 0) 'every named row has an ID'
-        Check (@($rows | Where-Object { $_.Id -notmatch $pattern }).Count -eq 0) "every ID matches $site-$($s.Code)-nnnnn"
+        Check (@($rows | Where-Object { $_.Id -notmatch $pattern }).Count -eq 0) "every ID matches $site-$($s.Code)-nnnn"
         Check ((@($rows | Select-Object -ExpandProperty Id -Unique)).Count -eq $rows.Count) 'IDs are unique'
         $existing = @($rows | Select-Object -ExpandProperty Id)
 
@@ -96,6 +96,8 @@ try {
         $id1 = [string]$lo.ListRows($n).Range.Cells(1, $idC).Value2
         Check ($id1 -match $pattern) "Add row allocates a well-formed ID ($id1)"
         Check ($existing -notcontains $id1) 'the new ID is not one already in use'
+        Check ($lo.ListColumns($idC).DataBodyRange.Locked -eq $true) 'the whole ID column is locked, including the new row'
+        Check ($lo.ListRows($n).Range.Cells(1, $nmC).Locked -eq $false) 'the name cell on that row is still editable'
 
         [void]$xl.Run('UnlockSheet', $ws)
         $lo.ListRows($n).Delete()
@@ -184,7 +186,7 @@ try {
     $idNew = [string]$tlo.ListRows($tlo.ListRows.Count).Range.Cells(1, (ColIdx $tlo $techSpec.Id)).Value2
     $named = Get-Named $techSpec
     $all = @($named | Select-Object -ExpandProperty Id)
-    Check ($idNew -match "^$tag-TCH-\d{5}$" -and $all -notcontains $idNew) "new technician gets a fresh local-site ID ($idNew)"
+    Check ($idNew -match "^$tag-TCH-\d{4}$" -and $all -notcontains $idNew) "new technician gets a fresh local-site ID ($idNew)"
 
     $xl.Run('SetQuiet', $false)
 }
