@@ -3,6 +3,20 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.10.9 - Location sheets: Status column shortened, full message on hover,
+direct user request.
+  - Status is now 120px (was 248). The full message shows in a hover note on
+    the Status cell of every row that has a problem; OK and blank rows carry
+    no note, so no red markers on healthy rows. Multiple issues are listed
+    one per line.
+  - modInit.RefreshStatusNotes keeps the notes in step (Excel has no dynamic
+    cell tooltip; a note's text is static): adds, rewrites or deletes, diff
+    only. Called from ApplyStatusFormat (setup/Refresh Locations),
+    Workbook_SheetChange and Workbook_SheetSelectionChange, so a status that
+    changes from an import, added row or catalogue edit is picked up at the
+    next click.
+  - No schema change, no migration (workbook not released).
+
 0.10.8 - Location sheets: sensible column widths, direct user request
 ("several columns are excessively wide").
   - modInit.ApplyJobColumnWidths now sets an explicit width on every column

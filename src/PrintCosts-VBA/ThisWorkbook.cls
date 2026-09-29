@@ -75,6 +75,7 @@ Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)
     If Not IsLocation(Sh) Then Exit Sub
     Application.EnableEvents = False
     OnCellChanged Sh, Target
+    RefreshStatusNotes Sh
     Application.EnableEvents = True
     Exit Sub
 Fail:
@@ -154,6 +155,9 @@ Private Sub Workbook_SheetSelectionChange(ByVal Sh As Object, ByVal Target As Ra
     ' (a handful of shape/lookup ops against the table's ~30 headers, not the
     ' data rows) and idempotent, so running it on every selection is fine.
     RepositionLocationButtons Sh
+    ' Keeps each problem row's hover note in step with its Status text - see
+    ' modInit.RefreshStatusNotes.
+    RefreshStatusNotes Sh
     Exit Sub
 Fail:
     Application.EnableEvents = True

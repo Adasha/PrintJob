@@ -1462,8 +1462,10 @@ Public Sub ApplyJobColumnWidths(ByVal ws As Worksheet)
     ' Stock were 220px, Paper Cost/Disregarded/Sheet size 115px). Headers
     ' wrap (row 13 is two lines tall), so a column only needs its longest
     ' word plus the filter button; the widths below are that or the widest
-    ' typical content, whichever is larger. Status and Notes are left alone:
-    ' Status needs room for its issue text, and Notes is free text.
+    ' typical content, whichever is larger. Notes is left alone (free text).
+    ' Status is short (120px) because RefreshStatusNotes puts the full
+    ' message in a hover note on every row that has a problem.
+    SetJobColWidth lo, "Status", ColWidthForPx(120)
     SetJobColWidth lo, "Technician", ColWidthForPx(120)
     SetJobColWidth lo, "Printer", ColWidthForPx(160)
     SetJobColWidth lo, "Paper Stock", ColWidthForPx(170)
@@ -1562,5 +1564,74 @@ Private Sub ApplyStatusFormat(ByVal ws As Worksheet)
         Formula1:="=AND(" & rng.Cells(1, 1).Address(False, False) & "<>""""," & _
                   rng.Cells(1, 1).Address(False, False) & "<>""OK"")")
     fc.Interior.Color = RGB(255, 192, 0)
+    RefreshStatusNotes ws
     RelockSheet ws
+End Sub
+
+' The Status column is narrow (0.10.9), so a row's full message - possibly
+' several issues joined by "; " - lives in a hover note on the cell instead.
+' Excel has no dynamic cell tooltip, and a note's text is static, so this
+' re-syncs every note with its cell's current Status: adds one where a row
+' has a problem, rewrites it when the message has changed, and deletes it
+' when the row is OK or blank (so ordinary rows carry no red marker).
+' Diff-only, so a run over an unchanged sheet touches nothing; the scan is a
+' single array read. Called by ApplyStatusFormat (setup/Refresh Locations),
+' Workbook_SheetChange and Workbook_SheetSelectionChange - the last catches
+' status changes that come from anywhere else (added rows, imports, catalogue
+' edits) the next time the person clicks. Public: ThisWorkbook calls it.
+Public Sub RefreshStatusNotes(ByVal ws As Worksheet)
+    Dim lo As ListObject, rng As Range, v As Variant, i As Long
+    Dim txt As String, want As String, c As Range, cm As Comment
+    Set lo = JobsTable(ws)
+    If lo Is Nothing Then Exit Sub
+    If lo.DataBodyRange Is Nothing Then Exit Sub
+    If Not ColumnExists(lo, "Status") Then Exit Sub
+    Set rng = lo.ListColumns("Status").DataBodyRange
+
+    ReDim v(1 To rng.Rows.Count, 1 To 1)
+    If rng.Rows.Count = 1 Then
+        v(1, 1) = rng.Cells(1, 1).Value2
+    Else
+        v = rng.Value2
+    End If
+
+    On Error Resume Next
+    For i = 1 To UBound(v, 1)
+        txt = ""
+        If Not IsError(v(i, 1)) Then txt = CStr(v(i, 1))
+        want = ""
+        If Len(txt) > 0 And StrComp(txt, "OK", vbBinaryCompare) <> 0 Then
+            want = ChrW(8226) & " " & Replace(txt, "; ", vbLf & ChrW(8226) & " ")
+        End If
+
+        Set c = rng.Cells(i, 1)
+        Set cm = Nothing
+        Set cm = c.Comment
+        If Len(want) = 0 Then
+            If Not cm Is Nothing Then c.ClearComments
+        ElseIf cm Is Nothing Then
+            c.AddComment want
+            SizeStatusNote c.Comment, want
+        ElseIf cm.Text <> want Then
+            cm.Text want
+            SizeStatusNote cm, want
+        End If
+    Next i
+    On Error GoTo 0
+End Sub
+
+' Fixed width, height from an estimate of the wrapped line count (about 50
+' characters to a line at 300pt), so the whole message shows without the
+' note needing to be opened and resized by hand.
+Private Sub SizeStatusNote(ByVal cm As Comment, ByVal Text As String)
+    Dim parts() As String, i As Long, lines As Long
+    parts = Split(Text, vbLf)
+    For i = LBound(parts) To UBound(parts)
+        lines = lines + 1 + (Len(parts(i)) - 1) \ 50
+    Next i
+    With cm.Shape
+        .TextFrame.AutoSize = False
+        .Width = 300
+        .Height = 14 * lines + 10
+    End With
 End Sub
