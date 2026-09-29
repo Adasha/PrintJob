@@ -593,7 +593,7 @@ Settings keeps its own copies deliberately: it is where someone lands when confi
 | `modVersion` | Version constants, settings rows, the About popup, document properties | Built |
 | `modPicker` | The multi-select picker | Built |
 | `modInit` | One-time/re-runnable setup: draws the Form Controls, applies protection, unlocks config inputs, sets/clears freeze panes, reorders tabs, groups columns, wraps Settings notes, hands over to RefreshLocations | Built |
-| `modCatalog` | Configuration loaded once per operation; **catalogue row Add/Remove** | Built |
+| `modCatalog` | Configuration loaded once per operation; **catalogue row Add/Remove; Clear table (§10.8)** | Built |
 | `modSettings` | Typed accessors for settings and named ranges | Built |
 | `modProtect` | Protect/unprotect wrappers, re-applied on open, **no default password** | Built |
 | `modUtils` | Application state, messaging, quiet mode, table and name access, ID generation, schema version constant | Built |
@@ -832,6 +832,16 @@ The four Settings-page lookup tables have no synthetic ID (§3.3) — their natu
 
 ---
 
+
+### 10.8 Clear table — Print Technicians, Printers, Papers (direct user request, 2026-09-29)
+
+A **Clear table** button (row 4, column 5, beside Add row/Remove row) on each of the three catalogue sheets empties **that sheet's table only**, so a bureau can start one list afresh without disturbing the others (e.g. new technicians, same printers). The four Settings-page lookup tables and `tblSettings` deliberately have no such button.
+
+`modCatalog.ClearCatalogTable` confirms first (default button **No**), naming the table, the row count and the first five rows, and stating the consequences: rows vanish from every print room's dropdowns; recorded jobs keep their frozen prices; the other configuration sheets are untouched; **it cannot be undone — use Backup workbook first**. Printers adds that rooms' "Select printers" choices refer to printers by name; Papers notes that the built-in `Supplied (Roll)`/`Supplied (Sheet)` stocks are not table rows and stay available.
+
+`DoClearCatalogTable` is the unprompted core (split out because `Ask` always declines in quiet mode, so tests could not otherwise reach it). It writes an `_Audit` entry ("Clear table"), deletes rows 2..n, `ClearContents` row 1 (skipping any cell holding a formula), then `Invalidate`s the catalogue cache so dropdowns rebind. **One blank templated row is deliberately left**, for the same reason as `modJobs.ClearAll` (§10.2): with no data row left, Excel has nothing to copy formatting/validation from. `AddCatalogRow` reuses that blank row (`Count = 1 And IsBlankRow`) and `RowCount` reports it as zero rows.
+
+Buttons: `btnClearTechnicians` / `btnClearPrinters` / `btnClearPapers` (`modMain`), drawn by `modInit.InitialiseWorkbook`. Test: `test-clearcatalog.ps1`.
 ## 11. Visual design
 
 | Cell role | Treatment |

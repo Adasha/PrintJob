@@ -274,6 +274,30 @@ Fail:
     ReportError "Remove row"
 End Sub
 
+Public Sub btnClearTechnicians()
+    On Error GoTo Fail
+    ClearCatalogTable "tblTechnicians"
+    Exit Sub
+Fail:
+    ReportError "Clear table"
+End Sub
+
+Public Sub btnClearPrinters()
+    On Error GoTo Fail
+    ClearCatalogTable "tblPrinters"
+    Exit Sub
+Fail:
+    ReportError "Clear table"
+End Sub
+
+Public Sub btnClearPapers()
+    On Error GoTo Fail
+    ClearCatalogTable "tblPapers"
+    Exit Sub
+Fail:
+    ReportError "Clear table"
+End Sub
+
 Public Sub btnAddRowPaperTypes()
     On Error GoTo Fail
     AddCatalogRow "tblPaperTypes"

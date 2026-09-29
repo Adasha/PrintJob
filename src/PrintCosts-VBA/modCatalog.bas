@@ -516,6 +516,114 @@ Public Sub RemoveCatalogRow(ByVal TableName As String)
     AppOn
 End Sub
 
+' ------------------------------------------------------ catalogue clear ---
+' "Clear table" on Print Technicians, Printers and Papers (direct user
+' request, 2026-09-29): empties ONE catalogue table so a bureau can start that
+' list afresh without touching the others - e.g. a new academic year with new
+' technicians but the same printers. Only these three tables have the button;
+' the Settings lookup tables do not.
+'
+' ClearCatalogTable asks first (naming the table, how many rows and which,
+' and what the consequences are - the same "never a bare are you sure" rule
+' RemoveCatalogRow and modJobs.ClearAll follow). DoClearCatalogTable is the
+' unprompted work, split out because Ask always declines in quiet mode, so a
+' test script could otherwise never exercise the clear itself.
+'
+' Recorded jobs are not touched: every job snapshots the price it was costed
+' at (the S_* columns) - the same guarantee RemoveCatalogRow gives. What does
+' change is every print room's dropdowns (Invalidate marks them stale; they
+' rebind on the next sheet change).
+Public Sub ClearCatalogTable(ByVal TableName As String)
+    Dim lo As ListObject, n As Long, i As Long, label As String, keyHdr As String
+    Dim listing As String, shown As Long, extra As String, msg As String
+
+    Set lo = Tbl(TableName)
+    If lo Is Nothing Then Exit Sub
+
+    ClearTableInfo TableName, label, keyHdr, extra
+    n = RowCount(lo)
+    If n = 0 Then
+        Say "There is nothing to clear.", "The " & label & " table has no rows."
+        Exit Sub
+    End If
+
+    ' Name the first few rows so the person can see WHAT is about to go,
+    ' not just how many.
+    For i = 1 To lo.ListRows.Count
+        If Len(Trim$(CStr(CellIn(lo, i, keyHdr).Value))) > 0 Then
+            If shown < 5 Then
+                listing = listing & "   - " & Trim$(CStr(CellIn(lo, i, keyHdr).Value)) & vbCrLf
+            End If
+            shown = shown + 1
+        End If
+    Next i
+    If shown > 5 Then listing = listing & "   ...and " & (shown - 5) & " more" & vbCrLf
+
+    msg = "Clear table - " & label & vbCrLf & vbCrLf & _
+        "This will permanently delete all " & n & " row" & IIf(n = 1, "", "s") & " from the " & label & " table:" & vbCrLf & _
+        listing & vbCrLf & _
+        "They will disappear from every print room's dropdowns straight away." & vbCrLf & _
+        "Print jobs already recorded keep their frozen prices and are not affected." & vbCrLf & _
+        extra & _
+        "The other configuration sheets are not affected." & vbCrLf & vbCrLf & _
+        "This cannot be undone - use Backup workbook first if you may want these back. Continue?"
+
+    If Not Ask(msg, "Clear table") Then Exit Sub
+
+    DoClearCatalogTable TableName
+    Say n & " row" & IIf(n = 1, "", "s") & " deleted from the " & label & " table.", _
+        "A note of what was removed has been kept in the workbook's audit log."
+End Sub
+
+' What the confirmation calls the table, which column names its rows, and any
+' extra sentence that only applies to this table (ends with vbCrLf if set).
+Private Sub ClearTableInfo(ByVal TableName As String, ByRef Label As String, ByRef KeyHdr As String, ByRef Extra As String)
+    Select Case TableName
+        Case "tblTechnicians"
+            Label = "Print Technicians": KeyHdr = "Name"
+        Case "tblPrinters"
+            Label = "Printers": KeyHdr = "Model"
+            Extra = "Each print room's 'Select printers' choice refers to printers by name, so rooms will need their printers re-selected once you add new ones." & vbCrLf
+        Case "tblPapers"
+            Label = "Papers": KeyHdr = "Description"
+            Extra = "The built-in 'Supplied (Roll)' and 'Supplied (Sheet)' stocks are not stored here and stay available." & vbCrLf
+        Case Else
+            Err.Raise vbObjectError + 2101, "ClearCatalogTable", "Clear table is not available for '" & TableName & "'."
+    End Select
+End Sub
+
+' The unprompted clear. Leaves exactly one blank row rather than zero rows:
+' with DataBodyRange gone there is no row left for Excel to copy formatting
+' and validation from, so a later ListRows.Add would produce a bare row - the
+' same reason modJobs.ClearAll keeps row 1. AddCatalogRow already reuses that
+' blank row (Count = 1 And IsBlankRow) and RowCount reports it as zero rows.
+' Cells holding a formula are skipped rather than cleared, so a calculated
+' column survives.
+Public Sub DoClearCatalogTable(ByVal TableName As String)
+    Dim lo As ListObject, ws As Worksheet, n As Long, i As Long, c As Range
+    Dim label As String, keyHdr As String, extra As String
+
+    Set lo = Tbl(TableName)
+    If lo Is Nothing Then Exit Sub
+    ClearTableInfo TableName, label, keyHdr, extra
+    Set ws = lo.Parent
+    n = RowCount(lo)
+    If n = 0 Then Exit Sub
+
+    AppOff
+    LogAudit "Clear table", label, n & " row" & IIf(n = 1, "", "s") & " deleted"
+    UnlockSheet ws
+    For i = lo.ListRows.Count To 2 Step -1
+        lo.ListRows(i).Delete
+    Next i
+    For Each c In lo.ListRows(1).Range.Cells
+        If Not c.HasFormula Then c.ClearContents
+    Next c
+    RelockSheet ws
+    Invalidate
+    AppOn
+End Sub
+
 ' ---------------------------------------------------- standard sizes name ---
 ' A workbook-scoped name for tblStandardSizes[Size name], re-created (delete
 ' then re-add, same idiom modInit.EnsureLocName uses) rather than referenced

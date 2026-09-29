@@ -200,8 +200,19 @@ End Function
 ' into a catalogue table emptied down to zero rows by hand (modBackup,
 ' snag 4a) - the first code path in this project to actually hit that state.
 Public Function IsBlankRow(ByVal lo As ListObject, ByVal RowNo As Long) As Boolean
+    Dim typed As Range
     If RowNo < 1 Or RowNo > lo.ListRows.Count Then Exit Function
-    IsBlankRow = (Application.WorksheetFunction.CountA(lo.ListRows(RowNo).Range) = 0)
+    ' "Blank" means nothing has been TYPED. CountA counts a calculated-column
+    ' formula that returns "" as non-blank, so a Papers row (Measure and Cost
+    ' unit are formula columns) could never read as blank even when every
+    ' cell a person fills in was empty - found 2026-09-29 building Clear table:
+    ' the row it leaves behind was never recognised as empty, so RowCount
+    ' reported 1 and AddCatalogRow added a second row instead of reusing it.
+    ' Only constants count; SpecialCells raises 1004 when there are none.
+    On Error Resume Next
+    Set typed = lo.ListRows(RowNo).Range.SpecialCells(xlCellTypeConstants)
+    On Error GoTo 0
+    IsBlankRow = (typed Is Nothing)
 End Function
 
 ' ------------------------------------------------------------------- names ---

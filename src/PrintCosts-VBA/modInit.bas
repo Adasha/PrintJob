@@ -132,16 +132,19 @@ Public Sub InitialiseWorkbook()
             EnsureTableGap ws, "tblPrinters", 6
             DrawOne ws, 4, 1, "Add row", "btnAddRowPrinters", 110
             DrawOne ws, 4, 3, "Remove row", "btnRemoveRowPrinters", 110
+            DrawOne ws, 4, 5, "Clear table", "btnClearPrinters", 110
             SetFreeze ws, ""
         ElseIf StrComp(ws.Name, "Papers", vbTextCompare) = 0 Then
             EnsureTableGap ws, "tblPapers", 6
             DrawOne ws, 4, 1, "Add row", "btnAddRowPapers", 110
             DrawOne ws, 4, 3, "Remove row", "btnRemoveRowPapers", 110
+            DrawOne ws, 4, 5, "Clear table", "btnClearPapers", 110
             SetFreeze ws, ""
         ElseIf StrComp(ws.Name, "Print Technicians", vbTextCompare) = 0 Then
             EnsureTableGap ws, "tblTechnicians", 6
             DrawOne ws, 4, 1, "Add row", "btnAddRowTechnicians", 110
             DrawOne ws, 4, 3, "Remove row", "btnRemoveRowTechnicians", 110
+            DrawOne ws, 4, 5, "Clear table", "btnClearTechnicians", 110
             SetFreeze ws, ""
         ElseIf StrComp(ws.Name, "Settings", vbTextCompare) = 0 Then
             ' The eight action buttons used to run down the right-hand side of

@@ -132,9 +132,12 @@ Technicians, Printers, Papers and Settings from the tab bar (not full Excel
 protection - Unhide still reaches them). Click it again, now labelled "Show
 settings sheets", to bring them back.
 
-**Add row/Remove row buttons** sit above the Printers, Papers and Print
+**Add row/Remove row/Clear table buttons** sit above the Printers, Papers and Print
 Technicians tables. Removing a row never affects a print job already
-recorded against it - every job snapshots the price it was costed at. The
+recorded against it - every job snapshots the price it was costed at.
+**Clear table** empties that one sheet's table (after a warning naming what
+will be deleted) so a bureau can start that list afresh; the other sheets are
+not touched and it cannot be undone, so use Backup workbook first if unsure. The
 smaller lookup tables on the Settings sheet (paper types, paper families,
 standard sizes, consumables) don't have their own buttons; their cells are
 unlocked, so a row added the normal Excel Table way (Tab at the last cell,

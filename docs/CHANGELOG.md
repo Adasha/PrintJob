@@ -3,6 +3,21 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.10.2 - Clear table on Print Technicians, Printers and Papers, direct user
+request: lets a bureau empty ONE of these lists to start it afresh without
+touching the others.
+  - modCatalog.ClearCatalogTable asks first (default No): names the table,
+    row count and the first five rows, and warns it cannot be undone
+    (suggests Backup workbook). Printers/Papers add a table-specific note.
+  - modCatalog.DoClearCatalogTable is the unprompted core: audit entry,
+    deletes rows 2..n, clears row 1 (formula cells skipped), Invalidate.
+    Leaves one blank row, as modJobs.ClearAll does; AddCatalogRow reuses it.
+  - modMain btnClearTechnicians/Printers/Papers; buttons drawn by
+    modInit.InitialiseWorkbook next to Add row/Remove row.
+  - Recorded jobs are unaffected (frozen S_* prices). Settings lookup tables
+    do not get the button.
+  - New test-clearcatalog.ps1.
+
 0.10.1 - student-supplied stock made built in, direct
 user request: the "Supplied (Roll)"/"Supplied (Sheet)" rows could be deleted
 from the Papers sheet and were only restored by Setup, and nothing stopped
