@@ -3,6 +3,25 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.10.10 - Location sheets: disregard-cost defaults moved to the left with the
+other options, direct user request.
+  - "Disregard paper" and "Disregard consumable" (LOC_DefDisPaper/
+    LOC_DefDisCons) now sit at A6:B7, directly under Default: paper, instead
+    of in the side panel (AM3/AM4). A blank row 8 is the gap that sets them
+    apart from the roll-unit setting, printers display and job count, which
+    move down to A9:B11.
+  - modInit.EnsureToolbarGap now makes the header row 15 (two rows inserted
+    at row 9, was one row to reach 13); toolbar is row 13. DrawLocationButtons
+    uses TOOLBAR_ROW. modInit.EnsureConfigLayout (new, setup-time) Cuts A6:B8
+    to A9:B11 so values, validation, formats and LOC_RollUnit travel with
+    them, carries the two disregard values across and repoints the names.
+    Idempotent; does nothing until the toolbar gap exists.
+  - EnsureJobDefaults, EnsureRollUnitSetting, EnsurePrintersDisplay and
+    EnsureJobCountDisplay write to the new cells. Everything else reads these
+    by name, so no other code changed. AL3:AM4 in the side panel is now empty.
+  - No schema change, no migration (workbook not released). Needs a rebuild
+    (build.ps1); Refresh Locations alone will not rearrange an older build.
+
 0.10.9 - Location sheets: Status column shortened, full message on hover,
 direct user request.
   - Status is now 120px (was 248). The full message shows in a hover note on

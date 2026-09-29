@@ -32,6 +32,10 @@ Private Const SIDE_PANEL_COL As Long = 36
 ' a Sub/Function has already appeared in the source left this workbook
 ' failing to compile ("Variable not defined") even though the declaration
 ' itself was syntactically fine on its own.
+' Location sheet's toolbar row and the row the job table's header must sit
+' on (toolbar + 2, one blank row between) - see EnsureToolbarGap.
+Private Const TOOLBAR_ROW As Long = 13
+Private Const TABLE_HEADER_ROW As Long = 15
 Private Const REDUCED_COLUMNS_DEFAULT As String = "Status;Job ID;Printer;Area m2;Disregard Paper;Disregard Consumable;S_SchemaVer"
 
 ' SidePanelButtonLayout's own inputs (2026-09-27, cost-columns toggle) -
@@ -99,6 +103,7 @@ Public Sub InitialiseWorkbook()
         ClearButtons ws
         If IsLocation(ws) Then
             EnsureToolbarGap ws
+            EnsureConfigLayout ws
             DrawLocationButtons ws
             ConfigValidation ws
             EnsureJobDefaults ws
@@ -266,13 +271,13 @@ Fail:
 End Sub
 
 Private Sub DrawLocationButtons(ByVal ws As Worksheet)
-    ' The placeholder labels sit on row 10 in the shipped .xlsx, but
-    ' EnsureToolbarGap (called just before this, per-sheet) has already
-    ' inserted one blank row above it - direct user feedback, testing the
-    ' 2026-09-25 rework below, that the toolbar needed breathing room from
-    ' the config block ending at row 9 - so by the time this runs the
-    ' toolbar's real row is 11. Two columns apart; buttons are drawn over the
-    ' (now-shifted) placeholders and the labels cleared.
+    ' The toolbar's row is TOOLBAR_ROW (13). EnsureToolbarGap (called just
+    ' before this, per-sheet) has already made room for it: the shipped .xlsx
+    ' has the toolbar at row 11, and the config block grew by two rows
+    ' (2026-09-29, disregard-cost defaults moved into A6:B7 with a spacer
+    ' row, see EnsureConfigLayout), so two blank rows are inserted above it.
+    ' Two columns apart; buttons are drawn over the (now-shifted)
+    ' placeholders and the labels cleared.
     '
     ' Layout fix (2026-09-25, user-reported): a button anchored over a column
     ' the reduced-clutter view hides (§4.1's known gap) vanishes along with
@@ -295,13 +300,13 @@ Private Sub DrawLocationButtons(ByVal ws As Worksheet)
     ' what keeps it nestled between the other two instead of past both of
     ' them. Now moves from 3 to 5 to make room - its own 110pt overflows
     ' column 5 (Printer) the same harmless way it used to overflow column 3.
-    DrawOne ws, 11, 1, "Add Print Job", "btnAddPrintJob", 110
-    DrawOne ws, 11, 3, "Repeat Job", "btnRepeatJob", 110
-    DrawOne ws, 11, 5, "Now", "btnNow", 110
+    DrawOne ws, TOOLBAR_ROW, 1, "Add Print Job", "btnAddPrintJob", 110
+    DrawOne ws, TOOLBAR_ROW, 3, "Repeat Job", "btnRepeatJob", 110
+    DrawOne ws, TOOLBAR_ROW, 5, "Now", "btnNow", 110
 
     Dim c As Long
     For c = 1 To 15
-        With ws.Cells(11, c)
+        With ws.Cells(TOOLBAR_ROW, c)
             .ClearContents
             .Interior.Pattern = xlNone
         End With
@@ -427,25 +432,82 @@ Private Sub ConfigValidation(ByVal ws As Worksheet)
     RelockSheet ws
 End Sub
 
-' A single blank row between the configuration block (ends row 9, since the
-' 2026-09-25 layout rework, above) and the toolbar - direct user feedback
-' after testing that rework: with the table's header reverting to its
-' originally-shipped row 12 (EnsureJobTableGap removed), the toolbar sat
-' flush against Print jobs (row 9) with no breathing room. Narrower in scope
-' than the old EnsureJobTableGap this replaces - one row, not two, since
-' only the toolbar needs separating from the config block now, not a whole
-' extra defaults row - but the same idiom: checked-first via the table's own
-' row, so it is safe to call on a sheet that has already been migrated.
-' Setup-time only (InitialiseWorkbook), not RefreshLocations - a duplicated
-' sheet already carries the gap with it, same as the block above it.
+' Room for the configuration block above the toolbar (2026-09-29). The block
+' now runs to row 11 (A1:B11 - see EnsureConfigLayout for what sits where),
+' and the toolbar needs one blank row of breathing room below it (2026-09-25
+' user feedback: flush against the block it looked cramped), so the job
+' table's header must sit on TABLE_HEADER_ROW (15) with the toolbar on 13.
+' The shipped .xlsx has the header on row 13, so two blank rows are inserted
+' at row 9 - CopyOrigin from below so they take the plain blank formatting of
+' the old spare row 9, not the "Print jobs" row above. Checked-first via the
+' table's own row, so it is safe to call on a sheet that is already at (or
+' past) the target. Setup-time only (InitialiseWorkbook), not
+' RefreshLocations - a duplicated sheet already carries the gap with it.
 Public Sub EnsureToolbarGap(ByVal ws As Worksheet)
-    Dim lo As ListObject
+    Dim lo As ListObject, n As Long
     Set lo = JobsTable(ws)
     If lo Is Nothing Then Exit Sub
-    If lo.Range.Row >= 13 Then Exit Sub
+    n = TABLE_HEADER_ROW - lo.Range.Row
+    If n <= 0 Then Exit Sub
 
     UnlockSheet ws
-    ws.Rows(10).Insert Shift:=xlDown
+    ws.Rows(9).Resize(n).Insert Shift:=xlDown, CopyOrigin:=xlFormatFromRightOrBelow
+    RelockSheet ws
+End Sub
+
+' Moves the two disregard-cost defaults out of the side panel (AM3/AM4) and
+' into the main A/B block (2026-09-29, user request: they belong on the left
+' with the other options). Resulting layout of A1:B11:
+'   1 Print room        7 Disregard consumable (LOC_DefDisCons)
+'   2 Department        8 (blank spacer)
+'   3 Default: technician  9 Roll length unit (LOC_RollUnit)
+'   4 Default: printer    10 Printers at this location
+'   5 Default: paper      11 Print jobs
+'   6 Disregard paper (LOC_DefDisPaper)
+' The blank row 8 is the small gap that sets the two disregard defaults
+' apart from the per-job selectors above them and the settings below.
+'
+' Roll unit / printers display / job count (A6:B8 in the shipped file) are
+' Cut to A9:B11 rather than rewritten, so their values, validation, formats
+' and the LOC_RollUnit name all travel with them. The two disregard values
+' are read before their side-panel cells are cleared and written to the new
+' cells afterwards; EnsureJobDefaults (labels, styling) and ConfigValidation
+' (Yes/No list) then finish the job. Idempotent: does nothing once both
+' names already point at column B, and nothing until EnsureToolbarGap has
+' made room (header on TABLE_HEADER_ROW) - so it can never Cut over the
+' toolbar. Setup-time only, like EnsureToolbarGap.
+Public Sub EnsureConfigLayout(ByVal ws As Worksheet)
+    Dim lo As ListObject, dp As Range, dc As Range, roll As Range
+    Dim vp As Variant, vc As Variant, c As Variant
+
+    Set lo = JobsTable(ws)
+    If lo Is Nothing Then Exit Sub
+    If lo.Range.Row < TABLE_HEADER_ROW Then Exit Sub
+
+    Set dp = LocRange(ws, "LOC_DefDisPaper")
+    Set dc = LocRange(ws, "LOC_DefDisCons")
+    If dp Is Nothing Or dc Is Nothing Then Exit Sub
+    If dp.Column = 2 And dc.Column = 2 Then Exit Sub
+
+    vp = dp.Value
+    vc = dc.Value
+
+    UnlockSheet ws
+    Set roll = LocRange(ws, "LOC_RollUnit")
+    If Not roll Is Nothing Then
+        If roll.Row = 6 Then ws.Range("A6:B8").Cut Destination:=ws.Range("A9:B11")
+    End If
+
+    ' Old side-panel cells: label (left neighbour) and value, wiped whole.
+    For Each c In Array(dp, dc)
+        c.Validation.Delete
+        ws.Range(c.Offset(0, -1), c).Clear
+    Next c
+
+    EnsureLocName ws, "LOC_DefDisPaper", "$B$6"
+    EnsureLocName ws, "LOC_DefDisCons", "$B$7"
+    ws.Range("B6").Value = vp
+    ws.Range("B7").Value = vc
     RelockSheet ws
 End Sub
 
@@ -509,6 +571,21 @@ Public Sub EnsureJobDefaults(ByVal ws As Worksheet)
     StyleInputCell ws.Range("B3")
     StyleInputCell ws.Range("B4")
     StyleInputCell ws.Range("B5")
+
+    ' The two disregard-cost defaults (2026-09-29, moved here from the side
+    ' panel - see EnsureConfigLayout). Yes/No, seeded onto each new job like
+    ' the selectors above but not cleared by Clear defaults. Row 8 is left
+    ' blank as a gap between these and the roll-unit setting below. Labels
+    ' match the job table's own "Disregard Paper"/"Disregard Consumable"
+    ' headers and fit column A without clipping.
+    ws.Range("A6").Value = "Disregard paper"
+    ws.Range("A6").Font.Bold = True
+    ws.Range("A7").Value = "Disregard consumable"
+    ws.Range("A7").Font.Bold = True
+    EnsureLocName ws, "LOC_DefDisPaper", "$B$6"
+    EnsureLocName ws, "LOC_DefDisCons", "$B$7"
+    StyleInputCell ws.Range("B6")
+    StyleInputCell ws.Range("B7")
     RelockSheet ws
 
     ' Both directions of spec 1a's filtering apply here too (spec 1b: "these
@@ -535,13 +612,13 @@ End Sub
 ' Qty exactly as before and has no idea this setting exists.
 Public Sub EnsureRollUnitSetting(ByVal ws As Worksheet)
     UnlockSheet ws
-    ws.Range("A6").Value = "Roll length unit"
-    ws.Range("A6").Font.Bold = True
+    ws.Range("A9").Value = "Roll length unit"
+    ws.Range("A9").Font.Bold = True
 
-    EnsureLocName ws, "LOC_RollUnit", "$B$6"
+    EnsureLocName ws, "LOC_RollUnit", "$B$9"
 
     Dim c As Range
-    Set c = ws.Range("B6")
+    Set c = ws.Range("B9")
     If Len(Trim$(CStr(c.Value))) = 0 Then c.Value = "Metres"
     StyleInputCell c
     With c.Validation
@@ -576,8 +653,8 @@ End Sub
 ' job count below.
 Public Sub EnsurePrintersDisplay(ByVal ws As Worksheet)
     UnlockSheet ws
-    ws.Range("A7").Value = "Printers at this location"
-    ws.Range("A7").Font.Bold = True
+    ws.Range("A10").Value = "Printers at this location"
+    ws.Range("A10").Font.Bold = True
 
     ' Built with Chr(34) rather than a hand-escaped string literal - the
     ' quote-doubling needed to embed this many nested string arguments in a
@@ -588,13 +665,13 @@ Public Sub EnsurePrintersDisplay(ByVal ws As Worksheet)
     '   " ("&SUBSTITUTE(list,";",", ")&")"))
     Dim q As String
     q = Chr(34)
-    ws.Range("B7").Formula2 = "=LET(list,LOC_Printers,n,IF(list=" & q & q & _
+    ws.Range("B10").Formula2 = "=LET(list,LOC_Printers,n,IF(list=" & q & q & _
         ",0,LEN(list)-LEN(SUBSTITUTE(list," & q & ";" & q & "," & q & q & _
         "))+1),IF(n=0," & q & "0 printers ()" & q & ",n&" & q & " printer" & _
         q & "&IF(n=1," & q & q & "," & q & "s" & q & ")&" & q & " (" & q & _
         "&SUBSTITUTE(list," & q & ";" & q & "," & q & ", " & q & ")&" & q & _
         ")" & q & "))"
-    ws.Range("B7").Locked = True
+    ws.Range("B10").Locked = True
     RelockSheet ws
 End Sub
 
@@ -614,11 +691,11 @@ Public Sub EnsureJobCountDisplay(ByVal ws As Worksheet)
     If lo Is Nothing Then Exit Sub
 
     UnlockSheet ws
-    ws.Range("A8").Value = "Print jobs"
-    ws.Range("A8").Font.Bold = True
-    ws.Range("A8").HorizontalAlignment = xlRight
-    ws.Range("B8").Formula = "=ROWS(" & lo.Name & ")"
-    ws.Range("B8").Locked = True
+    ws.Range("A11").Value = "Print jobs"
+    ws.Range("A11").Font.Bold = True
+    ws.Range("A11").HorizontalAlignment = xlRight
+    ws.Range("B11").Formula = "=ROWS(" & lo.Name & ")"
+    ws.Range("B11").Locked = True
     RelockSheet ws
 End Sub
 

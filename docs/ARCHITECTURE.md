@@ -179,16 +179,16 @@ The schema version is load-bearing: it is what an importer or aggregator checks 
 ### 4.1 Layout
 
 ```
-Rows 1–7    Configuration block, columns A/B only (see the 2026-09-25
+Rows 1–11   Configuration block, columns A/B only (see the 2026-09-25
             rework below): room name, department, the three per-job
-            default selectors, roll-unit setting, permitted-printers
-            display
-Row 8       Live job count
-Row 10      Blank gap (EnsureToolbarGap, 2026-09-25 - user-reported: no
+            default selectors, the two disregard-cost defaults (rows 6–7,
+            2026-09-29), a blank spacer (row 8), roll-unit setting,
+            permitted-printers display, live job count (rows 9–11)
+Row 12      Blank gap (EnsureToolbarGap, 2026-09-25 - user-reported: no
             breathing room otherwise)
-Row 11      Toolbar (Form Control buttons)
-Row 13      Table header
-Row 14+     tblJobs_<CODE> body
+Row 13      Toolbar (Form Control buttons)
+Row 15      Table header
+Row 16+     tblJobs_<CODE> body
 ```
 
 | Cell | Name | Content |
@@ -198,12 +198,14 @@ Row 14+     tblJobs_<CODE> body
 | B3 | `LOC_DefTech` | Batch default Technician — pre-fills each new job until cleared |
 | B4 | `LOC_DefPrinter` | Batch default Printer — same bidirectional filtering as the table cells (§7.2) |
 | B5 | `LOC_DefPaper` | Batch default Paper Stock — same bidirectional filtering as the table cells (§7.2) |
-| B6 | `LOC_RollUnit` | Roll-stock `Qty` entry unit, Metres/Centimetres (default Metres) — always converted to and stored as metres, see below |
-| B7 | — | Permitted-printers display, `"N printers (comma, separated, list)"` — a read-only `LET` formula over `LOC_Printers` (below), not the named range itself (2026-09-25, swapped with Sheet status/Export, see below) |
-| B8 | — | Live count of jobs on the sheet, `=ROWS(tblJobs_<CODE>)` — a genuine formula, re-written whenever the table is renamed so it never goes stale |
+| B6 | `LOC_DefDisPaper` | Default disregard paper cost (Yes/No) — moved here from the side panel 2026-09-29; seeds each new job, not cleared by Clear defaults |
+| B7 | `LOC_DefDisCons` | Default disregard consumable cost (Yes/No) — same |
+| Row 8 | — | Blank spacer, sets the two disregard defaults apart from the settings below |
+| B9 | `LOC_RollUnit` | Roll-stock `Qty` entry unit, Metres/Centimetres (default Metres) — always converted to and stored as metres, see below (was B6 until 2026-09-29) |
+| B10 | — | Permitted-printers display, `"N printers (comma, separated, list)"` — a read-only `LET` formula over `LOC_Printers` (below), not the named range itself (2026-09-25, swapped with Sheet status/Export, see below) |
+| B11 | — | Live count of jobs on the sheet, `=ROWS(tblJobs_<CODE>)` — a genuine formula, re-written whenever the table is renamed so it never goes stale |
 | AM2 | `LOC_Code` | Location code (auto-assigned, read-only) — side panel |
-| AM3 | `LOC_DefDisPaper` | Default disregard paper cost (Yes/No) — side panel |
-| AM4 | `LOC_DefDisCons` | Default disregard consumable cost (Yes/No) — side panel |
+| AM3:AM4 | — | Empty since 2026-09-29 (the disregard defaults moved to B6/B7) |
 | AM5 | `LOC_Status` | Validation summary for the sheet — side panel (2026-09-25, was B7) |
 | AM6 | `LOC_Export` | Export status — side panel (2026-09-25, was B8) |
 | AM7 | `LOC_Printers` | Permitted printers, raw semicolon-delimited list — side panel (2026-09-25, was AM5). What `modPicker`'s Select printers… dialog actually writes and `modCatalog`'s compatibility checks actually read; `B7`'s friendly display derives from this, never the other way round |
@@ -212,6 +214,8 @@ Row 14+     tblJobs_<CODE> body
 `LOC_Export` is deliberately separate from `LOC_Status`: validation and export state are independent, and a sheet can easily be valid and unexported at once. Both are derived and rewritten, never typed. `LOC_Export`'s name is created by `modExport` on every refresh rather than shipped in the `.xlsx`, so a duplicated or renamed sheet gets a correct one without hand surgery.
 
 **Field swap (2026-09-25, user request) — Sheet status/Export move to the side panel; the permitted-printers list moves the other way, reformatted for people rather than code.** `modInit.EnsurePrintersDisplay` (new) writes `B7`'s `LET` formula fresh on every run (same self-healing reasoning as the job count), reading `LOC_Printers` wherever it currently is rather than assuming a cell — count-then-list, correct singular ("1 printer") vs plural. `LOC_Printers` itself is untouched functionally: still the exact semicolon-delimited string `modPicker.bas`'s multi-select dialog writes with a plain `.Value =` and `modCatalog.bas`'s two compatibility-check call sites read, just relocated to the side panel under its own label so the picker's write target moves with it automatically (name-based access throughout, never a hardcoded cell). `modExport.EXPORT_CELL` moved from `$B$8` to `$AM$6` — a one-line constant change, since `RefreshExportStatus` already writes its own "Export" label via `Offset(0, -1)` rather than a second hardcoded address, so the label followed the value without a separate edit. The live job count (§ above, added 0.9.17 at `A9`/`B9`) moves up to `A8`/`B8`, the row Export vacated.
+
+**Disregard-cost defaults back on the left (2026-09-29, user request; v0.10.10).** `LOC_DefDisPaper`/`LOC_DefDisCons` left the side panel for `A6:B7`, under Default: paper, with a blank spacer row 8 separating them from the settings below; roll unit, printers display and job count moved from rows 6–8 to 9–11. `modInit.EnsureToolbarGap` now guarantees the table header is on row 15 (two rows inserted at row 9 from the shipped file's row 13; toolbar row 13, named `TOOLBAR_ROW`). `modInit.EnsureConfigLayout` (setup-time, idempotent, no-op until the gap exists) `Cut`s `A6:B8` to `A9:B11` — so the roll unit's value, validation, formats and `LOC_RollUnit` name move with it — carries the disregard values across from the side-panel cells, clears those, and repoints the two names; `EnsureJobDefaults` supplies labels/styling and `ConfigValidation` the Yes/No list. Column A/B are never in a reduced-view hide list, so both stay visible. Everything else reaches these cells by name. `PrintCosts.xlsx` still ships the old positions; the setup run rearranges them, so a rebuild (`build.ps1`) is required — Refresh Locations alone does not migrate an older build.
 
 **Toolbar gap (2026-09-25, user-reported, same day as the field swap above).** With `EnsureJobTableGap` removed (above) the toolbar sat flush against row 9 with no breathing room. `modInit.EnsureToolbarGap` (new, replaces it in miniature) inserts a single blank row above the toolbar — one row, not two, since only the toolbar needs separating from the block now, not a whole extra defaults row. Toolbar moves from row 10 to row 11; the table header follows naturally, from row 12 to row 13.
 
@@ -229,7 +233,7 @@ The fix generalises rather than relocates-and-hopes: **columns A and B never app
 
 Duplicating a location sheet (§4.4) copies whatever values are currently sitting in the defaults, same as it copies `LOC_Name`/`LOC_DefDisPaper` — the documented add-location procedure now clears them alongside **Clear All**.
 
-**Side panel (2026-09-25) — Location code, the two disregard-cost defaults and the permitted-printers list, columns AL/AM (38/39).** Hand-edited directly into `PrintCosts.xlsx` (both shipped location sheets) rather than self-provisioned — these are the same shipped named ranges they always were, just repointed to their new cells. None of the four are used per-job, unlike the selectors above, so relocating them cost nothing in day-to-day use. The explanatory prose that used to sit at `D3` (about the **Select printers…** button) moved to `AL6` alongside the relocated printers list; `D1`/`D2` (heading, and the "defaults seed each new print job" note) stayed put, since they still describe what's now directly below them.
+**Side panel (2026-09-25) — Location code, the two disregard-cost defaults and the permitted-printers list, columns AL/AM (38/39).** *(The two disregard-cost defaults moved back to `A6:B7` on 2026-09-29 — see above.)* Hand-edited directly into `PrintCosts.xlsx` (both shipped location sheets) rather than self-provisioned — these are the same shipped named ranges they always were, just repointed to their new cells. None of the four are used per-job, unlike the selectors above, so relocating them cost nothing in day-to-day use. The explanatory prose that used to sit at `D3` (about the **Select printers…** button) moved to `AL6` alongside the relocated printers list; `D1`/`D2` (heading, and the "defaults seed each new print job" note) stayed put, since they still describe what's now directly below them.
 
 **Occasional-use toolbar buttons — Remove Row, Select printers…, Check this sheet, Clear All, Export…, Import…, the reduced-view toggle, and (joined 2026-09-27) the cost-columns toggle, all eight sharing column `SIDE_PANEL_COL` (36) (2026-09-25, extended 2026-09-27 — see §16.3's "button lag" writeup for why the cost-columns toggle joined this list).** Same reasoning as the cell-content move above, applied to buttons: past the table's own columns entirely, so `ApplyColumnVisibility` can never reach them regardless of what `SET_LOC_REDUCED_COLUMNS` names. Only Add Print Job and Now stay on the toolbar proper (row 11, next to the table — moved from row 10 by the toolbar-gap fix below) as the two used on every single job entry. `SIDE_PANEL_COL` was also widened (`ColWidthForPx(210)`, user-reported): a `Buttons.Add` shape's own width is independent of its anchor column's width, so at the column's previous narrow width every 140pt button sprawled two-three columns rightward, straight over the settings block at `AL`/`AM` — blocking its dropdown arrows from being clicked as well as visibly overlapping it. Widening the column keeps every button's footprint contained within its one column.
 
@@ -572,7 +576,7 @@ They cannot use `SUMIFS` for the breakdowns below — its arguments must be rang
 |---|---|
 | Summary | Refresh Locations, Check workbook, **Hide/Show settings sheets** (Go to Settings removed, 2026-09-22 — see §16.4) |
 | Settings | Two rows of four, below `tblSettings` (0.9.12, §16.4 addendum): Refresh Locations, Check workbook, Re-stamp prices…, About / Export All Locations…, Import (choose room)…, **Backup workbook…**, **Restore workbook…** (§10.7) |
-| Each location | Add Print Job, Now (toolbar, row 11); Remove Row, Select printers…, Check this sheet, Clear All, Export…, Import…, **Reduce clutter / Show all columns** (side panel, §4.1, 2026-09-25); **Clear defaults** (row 4, over Technician) |
+| Each location | Add Print Job, Now (toolbar, row 13); Remove Row, Select printers…, Check this sheet, Clear All, Export…, Import…, **Reduce clutter / Show all columns** (side panel, §4.1, 2026-09-25); **Clear defaults** (row 4, over Technician) |
 | Reports | **Export report…**, **Delete visible records…** (column T, rows 1 and 3); **Mark all as…** cluster — label `O1`, **Paid** (row 2) and **Unpaid** (row 3) buttons (§10.9) |
 
 Settings keeps its own copies deliberately: it is where someone lands when configuring, and *Re-stamp prices* and *About* belong nowhere else. Export report / Delete visible records sit at the top of the Reports sheet (rows 1 and 3, column T since 2026-09-26; the *Mark all as…* cluster just left of them at column O), inside the first screenful, above the filter rows.

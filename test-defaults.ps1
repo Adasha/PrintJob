@@ -67,6 +67,20 @@ try {
     }
     Check ([string]$main.Range('A3').Text -eq 'Default: technician') "A3 label reads correctly (got '$($main.Range('A3').Text)')"
 
+    # Disregard-cost defaults sit under Default: paper (2026-09-29), row 8 is a blank spacer,
+    # and the settings below moved down to rows 9-11.
+    $layout = @{ LOC_DefDisPaper = 6; LOC_DefDisCons = 7; LOC_RollUnit = 9 }
+    foreach ($nm in $layout.Keys) {
+        $found = $false
+        try { $r = $main.Names.Item($nm).RefersToRange; $found = ($r.Row -eq $layout[$nm] -and $r.Column -eq 2) } catch {}
+        Check $found "$nm refers to B$($layout[$nm])"
+    }
+    Check ([string]$main.Range('A6').Text -eq 'Disregard paper') "A6 label reads correctly (got '$($main.Range('A6').Text)')"
+    Check ([string]$main.Range('A7').Text -eq 'Disregard consumable') "A7 label reads correctly (got '$($main.Range('A7').Text)')"
+    Check ([string]$main.Range('A8').Text -eq '' -and [string]$main.Range('B8').Text -eq '') 'Row 8 is a blank spacer'
+    Check ([string]$main.Range('A9').Text -eq 'Roll length unit') "A9 label reads correctly (got '$($main.Range('A9').Text)')"
+    Check ([string]$main.Range('A11').Text -eq 'Print jobs') "A11 label reads correctly (got '$($main.Range('A11').Text)')"
+
     # ------------------------------------------------------------- pre-fill
     Write-Host ''
     Write-Host '=== Setting defaults pre-fills subsequently added jobs ==='
