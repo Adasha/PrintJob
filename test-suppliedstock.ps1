@@ -45,7 +45,7 @@ try {
         for ($i = 1; $i -le $lo.ListColumns.Count; $i++) {
             if ($lo.ListColumns($i).Name -eq $name) { return $i }
         }
-        throw "column '$name' not found"
+        $have = @(); for ($k = 1; $k -le $lo.ListColumns.Count; $k++) { $have += $lo.ListColumns($k).Name }; throw "column '$name' not found in table '$($lo.Name)' (columns: $($have -join ', '))"
     }
     $prnCol = Col $lo 'Printer'
     $stkCol = Col $lo 'Paper Stock'
@@ -184,8 +184,8 @@ try {
         for ($i = 1; $i -le $pap.ListRows.Count; $i++) { if ([string]$pap.DataBodyRange.Cells($i, $dc).Value2 -eq $desc) { $n++ } }
         return $n
     }
-    function SetPap($row, $name, $val) { $pap.DataBodyRange.Cells($row, (Col $pap $name)).Value2 = $val }
-    function GetPap($row, $name) { return $pap.DataBodyRange.Cells($row, (Col $pap $name)).Value2 }
+    function SetPap($row, $name, $val) { $c = Col $pap $name; if ($val -is [int]) { $val = [double]$val }; try { $cell = $pap.ListRows($row).Range.Cells(1, $c); if ($val -is [double]) { $cell.Formula = $val.ToString([Globalization.CultureInfo]::InvariantCulture) } else { $cell.Value2 = $val } } catch { Write-Host "SetPap FAILED row=$row col=$name($c) val=$val type=$($val.GetType().Name): $($_.Exception.Message)"; throw } }
+    function GetPap($row, $name) { $c = Col $pap $name; return $pap.ListRows($row).Range.Cells(1, $c).Value2 }
 
     # A workbook built before this change still carries the two rows until
     # Setup runs; the migration is what Setup calls.
