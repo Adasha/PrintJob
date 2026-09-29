@@ -176,10 +176,7 @@ job IDs already carry it.
 | `probe.ps1` | Structure of a workbook, read-only. No arguments: every sheet, table, column and defined name. `-Sheet Settings`: that sheet cell by cell, with its tables and buttons — use before placing anything new. `-File` to point it at the `.xlsm` |
 | `verify.ps1` | Opens the built `.xlsm` **read-only** and reports version, document properties, tables, registry, the consolidated range and button bindings |
 | `test-duplicate.ps1` | AT-13. Duplicates a print room in VBA, refreshes, reports, and closes without saving |
-| `lockcheck.ps1` | Who is holding the `.xlsm`: Excel processes, owner lock files, and an exclusive-write test |
-| `xlfnscan.ps1` | Every `_xlfn.` / `_xlws.` occurrence in the workbook's XML, including hidden sheets, conditional formatting and data validation |
 | `test-reports.ps1` | Drives the Reports criteria (including Technician/Printer/Paper Stock/Quantity and sort-by-column) through every AT-12 case, and reports the regrouped Summary and breakdown figures. Closes without saving |
-| `filecheck.ps1` | Integrity of the `.xlsx`, `.xlsm` and every backup: size, VBA project present, sheet count, declared type, version stamp |
 | `test-export.ps1` | Phase 6. Exports a print room, reads the CSV back, edits a row and confirms the fingerprint notices |
 | `test-validation.ps1` | Phase 7. AT-11, AT-14 and AT-16 — the conflict warning, the Clear All confirmation, and inactive-record behaviour |
 | `test-nextid.ps1` | The persisted Job ID high-water mark: deleting the top row must not reissue its ID, and the mark must survive RefreshLocations |
@@ -221,7 +218,7 @@ sync operations settled. It is Excel-side only, and `verify.ps1` has documented
 the first half of it since phase 5, which is why that script and `probe.ps1`
 open the workbook **read-only** — the other way to be safe. The four `test-*`
 scripts need read-write to drive mutating macros, so a throwaway copy is what
-is left. `diag.ps1` uses one too, for the same reason.
+is left.
 
 The consequence was quiet and worth knowing about: the phase 5–7 test runs were
 rewriting the artefact they validated, so a later run read the earlier run's
@@ -312,7 +309,7 @@ timestamp and setting OneDrive syncing on every run.
 **Never pipe these scripts into `Select-Object -First`.** It tears down the
 pipeline as soon as it has enough lines, which kills the script before its
 cleanup runs and leaves an Excel process holding the workbook open — OneDrive
-then sits on "sync pending" while insisting it is up to date. `lockcheck.ps1`
+then sits on "sync pending" while insisting it is up to date. Listing Excel's processes (`Get-Process excel`)
 is how you find that, and killing the orphaned process is how you clear it.
 
 ## What is not built yet

@@ -989,11 +989,7 @@ Two things the automation buys beyond convenience: a **compile check** (running 
 | `test-catalogids.ps1` | Site-prefixed catalogue IDs: every named row has a unique well-formed ID; Add row and typed rows are allocated the next number and a deleted ID is never reissued; restoring another site's catalogue adds rows (renaming clashing names to `Name (SITE)`), overwrites nothing, is idempotent, and does not wind the counters back |
 | `test-import.ps1` | Export All Locations, and Import restoring into origin and into a different room |
 | `test-deletereports.ps1` | Export report (the static-value `.xlsx` snapshot) and the Reports-page bulk delete, including the audit log entry |
-| `filecheck.ps1` | Integrity of the `.xlsx`, `.xlsm` and every backup |
-| `lockcheck.ps1` | Who is holding the `.xlsm` |
-| `xlfnscan.ps1` | Every `_xlfn.` / `_xlws.` occurrence in the package |
 | `prune-backups.ps1` | Keeps the N most recent backups |
-| `diag.ps1` | Ad-hoc diagnostics, driving a `%TEMP%` copy like the test scripts |
 
 **Every test script drives a copy in `%TEMP%`, never `src\PrintCosts.xlsm` directly** — required because `Workbook_Open` does real work on every open (`ProtectAll`, `Invalidate`, `HealButtons`), and because this file is held through a **cloud-backed handle**: AutoSave commits those changes immediately, so `$wb.Saved` reads `True` on the line right after `Open` despite every sheet having just been modified, and the bytes land at `Close`/`Quit` regardless of `Close($false)` or a late `AutoSaveOn = $false`. This is not the sync client — it reproduces with syncing paused and settled. `probe.ps1` and `verify.ps1` sidestep it entirely by opening **read-only**.
 
