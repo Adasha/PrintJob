@@ -636,179 +636,127 @@ End Sub
 ' picker all restore them. Qty's message depends on the room's LOC_RollUnit, which
 ' is why this is code rather than only what the .xlsx ships.
 Public Sub EnsureJobColumnValidation(ByVal ws As Worksheet, ByVal lo As ListObject)
-    Dim paidCol As ListColumn
+    Dim dateMsg As String, qtyMsg As String
     If lo.DataBodyRange Is Nothing Then Exit Sub
 
     UnlockSheet ws
     lo.DataBodyRange.Validation.Delete
 
-    With lo.ListColumns("Date/Time").DataBodyRange.Validation
-        .Add Type:=xlValidateDate, AlertStyle:=xlValidAlertStop, Operator:=xlGreater, Formula1:="01/01/2000"
-        .IgnoreBlank = True
-        .InCellDropdown = True
-        .ShowInput = True
-        .ShowError = True
-        .InputTitle = "Date and time"
-        .InputMessage = "Date and time the print was produced. Use the Now button to stamp the current date and time."
-        .ErrorTitle = "Date and time"
-        .ErrorMessage = "Date and time the print was produced. Use the Now button to stamp the current date and time."
-    End With
+    dateMsg = "Date and time the print was produced. Use the Now button to stamp the current date and time."
+    AddRule lo, "Date/Time", xlValidateDate, "01/01/2000", True, "Date and time", dateMsg, dateMsg, xlGreater
 
-    Dim qtyMsg As String
     If StrComp(LocValue(ws, "LOC_RollUnit"), "Centimetres", vbTextCompare) = 0 Then
         qtyMsg = "Sheets for sheet stock, centimetres for roll stock (converted and stored as metres - see 'Roll length unit' above). Must be greater than zero."
     Else
         qtyMsg = "Sheets for sheet stock, metres for roll stock. Must be greater than zero."
     End If
-    With lo.ListColumns("Qty").DataBodyRange.Validation
-        .Add Type:=xlValidateDecimal, AlertStyle:=xlValidAlertStop, Operator:=xlGreater, Formula1:="0"
-        .IgnoreBlank = False
-        .InCellDropdown = True
-        .ShowInput = True
-        .ShowError = True
-        .InputTitle = "Qty"
-        .InputMessage = qtyMsg
-        .ErrorTitle = "Qty"
-        .ErrorMessage = qtyMsg
-    End With
+    AddRule lo, "Qty", xlValidateDecimal, "0", False, "Qty", qtyMsg, qtyMsg, xlGreater
 
-    With lo.ListColumns("Print Width mm").DataBodyRange.Validation
-        .Add Type:=xlValidateDecimal, AlertStyle:=xlValidAlertStop, Operator:=xlGreater, Formula1:="0"
-        .IgnoreBlank = True
-        .InCellDropdown = True
-        .ShowInput = True
-        .ShowError = True
-        .InputTitle = "Print width"
-        .InputMessage = "Optional, roll stock only, in millimetres. Leave blank to use the full width of the roll. It must not exceed the stock width. Required for 'Supplied (Roll)'."
-        .ErrorTitle = "Print width"
-        .ErrorMessage = "Optional, roll stock only, in millimetres. Leave blank to use the full width of the roll. It must not exceed the stock width."
-    End With
+    AddRule lo, "Print Width mm", xlValidateDecimal, "0", True, "Print width", _
+        "Optional, roll stock only, in millimetres. Leave blank to use the full width of the roll. It must not exceed the stock width. Required for 'Supplied (Roll)'.", _
+        "Optional, roll stock only, in millimetres. Leave blank to use the full width of the roll. It must not exceed the stock width.", xlGreater
 
-    Dim sheetSizeCol As ListColumn
-    On Error Resume Next
-    Set sheetSizeCol = lo.ListColumns("Sheet size")
-    On Error GoTo 0
-    If Not sheetSizeCol Is Nothing Then
-        With sheetSizeCol.DataBodyRange.Validation
-            .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Formula1:="=RNG_STD_SIZES"
-            .IgnoreBlank = True
-            .InCellDropdown = True
-            .ShowInput = True
-            .ShowError = True
-            .InputTitle = "Sheet size"
-            .InputMessage = "Required only for 'Supplied (Sheet)' - the nearest standard size to the sheet the student brought. Ignored for every other paper stock."
-            .ErrorTitle = "Sheet size"
-            .ErrorMessage = "Choose one of the standard sizes listed on Settings."
-        End With
-    End If
+    AddRule lo, "Sheet size", xlValidateList, "=RNG_STD_SIZES", True, "Sheet size", _
+        "Required only for 'Supplied (Sheet)' - the nearest standard size to the sheet the student brought. Ignored for every other paper stock.", _
+        "Choose one of the standard sizes listed on Settings.", , True
 
-    With lo.ListColumns("Disregard Paper").DataBodyRange.Validation
-        .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Formula1:="Yes,No"
-        .IgnoreBlank = True
-        .InCellDropdown = True
-        .ShowInput = True
-        .ShowError = True
-    End With
+    AddRule lo, "Disregard Paper", xlValidateList, "Yes,No", True
+    AddRule lo, "Disregard Consumable", xlValidateList, "Yes,No", True
 
-    With lo.ListColumns("Disregard Consumable").DataBodyRange.Validation
-        .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Formula1:="Yes,No"
-        .IgnoreBlank = True
-        .InCellDropdown = True
-        .ShowInput = True
-        .ShowError = True
-    End With
-
-    On Error Resume Next
-    Set paidCol = lo.ListColumns("Paid")
-    On Error GoTo 0
-    If Not paidCol Is Nothing Then
-        With paidCol.DataBodyRange.Validation
-            .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Formula1:="Yes,No"
-            .IgnoreBlank = True
-            .InCellDropdown = True
-            .ShowInput = True
-            .ShowError = True
-            .InputTitle = "Paid"
-            .InputMessage = "Whether this chargeable cost has been paid. Blank means not recorded either way and counts as unpaid in totals."
-            .ErrorTitle = "Paid"
-            .ErrorMessage = "Choose Yes or No."
-        End With
-    End If
+    AddRule lo, "Paid", xlValidateList, "Yes,No", True, "Paid", _
+        "Whether this chargeable cost has been paid. Blank means not recorded either way and counts as unpaid in totals.", _
+        "Choose Yes or No.", , True
 
     RelockSheet ws
 End Sub
 
-' Extends the calculated H_Issues column PrintCosts.xlsx ships (§5, §7.3)
-' with the two required-field checks the student-supplied stock options
-' need: Print Width mm on a "Supplied (Roll)" row and Sheet size on a
-' "Supplied (Sheet)" row have no catalogue size to fall back on the way an
-' ordinary stock does, so a value left blank there would otherwise cost a
-' real print job nothing rather than being caught by Check sheet/Check
-' workbook the way every other required field already is.
+' One validation rule on one job-table column. Title is used for both the input and
+' error dialogs; Title, Prompt (the input message) and ErrText (the error message) are
+' left unset when blank. SkipIfMissing is for columns an older sheet may not have.
+Private Sub AddRule(ByVal lo As ListObject, ByVal ColName As String, ByVal RuleType As Long, _
+        ByVal Formula1 As String, ByVal IgnoreBlank As Boolean, Optional ByVal Title As String, _
+        Optional ByVal Prompt As String, Optional ByVal ErrText As String, _
+        Optional ByVal Op As Long = xlBetween, Optional ByVal SkipIfMissing As Boolean)
+    If SkipIfMissing Then
+        If Not ColumnExists(lo, ColName) Then Exit Sub
+    End If
+    With lo.ListColumns(ColName).DataBodyRange.Validation
+        .Add Type:=RuleType, AlertStyle:=xlValidAlertStop, Operator:=Op, Formula1:=Formula1
+        .IgnoreBlank = IgnoreBlank
+        .InCellDropdown = True
+        .ShowInput = True
+        .ShowError = True
+        If Len(Title) > 0 Then
+            .InputTitle = Title
+            .ErrorTitle = Title
+        End If
+        If Len(Prompt) > 0 Then .InputMessage = Prompt
+        If Len(ErrText) > 0 Then .ErrorMessage = ErrText
+    End With
+End Sub
+
+' Restates the whole H_Issues calculated column, so an old or duplicated sheet always
+' carries the current rules - including the two required-field checks the student-supplied
+' stock options need (Print Width mm on "Supplied (Roll)", Sheet size on "Supplied (Sheet)"),
+' which have no catalogue size to fall back on. Called from modLists.BindColumns, right after
+' EnsureJobColumnValidation, so it runs on every setup, Refresh Locations, Check workbook/sheet
+' and picker call, and rewrites the whole column each time (repairing a single damaged row).
 '
-' Asserted here rather than left as a static xlsx formula, the same
-' reasoning EnsureJobColumnValidation (above) already applies to this
-' table's validation rules: H_Issues is never hand-maintained per sheet, so
-' restating its full text in VBA is what lets an old or duplicated sheet
-' self-heal on the next refresh, rather than PrintCosts.xlsx itself needing
-' a hand-edited calculated-column formula (§5's own note on how easy that
-' class of edit is to get subtly wrong). Table-name-parameterised via
-' lo.Name, the same idiom EnsurePrintersDisplay/EnsureJobCountDisplay
-' already use for their own per-sheet formulas - so this keeps working
-' whatever the table is currently named (tblJobs_MAIN, tblJobs_ANNEX, ...).
-' Called from modLists.BindColumns, right after EnsureJobColumnValidation -
-' the same entry point every other self-healing table-structure fix in this
-' project already reaches from setup, Refresh Locations, Check workbook/
-' sheet and the picker.
+' There used to be a compare-first guard here. It never matched - the old text was built in
+' the long tbl[[#This Row],[Field]] form, which Excel reads back as [@Field] - so it only ever
+' looked like a saving. The text below is the form Excel reads back (and does not depend on the
+' table's name), so a guard would now work, but would stop repairing a damaged row below the
+' first; left out until the rewrite cost is shown to matter. Formula2, not Formula, because the
+' text is past the 255 characters Range.Formula accepts (1004).
 Public Sub EnsureJobIssuesFormula(ByVal ws As Worksheet, ByVal lo As ListObject)
-    Dim f As String, firstCell As Range
     If lo.DataBodyRange Is Nothing Then Exit Sub
     If Not ColumnExists(lo, "H_Issues") Then Exit Sub
     If Not ColumnExists(lo, "Sheet size") Then Exit Sub
 
-    f = BuildJobIssuesFormula(lo.Name)
-
-    ' Checked-first: BindColumns calls this on every setup run, Refresh
-    ' Locations, Check workbook/sheet and the picker (module comment above),
-    ' none of which are rare - unlike EnsureJobColumnValidation's cheaper
-    ' Delete+Add, writing a ~1.5KB formula across the whole column is real
-    ' work, and doing it unconditionally on every one of those calls was
-    ' observed to make Excel's own recalculation noticeably heavier on a
-    ' table already carrying a dozen rows. Comparing against the first
-    ' cell's current formula (structurally identical down every row, same
-    ' as the shipped column always was) is enough to know the rest matches
-    ' too.
-    Set firstCell = lo.ListColumns("H_Issues").DataBodyRange.Cells(1, 1)
-    If firstCell.Formula2 = f Then Exit Sub
-
     UnlockSheet ws
-    ' Formula2, not Formula: this formula runs well past 255 characters, and
-    ' Range.Formula raises 1004 for anything longer when set via VBA/COM -
-    ' the same limit EnsurePrintersDisplay's own B7 formula (above) already
-    ' works around the same way.
-    lo.ListColumns("H_Issues").DataBodyRange.Formula2 = f
+    lo.ListColumns("H_Issues").DataBodyRange.Formula2 = BuildJobIssuesFormula()
     RelockSheet ws
 End Sub
 
-Private Function BuildJobIssuesFormula(ByVal t As String) As String
-    Dim q As String, f As String
-    q = Chr(34)
+' One IF per rule - IF(condition,"; message","") - joined with & in a fixed order, all under
+' an outer IF that leaves the cell blank on a row with no Job ID.
+Private Function BuildJobIssuesFormula() As String
+    Const DQ As String = """"
+    Dim qty As String, width As String, stock As String, measure As String
+    qty = RowRef("Qty")
+    width = RowRef("Print Width mm")
+    stock = RowRef("Paper Stock")
+    measure = RowRef("S_Measure")
 
-    f = "=IF(" & t & "[[#This Row],[Job ID]]=" & q & q & "," & q & q & "," & _
-        "IF(" & t & "[[#This Row],[Date/Time]]=" & q & q & "," & q & "; Date and time required" & q & "," & q & q & ")" & _
-        "&IF(AND(" & t & "[[#This Row],[Student Name]]=" & q & q & "," & t & "[[#This Row],[Student No]]=" & q & q & ")," & q & "; Student name or number required" & q & "," & q & q & ")" & _
-        "&IF(" & t & "[[#This Row],[Technician]]=" & q & q & "," & q & "; Technician required" & q & "," & q & q & ")" & _
-        "&IF(" & t & "[[#This Row],[Printer]]=" & q & q & "," & q & "; Printer required" & q & "," & q & q & ")" & _
-        "&IF(" & t & "[[#This Row],[Paper Stock]]=" & q & q & "," & q & "; Paper stock required" & q & "," & q & q & ")" & _
-        "&IF(" & t & "[[#This Row],[Qty]]=" & q & q & "," & q & "; Quantity required" & q & ",IF(" & t & "[[#This Row],[Qty]]<=0," & q & "; Quantity must be greater than zero" & q & "," & q & q & "))" & _
-        "&IF(AND(" & t & "[[#This Row],[S_Measure]]=" & q & "Sheet" & q & "," & t & "[[#This Row],[Qty]]<>" & q & q & "," & t & "[[#This Row],[Qty]]<>INT(" & t & "[[#This Row],[Qty]]))," & q & "; Sheet quantity must be a whole number" & q & "," & q & q & ")" & _
-        "&IF(AND(" & t & "[[#This Row],[S_Measure]]=" & q & "Sheet" & q & "," & t & "[[#This Row],[Print Width mm]]<>" & q & q & ")," & q & "; Print width does not apply to sheet stock" & q & "," & q & q & ")" & _
-        "&IF(AND(" & t & "[[#This Row],[Print Width mm]]<>" & q & q & "," & t & "[[#This Row],[Print Width mm]]>" & t & "[[#This Row],[S_StockWidth_mm]])," & q & "; Print width exceeds stock width" & q & "," & q & q & ")" & _
-        "&IF(AND(" & t & "[[#This Row],[Paper Stock]]=" & q & SUPPLIED_ROLL & q & "," & t & "[[#This Row],[Print Width mm]]=" & q & q & ")," & q & "; Print width required for student-supplied roll stock" & q & "," & q & q & ")" & _
-        "&IF(AND(" & t & "[[#This Row],[Paper Stock]]=" & q & SUPPLIED_SHEET & q & "," & t & "[[#This Row],[Sheet size]]=" & q & q & ")," & q & "; Sheet size required for student-supplied sheet stock" & q & "," & q & q & ")" & _
+    BuildJobIssuesFormula = "=IF(" & RefBlank(RowRef("Job ID")) & "," & DQ & DQ & "," & _
+        IssueIf(RefBlank(RowRef("Date/Time")), "Date and time required") & _
+        "&" & IssueIf("AND(" & RefBlank(RowRef("Student Name")) & "," & RefBlank(RowRef("Student No")) & ")", "Student name or number required") & _
+        "&" & IssueIf(RefBlank(RowRef("Technician")), "Technician required") & _
+        "&" & IssueIf(RefBlank(RowRef("Printer")), "Printer required") & _
+        "&" & IssueIf(RefBlank(stock), "Paper stock required") & _
+        "&IF(" & RefBlank(qty) & "," & DQ & "; Quantity required" & DQ & "," & IssueIf(qty & "<=0", "Quantity must be greater than zero") & ")" & _
+        "&" & IssueIf("AND(" & measure & "=" & DQ & "Sheet" & DQ & "," & RefFilled(qty) & "," & qty & "<>INT(" & qty & "))", "Sheet quantity must be a whole number") & _
+        "&" & IssueIf("AND(" & measure & "=" & DQ & "Sheet" & DQ & "," & RefFilled(width) & ")", "Print width does not apply to sheet stock") & _
+        "&" & IssueIf("AND(" & RefFilled(width) & "," & width & ">" & RowRef("S_StockWidth_mm") & ")", "Print width exceeds stock width") & _
+        "&" & IssueIf("AND(" & stock & "=" & DQ & SUPPLIED_ROLL & DQ & "," & RefBlank(width) & ")", "Print width required for student-supplied roll stock") & _
+        "&" & IssueIf("AND(" & stock & "=" & DQ & SUPPLIED_SHEET & DQ & "," & RefBlank(RowRef("Sheet size")) & ")", "Sheet size required for student-supplied sheet stock") & _
         ")"
+End Function
 
-    BuildJobIssuesFormula = f
+Private Function RowRef(ByVal Field As String) As String
+    If Field Like "*[!A-Za-z0-9]*" Then RowRef = "[@[" & Field & "]]" Else RowRef = "[@" & Field & "]"
+End Function
+
+Private Function RefBlank(ByVal ref As String) As String
+    RefBlank = ref & "=" & Chr$(34) & Chr$(34)
+End Function
+
+Private Function RefFilled(ByVal ref As String) As String
+    RefFilled = ref & "<>" & Chr$(34) & Chr$(34)
+End Function
+
+Private Function IssueIf(ByVal Condition As String, ByVal Message As String) As String
+    IssueIf = "IF(" & Condition & "," & Chr$(34) & "; " & Message & Chr$(34) & "," & Chr$(34) & Chr$(34) & ")"
 End Function
 
 Private Function CountButtons() As Long
