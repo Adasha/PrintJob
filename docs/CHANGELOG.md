@@ -3,6 +3,20 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.10.8 - Location sheets: sensible column widths, direct user request
+("several columns are excessively wide").
+  - modInit.ApplyJobColumnWidths now sets an explicit width on every column
+    that was still using the PrintCosts.xlsx leftover: Technician 120px,
+    Printer 160px, Paper Stock 170px (was 220), Sheet size 90 (was 115),
+    Paper Cost 90 (was 115), Consumable Cost 100, Gross Cost 90,
+    Disregarded 100 (was 115), Chargeable Cost 100 (was 220).
+  - Untouched on purpose: Status (needs room for issue text), Notes (free
+    text), Student Name/No, and the widths fixed in 0.9.14.
+  - Re-applied on every setup/Refresh Locations run like the existing ones,
+    so duplicated and older sheets pick it up. ARCHITECTURE.md column widths
+    paragraph updated.
+  - No schema change, no migration (workbook not released).
+
 0.10.7 - Reports: Paid is directly editable, direct user request. The Paid
 cells of the results table now take the same Yes/No dropdown as the room
 sheets, and a choice is written straight to the job record it belongs to.

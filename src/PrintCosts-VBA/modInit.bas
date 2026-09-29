@@ -1456,6 +1456,23 @@ Public Sub ApplyJobColumnWidths(ByVal ws As Worksheet)
     SetJobColWidth lo, "Print Width mm", ColWidthForPx(120)
     SetJobColWidth lo, "Disregard Paper", ColWidthForPx(130)
     SetJobColWidth lo, "Disregard Consumable", ColWidthForPx(130)
+    ' 2026-09-29 (user-reported: several columns excessively wide). Every
+    ' remaining sized column now gets an explicit width too, rather than
+    ' keeping whatever PrintCosts.xlsx shipped (Chargeable Cost and Paper
+    ' Stock were 220px, Paper Cost/Disregarded/Sheet size 115px). Headers
+    ' wrap (row 13 is two lines tall), so a column only needs its longest
+    ' word plus the filter button; the widths below are that or the widest
+    ' typical content, whichever is larger. Status and Notes are left alone:
+    ' Status needs room for its issue text, and Notes is free text.
+    SetJobColWidth lo, "Technician", ColWidthForPx(120)
+    SetJobColWidth lo, "Printer", ColWidthForPx(160)
+    SetJobColWidth lo, "Paper Stock", ColWidthForPx(170)
+    SetJobColWidth lo, "Sheet size", ColWidthForPx(90)
+    SetJobColWidth lo, "Paper Cost", ColWidthForPx(90)
+    SetJobColWidth lo, "Consumable Cost", ColWidthForPx(100)
+    SetJobColWidth lo, "Gross Cost", ColWidthForPx(90)
+    SetJobColWidth lo, "Disregarded", ColWidthForPx(100)
+    SetJobColWidth lo, "Chargeable Cost", ColWidthForPx(100)
     RelockSheet ws
 End Sub
 
