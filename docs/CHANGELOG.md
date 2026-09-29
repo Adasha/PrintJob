@@ -3,6 +3,25 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+2026-09-29 - number-format fix on Printers and Papers, direct user request
+(formatting only, no VBA change, no version bump). The Cost per m2 currency
+format (GBP, 4 dp) had smeared onto Max roll width mm and Max sheet size.
+  - Printers: Cost per m2 now GBP 2 dp; Max roll width mm #,##0; Max sheet
+    size General. Fixed in src\PrintCosts.xlsx (cells AND the tblPrinters
+    column dxfs, so new rows inherit the right formats) and in the built
+    src\PrintJob.xlsm.
+  - Papers: template was already correct. In the built PrintJob.xlsm, Width mm
+    and Height mm were mixed 0 / #,##0 and the calculated Cost unit column was
+    Text (@, which turns a re-typed formula into literal text); now #,##0 and
+    General, matching the template.
+  - The smear lived in the template, so every rebuild reintroduced it.
+  - Printers: the Yes/No dropdown was on F11:F2001 (Max sheet size) instead
+    of G (Active) below row 10; now G7:G2001.
+  - Column widths tidied: Printers E/F 14.7 (E was 34.7, a leftover from the
+    old Supported families column) and G 9.7 set explicitly; Papers StockID
+    15.7 (STK-SUP-SHEET was clipped), Paper type 17.7, Measure/Std. size 11.7,
+    Supplied by student 14.7.
+
 0.10.3 - paper family removed, direct user request: on Papers the Family
 column and the calculated Measure column always showed the same thing, since
 the 0.10.0 rework left tblPaperFamilies with two rows (Sheet -> Sheet, Roll ->
