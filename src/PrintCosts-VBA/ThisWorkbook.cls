@@ -44,6 +44,13 @@ Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)
     Select Case Sh.Name
         Case "Papers", "Printers", "Print Technicians", "Settings"
             Invalidate
+            ' Fills Width/Height from a chosen standard size and defaults
+            ' Active - see modCatalog.OnPaperEdited. Events off: it writes cells.
+            If Sh.Name = "Papers" Then
+                Application.EnableEvents = False
+                OnPaperEdited Target
+                Application.EnableEvents = True
+            End If
             Exit Sub
     End Select
 

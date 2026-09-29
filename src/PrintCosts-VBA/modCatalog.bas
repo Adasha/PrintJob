@@ -358,11 +358,79 @@ Public Sub AddCatalogRow(ByVal TableName As String)
     Else
         Set r = lo.ListRows.Add
     End If
+    ' ListRows.Add copies formatting and validation but no VALUES, so Active
+    ' would be blank - and LoadCatalog reads only a literal "Yes" as active, so
+    ' a row left blank is silently excluded from every dropdown.
+    DefaultActive lo, r.Range.Cells(1, 1).Row - lo.DataBodyRange.Row + 1
     RelockSheet ws
     Invalidate
     AppOn
 
     r.Range.Cells(1, 1).Select
+End Sub
+
+' Sets Active to "Yes" on table row RowNo when the table has an Active column
+' and the cell is blank. Never overwrites an existing value. Caller has already
+' unlocked the sheet.
+Private Sub DefaultActive(ByVal lo As ListObject, ByVal RowNo As Long)
+    If Not ColumnExists(lo, "Active") Then Exit Sub
+    If Len(Trim$(CStr(CellIn(lo, RowNo, "Active").Value))) = 0 Then
+        CellIn(lo, RowNo, "Active").Value = "Yes"
+    End If
+End Sub
+
+' Called from ThisWorkbook.Workbook_SheetChange for every edit on the Papers
+' sheet, with events already off (so the writes below do not re-enter it).
+'
+' 1. Size mode "Standard": fills Width mm / Height mm from the Std. size chosen,
+'    as the note on the Papers sheet promises. Compatible() compares these two
+'    numbers with the printer's capacity, so a sheet stock left at 0 x 0 fits
+'    no printer and never reaches a dropdown. Fires only when Size mode or Std.
+'    size was the cell edited, so a later hand-edit of Width/Height is kept.
+' 2. Active: defaults to "Yes" on a row that has a Description but no Active
+'    value - covers a row created by typing under the table (Excel auto-extend),
+'    which never passes through AddCatalogRow.
+Public Sub OnPaperEdited(ByVal Target As Range)
+    Dim lo As ListObject, hit As Range, c As Range, ws As Worksheet
+    Dim n As Long, hdr As String, sizeName As String
+    Dim w As Double, h As Double, en As Long, ed As String
+
+    Set lo = Tbl("tblPapers")
+    If lo Is Nothing Then Exit Sub
+    If lo.DataBodyRange Is Nothing Then Exit Sub
+    Set hit = Application.Intersect(Target, lo.DataBodyRange)
+    If hit Is Nothing Then Exit Sub
+    Set ws = lo.Parent
+
+    UnlockSheet ws
+    On Error GoTo Fail
+    For Each c In hit.Cells
+        n = c.Row - lo.DataBodyRange.Row + 1
+        hdr = CStr(lo.HeaderRowRange.Cells(1, c.Column - lo.Range.Column + 1).Value)
+
+        If StrComp(hdr, "Size mode", vbTextCompare) = 0 Or StrComp(hdr, "Std. size", vbTextCompare) = 0 Then
+            If StrComp(Trim$(CStr(CellIn(lo, n, "Size mode").Value)), "Standard", vbTextCompare) = 0 Then
+                sizeName = Trim$(CStr(CellIn(lo, n, "Std. size").Value))
+                If Len(sizeName) > 0 Then
+                    ' Plain local Doubles, not fields of an object - see the
+                    ' ByRef note in LoadCatalog.
+                    If StdSizeDims(sizeName, w, h) Then
+                        CellIn(lo, n, "Width mm").Value = w
+                        CellIn(lo, n, "Height mm").Value = h
+                    End If
+                End If
+            End If
+        End If
+
+        If Len(Trim$(CStr(CellIn(lo, n, "Description").Value))) > 0 Then DefaultActive lo, n
+    Next c
+    On Error GoTo 0
+    RelockSheet ws
+    Exit Sub
+Fail:
+    en = Err.Number: ed = Err.Description
+    RelockSheet ws
+    Err.Raise en, "OnPaperEdited", ed
 End Sub
 
 Public Sub RemoveCatalogRow(ByVal TableName As String)
