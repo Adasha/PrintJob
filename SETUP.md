@@ -141,7 +141,7 @@ unlocked, so a row added the normal Excel Table way (Tab at the last cell,
 or right-click > Insert > Table Rows) keeps its formatting and validation.
 
 **Review Printers' Max roll width mm / Max sheet size after upgrading from
-before the printer/paper compatibility rework (`docs/ARCHITECTURE.md`
+before the printer/paper compatibility rework (`docs/HISTORY.md`
 §16.5).** The first `InitialiseWorkbook` run after upgrading auto-derives
 these two fields from whatever the printer's old `Supported families`
 setting already allowed - safe in that it preserves the workbook's existing
@@ -316,7 +316,7 @@ is how you find that, and killing the orphaned process is how you clear it.
 Phase 9 of the design document: the full acceptance test run on Windows and
 Mac with its report. Phase 8 (visual polish — the Summary legend,
 conditional formatting for warning/error states, and currency wired to the
-global setting) is built; see `docs/ARCHITECTURE.md` §16.2.
+global setting) is built; see `docs/HISTORY.md` §16.2.
 
 The validation sweep (phase 7) is done. AT-11, AT-14 and AT-16 pass, and
 nothing in the workbook needed changing to make them — the mechanisms were
