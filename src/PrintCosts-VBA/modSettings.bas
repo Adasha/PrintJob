@@ -35,21 +35,6 @@ Public Function RoundDP() As Long
     RoundDP = CLng(SettingNum("ROUND_DP", 2))
 End Function
 
-' Currently unreferenced by any live job cost - RemoveRow's confirmation
-' dialog is the only caller (via Format$, not this function directly). Kept
-' rather than deleted: it is the locale-safe formatter for anywhere a future
-' caller needs a formatted money string rather than a NumberFormat code. The
-' Val() it used to contain is gone: Val on a currency value is the same
-' locale trap as Val on a date, so the coercion goes through modUtils.NumOf's
-' rule instead.
-Public Function Money(ByVal v As Variant) As String
-    Dim d As Double
-    If IsNumeric(v) Then
-        If Len(Trim$(CStr(v))) > 0 Then d = CDbl(v)
-    End If
-    Money = Format$(d, CurrencySymbol & "#,##0." & String$(RoundDP, "0"))
-End Function
-
 ' The symbol every money NumberFormat and money Format$ call builds from -
 ' modReports, modExport and modJobs.RemoveRow all read this rather than
 ' hardcoding a symbol. Reads SET_CURRENCY so the setting is not merely

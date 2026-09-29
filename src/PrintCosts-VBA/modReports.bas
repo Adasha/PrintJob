@@ -948,10 +948,6 @@ Public Function ReportsExportSig(ByVal ws As Worksheet) As String
     ReportsExportSig = CStr(ws.Range(EXPORT_SIG_CELL).Value)
 End Function
 
-Public Function ReportsExportWhen(ByVal ws As Worksheet) As Variant
-    ReportsExportWhen = ws.Range(EXPORT_WHEN_CELL).Value
-End Function
-
 ' Called by modExport.ExportReportSnapshot once the .xlsx has actually been
 ' written - never optimistically, for the same reason modExport.StampExported
 ' only runs after modExport confirms the file exists.

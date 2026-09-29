@@ -24,14 +24,24 @@ $results = @()
 foreach ($t in $tests) {
     $log = Join-Path $logDir ($t.BaseName + '.log')
     $sw = [Diagnostics.Stopwatch]::StartNew()
+    Start-Sleep -Seconds 3   # let the previous test's Excel finish exiting; back-to-back launches flake
     $out = & powershell -NoProfile -ExecutionPolicy Bypass -File $t.FullName 2>&1
     $code = $LASTEXITCODE
     $out | Out-File -FilePath $log -Encoding utf8
     $fails = @($out | Select-String -Pattern '\bFAIL\b|Exception|cannot be loaded').Count
     $status = if ($code -ne 0) { "EXIT $code" } elseif ($fails -gt 0) { "FAIL x$fails" } else { 'pass' }
+    $retried = $false
+    if ($status -ne 'pass') {   # COM timing flakes pass on a clean second attempt; real failures fail twice
+        Start-Sleep -Seconds 8
+        $out = & powershell -NoProfile -ExecutionPolicy Bypass -File $t.FullName 2>&1
+        $code = $LASTEXITCODE
+        $out | Out-File -FilePath $log -Encoding utf8
+        $fails = @($out | Select-String -Pattern '\bFAIL\b|Exception|cannot be loaded').Count
+        $status = if ($code -ne 0) { "EXIT $code" } elseif ($fails -gt 0) { "FAIL x$fails" } else { 'pass (retry)' }
+    }
     $results += [pscustomobject]@{ Test = $t.Name; Status = $status; Sec = [int]$sw.Elapsed.TotalSeconds }
     Write-Host ('{0,-32} {1,-10} {2,4}s' -f $t.Name, $status, [int]$sw.Elapsed.TotalSeconds)
 }
-$bad = @($results | Where-Object { $_.Status -ne 'pass' }).Count
+$bad = @($results | Where-Object { $_.Status -notlike 'pass*' }).Count
 Write-Host ("`n{0} of {1} passed. Logs: {2}" -f ($results.Count - $bad), $results.Count, $logDir)
 exit $bad

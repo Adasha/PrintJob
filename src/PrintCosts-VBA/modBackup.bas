@@ -168,22 +168,12 @@ Private Function WriteBlockCsv(ByRef block As Variant, ByVal path As String) As 
     End With
     wbOut.SaveAs path, CSV_UTF8
     wbOut.Close False
-    WriteBlockCsv = FileExistsB(path)
+    WriteBlockCsv = FileExists(path)
     Exit Function
 Failed:
     On Error Resume Next
     If Not wbOut Is Nothing Then wbOut.Close False
     WriteBlockCsv = False
-End Function
-
-Private Function FileExistsB(ByVal p As String) As Boolean
-    Dim a As Long
-    On Error GoTo No
-    a = GetAttr(p)
-    FileExistsB = ((a And vbDirectory) <> vbDirectory)
-    Exit Function
-No:
-    FileExistsB = False
 End Function
 
 ' =============================================================== restore ===

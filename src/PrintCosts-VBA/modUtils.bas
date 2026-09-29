@@ -325,3 +325,25 @@ Public Function SortedTextCollection(ByVal src As Collection) As Collection
     Next i
     Set SortedTextCollection = out
 End Function
+
+' True when p names an existing folder / an existing file (GetAttr, so it works
+' on Windows and Mac without FileSystemObject).
+Public Function FolderExists(ByVal p As String) As Boolean
+    Dim a As Long
+    On Error GoTo No
+    a = GetAttr(p)
+    FolderExists = ((a And vbDirectory) = vbDirectory)
+    Exit Function
+No:
+    FolderExists = False
+End Function
+
+Public Function FileExists(ByVal p As String) As Boolean
+    Dim a As Long
+    On Error GoTo No
+    a = GetAttr(p)
+    FileExists = ((a And vbDirectory) <> vbDirectory)
+    Exit Function
+No:
+    FileExists = False
+End Function

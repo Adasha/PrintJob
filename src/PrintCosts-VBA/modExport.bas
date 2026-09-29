@@ -893,26 +893,6 @@ Private Function CandidateOneDriveRoots() As Collection
     Set CandidateOneDriveRoots = out
 End Function
 
-Private Function FolderExists(ByVal p As String) As Boolean
-    Dim a As Long
-    On Error GoTo No
-    a = GetAttr(p)
-    FolderExists = ((a And vbDirectory) = vbDirectory)
-    Exit Function
-No:
-    FolderExists = False
-End Function
-
-Private Function FileExists(ByVal p As String) As Boolean
-    Dim a As Long
-    On Error GoTo No
-    a = GetAttr(p)
-    FileExists = ((a And vbDirectory) <> vbDirectory)
-    Exit Function
-No:
-    FileExists = False
-End Function
-
 ' ========================================================== fingerprint ===
 ' What has changed since the last export is DERIVED, never tracked.
 '

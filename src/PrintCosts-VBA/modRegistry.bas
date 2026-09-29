@@ -34,8 +34,8 @@ Private Const AUDIT_TABLE As String = "tblAudit"
 ' The consolidated range's column span, bounded by NAME rather than
 ' position: "every column from FIRST_JOB_COL to LAST_JOB_COL, inclusive" via
 ' a structured reference (WriteConsolidated/WriteHeaders below). FIRST_JOB_COL
-' was "Job ID" until 2026-09-22, when modInit.ReorderJobColumns moved Status
-' and Job ID away from the front of the table (columns 1-2) to fix a
+' was "Job ID" until 2026-09-22, when Status
+' and Job ID were moved from the front of the table (columns 1-2) to fix a
 ' reduced-clutter-view bug (they used to collide with the location config
 ' block, which also lives in columns A/B - see modInit's own comment).
 ' Job ID is no longer the leftmost real column, so the bound had to move to

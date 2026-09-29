@@ -241,7 +241,7 @@ Private Sub WriteImportedRow(ByVal lo As ListObject, ByVal RowNo As Long, ByVal 
     ' Missing from a file exported before 2026-09-22 (schema 1.0) - d.Item
     ' returns Empty for a key the source file never had, so this writes blank
     ' rather than erroring, and blank reads as "not paid" everywhere else
-    ' (Summary/Reports totals, modInit.EnsurePaidColumn's own new rows).
+    ' (Summary/Reports totals).
     WriteText lo, RowNo, "Paid", d
     WriteText lo, RowNo, "Notes", d
     WriteText lo, RowNo, "S_PrinterID", d

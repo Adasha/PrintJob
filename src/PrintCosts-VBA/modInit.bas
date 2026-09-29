@@ -1317,36 +1317,13 @@ Private Sub RelocateButton(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal 
     b.Placement = xlFreeFloating
 End Sub
 
-' Layout fix (2026-09-26, user-reported): the whole side panel had visibly
-' drifted right of SIDE_PANEL_COL. Root cause: DrawLocationButtons (which
-' positions every location button, side panel included, from the CURRENT
-' column widths at the moment it runs) is called early in InitialiseWorkbook's
-' per-sheet loop - before ReorderJobColumns, ApplyReducedView and
-' ApplyJobColumnWidths have finished changing those same widths. Previously
-' this went unnoticed because Buttons.Add's default Placement:=xlMoveAndSize
-' silently tracked the later width changes and dragged every shape along with
-' them - the same auto-tracking behaviour that caused the Now-button width
-' corruption fixed above (RelocateButton's own comment). Now that DrawOne/
-' DrawOneAtTop set Placement:=xlFreeFloating so hide/reveal cycles can no
-' longer corrupt a button's Width, that auto-tracking is gone too, so the
-' side panel's shapes stayed frozen at their too-early position instead of
-' following the columns to their final widths.
-'
-' Fixed the same way RelocateButton already fixes the four at-risk buttons:
-' re-settle position (and self-heal Width/Height/Placement) once more here,
-' called after every column-width-changing step in that loop has actually
-' run, rather than reordering the loop itself and risking the column-name
-' dependencies several of those Ensure/Reorder calls have on each other
-' (EnsureQtyColumnName/EnsurePaidColumn must still run before
-' ReorderJobColumns, which names both columns explicitly).
-' Public: also ThisWorkbook's own self-heal for the one drift path this
-' loop's callers don't cover - the user manually collapsing/expanding the
-' cost-columns outline group (GroupJobColumns) via Excel's native +/- control.
-' That's not a macro call, so nothing here runs when it happens; VBA has no
-' event that fires on an outline collapse/expand to hook instead. ThisWorkbook
-' calls this from Workbook_SheetActivate and Workbook_SheetSelectionChange as
-' the closest available proxies - the next time the user switches to/from the
-' sheet, or clicks anywhere on it, whichever comes first.
+' Re-settles a location sheet's buttons once column widths and visibility are
+' final. DrawLocationButtons positions every button from the widths at the moment
+' it runs, and the buttons are xlFreeFloating (so hide/reveal cycles cannot
+' corrupt their size) - so they do not follow later width changes by themselves.
+' Called after the per-sheet setup loop's width-changing steps, after the reduced
+' view / cost-columns toggles, and from ThisWorkbook on sheet activate and
+' selection change.
 Public Sub RepositionLocationButtons(ByVal ws As Worksheet)
     Dim lo As ListObject
     Set lo = JobsTable(ws)
