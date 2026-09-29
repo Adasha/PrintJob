@@ -43,11 +43,11 @@ try {
 
     # --------------------------------------------------------------- schema
     Write-Host '=== Schema version bumped ==='
-    # 1.2 since the printer/paper compatibility rework added the Sheet size
-    # job-row column (modUtils.SCHEMA_VER) - Paid itself is still what
+    # 1.3 since the paper family removal dropped the S_Family snapshot column
+    # (1.2 was the Sheet size job-row column; modUtils.SCHEMA_VER) - Paid itself is still what
     # bumped it from 1.0 to 1.1 originally, unaffected by this test.
     $schema = [string]$wb.Names.Item('SET_SCHEMA').RefersToRange.Text
-    Check ($schema -eq '1.2') "SET_SCHEMA reads 1.2 (got '$schema')"
+    Check ($schema -eq '1.3') "SET_SCHEMA reads 1.3 (got '$schema')"
 
     # ----------------------------------------------------------- column exists
     Write-Host ''

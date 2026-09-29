@@ -71,7 +71,7 @@ try {
     Write-Host ("  totals: jobs={0} gross={1} disregarded={2} chargeable={3}" -f `
         $s.Range('B6').Text, $s.Range('D6').Text, $s.Range('F6').Text, $s.Range('H6').Text)
     $hdrRow = @()
-    for ($col = 1; $col -le 14; $col++) { $hdrRow += [string]$s.Cells(9, $col).Text }
+    for ($col = 1; $col -le 13; $col++) { $hdrRow += [string]$s.Cells(9, $col).Text }
     Write-Host ('  headers: ' + ($hdrRow -join ' | '))
     if ($hdrRow[1] -ne 'Printer') {
         Write-Host "FAIL: Summary column B header should be 'Printer', got '$($hdrRow[1])'"
@@ -81,7 +81,7 @@ try {
     for ($r = 10; $r -le 15; $r++) {
         $v = @()
         # Location, Printer, Paper stock, Unit, Jobs, Qty, Gross, Chargeable
-        foreach ($col in 1, 2, 3, 6, 7, 8, 12, 14) { $v += [string]$s.Cells($r, $col).Text }
+        foreach ($col in 1, 2, 3, 5, 6, 7, 11, 13) { $v += [string]$s.Cells($r, $col).Text }
         if ($v[0] -ne '') { Write-Host ('   ' + ($v -join ' | ')) }
     }
 

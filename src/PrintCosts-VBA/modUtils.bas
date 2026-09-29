@@ -15,7 +15,11 @@ Public Const MARKER_CELL As String = "AZ1"
 ' inception - every other 0.x.x release left the job-row shape untouched
 ' (§3.5: reordering or adding a registry/settings column never counts, only
 ' a genuine job-row column does).
-Public Const SCHEMA_VER As String = "1.2"
+' 1.3 (paper family removed): dropped the S_Family snapshot column - Papers'
+' Measure (Sheet/Roll) is now the only such attribute, and S_Measure already
+' snapshots it. Records exported at 1.2 still import: columns are read by
+' header name, so the extra S_Family column is simply ignored.
+Public Const SCHEMA_VER As String = "1.3"
 Public Const JOBS_PREFIX As String = "tblJobs_"
 Public Const LIST_SEP As String = ";"
 

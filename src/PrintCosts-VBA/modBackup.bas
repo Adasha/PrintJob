@@ -27,17 +27,17 @@ Option Explicit
 
 Private Const CSV_UTF8 As Long = 62         ' xlCSVUTF8
 
-' The eight catalogue/configuration tables this backs up. Settings is one of
+' The seven catalogue/configuration tables this backs up. Settings is one of
 ' them, not a separate mechanism - modUtils.Tbl finds it on the Settings
 ' sheet exactly like the other three lookup tables there.
 Private Function CatalogTableNames() As Variant
     CatalogTableNames = Array("tblTechnicians", "tblPrinters", "tblPapers", _
-        "tblPaperTypes", "tblStandardSizes", "tblPaperFamilies", "tblConsumables", "tblSettings")
+        "tblPaperTypes", "tblStandardSizes", "tblConsumables", "tblSettings")
 End Function
 
 ' The column that identifies "the same row" across a backup and the live
 ' table, for overwrite-vs-append matching - the same role Job ID plays for
-' modImport. tblPaperTypes/tblStandardSizes/tblPaperFamilies/tblConsumables
+' modImport. tblPaperTypes/tblStandardSizes/tblConsumables
 ' have no synthetic ID column at all (§3.3); their natural-key text column is
 ' already what every lookup in this workbook treats as their identity
 ' (modCatalog's own dictionaries are keyed the same way), so reusing it here
@@ -49,7 +49,6 @@ Private Function CatalogKeyHeader(ByVal TableName As String) As String
         Case "tblPapers":        CatalogKeyHeader = "StockID"
         Case "tblPaperTypes":    CatalogKeyHeader = "Paper type"
         Case "tblStandardSizes": CatalogKeyHeader = "Size name"
-        Case "tblPaperFamilies": CatalogKeyHeader = "Family"
         Case "tblConsumables":   CatalogKeyHeader = "Consumable type"
         Case "tblSettings":      CatalogKeyHeader = "Key"
     End Select

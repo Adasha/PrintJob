@@ -50,7 +50,7 @@ Private Function ExportColumns() As Variant
         "Disregard Paper", "Disregard Consumable", "Area m2", _
         "Paper Cost", "Consumable Cost", "Gross Cost", "Disregarded", _
         "Chargeable Cost", "Paid", "Notes", "Status", _
-        "S_PrinterID", "S_StockID", "S_TechID", "S_Family", "S_Measure", _
+        "S_PrinterID", "S_StockID", "S_TechID", "S_Measure", _
         "S_UnitCost", "S_StockWidth_mm", "S_SheetHeight_mm", "S_ConsRate", _
         "S_StampedAt", "S_StampedBy", "S_SchemaVer")
 End Function

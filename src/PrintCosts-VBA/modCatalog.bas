@@ -25,7 +25,6 @@ Public Const SUPPLIED_SHEET As String = "Supplied (Sheet)"
 Private mStocks As clsDict      ' by description
 Private mPrinters As clsDict    ' by model
 Private mTechs As clsDict       ' by name -> TechID
-Private mBasis As clsDict       ' family -> "Sheet" / "Roll"
 Private mLoaded As Boolean
 Private mDirty As Boolean       ' set alongside mLoaded=False; cleared once
                                  ' every print room's dropdowns have actually
@@ -64,14 +63,6 @@ Public Sub LoadCatalog(Optional ByVal Force As Boolean = False)
     Set mStocks = New clsDict
     Set mPrinters = New clsDict
     Set mTechs = New clsDict
-    Set mBasis = New clsDict
-
-    Set lo = Tbl("tblPaperFamilies")
-    For i = 1 To lo.ListRows.Count
-        If Len(CellIn(lo, i, "Family").Value) > 0 Then
-            mBasis.Add CStr(CellIn(lo, i, "Family").Value), CStr(CellIn(lo, i, "Measurement basis").Value)
-        End If
-    Next i
 
     Set lo = Tbl("tblPapers")
     For i = 1 To lo.ListRows.Count
@@ -80,8 +71,7 @@ Public Sub LoadCatalog(Optional ByVal Force As Boolean = False)
             s.StockID = CStr(CellIn(lo, i, "StockID").Value)
             s.Description = CStr(CellIn(lo, i, "Description").Value)
             s.PaperType = CStr(CellIn(lo, i, "Paper type").Value)
-            s.Family = CStr(CellIn(lo, i, "Family").Value)
-            s.Measure = CStr(mBasis.Item(s.Family))
+            s.Measure = CStr(CellIn(lo, i, "Measure").Value)
             s.WidthMM = NumOf(CellIn(lo, i, "Width mm"))
             s.HeightMM = NumOf(CellIn(lo, i, "Height mm"))
             s.Cost = NumOf(CellIn(lo, i, "Cost"))
@@ -164,17 +154,12 @@ Public Function TechID(ByVal TechName As String) As String
     TechID = CStr(mTechs.Item(TechName))
 End Function
 
-Public Function Basis(ByVal Family As String) As String
-    LoadCatalog
-    Basis = CStr(mBasis.Item(Family))
-End Function
-
 ' A stock is usable on a printer only when the printer can take that kind of
 ' stock (roll/sheet, via Max roll width mm / Max sheet size) AND the stock's
-' own size fits within that capacity. Family no longer plays any part here -
-' it used to stand in for a width band (families called "Short Roll"/"Long
-' Roll"), which is exactly the coarseness this rework replaces with a real
-' numeric fit check (printer/paper compatibility rework plan).
+' own size fits within that capacity. (Compatibility used to be decided by a
+' paper "family" standing in for a width band - "Short Roll"/"Long Roll" -
+' which was too coarse; the family concept has since been removed entirely,
+' leaving Papers' Measure column - Sheet or Roll - as the one input.)
 '
 ' The two built-in "Supplied (Roll)"/"Supplied (Sheet)" stocks (student-
 ' supplied stock) have no fixed size to check here - the real dimensions
@@ -222,7 +207,7 @@ End Function
 ' A human-readable description of what a printer can take, for the AT-05
 ' "incompatible combination" messages in modValidation - replaces the old
 ' "does not support the X paper family" phrasing now that compatibility is
-' a size fit rather than family membership.
+' a size fit rather than a family list.
 Public Function CapacityText(ByVal p As clsPrinterDef) As String
     Dim parts As String
     If p.MaxRollWidthMM > 0 Then parts = "roll stock up to " & Format$(p.MaxRollWidthMM, "#,##0") & " mm wide"
@@ -283,8 +268,7 @@ Public Function PrintersFor(ByVal ws As Worksheet) As Collection
 End Function
 
 ' The reverse of PrintersFor/StocksFor: active printers permitted at this
-' location whose supported families include the given stock's family (spec
-' 1a). Paper Stock can now be chosen before Printer, so Printer's own list
+' location whose capacity fits the given stock (spec 1a). Paper Stock can now be chosen before Printer, so Printer's own list
 ' has to be narrowable by the row's stock just as Stock's list is narrowable
 ' by the row's printer.
 Public Function PrintersForStock(ByVal ws As Worksheet, ByVal Description As String) As Collection
@@ -666,13 +650,12 @@ Private Sub AddBuiltInStocks()
     AddBuiltInStock "STK-SUP-SHEET", SUPPLIED_SHEET, "Sheet"
 End Sub
 
-Private Sub AddBuiltInStock(ByVal StockID As String, ByVal Description As String, ByVal Family As String)
+Private Sub AddBuiltInStock(ByVal StockID As String, ByVal Description As String, ByVal Measure As String)
     Dim s As New clsStock
     s.StockID = StockID
     s.Description = Description
     s.PaperType = "Student supplied"
-    s.Family = Family
-    s.Measure = Family              ' "Roll" / "Sheet" - fixed, not looked up
+    s.Measure = Measure             ' "Roll" / "Sheet" - fixed, not looked up
     s.Cost = 0
     s.Active = True
     s.SuppliedByStudent = True

@@ -138,7 +138,7 @@ recorded against it - every job snapshots the price it was costed at.
 **Clear table** empties that one sheet's table (after a warning naming what
 will be deleted) so a bureau can start that list afresh; the other sheets are
 not touched and it cannot be undone, so use Backup workbook first if unsure. The
-smaller lookup tables on the Settings sheet (paper types, paper families,
+smaller lookup tables on the Settings sheet (paper types,
 standard sizes, consumables) don't have their own buttons; their cells are
 unlocked, so a row added the normal Excel Table way (Tab at the last cell,
 or right-click > Insert > Table Rows) keeps its formatting and validation.

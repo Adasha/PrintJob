@@ -23,7 +23,6 @@ Public Sub StampRow(ByVal ws As Worksheet, ByVal RowNo As Long)
     CellIn(lo, RowNo, "S_ConsRate").Value = IIf(p.Found, p.RatePerM2, Empty)
 
     CellIn(lo, RowNo, "S_StockID").Value = s.StockID
-    CellIn(lo, RowNo, "S_Family").Value = s.Family
     CellIn(lo, RowNo, "S_Measure").Value = s.Measure
     CellIn(lo, RowNo, "S_UnitCost").Value = IIf(s.Found, s.Cost, Empty)
 

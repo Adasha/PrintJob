@@ -197,7 +197,7 @@ End Sub
 
 ' Paper Stock choices: every active stock compatible with some printer
 ' permitted at this location, ALWAYS - whether or not Printer is chosen.
-' Once Printer is chosen, stocks its family doesn't support are still listed
+' Once Printer is chosen, stocks it can't take are still listed
 ' but suffixed UNAVAILABLE_SUFFIX (module note above) rather than removed.
 ' Auto-fill still uses the narrowed (compatible-only) set, unaffected by
 ' what the dropdown displays. Never locked - the cell stays reachable either
@@ -215,7 +215,7 @@ Private Sub BindStockRange(ByVal ws As Worksheet, ByVal target As Range, ByVal M
     Else
         Set compat = StocksFor(Model)
         Tag = "STK|" & ws.Name & "|" & Model
-        Msg = "Every active stock compatible with a printer at this print room. Stocks marked '" & Trim$(UNAVAILABLE_SUFFIX) & "' are not in a family " & Model & " supports - picking one clears the printer instead."
+        Msg = "Every active stock compatible with a printer at this print room. Stocks marked '" & Trim$(UNAVAILABLE_SUFFIX) & "' are not ones " & Model & " can take - picking one clears the printer instead."
     End If
 
     AutoFillIfSingle target, compat

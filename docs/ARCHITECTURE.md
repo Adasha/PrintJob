@@ -8,8 +8,8 @@
 
 **Current state, as verified against the actual VBA source on 2026-09-28:**
 
-- Workbook version reported in-code: `0.10.1` (`modVersion.APP_VERSION`) — `0.8.0` reflected the NextId fix, Export/Import, the Reports rework and the 2026-09-21 snag list; `0.8.1` closed out phase 8's own original scope (§16.1); `0.9.0`–`0.9.20` are phase 9's packages and post-package addenda — see `docs/CHANGELOG.md` for the fixes beyond `0.9.11`; `0.10.0` is the printer/paper compatibility rework (§16.5): capacity-based printer/stock compatibility in place of the old paper-family width bands, and student-supplied paper stock; `0.10.1` makes the two student-supplied stocks built in (no longer `tblPapers` rows) and makes `Supplied by student = Yes` force a zero paper cost.
-- Data schema version: `1.2` (`modUtils.SCHEMA_VER`) — `1.0` since inception; bumped to `1.1` by phase 9's Paid column (snag 1c, §5), which also surfaced and fixed a gap in how `SET_SCHEMA` stayed in sync with the constant (§3.3, §3.5); bumped to `1.2` by the printer/paper compatibility rework's new job-row "Sheet size" column (§5, §16.5).
+- Workbook version reported in-code: `0.10.3` (`modVersion.APP_VERSION`) — `0.8.0` reflected the NextId fix, Export/Import, the Reports rework and the 2026-09-21 snag list; `0.8.1` closed out phase 8's own original scope (§16.1); `0.9.0`–`0.9.20` are phase 9's packages and post-package addenda — see `docs/CHANGELOG.md` for the fixes beyond `0.9.11`; `0.10.0` is the printer/paper compatibility rework (§16.5): capacity-based printer/stock compatibility in place of the old paper-family width bands, and student-supplied paper stock; `0.10.1` makes the two student-supplied stocks built in (no longer `tblPapers` rows) and makes `Supplied by student = Yes` force a zero paper cost; `0.10.2` adds Clear table on the Technicians/Printers/Papers sheets; `0.10.3` removes the paper family concept (Papers' `Family` column, `tblPaperFamilies`, the job-row `S_Family` snapshot) — Papers' `Measure` (`Sheet`/`Roll`) is now the one input (see `docs/CHANGELOG.md`).
+- Data schema version: `1.3` (`modUtils.SCHEMA_VER`) — `1.0` since inception; bumped to `1.1` by phase 9's Paid column (snag 1c, §5), which also surfaced and fixed a gap in how `SET_SCHEMA` stayed in sync with the constant (§3.3, §3.5); bumped to `1.2` by the printer/paper compatibility rework's new job-row "Sheet size" column (§5, §16.5); bumped to `1.3` by dropping the `S_Family` snapshot column when the paper family concept was removed (§5, `docs/CHANGELOG.md`).
 - Everything in the original design document's phases 1–7 is built and verified.
 - Phase 8's original scope (visual polish) is **fully built** — see §16.2.
 - The "larger changes" plan (`snaglist-stage7handoff.txt`: NextId fix, Import/Export rework, Reports rework, bulk delete) is **fully built**.
@@ -34,7 +34,7 @@ An Excel `.xlsm` (Microsoft 365 only, Windows and Mac) for logging print jobs pe
 | D3 | Contents of "global settings" | Currency format + rounding rule; organisation/report header metadata; site identity; export folder. No VAT, no overhead markup |
 | D4 | Per-row *Now* and *Remove* controls | Toolbar of Form Control buttons above each table, acting on the selected row; plus double-click to stamp date/time |
 | D5 | How reports discover location sheets after duplication | Marker cell on each location sheet; a **Refresh Locations** command rescans and rebuilds a hidden registry |
-| D6 | Papers "Cost" means £/sheet or £/metre | One `Cost` column, with an adjacent calculated `Cost unit` label driven by the stock's family |
+| D6 | Papers "Cost" means £/sheet or £/metre | One `Cost` column, with an adjacent calculated `Cost unit` label driven by the stock's `Measure` |
 | D7 | Units for transaction print width | Millimetres, matching stock width |
 | D8 | Presentation of disregarded costs | Gross, Disregarded and Chargeable as separate columns; consumption unaffected throughout |
 | D9 | Custom sheet sizes | Standard A-sizes remain a picker; explicit custom width × height in mm also permitted |
@@ -52,7 +52,7 @@ An Excel `.xlsm` (Microsoft 365 only, Windows and Mac) for logging print jobs pe
 ### 2.1 Interpretations — confirmed at sign-off
 
 - **I1 — Sheet-stock consumable area scales with quantity.** Area is `sheet area × number of sheets`.
-- **I2 — Paper families carry a measurement basis.** Each family carries an explicit **Measurement basis** of `Sheet` or `Roll`, and behaviour keys off that attribute, never off the family's name.
+- **I2 — Paper stock carries a measure.** Each stock has an explicit **Measure** of `Sheet` or `Roll` (a dropdown on Papers), and behaviour keys off that attribute. There is no separate "family" concept any more (removed 0.10.3, `docs/CHANGELOG.md`).
 - **I3 — Sheet-stock quantities are whole numbers.** Roll quantities are decimal metres; sheet quantities integers ≥ 1.
 - **I4 — Rounding is applied per cost component at row level**, so a printed report's rows add up to its totals.
 - **I5 — AT-11 is a warning, not a block.** With no authoritative student list the first entry of any student is unverifiable, and legitimate name changes would trigger it. Verified in phase 7.
@@ -66,12 +66,10 @@ An Excel `.xlsm` (Microsoft 365 only, Windows and Mac) for logging print jobs pe
 ```
 Settings (global key/value)
 PaperType ──┐
-            ├──< PaperStock >──── PaperFamily
-StandardSize┘         │                │
-                      │                │ (Measurement basis only - Sheet/Roll -
-                      │                │  no longer a width band, §16.5)
-Technician ───────────┼──>PrintJob<────┘
-                      │                
+            ├──< PaperStock (Measure: Sheet/Roll)
+StandardSize┘         │
+Technician ───────────┼──>PrintJob
+                      │
                       └───────────────────── Printer ──── ConsumableType
                                   │
                               Location (one sheet each)
@@ -79,9 +77,9 @@ Technician ───────────┼──>PrintJob<────┘
                               Site (one workbook each)
 ```
 
-- A **PaperStock** belongs to exactly one **PaperFamily** and one **PaperType**. A family's only job is to distinguish `Sheet` from `Roll` stock (its **Measurement basis** — I2 still holds: behaviour keys off the basis, never the family name) — it no longer needs one row per width band the way `Short Roll`/`Long Roll` used to (merged into a single `Roll` family, §16.5).
+- A **PaperStock** belongs to exactly one **PaperType** and has a **Measure** (`Sheet` or `Roll`, chosen from a dropdown on Papers) that decides whether it is counted in sheets or metres. There used to be a separate **PaperFamily** entity carrying a *Measurement basis*; once the width-band families merged into one `Roll` family it only ever mapped `Sheet`→`Sheet` and `Roll`→`Roll`, so it was removed (0.10.3, `docs/CHANGELOG.md`).
 - A **PrintJob** references one Technician, one Printer and one PaperStock, and belongs to one Location.
-- A stock is valid for a printer purely by size, not by family: a Roll stock's width against the printer's **Max roll width mm**, a Sheet stock's dimensions (either orientation) against the printer's **Max sheet size** (a Standard Size). A **Printer** no longer references PaperFamily at all — the old `Supported families` multi-select is gone (§3.3, §16.5).
+- A stock is valid for a printer purely by size, not by any grouping of stocks: a Roll stock's width against the printer's **Max roll width mm**, a Sheet stock's dimensions (either orientation) against the printer's **Max sheet size** (a Standard Size). A **Printer** does not reference paper groupings at all — the old `Supported families` multi-select is gone (§3.3, §16.5).
 - The two built-in **"Supplied (Roll)"/"Supplied (Sheet)"** stocks (student-supplied paper) skip the size comparison entirely — compatible with any printer that has the matching capacity field set at all, since the real size is entered per job rather than read from a catalogue row (§5, §16.5). They are added in code by `modCatalog.LoadCatalog` (`AddBuiltInStocks`), are **not** `tblPapers` rows, and their names are reserved (`IsBuiltInStock`; `OnPaperEdited` rejects them). A `tblPapers` row with **Supplied by student = Yes** (e.g. a bulk delivery of paper for many jobs) is an ordinary stock with its own catalogue size, compatibility and validation — the flag only means its paper cost is always 0 (`LoadCatalog` forces `Cost = 0`; `OnPaperEdited` also resets the visible Cost cell).
 - A **Location** permits a subset of printers.
 - A **Site** is one workbook file. In v1 there is one site per workbook and nothing collates them automatically (§12) — though see §12.4 for the manual route that now exists.
@@ -114,7 +112,6 @@ Current mechanism (`modRegistry.NextJobId`, `modRegistry.bas:570`):
 | `tblSettings` | Key, Setting, Value, Notes |
 | `tblPaperTypes` | Paper type, Active |
 | `tblStandardSizes` | Size name, Width mm, Height mm |
-| `tblPaperFamilies` | Family, **Measurement basis** (`Sheet`/`Roll`), Notes — two rows since the printer/paper compatibility rework (§16.5) merged the old `Short Roll`/`Long Roll` width-band families into one `Roll` family; a family only needs to distinguish Sheet from Roll now |
 | `tblConsumables` | Consumable type, Active |
 
 Each setting is exposed as a workbook-scoped defined name so formulas and VBA reference meaning rather than cell addresses: `SET_SITE_ID`, `SET_SITE_NAME`, `SET_ORG`, `SET_DEPT`, `SET_CURRENCY`, `SET_ROUND_DP`, `SET_EXPORT_FOLDER`, plus read-only `SET_SCHEMA`, `SET_LASTREF`, `SET_APP_VER`, `SET_BUILT`, `SET_BUILT_BY`.
@@ -123,13 +120,13 @@ Each setting is exposed as a workbook-scoped defined name so formulas and VBA re
 
 **Print Technicians** — `tblTechnicians`: TechID, Name, Department, Active.
 **Printers** — `tblPrinters`: PrinterID, Model, Consumable type, **Cost per m2**, **Max roll width mm**, **Max sheet size**, Active. The last two (printer/paper compatibility rework, §16.5) replace the old `Supported families` multi-select: a printer takes roll stock iff the first is set, sheet stock iff the second is set (a Standard Size name), and both can be set on the same printer. `modCatalog.EnsurePrinterCapacityColumns` adds them; `MigratePrinterCapacities` derives their initial values from whatever the printer was compatible with under the old family-list rule, then removes the legacy column.
-**Papers** — `tblPapers`: StockID, Description, Paper type, Family, *Measure* (calc), Size mode, Std. size (renamed from "Standard size" 0.9.14 — `modCatalog.EnsureStdSizeColumnName`), **Width mm**, **Height mm**, **Cost**, *Cost unit* (calc), **Supplied by student** (Yes/No, default No; Yes = paper cost always 0, §16.5), Active. The two student-supplied stocks `Supplied (Roll)`/`Supplied (Sheet)` are **not** rows of this table — they are built in (`modCatalog.AddBuiltInStocks`, `SUPPLIED_ROLL`/`SUPPLIED_SHEET`), reserved names, `Cost = 0`, no catalogue size. Earlier builds shipped them as real rows; `modCatalog.RemoveLegacySuppliedRows` (called from Setup) deletes those, and jobs already recorded keep their frozen `S_*` snapshot. The Summary sheet's Type/Family/Unit lookups fall back to fixed values for the two names (`modReports.BuildSummary`).
+**Papers** — `tblPapers`: StockID, Description, Paper type, **Measure** (`Sheet`/`Roll` dropdown), Size mode, Std. size (renamed from "Standard size" 0.9.14 — `modCatalog.EnsureStdSizeColumnName`), **Width mm**, **Height mm**, **Cost**, *Cost unit* (calc), **Supplied by student** (Yes/No, default No; Yes = paper cost always 0, §16.5), Active. The two student-supplied stocks `Supplied (Roll)`/`Supplied (Sheet)` are **not** rows of this table — they are built in (`modCatalog.AddBuiltInStocks`, `SUPPLIED_ROLL`/`SUPPLIED_SHEET`), reserved names, `Cost = 0`, no catalogue size. Earlier builds shipped them as real rows; `modCatalog.RemoveLegacySuppliedRows` (called from Setup) deletes those, and jobs already recorded keep their frozen `S_*` snapshot. The Summary sheet's Type/Unit lookups fall back to fixed values for the two names (`modReports.BuildSummary`).
 
 All dimensions are stored in millimetres; metres appear only as a transaction quantity for roll stock.
 
-**Adding/removing configuration rows (snag item 17, resolved).** `modCatalog.AddCatalogRow` / `RemoveCatalogRow` back Add-row/Remove-row buttons on Printers, Papers and Print Technicians (full-size buttons) and compact `+`/`-` button pairs above the four Settings lookup tables — Paper types, Family, Size, Consumable (button names kept short deliberately: `Button.Name` silently truncates at 32 characters and raises error 1004 at 33+). `AddCatalogRow` reuses an existing single blank row if present, else `ListRows.Add`, which keeps formatting and validation automatically. `RemoveCatalogRow` operates on the row under the current selection, shows every column's value in the confirmation, and states explicitly that jobs already recorded against a removed row keep their frozen snapshot prices — deactivation-not-deletion (§3.2) is enforced by the confirmation text, not by disabling the button.
+**Adding/removing configuration rows (snag item 17, resolved).** `modCatalog.AddCatalogRow` / `RemoveCatalogRow` back Add-row/Remove-row buttons on Printers, Papers and Print Technicians (full-size buttons) and compact `+`/`-` button pairs above the three Settings lookup tables — Paper types, Size, Consumable (button names kept short deliberately: `Button.Name` silently truncates at 32 characters and raises error 1004 at 33+). `AddCatalogRow` reuses an existing single blank row if present, else `ListRows.Add`, which keeps formatting and validation automatically. `RemoveCatalogRow` operates on the row under the current selection, shows every column's value in the confirmation, and states explicitly that jobs already recorded against a removed row keep their frozen snapshot prices — deactivation-not-deletion (§3.2) is enforced by the confirmation text, not by disabling the button.
 
-The smaller lookup tables on Settings (paper types, families, standard sizes, consumables) deliberately don't get their own buttons: their cells are unlocked (§9.4), so a row added the normal Excel Table way (Tab at the last cell, or right-click → Insert → Table Rows) keeps formatting and validation without VBA's help.
+The smaller lookup tables on Settings (paper types, standard sizes, consumables) deliberately don't get their own buttons: their cells are unlocked (§9.4), so a row added the normal Excel Table way (Tab at the last cell, or right-click → Insert → Table Rows) keeps formatting and validation without VBA's help.
 
 ### 3.4 Hidden working sheets
 
@@ -340,7 +337,7 @@ Anyone reordering job-table columns directly in `PrintCosts.xlsx` again (as oppo
 | 22 | Notes | input | Optional |
 | 23 | H_Issues | calc | Hidden working column behind Status |
 
-**Snapshot block (24–35)** — locked, grey, collapsed group headed *Historical record — do not edit*: `S_PrinterID`, `S_StockID`, `S_TechID`, `S_Family`, `S_Measure`, `S_UnitCost`, `S_StockWidth_mm`, `S_SheetHeight_mm`, `S_ConsRate`, `S_StampedAt`, `S_StampedBy`, `S_SchemaVer`.
+**Snapshot block (24–34)** — locked, grey, collapsed group headed *Historical record — do not edit*: `S_PrinterID`, `S_StockID`, `S_TechID`, `S_Measure`, `S_UnitCost`, `S_StockWidth_mm`, `S_SheetHeight_mm`, `S_ConsRate`, `S_StampedAt`, `S_StampedBy`, `S_SchemaVer`.
 
 **Sheet size (printer/paper compatibility rework, §16.5) — the second genuine job-row column since inception, `modUtils.SCHEMA_VER` 1.1 → 1.2.** Added via `modInit.EnsureSheetSizeJobColumn`, same idempotent `ListColumns.Add` shape as `EnsurePaidColumn`. Plays the same role for `Supplied (Sheet)` that `Print Width mm` already played for roll stock: there's no catalogue size to fall back on for student-supplied paper, so the real size is entered per job and stamped into `S_StockWidth_mm`/`S_SheetHeight_mm` by `modSnapshot.StampRow` (resolved via a `tblStandardSizes` lookup, `modCatalog.StdSizeDims`) exactly as if it had come from a catalogue row — **no change to any cost formula was needed** (§5.1). Both `Print Width mm` (now required, not optional, for `Supplied (Roll)`) and `Sheet size` are validated against the *printer's* capacity, not a stock's nominal size (`modValidation.OnWidthChanged`/`OnSheetSizeChanged`/`RevalidateSuppliedSize`) — and a blank value on a row that needs one is caught by `H_Issues` (`modInit.EnsureJobIssuesFormula`, asserted in VBA rather than a static `.xlsx` formula edit, same self-healing reasoning as `EnsureJobColumnValidation`) the same way every other required field already is, so Check sheet/Check workbook catch a forgotten one.
 
@@ -485,15 +482,15 @@ VBA's entire role in reporting is rewriting that one formula (plus refreshing th
 
 One row per **Location × Printer × Paper stock** — a three-column key, extended from the original two-column Location × Paper-stock key (historical "Problem 2": two printers sharing a stock get separate rows, because cost-per-print differs by printer's consumable rate even for the same paper). Key pairs derived with `SORT(UNIQUE(HSTACK(...)))` and aggregated with `COUNTIFS`/`SUMIFS` taking the key columns as **array criteria**, which makes the results spill alongside the keys instead of needing one formula per row.
 
-| Location | Printer | Paper stock | Type | Family | Unit | Jobs | Qty | Area m² | Paper cost | Consumable cost | Gross | Disregarded | Chargeable |
+| Location | Printer | Paper stock | Type | Unit | Jobs | Qty | Area m² | Paper cost | Consumable cost | Gross | Disregarded | Chargeable |
 
-Type, Family and Unit are resolved from `tblPapers` by stock description, wrapped in `IFNA` so a stock renamed or removed since shows `(not in Papers)` rather than an error. These are labels only — no cost figure is ever looked up live (§5.1).
+Type and Unit are resolved from `tblPapers` by stock description, wrapped in `IFNA` so a stock renamed or removed since shows `(not in Papers)` rather than an error. These are labels only — no cost figure is ever looked up live (§5.1).
 
 Consumption columns count **every** record regardless of disregard flags; only money columns split (D8).
 
 **Totals sit above the table, not beneath it.** The detail spills to an unpredictable height, so anything below it is overwritten the moment a job is added.
 
-**A cell-colour legend and conditional formatting (phase 8 carry-over, resolved 0.8.1, see §16.2) sit at `O9` down**, clear of the report table and the buttons drawn at column O rows 1/3/5 (row 7 freed up 2026-09-22 when "Go to Settings" was removed, §16.4 Package 7): `modReports.DrawLegend` explains the four everyday cell colours, and `modReports.FormatSummaryErrors` gives the Type/Family columns red bold text for a paper stock no longer in `tblPapers`.
+**A cell-colour legend and conditional formatting (phase 8 carry-over, resolved 0.8.1, see §16.2) sit at `O9` down**, clear of the report table and the buttons drawn at column O rows 1/3/5 (row 7 freed up 2026-09-22 when "Go to Settings" was removed, §16.4 Package 7): `modReports.DrawLegend` explains the four everyday cell colours, and `modReports.FormatSummaryErrors` gives the Type column red bold text for a paper stock no longer in `tblPapers`.
 
 **"Hide settings sheets" / "Show settings sheets" toggle (snag item 13, resolved).** A button on Summary (`modInit.ToggleConfigSheets`) hides Print Technicians, Printers, Papers and Settings using `xlSheetHidden` (not `xlSheetVeryHidden`, so **Unhide** still reaches them — this is UI tidiness, not a security boundary) and relabels itself between the two states by reading which of the four sheets it can currently find. **Stays on Summary regardless (snag 3a, 2026-09-22):** hiding the *currently active* sheet forces Excel to activate whatever is next in tab order — harmless when Summary (where the button lives) is already active, but `ToggleConfigSheets` now captures the `Summary` worksheet explicitly and re-activates it unconditionally at the end, rather than relying on it never having moved.
 
@@ -568,7 +565,6 @@ They cannot use `SUMIFS` for the breakdowns below — its arguments must be rang
 | Summary | Refresh Locations, Check workbook, **Hide/Show settings sheets** (Go to Settings removed, 2026-09-22 — see §16.4) |
 | Settings | Two rows of four, below `tblSettings` (0.9.12, §16.4 addendum): Refresh Locations, Check workbook, Re-stamp prices…, About / Export All Locations…, Import (choose room)…, **Backup workbook…**, **Restore workbook…** (§10.7) |
 | Each location | Add Print Job, Now (toolbar, row 11); Remove Row, Select printers…, Check this sheet, Clear All, Export…, Import…, **Reduce clutter / Show all columns** (side panel, §4.1, 2026-09-25); **Clear defaults** (row 4, over Technician) |
-| Printers | Select families… |
 | Reports | **Export report…**, **Delete visible records…** |
 
 Settings keeps its own copies deliberately: it is where someone lands when configuring, and *Re-stamp prices* and *About* belong nowhere else. Export report / Delete visible records sit at the top of the Reports sheet (rows 1 and 3, column F), inside the first screenful, above the filter rows.
@@ -801,7 +797,7 @@ Any of **Student name, Student no, Location, Printer, Paper stock, Technician** 
 
 The ad-hoc "get me back to where I was" path, distinct from the two artefacts above: not a per-location CSV (§10.4), not a filtered Reports snapshot (§10.4's Export report), but every catalogue/configuration table plus every location's job records, in one pass, sharing one timestamp. New module `modBackup.bas`. Buttons on Settings: **Backup workbook...** / **Restore workbook...**, alongside the existing Export All Locations / Import commands — the four now share the second of the two button rows below `tblSettings` (0.9.12, §16.4 addendum; previously stacked in column T).
 
-**Backup All** (`modBackup.BackupAll`): runs the existing `ExportAllLocations` unchanged (own summary dialog) for job records, then writes one CSV per catalogue table — `tblTechnicians`, `tblPrinters`, `tblPapers`, the four Settings-page lookup tables (`tblPaperTypes`, `tblStandardSizes`, `tblPaperFamilies`, `tblConsumables`), and `tblSettings` itself (one of the eight, not a separate mechanism — `modUtils.Tbl` finds it on the Settings sheet the same way it finds the other three lookup tables there). Named `PrintCosts-<SITE>-CATALOG-<TableName>-yyyymmdd-hhmm.csv`, written to the same resolved `ExportFolder()` (now `Public`, reused unchanged rather than re-deriving the OneDrive-URL resolution logic — §10.4's own env-var gotcha lives there, and duplicating it would risk drifting out of sync).
+**Backup All** (`modBackup.BackupAll`): runs the existing `ExportAllLocations` unchanged (own summary dialog) for job records, then writes one CSV per catalogue table — `tblTechnicians`, `tblPrinters`, `tblPapers`, the three Settings-page lookup tables (`tblPaperTypes`, `tblStandardSizes`, `tblConsumables`), and `tblSettings` itself (one of the seven, not a separate mechanism — `modUtils.Tbl` finds it on the Settings sheet the same way it finds the other three lookup tables there). Named `PrintCosts-<SITE>-CATALOG-<TableName>-yyyymmdd-hhmm.csv`, written to the same resolved `ExportFolder()` (now `Public`, reused unchanged rather than re-deriving the OneDrive-URL resolution logic — §10.4's own env-var gotcha lives there, and duplicating it would risk drifting out of sync).
 
 **Deliberate reuse over a second CSV format.** A catalogue CSV's header block is padded to the same eight rows `modExport.BuildBlock` uses for a per-location job export (title/schema/site/generated/rows, then a deliberately blank row 8), so the table header always lands on row 9 and data on row 10 — exactly where `modImport.ReadImportRows`'s own hardcoded row numbers already look. Restore therefore reads catalogue rows with the **same, unmodified, already-tested function** that reads job rows; no second CSV parser exists in this workbook.
 
@@ -816,7 +812,6 @@ The ad-hoc "get me back to where I was" path, distinct from the two artefacts ab
 | `tblPapers` | StockID |
 | `tblPaperTypes` | Paper type |
 | `tblStandardSizes` | Size name |
-| `tblPaperFamilies` | Family |
 | `tblConsumables` | Consumable type |
 | `tblSettings` | Key |
 
@@ -852,7 +847,7 @@ Buttons: `btnClearTechnicians` / `btnClearPrinters` / `btnClearPapers` (`modMain
 | Read-only reference | Light grey fill, grey text, locked |
 | Snapshot / historical | Darker grey, collapsed group, locked |
 | Warning state | Amber fill via conditional formatting, on every location sheet's Status column (`modInit.ApplyStatusFormat`) whenever a row reads anything other than `OK` |
-| Error state | Red bold text via conditional formatting, on Summary's Type/Family columns (`modReports.FormatSummaryErrors`) whenever a job references a paper stock no longer in `tblPapers` (`"(not in Papers)"`) |
+| Error state | Red bold text via conditional formatting, on Summary's Type column (`modReports.FormatSummaryErrors`) whenever a job references a paper stock no longer in `tblPapers` (`"(not in Papers)"`) |
 
 Transaction tables use freeze panes below the header, filter buttons, and banded rows. GBP formatting is driven by the global `SET_CURRENCY` setting (`modSettings.CurrencySymbol`) everywhere a money `NumberFormat` or `Format$` is built — see §16.2.
 
@@ -975,7 +970,7 @@ Run the four `test-*.ps1` regression scripts **one at a time**, not in a tight l
 
 | Acceptance test | Design element | Verified |
 |---|---|---|
-| AT-01 | §5.1 Paper Cost formula; `S_UnitCost` for sheet families | Phase 10 |
+| AT-01 | §5.1 Paper Cost formula; `S_UnitCost` for sheet stock | Phase 10 |
 | AT-02 | §5.1 Area formula, roll branch, blank print width | Phase 10 |
 | AT-03 | §5.1 — print width in Area only, never in Paper Cost | By construction |
 | AT-04 | §7.3 width check | Phase 10 |

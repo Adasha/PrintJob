@@ -247,7 +247,6 @@ Private Sub WriteImportedRow(ByVal lo As ListObject, ByVal RowNo As Long, ByVal 
     WriteText lo, RowNo, "S_PrinterID", d
     WriteText lo, RowNo, "S_StockID", d
     WriteText lo, RowNo, "S_TechID", d
-    WriteText lo, RowNo, "S_Family", d
     WriteText lo, RowNo, "S_Measure", d
     WriteNum lo, RowNo, "S_UnitCost", d
     WriteNum lo, RowNo, "S_StockWidth_mm", d

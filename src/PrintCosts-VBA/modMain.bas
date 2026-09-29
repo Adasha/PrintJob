@@ -314,25 +314,9 @@ Fail:
     ReportError "Remove row"
 End Sub
 
-' Named Family/Size, not PaperFamilies/StandardSizes - see the DrawSmall
+' Named Size/Consumable, not StandardSizes/Consumables - see the DrawSmall
 ' call in modInit.InitialiseWorkbook for why (Button.Name's 32-character
 ' limit).
-Public Sub btnAddRowFamily()
-    On Error GoTo Fail
-    AddCatalogRow "tblPaperFamilies"
-    Exit Sub
-Fail:
-    ReportError "Add row"
-End Sub
-
-Public Sub btnRemoveRowFamily()
-    On Error GoTo Fail
-    RemoveCatalogRow "tblPaperFamilies"
-    Exit Sub
-Fail:
-    ReportError "Remove row"
-End Sub
-
 Public Sub btnAddRowSize()
     On Error GoTo Fail
     AddCatalogRow "tblStandardSizes"

@@ -191,14 +191,14 @@ Public Sub InitialiseWorkbook()
             ' instead of picking its own spot in isolation.
             DrawOne ws, settingsBottom + 6, 1, "Add print room...", "btnAddPrintRoom", 130
             DrawOne ws, settingsBottom + 6, 4, "Remove print room...", "btnRemovePrintRoom", 130
-            ' Small +/- buttons above the four lookup tables (snag list item
+            ' Small +/- buttons above the three lookup tables (snag list item
             ' 5). Row 4 is already the table's own subtitle ("Paper stock
             ' types" etc.) on this sheet, unlike the blank row 4 on Printers/
             ' Papers/Print Technicians, so these sit in row 3 instead rather
             ' than moving the tables the way EnsureTableGap does for those.
             '
-            ' "Family"/"Size"/"Consumable" rather than "PaperFamilies"/
-            ' "StandardSizes"/"Consumables": Button.Name silently TRUNCATES
+            ' "Size"/"Consumable" rather than "StandardSizes"/
+            ' "Consumables": Button.Name silently TRUNCATES
             ' to 31 characters at 32 and raises 1004 outright at 33+ in this
             ' Excel/COM automation context (verified directly with a length
             ' sweep - "pcb_btnRemoveRowConsumables_3_18" was exactly 32 and
@@ -207,12 +207,10 @@ Public Sub InitialiseWorkbook()
             ' three, at 34 each, raised 1004 outright.
             DrawSmall ws, 3, 6, "+", "btnAddRowPaperTypes", 24
             DrawSmall ws, 3, 7, "-", "btnRemoveRowPaperTypes", 24
-            DrawSmall ws, 3, 9, "+", "btnAddRowFamily", 24
-            DrawSmall ws, 3, 10, "-", "btnRemoveRowFamily", 24
-            DrawSmall ws, 3, 13, "+", "btnAddRowSize", 24
-            DrawSmall ws, 3, 14, "-", "btnRemoveRowSize", 24
-            DrawSmall ws, 3, 17, "+", "btnAddRowConsumable", 24
-            DrawSmall ws, 3, 18, "-", "btnRemoveRowConsumable", 24
+            DrawSmall ws, 3, 9, "+", "btnAddRowSize", 24
+            DrawSmall ws, 3, 10, "-", "btnRemoveRowSize", 24
+            DrawSmall ws, 3, 13, "+", "btnAddRowConsumable", 24
+            DrawSmall ws, 3, 14, "-", "btnRemoveRowConsumable", 24
             SetFreeze ws, ""
         ElseIf StrComp(ws.Name, "Reports", vbTextCompare) = 0 Then
             ' Rows 1-3, column T (2026-09-26, moved from F): F sat directly
@@ -1042,7 +1040,6 @@ Private Sub UnlockConfigInputs()
     UnlockTableBody "tblPrinters"
     UnlockTableBody "tblPapers"
     UnlockTableBody "tblPaperTypes"
-    UnlockTableBody "tblPaperFamilies"
     UnlockTableBody "tblStandardSizes"
     UnlockTableBody "tblConsumables"
     UnlockSettingsValues

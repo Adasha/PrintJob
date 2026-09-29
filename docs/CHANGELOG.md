@@ -3,6 +3,26 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.10.3 - paper family removed, direct user request: on Papers the Family
+column and the calculated Measure column always showed the same thing, since
+the 0.10.0 rework left tblPaperFamilies with two rows (Sheet -> Sheet, Roll ->
+Roll) and nothing but Measure was ever read. Measure is now the one input.
+  - Papers: Family column and the calculated Measure column replaced by a
+    single Measure dropdown (Sheet/Roll). Cost unit still keys off Measure.
+  - Settings: tblPaperFamilies, its lstFamilies name and its +/- buttons
+    (btnAddRowFamily/btnRemoveRowFamily) removed; the standard sizes and
+    consumables tables moved left to close the gap. Backup All writes seven
+    catalogue CSVs, not eight.
+  - Job rows: S_Family snapshot column removed (S_Measure already records it);
+    modUtils.SCHEMA_VER 1.2 -> 1.3. Exports from 1.2 still import - columns
+    are read by header name, so the extra S_Family column is ignored.
+  - Summary: Family column removed (Type, Unit, Jobs ... shift left one).
+  - modCatalog reads tblPapers[Measure] directly (no family lookup); clsStock.
+    Family and modCatalog.Basis removed.
+  - No migration: no workbooks were in the wild. Rebuild from PrintCosts.xlsx.
+  - Tests updated (test-newpaperrow, test-suppliedstock, test-phase8,
+    test-reports, test-paid, test-backup).
+
 0.10.2 - Clear table on Print Technicians, Printers and Papers, direct user
 request: lets a bureau empty ONE of these lists to start it afresh without
 touching the others.

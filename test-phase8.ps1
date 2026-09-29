@@ -6,7 +6,7 @@
 #   - Warning state: amber fill via conditional formatting on every location
 #     sheet's Status column, whenever a row reads anything other than "OK".
 #   - Error state: red bold text via conditional formatting on Summary's
-#     Type/Family columns, whenever a job references a paper stock no longer
+#     Type column, whenever a job references a paper stock no longer
 #     in tblPapers ("(not in Papers)").
 #   - The Summary-sheet legend explaining the four everyday cell colours.
 #   - SET_CURRENCY wired into every NumberFormat/Format$ that used to
@@ -62,9 +62,9 @@ try {
 
     # -------------------------------------------------- error: Summary ---
     Write-Host ''
-    Write-Host '=== Error state: Summary Type/Family conditional formatting ==='
+    Write-Host '=== Error state: Summary Type conditional formatting ==='
     $sum = $wb.Worksheets('Summary')
-    $errRng = $sum.Range('D10:E2000')
+    $errRng = $sum.Range('D10:D2000')
     $n = $errRng.FormatConditions.Count
     Write-Host ("  FormatConditions.Count={0}" -f $n)
     if ($n -ge 1) {

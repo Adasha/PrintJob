@@ -57,7 +57,7 @@ try {
         foreach ($c in $rng.Cells) { $items += [string]$c.Value2 }
         return $items
     }
-    function New-Paper([string]$desc, [string]$family, [string]$mode, [string]$std, $w, $h) {
+    function New-Paper([string]$desc, [string]$measure, [string]$mode, [string]$std, $w, $h) {
         [void]$papers.Activate()
         [void]$xl.Run('AddCatalogRow', 'tblPapers')
         $row = $plo.ListRows.Count
@@ -65,7 +65,7 @@ try {
         $r.Cells(1, (Col $plo 'StockID')).Value2 = 'STK-TEST-' + $row
         $r.Cells(1, (Col $plo 'Description')).Value2 = $desc
         $r.Cells(1, (Col $plo 'Paper type')).Value2 = 'Matte'
-        $r.Cells(1, (Col $plo 'Family')).Value2 = $family
+        $r.Cells(1, (Col $plo 'Measure')).Value2 = $measure
         $r.Cells(1, (Col $plo 'Size mode')).Value2 = $mode
         if ($std) { $r.Cells(1, (Col $plo 'Std. size')).Value2 = $std }
         if ($null -ne $w) { $r.Cells(1, (Col $plo 'Width mm')).Value2 = [double]$w }

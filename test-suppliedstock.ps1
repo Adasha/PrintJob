@@ -205,7 +205,7 @@ try {
     $ln = $pap.ListRows.Count
     SetPap $ln 'StockID' 'STK-SUP-ROLL'
     SetPap $ln 'Description' 'Supplied (Roll)'
-    SetPap $ln 'Family' 'Roll'
+    SetPap $ln 'Measure' 'Roll'
     SetPap $ln 'Cost' 0
     SetPap $ln 'Active' 'Yes'
     SetPap $ln 'Supplied by student' 'Yes'
@@ -235,7 +235,7 @@ try {
     Start-Sleep -Milliseconds 300
     Check ([string](GetPap $n 'Supplied by student') -eq 'No') "Supplied by student defaults to No (got '$([string](GetPap $n 'Supplied by student'))')"
     $papWs.Unprotect()
-    SetPap $n 'Family' 'Roll'
+    SetPap $n 'Measure' 'Roll'
     SetPap $n 'Size mode' 'Roll'
     SetPap $n 'Width mm' 610
     SetPap $n 'Cost' 7

@@ -23,7 +23,6 @@ Option Explicit
 Public StockID As String
 Public Description As String
 Public PaperType As String
-Public Family As String
 Public Measure As String            ' "Sheet" or "Roll"
 Public WidthMM As Double
 Public HeightMM As Double

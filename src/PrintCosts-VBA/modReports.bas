@@ -79,7 +79,7 @@ Public Sub BuildSummary()
     TotalCell ws, "L6", "Unpaid", "=IFERROR(SUM(" & C("Chargeable Cost") & ")-SUMIFS(" & C("Chargeable Cost") & "," & C("Paid") & ",""Yes""),0)"
 
     ' --- headers -----------------------------------------------------------
-    WriteHeaderRow ws, 9, Array("Location", "Printer", "Paper stock", "Type", "Family", "Unit", _
+    WriteHeaderRow ws, 9, Array("Location", "Printer", "Paper stock", "Type", "Unit", _
                                 "Jobs", "Qty", "Area m2", "Paper cost", _
                                 "Consumable cost", "Gross", "Disregarded", "Chargeable")
 
@@ -100,7 +100,6 @@ Public Sub BuildSummary()
     isSheet = "st=""" & SUPPLIED_SHEET & """"
     f = f & "HSTACK(lo,pr,st," & _
         "IFNA(XLOOKUP(st,tblPapers[Description],tblPapers[Paper type]),IF(OR(" & isRoll & "," & isSheet & "),""Student supplied"",""(not in Papers)"")),"
-    f = f & "IFNA(XLOOKUP(st,tblPapers[Description],tblPapers[Family]),IF(" & isRoll & ",""Roll"",IF(" & isSheet & ",""Sheet"",""(not in Papers)""))),"
     f = f & "IFNA(IF(XLOOKUP(st,tblPapers[Description],tblPapers[Measure])=""Sheet"",""sheets"",""metres""),IF(" & isRoll & ",""metres"",IF(" & isSheet & ",""sheets"",""-""))),"
     f = f & "COUNTIFS(" & C("Location") & ",lo," & C("Printer") & ",pr," & C("Paper Stock") & ",st),"
     f = f & SumBy("Qty") & "," & SumBy("Area m2") & "," & SumBy("Paper Cost") & ","
@@ -120,15 +119,15 @@ Private Sub FormatSummary(ByVal ws As Worksheet)
     ' 12 there) rather than its blue results-table header - this table is
     ' itself a totals breakdown (by location/printer/paper stock), the same
     ' category as Reports' "Matching" row, not a per-job record list.
-    ws.Range("A9:N9").Interior.Color = RGB(244, 232, 222)
-    ws.Range("H10:I2000").NumberFormat = "#,##0.00"
-    ws.Range("J10:N2000").NumberFormat = CurrencyFormatCode()
+    ws.Range("A9:M9").Interior.Color = RGB(244, 232, 222)
+    ws.Range("G10:H2000").NumberFormat = "#,##0.00"
+    ws.Range("I10:M2000").NumberFormat = CurrencyFormatCode()
     ws.Range("D6").NumberFormat = CurrencyFormatCode()
     ws.Range("F6").NumberFormat = CurrencyFormatCode()
     ws.Range("H6").NumberFormat = CurrencyFormatCode()
     ws.Range("J6").NumberFormat = CurrencyFormatCode()
     ws.Range("L6").NumberFormat = CurrencyFormatCode()
-    ws.Columns("A:N").ColumnWidth = 14
+    ws.Columns("A:M").ColumnWidth = 14
     ws.Columns("A:C").ColumnWidth = 24
     ws.Rows(9).Font.Bold = True
 End Sub
@@ -136,7 +135,7 @@ End Sub
 ' Phase 8's "error state" (design doc §11): the one place the workbook's own
 ' formulas already flag a genuine data-integrity break, as opposed to a
 ' routine per-row validation nag - a paper stock a job was costed against has
-' since been renamed or removed from tblPapers, so the Type/Family lookup in
+' since been renamed or removed from tblPapers, so the Type lookup in
 ' A10's spilled formula falls back to the literal "(not in Papers)" (IFNA in
 ' BuildSummary above). Like Status, this is pure spilled-formula output with
 ' no per-cell VBA hook, so conditional formatting is the only way to colour
@@ -145,7 +144,7 @@ End Sub
 ' RefreshExportStatus), so "error" reads the same everywhere it appears.
 Private Sub FormatSummaryErrors(ByVal ws As Worksheet)
     Dim rng As Range, fc As FormatCondition
-    Set rng = ws.Range("D10:E2000")
+    Set rng = ws.Range("D10:D2000")
     Set fc = rng.FormatConditions.Add(Type:=xlExpression, _
         Formula1:="=D10=""(not in Papers)""")
     fc.Font.Color = RGB(176, 0, 32)
@@ -156,7 +155,7 @@ End Sub
 ' the four everyday cell-role colours - not the exceptional Warning/Error
 ' states above, which explain themselves by firing, and not the niche
 ' Snapshot/historical role, which lives collapsed in a column group nobody
-' opens day to day. Sits at O9 down: clear of the report table (A:N) and
+' opens day to day. Sits at O9 down: clear of the report table (A:M) and
 ' clear of the buttons InitialiseWorkbook draws at column O rows 1/3/5/7, and
 ' level with the table's own header row so it reads as "this explains that".
 ' Colours are the exact ones already in use elsewhere on this sheet/Reports,
