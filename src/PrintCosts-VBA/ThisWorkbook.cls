@@ -50,6 +50,16 @@ Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)
                 Application.EnableEvents = False
                 OnPaperEdited Target
                 Application.EnableEvents = True
+            ElseIf Sh.Name = "Printers" Then
+                ' A row typed under the table gets its ID here - see
+                ' modCatalog "catalogue IDs". Events off: it writes cells.
+                Application.EnableEvents = False
+                OnCatalogEdited "tblPrinters", Target
+                Application.EnableEvents = True
+            ElseIf Sh.Name = "Print Technicians" Then
+                Application.EnableEvents = False
+                OnCatalogEdited "tblTechnicians", Target
+                Application.EnableEvents = True
             End If
             Exit Sub
     End Select

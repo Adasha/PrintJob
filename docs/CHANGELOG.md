@@ -3,6 +3,35 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.10.4 - site-prefixed catalogue IDs, direct user request: TechID, PrinterID
+and StockID are now allocated automatically, so configuration from another
+workbook can be combined without overwriting anything. Before this nothing
+filled them in (a new row's ID stayed blank) and the template's sample rows
+shipped fixed IDs (TEC-001, PRN-001, STK-001), identical in every workbook.
+  - IDs follow the Job ID pattern with the site prepended: <SITE>-TCH-00001,
+    <SITE>-PRN-00001, <SITE>-STK-00001 (SET_SITE_ID, table code, five digits).
+    modCatalog.NextCatalogId allocates from one persisted high-water mark per
+    table (TECH_ID_HWM, PRINTER_ID_HWM, STOCK_ID_HWM in tblSettings, Notes
+    "Read-only" so a restore skips them); the row scan is only a floor, so a
+    deleted ID is never reissued. modRegistry.ScanMaxSuffix is now Public.
+  - Filled by AddCatalogRow, by Workbook_SheetChange for a row typed under
+    the table once it has a name (modCatalog.OnPaperEdited / OnCatalogEdited),
+    and by Setup (EnsureCatalogIdSettings, EnsureCatalogIds) for any named row
+    without one. An existing ID is never changed.
+  - Template: the ID cells of the 18 sample rows in src\PrintCosts.xlsx (3
+    technicians, 4 printers, 11 papers incl. the two legacy STK-SUP-* rows
+    Setup deletes) are blank, so each build issues its own IDs. Edited in the
+    sheet XML directly; no other cell changed.
+  - Restore workbook (modBackup.ApplyCatalogRows): another site's rows now
+    have different keys, so they are appended, not overwritten. A row whose
+    NAME is already used by a different row (every lookup is by name, and
+    clsDict.Add replaces on a duplicate) is kept under its own ID with the
+    site added to the name - "HP T730 (SITE2)" - via RenameIfNameTaken; the
+    result message counts them. Restoring the same backup twice is
+    idempotent. SyncCatalogHwm then raises the counter to cover the restored
+    IDs. No legacy-version migration: the workbook is not released yet.
+  - New test-catalogids.ps1.
+
 2026-09-29 - number-format fix on Printers and Papers, direct user request
 (formatting only, no VBA change, no version bump). The Cost per m2 currency
 format (GBP, 4 dp) had smeared onto Max roll width mm and Max sheet size.

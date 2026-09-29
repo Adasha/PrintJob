@@ -183,6 +183,7 @@ job IDs already carry it.
 | `test-export.ps1` | Phase 6. Exports a print room, reads the CSV back, edits a row and confirms the fingerprint notices |
 | `test-validation.ps1` | Phase 7. AT-11, AT-14 and AT-16 — the conflict warning, the Clear All confirmation, and inactive-record behaviour |
 | `test-nextid.ps1` | The persisted Job ID high-water mark: deleting the top row must not reissue its ID, and the mark must survive RefreshLocations |
+| `test-catalogids.ps1` | Site-prefixed technician/printer/paper IDs: allocated on Add row and on typed rows, never reissued after a delete, and a restore of another site's catalogue adds rows (renaming clashing names to `Name (SITE)`) instead of overwriting |
 | `test-import.ps1` | Export All Locations, and Import restoring into origin and into a different room |
 | `test-deletereports.ps1` | Export report (a static-value `.xlsx` snapshot) and the Reports-page bulk delete, including the audit log entry |
 | `test-suppliedstock.ps1` | Printer/paper compatibility rework: "Supplied by student" paper stock — zero Paper Cost with normal Consumable Cost, Print Width mm/Sheet size required-field enforcement, and rejection when an entered width/size exceeds the chosen printer's capacity |
@@ -345,3 +346,11 @@ re-derived from the target workbook's current catalogue.
 Job IDs are allocated from a persisted high-water mark (`modRegistry.NextJobId`),
 not a scan of the sheet's current rows, so deleting the highest-numbered job
 cannot cause its ID to be reissued.
+
+Technician, printer and paper IDs (`TechID`, `PrinterID`, `StockID`) are
+allocated the same way, with the site code in front (`<SITE>-PRN-00001`), so
+Restore workbook can combine another workbook's configuration with this one
+without overwriting it (`modCatalog.NextCatalogId`). Nobody types them; the
+counters are the `Read-only` rows `TECH_ID_HWM`, `PRINTER_ID_HWM` and
+`STOCK_ID_HWM` on Settings. A restored row whose name is already taken by a
+different row is kept and renamed `Name (SITE)`.

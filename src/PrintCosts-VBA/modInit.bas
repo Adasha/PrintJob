@@ -65,9 +65,11 @@ Public Sub InitialiseWorkbook()
     EnsureExportSettings
     EnsureReducedViewSettings
     EnsureCostColumnsSetting
+    EnsureCatalogIdSettings
     EnsureStdSizesName
     RemoveLegacySuppliedRows
     NormaliseSuppliedFlags
+    EnsureCatalogIds
     EnsureSuppliedColumnValidation
 
     ' Moved here from after the per-sheet loop below (2026-09-27,

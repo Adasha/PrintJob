@@ -608,7 +608,7 @@ End Function
 ' The safety-net scan NextJobId takes a floor from. Digits only, so Val() is
 ' safe here - the locale trap modUtils.NumOf guards against is specific to a
 ' fractional part, and a Job ID suffix never has one.
-Private Function ScanMaxSuffix(ByVal lo As ListObject, ByVal IdHeader As String, ByVal Prefix As String) As Long
+Public Function ScanMaxSuffix(ByVal lo As ListObject, ByVal IdHeader As String, ByVal Prefix As String) As Long
     Dim i As Long, n As Long, hi As Long, s As String
     For i = 1 To lo.ListRows.Count
         s = CStr(CellIn(lo, i, IdHeader).Value)

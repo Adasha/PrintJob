@@ -357,6 +357,9 @@ Public Sub AddCatalogRow(ByVal TableName As String)
     ' a row left blank is silently excluded from every dropdown.
     DefaultActive lo, r.Range.Cells(1, 1).Row - lo.DataBodyRange.Row + 1
     DefaultSupplied lo, r.Range.Cells(1, 1).Row - lo.DataBodyRange.Row + 1
+    ' Technicians, printers and papers each get their site-prefixed ID here,
+    ' so it is there the moment the row is - see "catalogue IDs" below.
+    FillCatalogId lo, TableName, r.Index
     RelockSheet ws
     Invalidate
     AppOn
@@ -453,6 +456,7 @@ Public Sub OnPaperEdited(ByVal Target As Range)
             DefaultActive lo, n
             DefaultSupplied lo, n
             ZeroSuppliedCost lo, n
+            FillCatalogId lo, "tblPapers", n
         End If
     Next c
     On Error GoTo 0
@@ -462,6 +466,193 @@ Fail:
     en = Err.Number: ed = Err.Description
     RelockSheet ws
     Err.Raise en, "OnPaperEdited", ed
+End Sub
+
+' ----------------------------------------------------- catalogue IDs ---
+' Technicians, printers and papers each carry a synthetic ID (TechID,
+' PrinterID, StockID) that nobody types by hand. It is allocated the way a
+' Job ID is (modRegistry.NextJobId): the site (SET_SITE_ID), a table code and
+' a five-digit number taken from a persisted high-water mark that only ever
+' rises, e.g. MAIN-PRN-00001. The reason is the same too - two workbooks that
+' each number from 1 would issue the same ID to different things, and a
+' backup restore (modBackup.ApplyCatalogRows) matches rows by exactly this ID,
+' so it would overwrite one site's printer with another's. With the site in
+' the ID, rows from another workbook never collide with local ones and
+' combining configurations appends instead of overwriting.
+'
+' Unlike a Job ID there is no per-location part - these tables are site-wide -
+' so the counters live in tblSettings (TECH_ID_HWM, PRINTER_ID_HWM,
+' STOCK_ID_HWM), not the per-location registry. They are marked "Read-only"
+' in their Notes, which is what makes a restore skip them (a backup must
+' never wind a counter back) and locks the cell against hand edits.
+'
+' As with NextJobId, a scan of the IDs currently in the table is only a FLOOR
+' under the persisted value, never the source of truth: deleting the
+' highest-numbered row lowers what the scan finds but never the counter.
+
+' The four facts that differ between the three tables. False for any other
+' table, so callers can pass a table name without checking it first.
+Public Function CatalogIdSpec(ByVal TableName As String, ByRef IdHeader As String, ByRef Code As String, _
+                              ByRef NameHeader As String, ByRef HwmKey As String) As Boolean
+    Select Case TableName
+        Case "tblTechnicians"
+            IdHeader = "TechID": Code = "TCH": NameHeader = "Name": HwmKey = "TECH_ID_HWM"
+        Case "tblPrinters"
+            IdHeader = "PrinterID": Code = "PRN": NameHeader = "Model": HwmKey = "PRINTER_ID_HWM"
+        Case "tblPapers"
+            IdHeader = "StockID": Code = "STK": NameHeader = "Description": HwmKey = "STOCK_ID_HWM"
+        Case Else
+            Exit Function
+    End Select
+    CatalogIdSpec = True
+End Function
+
+' The three counter rows in tblSettings. Called by Setup, and again by
+' SetCatalogHwm if a counter is ever found missing.
+Public Sub EnsureCatalogIdSettings()
+    EnsureSetting "TECH_ID_HWM", "Last technician ID number", "Read-only. The highest TechID number issued at this site. Only ever rises, so an ID is never reused."
+    EnsureSetting "PRINTER_ID_HWM", "Last printer ID number", "Read-only. The highest PrinterID number issued at this site. Only ever rises, so an ID is never reused."
+    EnsureSetting "STOCK_ID_HWM", "Last paper ID number", "Read-only. The highest StockID number issued at this site. Only ever rises, so an ID is never reused."
+End Sub
+
+' Sets a counter. Events are switched off around the write: it lands on the
+' Settings sheet, whose Workbook_SheetChange would otherwise mark the whole
+' catalogue dirty and rebind every dropdown for a change nobody made.
+Private Sub SetCatalogHwm(ByVal HwmKey As String, ByVal Value As Long)
+    Dim c As Range, ev As Boolean
+
+    On Error Resume Next
+    Set c = ThisWorkbook.Names("SET_" & HwmKey).RefersToRange
+    On Error GoTo 0
+    If c Is Nothing Then
+        EnsureCatalogIdSettings
+        On Error Resume Next
+        Set c = ThisWorkbook.Names("SET_" & HwmKey).RefersToRange
+        On Error GoTo 0
+    End If
+    If c Is Nothing Then Exit Sub
+
+    ev = Application.EnableEvents
+    Application.EnableEvents = False
+    UnlockSheet c.Parent
+    c.Value = Value
+    RelockSheet c.Parent
+    Application.EnableEvents = ev
+End Sub
+
+' The next ID for one catalogue table, advancing its counter.
+Public Function NextCatalogId(ByVal lo As ListObject, ByVal TableName As String) As String
+    Dim idHdr As String, code As String, nameHdr As String, hwmKey As String
+    Dim prefix As String, hi As Long
+
+    If Not CatalogIdSpec(TableName, idHdr, code, nameHdr, hwmKey) Then Exit Function
+    prefix = SettingText("SITE_ID", "SITE") & "-" & code & "-"
+
+    hi = CLng(SettingNum(hwmKey, 0))
+    hi = CLng(Application.WorksheetFunction.Max(hi, ScanMaxSuffix(lo, idHdr, prefix)))
+    hi = hi + 1
+    SetCatalogHwm hwmKey, hi
+    NextCatalogId = prefix & Format$(hi, "00000")
+End Function
+
+' Gives table row RowNo its ID if it has none; never touches an existing one.
+' Caller has already unlocked the sheet.
+Public Sub FillCatalogId(ByVal lo As ListObject, ByVal TableName As String, ByVal RowNo As Long)
+    Dim idHdr As String, code As String, nameHdr As String, hwmKey As String
+
+    If Not CatalogIdSpec(TableName, idHdr, code, nameHdr, hwmKey) Then Exit Sub
+    If Not ColumnExists(lo, idHdr) Then Exit Sub
+    If Len(Trim$(CStr(CellIn(lo, RowNo, idHdr).Value))) > 0 Then Exit Sub
+    CellIn(lo, RowNo, idHdr).Value = NextCatalogId(lo, TableName)
+End Sub
+
+' Raises a counter to cover every ID now in the table under this site's
+' prefix - for after rows have been written in bulk (a restore), where the
+' incoming numbers may exceed anything allocated locally so far. Never lowers
+' it.
+Public Sub SyncCatalogHwm(ByVal lo As ListObject, ByVal TableName As String)
+    Dim idHdr As String, code As String, nameHdr As String, hwmKey As String
+    Dim cur As Long, seen As Long
+
+    If Not CatalogIdSpec(TableName, idHdr, code, nameHdr, hwmKey) Then Exit Sub
+    If Not ColumnExists(lo, idHdr) Then Exit Sub
+    cur = CLng(SettingNum(hwmKey, 0))
+    seen = ScanMaxSuffix(lo, idHdr, SettingText("SITE_ID", "SITE") & "-" & code & "-")
+    If seen > cur Then SetCatalogHwm hwmKey, seen
+End Sub
+
+' Setup: gives every named row that has no ID one. Covers the sample rows the
+' template ships with and any row added while events were off. Rows that
+' already have an ID are left exactly as they are.
+Public Sub EnsureCatalogIds()
+    Dim tables As Variant, t As Variant, lo As ListObject, ws As Worksheet, i As Long
+    Dim idHdr As String, code As String, nameHdr As String, hwmKey As String
+
+    tables = Array("tblTechnicians", "tblPrinters", "tblPapers")
+    For Each t In tables
+        Set lo = Tbl(CStr(t))
+        If Not lo Is Nothing Then
+            If Not lo.DataBodyRange Is Nothing Then
+                If CatalogIdSpec(CStr(t), idHdr, code, nameHdr, hwmKey) Then
+                    If ColumnExists(lo, idHdr) Then
+                        Set ws = lo.Parent
+                        UnlockSheet ws
+                        For i = 1 To lo.ListRows.Count
+                            If Len(Trim$(CStr(CellIn(lo, i, nameHdr).Value))) > 0 Then FillCatalogId lo, CStr(t), i
+                        Next i
+                        RelockSheet ws
+                    End If
+                End If
+            End If
+        End If
+    Next t
+End Sub
+
+' Called from ThisWorkbook.Workbook_SheetChange for an edit on the Printers or
+' Print Technicians sheet, with events already off (Papers has its own,
+' OnPaperEdited). A row created by typing under the table never passes through
+' AddCatalogRow, so this is what gives it an ID: once it has a name.
+Public Sub OnCatalogEdited(ByVal TableName As String, ByVal Target As Range)
+    Dim lo As ListObject, hit As Range, c As Range, ws As Worksheet, n As Long
+    Dim idHdr As String, code As String, nameHdr As String, hwmKey As String
+    Dim en As Long, ed As String, needsId As Boolean
+
+    If Not CatalogIdSpec(TableName, idHdr, code, nameHdr, hwmKey) Then Exit Sub
+    Set lo = Tbl(TableName)
+    If lo Is Nothing Then Exit Sub
+    If lo.DataBodyRange Is Nothing Then Exit Sub
+    Set hit = Application.Intersect(Target, lo.DataBodyRange)
+    If hit Is Nothing Then Exit Sub
+    Set ws = lo.Parent
+
+    ' Most edits need nothing from here (a price, a rename, a row deleted), and
+    ' unlocking then re-locking the sheet for them is not free of side effects:
+    ' it would re-protect a sheet the caller had deliberately left unlocked for
+    ' a run of structural changes. So look first, and touch protection only when
+    ' a named row really has no ID.
+    For Each c In hit.Cells
+        n = c.Row - lo.DataBodyRange.Row + 1
+        If Len(Trim$(CStr(CellIn(lo, n, nameHdr).Value))) > 0 And _
+           Len(Trim$(CStr(CellIn(lo, n, idHdr).Value))) = 0 Then
+            needsId = True
+            Exit For
+        End If
+    Next c
+    If Not needsId Then Exit Sub
+
+    UnlockSheet ws
+    On Error GoTo Fail
+    For Each c In hit.Cells
+        n = c.Row - lo.DataBodyRange.Row + 1
+        If Len(Trim$(CStr(CellIn(lo, n, nameHdr).Value))) > 0 Then FillCatalogId lo, TableName, n
+    Next c
+    On Error GoTo 0
+    RelockSheet ws
+    Exit Sub
+Fail:
+    en = Err.Number: ed = Err.Description
+    RelockSheet ws
+    Err.Raise en, "OnCatalogEdited", ed
 End Sub
 
 Public Sub RemoveCatalogRow(ByVal TableName As String)

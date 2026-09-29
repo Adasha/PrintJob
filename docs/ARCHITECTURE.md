@@ -8,7 +8,7 @@
 
 **Current state, as verified against the actual VBA source on 2026-09-28:**
 
-- Workbook version reported in-code: `0.10.3` (`modVersion.APP_VERSION`) — `0.8.0` reflected the NextId fix, Export/Import, the Reports rework and the 2026-09-21 snag list; `0.8.1` closed out phase 8's own original scope (§16.1); `0.9.0`–`0.9.20` are phase 9's packages and post-package addenda — see `docs/CHANGELOG.md` for the fixes beyond `0.9.11`; `0.10.0` is the printer/paper compatibility rework (§16.5): capacity-based printer/stock compatibility in place of the old paper-family width bands, and student-supplied paper stock; `0.10.1` makes the two student-supplied stocks built in (no longer `tblPapers` rows) and makes `Supplied by student = Yes` force a zero paper cost; `0.10.2` adds Clear table on the Technicians/Printers/Papers sheets; `0.10.3` removes the paper family concept (Papers' `Family` column, `tblPaperFamilies`, the job-row `S_Family` snapshot) — Papers' `Measure` (`Sheet`/`Roll`) is now the one input (see `docs/CHANGELOG.md`).
+- Workbook version reported in-code: `0.10.4` (`modVersion.APP_VERSION`) — `0.8.0` reflected the NextId fix, Export/Import, the Reports rework and the 2026-09-21 snag list; `0.8.1` closed out phase 8's own original scope (§16.1); `0.9.0`–`0.9.20` are phase 9's packages and post-package addenda — see `docs/CHANGELOG.md` for the fixes beyond `0.9.11`; `0.10.0` is the printer/paper compatibility rework (§16.5): capacity-based printer/stock compatibility in place of the old paper-family width bands, and student-supplied paper stock; `0.10.1` makes the two student-supplied stocks built in (no longer `tblPapers` rows) and makes `Supplied by student = Yes` force a zero paper cost; `0.10.2` adds Clear table on the Technicians/Printers/Papers sheets; `0.10.3` removes the paper family concept (Papers' `Family` column, `tblPaperFamilies`, the job-row `S_Family` snapshot) — Papers' `Measure` (`Sheet`/`Roll`) is now the one input (see `docs/CHANGELOG.md`); `0.10.4` gives technicians, printers and papers site-prefixed, auto-allocated IDs (§3.2).
 - Data schema version: `1.3` (`modUtils.SCHEMA_VER`) — `1.0` since inception; bumped to `1.1` by phase 9's Paid column (snag 1c, §5), which also surfaced and fixed a gap in how `SET_SCHEMA` stayed in sync with the constant (§3.3, §3.5); bumped to `1.2` by the printer/paper compatibility rework's new job-row "Sheet size" column (§5, §16.5); bumped to `1.3` by dropping the `S_Family` snapshot column when the paper family concept was removed (§5, `docs/CHANGELOG.md`).
 - Everything in the original design document's phases 1–7 is built and verified.
 - Phase 8's original scope (visual polish) is **fully built** — see §16.2.
@@ -86,7 +86,7 @@ Technician ───────────┼──>PrintJob
 
 ### 3.2 Identity and referential integrity
 
-Every configuration record carries a **stable ID** — `TEC-001`, `PRN-001`, `STK-001` — assigned once and **never re-issued**, even after deletion. Job rows store the ID in their snapshot block, so renaming a printer or technician cannot orphan or silently re-point a historical record. IDs come from the highest ever issued, never the row count.
+Every configuration record carries a **stable ID** — `<SITE>-TCH-00001`, `<SITE>-PRN-00001`, `<SITE>-STK-00001` — assigned once and **never re-issued**, even after deletion. Job rows store the ID in their snapshot block, so renaming a printer or technician cannot orphan or silently re-point a historical record. IDs come from the highest ever issued, never the row count.
 
 The visible cell on a job row holds the **display name**, because that is what a technician recognises in a dropdown. Configuration names are therefore unique within their table, enforced on entry.
 
@@ -105,6 +105,14 @@ Current mechanism (`modRegistry.NextJobId`, `modRegistry.bas:570`):
 - The scan still runs, but only earns its keep in two cases the persisted value alone can't cover: seeding the HWM the first time the column exists on an already-populated sheet, and raising the mark after **Import** has just written rows under the same prefix with higher numbers than anything allocated locally so far.
 - Verified by `test-nextid.ps1`: deleting the top row must not reissue its ID, and the mark must survive `RefreshLocations`.
 
+**Catalogue IDs (technicians, printers, papers) follow the same rule (2026-09-29).** `TechID`, `PrinterID` and `StockID` are `<SITE>-TCH-00001`, `<SITE>-PRN-00001` and `<SITE>-STK-00001`: the site (`SET_SITE_ID`), a table code and a five-digit number, allocated by `modCatalog.NextCatalogId`. The site is in the ID for the same reason it is in a Job ID: two workbooks that each numbered from 1 would issue the same ID to different things, and Restore workbook (§10.7) matches catalogue rows by that ID, so it would overwrite one site's printer with another's. With the site in the ID, combining another workbook's configuration appends rather than overwrites.
+
+- **Nobody types an ID.** `AddCatalogRow` fills it as the row is created; a row typed under the table gets one once it has a name (`ThisWorkbook.Workbook_SheetChange` -> `modCatalog.OnPaperEdited` / `OnCatalogEdited`); Setup (`EnsureCatalogIds`) fills any named row that has none. An existing ID is never changed.
+- **Counters.** One persisted high-water mark per table - `TECH_ID_HWM`, `PRINTER_ID_HWM`, `STOCK_ID_HWM` - as rows in `tblSettings` (there is no per-location part, so not `_Registry`). Same floor rule as `NextJobId`: `Max(counter, ScanMaxSuffix)`, so deleting the newest row never reissues its ID. Their Notes start `Read-only`, which locks the cell and makes Restore workbook skip them, so a backup can never wind a counter back.
+- **The template's sample rows ship with blank IDs**, so every build issues its own site-prefixed ones. Fixed IDs such as `TEC-001` in the template would have been identical in every workbook built from it, which is the collision this design exists to prevent.
+- **Names are the lookup key everywhere** (`clsDict.Add` replaces on a duplicate), so two rows with one name would shadow each other. When a restore brings in a row whose name is already used by a *different* row, it is kept under its own ID and its site is added to the name: `HP T730` becomes `HP T730 (SITE2)` (a number is added if even that is taken). See §10.7.
+- Verified by `test-catalogids.ps1`.
+
 ### 3.3 Configuration tables
 
 | Table | Columns |
@@ -114,7 +122,7 @@ Current mechanism (`modRegistry.NextJobId`, `modRegistry.bas:570`):
 | `tblStandardSizes` | Size name, Width mm, Height mm |
 | `tblConsumables` | Consumable type, Active |
 
-Each setting is exposed as a workbook-scoped defined name so formulas and VBA reference meaning rather than cell addresses: `SET_SITE_ID`, `SET_SITE_NAME`, `SET_ORG`, `SET_DEPT`, `SET_CURRENCY`, `SET_ROUND_DP`, `SET_EXPORT_FOLDER`, plus read-only `SET_SCHEMA`, `SET_LASTREF`, `SET_APP_VER`, `SET_BUILT`, `SET_BUILT_BY`.
+Each setting is exposed as a workbook-scoped defined name so formulas and VBA reference meaning rather than cell addresses: `SET_SITE_ID`, `SET_SITE_NAME`, `SET_ORG`, `SET_DEPT`, `SET_CURRENCY`, `SET_ROUND_DP`, `SET_EXPORT_FOLDER`, plus read-only `SET_SCHEMA`, `SET_LASTREF`, `SET_APP_VER`, `SET_BUILT`, `SET_BUILT_BY`, and the three catalogue ID counters `SET_TECH_ID_HWM`, `SET_PRINTER_ID_HWM`, `SET_STOCK_ID_HWM` (§3.2).
 
 `modSettings` addresses every setting as `SET_<KEY>`, so the defined name — not the row — is what makes an entry a real setting. Settings that don't ship in the `.xlsx` are self-provisioned by VBA via `modVersion.EnsureSetting`: `APP_VER`/`BUILT`/`BUILT_BY` (`modVersion.EnsureVersionSettings`), `SCHEMA` (`modVersion.EnsureSchemaSetting`, new 2026-09-22 — see §5's Paid column note for why) and `EXPORT_FOLDER` (`modExport.EnsureExportSettings`, called from `modInit.InitialiseWorkbook`). The rest — `SITE_ID`, `SITE_NAME`, `ORG`, `DEPT`, `ROUND_DP`, `CURRENCY` — ship directly in `PrintCosts.xlsx`.
 
@@ -817,6 +825,8 @@ The ad-hoc "get me back to where I was" path, distinct from the two artefacts ab
 
 The four Settings-page lookup tables have no synthetic ID (§3.3) — their natural-key text column is already what every lookup in this workbook treats as their identity (`modCatalog`'s own dictionaries are keyed the same way), so reusing it here assumes nothing new. A column currently holding a **formula** (`tblPapers`' Measure/Cost unit) is left alone on restore — checked by `.HasFormula`, not a hardcoded per-table column list, so a future calculated column added to any catalogue table is protected automatically without a matching code change. A value that parses as a number is written as one (locale-aware `CDbl`, not text that merely looks numeric), so cost/width/height columns stay usable by downstream formulas.
 
+**Same name, different ID (2026-09-29).** Because catalogue IDs carry their site (§3.2), a backup from another workbook has different keys and is *appended*, never overwritten. Its names may still clash with existing rows, and every lookup is by name, so `RenameIfNameTaken` keeps the incoming row under its own ID and adds the site read off that ID to its name - `HP T730 (SITE2)`, then `HP T730 (SITE2 2)` if that is taken too; an ID in some other shape gives `(imported)`. A row is never a clash with the row it is overwriting, so restoring the same backup twice is idempotent. The result message says how many rows were renamed. After the rows are written `modCatalog.SyncCatalogHwm` raises the table's ID counter to cover any IDs under this site's prefix (never lowers it).
+
 **Settings rows marked "Read-only" are skipped on restore.** `APP_VER`/`SCHEMA`/`BUILT`/`BUILT_BY`/`LASTREF` describe the *current* build (the same "Read-only" convention `modInit.UnlockSettingsValues` already reads from each row's own Notes column) — rewinding them to a backup's old values would make the workbook misreport its own version and schema, which nothing else about a restore should touch.
 
 **Location job records reuse `modImport.ApplyImportConfirmed` unchanged**, one call per location file found — same "existing Job ID: overwrite, new Job ID: append" rule, same audit trail, same post-import `CheckSheet` sweep. The location a file belongs to is read from its own header block (`modExport.BuildBlock`'s "Location code" line, row 5) rather than parsed from the filename, so a restore does not depend on assumptions about what characters a site ID or location code might contain.
@@ -936,6 +946,7 @@ Two things the automation buys beyond convenience: a **compile check** (running 
 | `test-export.ps1` | Export, the CSV's contents, and the fingerprint's response to an edit |
 | `test-validation.ps1` | AT-11, AT-14, AT-16 |
 | `test-nextid.ps1` | The persisted Job ID high-water mark: deleting the top row must not reissue its ID; the mark must survive `RefreshLocations` |
+| `test-catalogids.ps1` | Site-prefixed catalogue IDs: every named row has a unique well-formed ID; Add row and typed rows are allocated the next number and a deleted ID is never reissued; restoring another site's catalogue adds rows (renaming clashing names to `Name (SITE)`), overwrites nothing, is idempotent, and does not wind the counters back |
 | `test-import.ps1` | Export All Locations, and Import restoring into origin and into a different room |
 | `test-deletereports.ps1` | Export report (the static-value `.xlsx` snapshot) and the Reports-page bulk delete, including the audit log entry |
 | `filecheck.ps1` | Integrity of the `.xlsx`, `.xlsm` and every backup |

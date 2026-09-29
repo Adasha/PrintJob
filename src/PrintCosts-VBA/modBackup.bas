@@ -284,7 +284,7 @@ End Sub
 ' is split into a confirm half and a do-it half.
 Public Sub RestoreWorkbookConfirmed(ByVal catalogPaths As clsDict, ByVal locationPaths As Collection)
     Dim k As Variant, tableName As String, path As String, lo As ListObject
-    Dim rows As Collection, appended As Long, overwrite As Long, skipped As Long
+    Dim rows As Collection, appended As Long, overwrite As Long, skipped As Long, renamed As Long
     Dim summary As String, f As Variant, ws As Worksheet, locCode As String
 
     On Error GoTo Fail
@@ -296,11 +296,12 @@ Public Sub RestoreWorkbookConfirmed(ByVal catalogPaths As clsDict, ByVal locatio
         Set lo = Tbl(tableName)
         If Not lo Is Nothing Then
             Set rows = ReadImportRows(path)
-            appended = 0: overwrite = 0: skipped = 0
+            appended = 0: overwrite = 0: skipped = 0: renamed = 0
             UnlockSheet lo.Parent
-            ApplyCatalogRows tableName, lo, rows, appended, overwrite, skipped
+            ApplyCatalogRows tableName, lo, rows, appended, overwrite, skipped, renamed
             RelockSheet lo.Parent
             summary = summary & "- " & tableName & ": " & appended & " added, " & overwrite & " overwritten" & _
+                IIf(renamed > 0, ", " & renamed & " renamed to avoid a duplicate name", "") & _
                 IIf(skipped > 0, ", " & skipped & " skipped (read-only)", "") & vbCrLf
         End If
     Next k
@@ -339,12 +340,15 @@ End Sub
 ' restore rewinding them to a backup's old values would make the workbook
 ' misreport its own version and schema.
 Private Sub ApplyCatalogRows(ByVal TableName As String, ByVal lo As ListObject, ByVal rows As Collection, _
-                             ByRef Appended As Long, ByRef Overwrite As Long, ByRef Skipped As Long)
+                             ByRef Appended As Long, ByRef Overwrite As Long, ByRef Skipped As Long, _
+                             ByRef Renamed As Long)
     Dim keyHdr As String, d As clsDict, key As String, n As Long, v As Variant
     Dim notesVal As String, skip As Boolean
+    Dim hasId As Boolean, idHdr As String, idCode As String, nameHdr As String, hwmKey As String
 
     keyHdr = CatalogKeyHeader(TableName)
     If Len(keyHdr) = 0 Then Exit Sub
+    hasId = CatalogIdSpec(TableName, idHdr, idCode, nameHdr, hwmKey)
 
     For Each v In rows
         Set d = v
@@ -360,6 +364,7 @@ Private Sub ApplyCatalogRows(ByVal TableName As String, ByVal lo As ListObject, 
                 Skipped = Skipped + 1
             Else
                 n = FindRowByKey(lo, keyHdr, key)
+                If hasId Then RenameIfNameTaken lo, n, d, nameHdr, idCode, key, Renamed
                 If n = 0 Then
                     Appended = Appended + 1
                     If lo.ListRows.Count = 1 And IsBlankRow(lo, 1) Then
@@ -374,7 +379,60 @@ Private Sub ApplyCatalogRows(ByVal TableName As String, ByVal lo As ListObject, 
             End If
         End If
     Next v
+
+    ' Rows written in bulk may carry numbers above anything this workbook has
+    ' issued itself (a same-site backup restored into a newer workbook), so
+    ' the ID counter is raised to cover them - see modCatalog "catalogue IDs".
+    If hasId Then SyncCatalogHwm lo, TableName
 End Sub
+
+' Same-name-different-ID guard, for a restore that combines two workbooks'
+' configurations. Every lookup in this workbook is by NAME (clsDict.Add
+' replaces on a duplicate), so an incoming row whose name is already used by a
+' DIFFERENT row would silently shadow it in every dropdown and cost lookup.
+' Such a row is kept, under its own ID, with its site added to the name:
+' "HP T730" becomes "HP T730 (SITE2)". The site is read off the incoming ID
+' (SITE2-PRN-00007); an ID in some other shape falls back to "imported".
+'
+' SkipRow is the row the incoming one is about to overwrite (0 for an append):
+' a row is never a clash with itself, which is also what makes restoring the
+' same backup twice give the same result both times.
+Private Sub RenameIfNameTaken(ByVal lo As ListObject, ByVal SkipRow As Long, ByVal d As clsDict, _
+                              ByVal NameHdr As String, ByVal Code As String, ByVal Key As String, _
+                              ByRef Renamed As Long)
+    Dim nm As String, candidate As String, site As String, k As Long, p As Long
+
+    If Not d.Exists(NameHdr) Then Exit Sub
+    nm = Trim$(CStr(d.Item(NameHdr)))
+    If Len(nm) = 0 Then Exit Sub
+    If Not NameInUse(lo, NameHdr, nm, SkipRow) Then Exit Sub
+
+    p = InStrRev(Key, "-" & Code & "-", -1, vbTextCompare)
+    If p > 1 Then site = Left$(Key, p - 1) Else site = "imported"
+
+    candidate = nm & " (" & site & ")"
+    k = 1
+    Do While NameInUse(lo, NameHdr, candidate, SkipRow)
+        k = k + 1
+        candidate = nm & " (" & site & " " & k & ")"
+    Loop
+
+    d.Add NameHdr, candidate
+    Renamed = Renamed + 1
+End Sub
+
+Private Function NameInUse(ByVal lo As ListObject, ByVal NameHdr As String, ByVal Nm As String, _
+                           ByVal SkipRow As Long) As Boolean
+    Dim i As Long
+    For i = 1 To lo.ListRows.Count
+        If i <> SkipRow Then
+            If StrComp(Trim$(CStr(CellIn(lo, i, NameHdr).Value)), Nm, vbTextCompare) = 0 Then
+                NameInUse = True
+                Exit Function
+            End If
+        End If
+    Next i
+End Function
 
 Private Function FindRowByKey(ByVal lo As ListObject, ByVal KeyHeader As String, ByVal Key As String) As Long
     Dim i As Long
