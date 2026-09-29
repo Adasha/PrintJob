@@ -229,6 +229,17 @@ Public Sub InitialiseWorkbook()
             ' own comment - without shortening what actually runs on click.
             DrawOne ws, 1, 20, "Export report...", "btnExportReport", 140
             DrawOne ws, 3, 20, "Delete visible records...", "btnDeleteVisibleReports", 140, "DelVis"
+            ' "Mark all as..." cluster (2026-09-29, direct user request): O1
+            ' holds the label (modReports.BuildReports - see there for why
+            ' column O), then one button per row - Paid in row 2, Unpaid in
+            ' row 3. Sized to the ROW (a shade under its height) rather than
+            ' DrawOne's 22pt, which would spill each button into the row
+            ' below and overlap its neighbour. Row heights are read here, not
+            ' assumed: BuildReportSheets has already run, so A1's 16pt title
+            ' has already settled row 1. Width 78pt sits inside column O's
+            ' ~80pt, clear of the T buttons (848pt) beyond S.
+            DrawOneAtTop ws, 15, ws.Cells(2, 15).Top + 0.5, "Paid", "btnMarkPaid", 78, ws.Cells(2, 15).Height - 1
+            DrawOneAtTop ws, 15, ws.Cells(3, 15).Top + 0.5, "Unpaid", "btnMarkUnpaid", 78, ws.Cells(3, 15).Height - 1
             ' Freezes above the print-job results table (row 15) so its
             ' header row and the filter/totals area above stay visible while
             ' scrolling through matches - snag list item 9.

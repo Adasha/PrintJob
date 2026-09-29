@@ -298,6 +298,24 @@ Public Sub BuildReports()
     ws.Range("A2").Value = "Find and filter print jobs across every room in this workbook. Results update as you type - " & _
         "there is no search button. Leave a box empty to ignore it."
 
+    ' "Mark all as..." cluster (2026-09-29, direct user request): 1 column x 3
+    ' rows at O1:O3, in the header strip just left of Export report / Delete
+    ' visible records (T). The label is cell text here; the Paid and Unpaid
+    ' buttons for rows 2 and 3 are drawn by modInit.InitialiseWorkbook, which
+    ' runs after this so the row heights they are sized to are already
+    ' settled.
+    '
+    ' Why O, found the hard way (first tried V, beside the T buttons): (1)
+    ' test-reports.ps1 requires every Reports button to sit within the first
+    ' screenful (Left <= 900pt) and V is at ~1020pt. (2) A2's instruction text
+    ' runs to ~689pt, so anything at N or earlier would sit on top of its
+    ' tail; O starts at ~720pt, clear of it. (3) O is "Paid" in the results
+    ' table, one of the columns ApplyReportsMinimumColumns always keeps
+    ' visible, so the cluster cannot vanish with a hidden column - the same
+    ' reason Export names lives at N10/O10.
+    ws.Range("O1").Value = "Mark all as..."
+    ws.Range("O1").Font.Bold = True
+
     ' Label | input | hint | gap, in that order (snag list item 2) - the
     ' input sits immediately right of its label, and the unused column at the
     ' end of each group is what separates it from the next.
@@ -640,6 +658,12 @@ Public Sub DeleteVisibleReports()
         Exit Sub
     End If
 
+    ' Filter safeguard (2026-09-29, direct user request) - see
+    ' RequireActiveFilter. Checked before anything is read or counted, so an
+    ' unfiltered sheet is refused outright rather than after a prompt built
+    ' from every job in the workbook.
+    If Not RequireActiveFilter(ws, "delete records") Then Exit Sub
+
     On Error Resume Next
     Set rng = ws.Range("A16").SpillingToRange
     On Error GoTo 0
@@ -708,6 +732,11 @@ Public Sub DeleteVisibleReportsConfirmed(ByVal ws As Worksheet, ByVal rng As Ran
     Dim deleted As Long, missing As Long, detail As String
     Dim jobIds() As String, locs() As String
 
+    ' Same safeguard as the interactive entry point, repeated here because
+    ' this is the routine that actually deletes (and the one a test or a
+    ' future caller reaches directly, bypassing the Ask() gate).
+    If Not RequireActiveFilter(ws, "delete records") Then Exit Sub
+
     On Error GoTo Fail
 
     ' Copied into memory FIRST. rng points at a live spilled formula range -
@@ -749,6 +778,263 @@ Public Sub DeleteVisibleReportsConfirmed(ByVal ws As Worksheet, ByVal rng As Ran
 Fail:
     AppReset
     ReportError "Delete visible records"
+End Sub
+
+' ====================================================== filter safeguard ===
+' "Delete visible records" and "Mark all as Paid/Unpaid" both act on every
+' record the Reports sheet currently shows. With no filter set that is every
+' job in the workbook, so both refuse to run until at least one filter is
+' filled in (2026-09-29, direct user request). It is a guard against pressing
+' the wrong button on the unfiltered sheet, not a substitute for the
+' confirmation prompts, which still follow.
+'
+' Mirrors Criteria(), not merely "is the box non-empty": a box counts only if
+' it actually narrows the results. The free-text and dropdown boxes count when
+' they hold something other than spaces (Criteria itself would treat a lone
+' space as a real search term - refusing is the safe direction). From date,
+' To date and Quantity are coerced with *1 in Criteria and IGNORED when that
+' fails, so text that will not coerce does not count here either. Sort by,
+' Sort direction and Export names are not filters and are not looked at.
+'
+' Cell addresses match Criteria: B4 name, B5 number, B7/B8 dates, F4 room,
+' F5 technician, F6 printer, F7 paper stock, F8 quantity. If a filter box
+' moves, change it here AND there.
+Public Function HasActiveFilter(ByVal ws As Worksheet) As Boolean
+    Dim a As Variant
+    For Each a In Array("B4", "B5", "F4", "F5", "F6", "F7")
+        If FilterBoxHasText(ws.Range(CStr(a))) Then
+            HasActiveFilter = True
+            Exit Function
+        End If
+    Next a
+    For Each a In Array("B7", "B8", "F8")
+        If FilterBoxHasText(ws.Range(CStr(a))) Then
+            If Not CBool(ws.Evaluate("ISERROR(" & CStr(a) & "*1)")) Then
+                HasActiveFilter = True
+                Exit Function
+            End If
+        End If
+    Next a
+End Function
+
+Private Function FilterBoxHasText(ByVal r As Range) As Boolean
+    Dim v As Variant
+    v = r.Value2
+    If IsError(v) Then
+        FilterBoxHasText = True
+    Else
+        FilterBoxHasText = (Len(Trim$(CStr(v))) > 0)
+    End If
+End Function
+
+' True when a filter is set; otherwise says why the command will not run and
+' returns False. Action completes "Set at least one filter before you ...".
+Public Function RequireActiveFilter(ByVal ws As Worksheet, ByVal Action As String) As Boolean
+    If HasActiveFilter(ws) Then
+        RequireActiveFilter = True
+        Exit Function
+    End If
+    Say "Set at least one filter before you " & Action & ".", _
+        "With no filter set, every record in the workbook is shown, so this would change all of them. " & _
+        "As a safeguard it only runs while at least one filter is filled in: student or department, dates, " & _
+        "print room, technician, printer, paper stock or quantity.", _
+        "Fill in a filter, check that the records shown are the ones you mean, then try again."
+End Function
+
+' ============================================================ mark paid ===
+' "Mark all as..." Paid / Unpaid (2026-09-29, direct user request): sets the
+' Paid column of every record the Reports sheet currently shows, and nothing
+' else. Records the filters exclude are never touched, and neither are the
+' filters themselves - this reads the results range and writes to the source
+' room tables only, so the sheet's filter boxes and sort settings are exactly
+' as the user left them.
+'
+' Same shape as the bulk delete above: an interactive entry point that
+' confirms, and a Confirmed routine that does the work (Public so a test can
+' call it - Ask() always declines under SetQuiet).
+Public Sub MarkVisibleReports(ByVal NewPaid As String)
+    Dim ws As Worksheet, rng As Range, n As Long
+    Dim locCol As Long, jobCol As Long, paidCol As Long, i As Long
+    Dim rooms As clsDict, k As Variant, breakdown As String
+    Dim label As String, loc As String, same As Long, msg As String
+
+    label = IIf(NewPaid = "Yes", "Paid", "Unpaid")
+
+    Set ws = ReportsSheet()
+    If ws Is Nothing Then
+        Say "The Reports sheet could not be found.", "Run Refresh Locations first."
+        Exit Sub
+    End If
+
+    If Not RequireActiveFilter(ws, "mark records as " & label) Then Exit Sub
+
+    On Error Resume Next
+    Set rng = ws.Range("A16").SpillingToRange
+    On Error GoTo 0
+    If rng Is Nothing Then
+        Say "There is nothing to mark.", "The Reports sheet has no results under the current filters."
+        Exit Sub
+    End If
+    ' A16 may be spilling FILTER's own "no jobs match"/"no jobs recorded"
+    ' fallback TEXT rather than real rows - see FilteredSig's own comment.
+    If Not IsNumeric(rng.Cells(1, 1).Value2) Then
+        Say "There is nothing to mark.", CStr(rng.Cells(1, 1).Value)
+        Exit Sub
+    End If
+    n = rng.Rows.Count
+
+    locCol = ColByHeader(ws, 15, "Location")
+    jobCol = ColByHeader(ws, 15, "Job ID")
+    paidCol = ColByHeader(ws, 15, "Paid")
+    If locCol = 0 Or jobCol = 0 Or paidCol = 0 Then
+        Say "The Reports sheet layout looks wrong.", "The Location, Paid or Job ID column could not be found.", "Rebuild the report sheets (Refresh Locations), then try again."
+        Exit Sub
+    End If
+
+    ' Per-room breakdown, as the delete prompt does, plus how many are
+    ' already at the requested value (they are left alone, not rewritten).
+    Set rooms = New clsDict
+    For i = 1 To n
+        loc = CStr(rng.Cells(i, locCol).Value)
+        If rooms.Exists(loc) Then
+            rooms.Add loc, CLng(rooms.Item(loc)) + 1
+        Else
+            rooms.Add loc, 1
+        End If
+        If StrComp(Trim$(CStr(rng.Cells(i, paidCol).Value)), NewPaid, vbTextCompare) = 0 Then same = same + 1
+    Next i
+    For Each k In rooms.Keys
+        breakdown = breakdown & "  " & CStr(k) & ": " & rooms.Item(CStr(k)) & vbCrLf
+    Next k
+
+    msg = "Mark " & n & " visible record" & IIf(n = 1, "", "s") & " as " & label & "?" & vbCrLf & vbCrLf & breakdown
+    If same > 0 Then msg = msg & vbCrLf & same & " already " & IIf(same = 1, "is", "are") & " marked " & label & " and will stay as they are."
+    msg = msg & vbCrLf & vbCrLf & "Only the records shown are changed. Anything your filters hide is left alone, and the filters themselves stay as they are."
+
+    If Not Ask(msg, "Mark visible records as " & label) Then Exit Sub
+
+    MarkVisibleReportsConfirmed ws, rng, locCol, jobCol, n, NewPaid
+End Sub
+
+' The actual write. NewPaid is "Yes" or "No".
+'
+' Job IDs are indexed once per room (one read of the Job ID column) rather
+' than located row by row with FindReportRow, which would rescan the whole
+' room table for every visible record.
+Public Sub MarkVisibleReportsConfirmed(ByVal ws As Worksheet, ByVal rng As Range, _
+                                       ByVal LocCol As Long, ByVal JobCol As Long, ByVal n As Long, _
+                                       ByVal NewPaid As String)
+    Dim i As Long, r As Long, rowIdx As Long, cnt As Long
+    Dim changed As Long, unchanged As Long, missing As Long
+    Dim detail As String, label As String, loc As String
+    Dim jobIds() As String, locs() As String, ids As Variant
+    Dim targetWs As Worksheet, lo As ListObject, idCol As Range, cel As Range
+    Dim maps As clsDict, los As clsDict, map As clsDict, k As Variant
+
+    If NewPaid <> "Yes" And NewPaid <> "No" Then
+        Err.Raise vbObjectError + 514, "MarkVisibleReportsConfirmed", "NewPaid must be ""Yes"" or ""No""."
+    End If
+    label = IIf(NewPaid = "Yes", "Paid", "Unpaid")
+
+    ' Repeated here, as in DeleteVisibleReportsConfirmed - this is the routine
+    ' that actually writes.
+    If Not RequireActiveFilter(ws, "mark records as " & label) Then Exit Sub
+
+    On Error GoTo Fail
+
+    ' Copied into memory FIRST - rng is a live spilled formula range, and
+    ' writing Paid recalculates it. See DeleteVisibleReportsConfirmed.
+    ReDim jobIds(1 To n)
+    ReDim locs(1 To n)
+    For i = 1 To n
+        jobIds(i) = CStr(rng.Cells(i, JobCol).Value)
+        locs(i) = CStr(rng.Cells(i, LocCol).Value)
+    Next i
+
+    AppOff
+    Set maps = New clsDict   ' room code -> (Job ID -> table row number)
+    Set los = New clsDict    ' room code -> its jobs ListObject
+    For i = 1 To n
+        loc = locs(i)
+        If Not maps.Exists(loc) Then
+            Set map = New clsDict
+            Set targetWs = SheetForCode(loc)
+            If Not targetWs Is Nothing Then
+                Set lo = JobsTable(targetWs)
+                If Not lo Is Nothing Then
+                    cnt = lo.ListRows.Count
+                    If cnt > 0 Then
+                        Set idCol = lo.ListColumns(ColIdx(lo, "Job ID")).DataBodyRange
+                        ' A one-row range reads back as a scalar, not an array.
+                        If cnt = 1 Then
+                            ReDim ids(1 To 1, 1 To 1)
+                            ids(1, 1) = idCol.Value2
+                        Else
+                            ids = idCol.Value2
+                        End If
+                        For r = 1 To cnt
+                            map.Add Trim$(CStr(ids(r, 1))), r
+                        Next r
+                        los.Add loc, lo
+                    End If
+                End If
+            End If
+            maps.Add loc, map
+        End If
+    Next i
+
+    ' Sheets unlocked once each, up front, and relocked together at the end
+    ' (and in the error path) - not per record.
+    For Each k In los.Keys
+        UnlockSheet los.Obj(CStr(k)).Parent
+    Next k
+
+    For i = 1 To n
+        loc = locs(i)
+        rowIdx = 0
+        Set map = maps.Obj(loc)
+        If Not map Is Nothing Then
+            If map.Exists(Trim$(jobIds(i))) Then rowIdx = CLng(map.Item(Trim$(jobIds(i))))
+        End If
+        If rowIdx = 0 Or Not los.Exists(loc) Then
+            missing = missing + 1
+        Else
+            Set cel = CellIn(los.Obj(loc), rowIdx, "Paid")
+            If StrComp(Trim$(CStr(cel.Value)), NewPaid, vbTextCompare) = 0 Then
+                unchanged = unchanged + 1
+            Else
+                cel.Value = NewPaid
+                changed = changed + 1
+            End If
+        End If
+    Next i
+
+    RelockRooms los
+    AppOn
+
+    detail = changed & " record" & IIf(changed = 1, "", "s") & " marked " & label & " from the Reports page."
+    If unchanged > 0 Then detail = detail & " " & unchanged & " already " & IIf(unchanged = 1, "was", "were") & " " & label & "."
+    If missing > 0 Then detail = detail & " " & missing & " could not be found (already removed?)."
+    LogAudit "Mark visible " & label & " (Reports)", "(multiple rooms)", detail
+
+    Say detail, "Your filters have not been changed. A note has been kept in the workbook's audit log."
+    Exit Sub
+Fail:
+    RelockRooms los
+    AppReset
+    ReportError "Mark visible records"
+End Sub
+
+' Relocks every room sheet MarkVisibleReportsConfirmed unlocked. Safe to call
+' with nothing (the error path can be reached before los exists).
+Private Sub RelockRooms(ByVal los As clsDict)
+    Dim k As Variant
+    If los Is Nothing Then Exit Sub
+    On Error Resume Next
+    For Each k In los.Keys
+        RelockSheet los.Obj(CStr(k)).Parent
+    Next k
+    On Error GoTo 0
 End Sub
 
 Private Function FindReportRow(ByVal lo As ListObject, ByVal JobId As String) As Long

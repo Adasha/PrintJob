@@ -3,6 +3,29 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.10.6 - Reports "Mark all as..." Paid/Unpaid, direct user request, plus an
+at-least-one-filter safeguard on the bulk commands.
+  - New cluster in the Reports header, 1 column x 3 rows at O1:O3: label
+    "Mark all as..." (O1), Paid (row 2), Unpaid (row 3). Paid sets the Paid
+    column to Yes on every record currently shown, Unpaid to No. Records the
+    filters hide are not affected, and the filters themselves are never
+    touched. Asks for confirmation first (count, per-room breakdown, how many
+    are already at the requested value).
+  - Safeguard: neither Mark all as... nor Delete visible records will run
+    unless at least one filter is set (modReports.HasActiveFilter /
+    RequireActiveFilter). Mirrors Criteria(): spaces-only text, and a date or
+    quantity that will not coerce (which Criteria ignores), do not count; Sort
+    by/direction and Export names are not filters. Checked before any prompt,
+    and again inside DeleteVisibleReportsConfirmed and
+    MarkVisibleReportsConfirmed.
+  - Job IDs are indexed once per room instead of rescanning per record.
+  - Buttons: modInit (DrawOneAtTop, sized to their row), handlers
+    btnMarkPaid/btnMarkUnpaid in modMain. Audit: "Mark visible Paid (Reports)"
+    / "Mark visible Unpaid (Reports)".
+  - test-markpaid.ps1 (new). ARCHITECTURE.md section 10.9; sections 8.5 and
+    10.6 updated (the Reports buttons are in column T, not F, since 2026-09-26).
+  - No schema change, no migration (workbook not released).
+
 0.10.5 - "Export names", direct user request: the Reports toggle at O10
 ("Show names") now affects the exported report only, not the live view.
   - Live results: Student name/no always shown. The results formula in A16

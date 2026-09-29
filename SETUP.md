@@ -333,7 +333,8 @@ nothing that can go stale. Summary is keyed on Location, Printer and Paper
 Stock. Reports (renamed from Cost Calculations) adds Technician/Printer/Paper
 Stock/Quantity filters, sort-by-any-column, a hidden Job ID correlation
 column, an "Export report" static-value `.xlsx` snapshot, and a bulk
-"Delete visible records" confined to whatever the active filters show.
+"Delete visible records" and a "Mark all as Paid/Unpaid" pair, both confined to
+whatever the active filters show and both refusing to run with no filter set.
 
 Per-location export, Export All Locations, and Import are built (`modExport`,
 `modImport`). Import restores a backup into the location it came from, moves

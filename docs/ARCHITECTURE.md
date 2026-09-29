@@ -8,7 +8,7 @@
 
 **Current state, as verified against the actual VBA source on 2026-09-28:**
 
-- Workbook version reported in-code: `0.10.5` (`modVersion.APP_VERSION`) — `0.8.0` reflected the NextId fix, Export/Import, the Reports rework and the 2026-09-21 snag list; `0.8.1` closed out phase 8's own original scope (§16.1); `0.9.0`–`0.9.20` are phase 9's packages and post-package addenda — see `docs/CHANGELOG.md` for the fixes beyond `0.9.11`; `0.10.0` is the printer/paper compatibility rework (§16.5): capacity-based printer/stock compatibility in place of the old paper-family width bands, and student-supplied paper stock; `0.10.1` makes the two student-supplied stocks built in (no longer `tblPapers` rows) and makes `Supplied by student = Yes` force a zero paper cost; `0.10.2` adds Clear table on the Technicians/Printers/Papers sheets; `0.10.3` removes the paper family concept (Papers' `Family` column, `tblPaperFamilies`, the job-row `S_Family` snapshot) — Papers' `Measure` (`Sheet`/`Roll`) is now the one input (see `docs/CHANGELOG.md`); `0.10.4` gives technicians, printers and papers site-prefixed, auto-allocated IDs (§3.2); `0.10.5` makes the Reports name toggle export-only ("Export names", §8).
+- Workbook version reported in-code: `0.10.6` (`modVersion.APP_VERSION`) — `0.8.0` reflected the NextId fix, Export/Import, the Reports rework and the 2026-09-21 snag list; `0.8.1` closed out phase 8's own original scope (§16.1); `0.9.0`–`0.9.20` are phase 9's packages and post-package addenda — see `docs/CHANGELOG.md` for the fixes beyond `0.9.11`; `0.10.0` is the printer/paper compatibility rework (§16.5): capacity-based printer/stock compatibility in place of the old paper-family width bands, and student-supplied paper stock; `0.10.1` makes the two student-supplied stocks built in (no longer `tblPapers` rows) and makes `Supplied by student = Yes` force a zero paper cost; `0.10.2` adds Clear table on the Technicians/Printers/Papers sheets; `0.10.3` removes the paper family concept (Papers' `Family` column, `tblPaperFamilies`, the job-row `S_Family` snapshot) — Papers' `Measure` (`Sheet`/`Roll`) is now the one input (see `docs/CHANGELOG.md`); `0.10.4` gives technicians, printers and papers site-prefixed, auto-allocated IDs (§3.2); `0.10.5` makes the Reports name toggle export-only ("Export names", §8); `0.10.6` adds the Reports "Mark all as…" Paid/Unpaid cluster and an at-least-one-filter safeguard shared with Delete visible records (§10.9).
 - Data schema version: `1.3` (`modUtils.SCHEMA_VER`) — `1.0` since inception; bumped to `1.1` by phase 9's Paid column (snag 1c, §5), which also surfaced and fixed a gap in how `SET_SCHEMA` stayed in sync with the constant (§3.3, §3.5); bumped to `1.2` by the printer/paper compatibility rework's new job-row "Sheet size" column (§5, §16.5); bumped to `1.3` by dropping the `S_Family` snapshot column when the paper family concept was removed (§5, `docs/CHANGELOG.md`).
 - Everything in the original design document's phases 1–7 is built and verified.
 - Phase 8's original scope (visual polish) is **fully built** — see §16.2.
@@ -573,9 +573,9 @@ They cannot use `SUMIFS` for the breakdowns below — its arguments must be rang
 | Summary | Refresh Locations, Check workbook, **Hide/Show settings sheets** (Go to Settings removed, 2026-09-22 — see §16.4) |
 | Settings | Two rows of four, below `tblSettings` (0.9.12, §16.4 addendum): Refresh Locations, Check workbook, Re-stamp prices…, About / Export All Locations…, Import (choose room)…, **Backup workbook…**, **Restore workbook…** (§10.7) |
 | Each location | Add Print Job, Now (toolbar, row 11); Remove Row, Select printers…, Check this sheet, Clear All, Export…, Import…, **Reduce clutter / Show all columns** (side panel, §4.1, 2026-09-25); **Clear defaults** (row 4, over Technician) |
-| Reports | **Export report…**, **Delete visible records…** |
+| Reports | **Export report…**, **Delete visible records…** (column T, rows 1 and 3); **Mark all as…** cluster — label `O1`, **Paid** (row 2) and **Unpaid** (row 3) buttons (§10.9) |
 
-Settings keeps its own copies deliberately: it is where someone lands when configuring, and *Re-stamp prices* and *About* belong nowhere else. Export report / Delete visible records sit at the top of the Reports sheet (rows 1 and 3, column F), inside the first screenful, above the filter rows.
+Settings keeps its own copies deliberately: it is where someone lands when configuring, and *Re-stamp prices* and *About* belong nowhere else. Export report / Delete visible records sit at the top of the Reports sheet (rows 1 and 3, column T since 2026-09-26; the *Mark all as…* cluster just left of them at column O), inside the first screenful, above the filter rows.
 
 ---
 
@@ -591,7 +591,7 @@ Settings keeps its own copies deliberately: it is where someone lands when confi
 | `modValidation` | OnCellChanged, CheckSheet, CheckWorkbook, student consistency scan | Built |
 | `modLists` | Dependent dropdowns and their staging columns; reused for Reports filter autocomplete | Built |
 | `modRegistry` | RefreshLocations, EnsureSystemSheets, code assignment, table renaming, button healing, consolidated-range formula, **Job ID high-water mark** | Built |
-| `modReports` | **Builds** the Summary and Reports sheets — layout and formulas, once; Reports-page bulk delete; filter-list refresh | Built |
+| `modReports` | **Builds** the Summary and Reports sheets — layout and formulas, once; Reports-page bulk delete and bulk Paid/Unpaid; the shared at-least-one-filter safeguard; filter-list refresh | Built |
 | `modExport` | Per-location CSV, **Export All Locations**, **Export report snapshot**, export-folder resolution (incl. the Mac OneDrive fix), the fingerprint, the `LOC_Export` status line | Built |
 | `modImport` | **Restores or merges an exported CSV into a location's job table** | Built |
 | `modVersion` | Version constants, settings rows, the About popup, document properties | Built |
@@ -797,9 +797,11 @@ Any of **Student name, Student no, Location, Printer, Paper stock, Technician** 
 - A staleness warning comparing the current filtered set's signature (§10.4) against the signature stamped by the last **Export report** run — either *"Export report has never been run for a filtered set like this one"* or *"The filters or underlying data have changed since the last Export report"*. This replaces the original plan's "warn if not exported to CSV" wording, since Reports-page deletion is keyed off the Export-report signature rather than the per-location CSV export status (they are different artefacts answering different questions).
 - *"This cannot be undone."*
 
+**Filter safeguard (2026-09-29, direct user request).** Refuses to run unless at least one filter is set — see §10.9. Checked first, before anything is counted, and again inside `DeleteVisibleReportsConfirmed` (the routine that actually deletes, and the one tests reach directly).
+
 **Audit.** Logged to `tblAudit` as `Delete visible (Reports)`.
 
-**Verified** by `test-deletereports.ps1`, alongside the Export report snapshot itself.
+**Verified** by `test-deletereports.ps1`, alongside the Export report snapshot itself; the filter safeguard by `test-markpaid.ps1`.
 
 ### 10.7 Full workbook backup / restore — built (snag list item 4a)
 
@@ -847,6 +849,25 @@ A **Clear table** button (row 4, column 5, beside Add row/Remove row) on each of
 `DoClearCatalogTable` is the unprompted core (split out because `Ask` always declines in quiet mode, so tests could not otherwise reach it). It writes an `_Audit` entry ("Clear table"), deletes rows 2..n, `ClearContents` row 1 (skipping any cell holding a formula), then `Invalidate`s the catalogue cache so dropdowns rebind. **One blank templated row is deliberately left**, for the same reason as `modJobs.ClearAll` (§10.2): with no data row left, Excel has nothing to copy formatting/validation from. `AddCatalogRow` reuses that blank row (`Count = 1 And IsBlankRow`) and `RowCount` reports it as zero rows.
 
 Buttons: `btnClearTechnicians` / `btnClearPrinters` / `btnClearPapers` (`modMain`), drawn by `modInit.InitialiseWorkbook`. Test: `test-clearcatalog.ps1`.
+
+### 10.9 Mark all as Paid / Unpaid, and the filter safeguard (direct user request, 2026-09-29)
+
+**What it is.** A 1-column × 3-row cluster (`O1:O3`) in the Reports header strip, just left of Export report / Delete visible records: label **Mark all as…** at `O1` (cell text, written by `BuildReports`), a **Paid** button in row 2 and an **Unpaid** button in row 3 (drawn by `InitialiseWorkbook`, sized to their row rather than `DrawOne`'s 22pt so neither spills into the row below). Paid sets the `Paid` column to `Yes`, Unpaid to `No`. Handlers: `modMain.btnMarkPaid` / `btnMarkUnpaid` → `modReports.MarkVisibleReports`.
+
+**Scope.** Exactly the records the Reports sheet currently shows — the spilled results range, read the same way §10.6 reads it. Records the filters exclude are never written. **The filters are not touched**: the routine reads the results and writes only to the source room tables, so every filter box and the sort settings are as the user left them (checked by `test-markpaid.ps1`, which compares all of them before and after).
+
+**Confirmation.** `Ask()` first, in the shape of §10.6's prompt: *"Mark N visible records as Paid?"*, a per-room breakdown, how many are already at the requested value (left alone, not rewritten), and a reminder that hidden records and the filters are unaffected. Default button is No.
+
+**The write** (`MarkVisibleReportsConfirmed`, Public so tests can bypass `Ask()`): Job IDs and locations are copied into memory first (writing `Paid` recalculates the live spill); each room's `Job ID` column is read **once** into a Job ID → row map, rather than rescanning the table per record as `FindReportRow` does; each affected room sheet is unlocked once up front and relocked together at the end and in the error path. Logged to `tblAudit` as `Mark visible Paid (Reports)` / `Mark visible Unpaid (Reports)`.
+
+**Filter safeguard — shared with Delete visible records (§10.6).** `modReports.HasActiveFilter` / `RequireActiveFilter`: both bulk commands refuse to run unless at least one filter is set, so neither can be pointed at the whole job list by a stray click. It **mirrors `Criteria()`** rather than testing "is a box non-empty": a box counts only if it actually narrows the results. The free-text and dropdown boxes (name, number, room, technician, printer, paper stock) count unless empty or spaces-only; From date, To date and Quantity count only if `*1` coercion succeeds (`Criteria` ignores them otherwise). Sort by, Sort direction and Export names are not filters. The check runs first in the interactive entry point — before any prompt or count — and again inside each `…Confirmed` routine, which is the code that actually writes. **If a filter box moves, `HasActiveFilter`'s address list must change with `Criteria()`** (comment in both).
+
+**Why column O.** Tried at V first: `test-reports.ps1` requires every Reports button within the first screenful (Left ≤ 900pt) and V sits at ~1020pt. A2's instruction text runs to ~689pt, so N or earlier would overlap its tail; O (~720pt) is clear of it, and is the always-visible `Paid` column of the results table, so a hidden column can never swallow the cluster.
+
+**Not covered.** A filter that happens to match every record (a Location filter on a one-room workbook, say) passes the check — the safeguard is against *no* filter, not against a broad one.
+
+**Verified** by `test-markpaid.ps1`: the cluster's caption, macro and geometry; `HasActiveFilter` against blank / spaces / uncoercible text / sort-only / real values; both commands refusing with no filter and changing nothing; only visible rows changing under a filter; filters unchanged afterwards; room sheets re-protected; the interactive path asking first; audit entries; Delete visible still working with a filter set.
+
 ## 11. Visual design
 
 | Cell role | Treatment |

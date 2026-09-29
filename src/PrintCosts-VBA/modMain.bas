@@ -218,6 +218,27 @@ Fail:
     ReportError "Delete visible records"
 End Sub
 
+' "Mark all as..." Paid / Unpaid on the Reports sheet (2026-09-29). Both act
+' on whatever is currently shown and refuse to run with no filter set -
+' modReports.MarkVisibleReports.
+Public Sub btnMarkPaid()
+    On Error GoTo Fail
+    If Not RequireReports Then Exit Sub
+    MarkVisibleReports "Yes"
+    Exit Sub
+Fail:
+    ReportError "Mark visible records as Paid"
+End Sub
+
+Public Sub btnMarkUnpaid()
+    On Error GoTo Fail
+    If Not RequireReports Then Exit Sub
+    MarkVisibleReports "No"
+    Exit Sub
+Fail:
+    ReportError "Mark visible records as Unpaid"
+End Sub
+
 Public Sub btnToggleConfigSheets()
     On Error GoTo Fail
     ToggleConfigSheets
