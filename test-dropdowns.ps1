@@ -39,6 +39,7 @@
 # Closes WITHOUT saving.
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'TestCommon.ps1')
 $deliverable = Join-Path $PSScriptRoot 'src\PrintJob.xlsm'
 $workDir = Join-Path ([IO.Path]::GetTempPath()) ('PrintCostsTest-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $workDir | Out-Null
@@ -56,12 +57,6 @@ try {
     $lo = $main.ListObjects('tblJobs_MAIN')
     $work = $wb.Worksheets('_Work')
 
-    function Col($lo, $name) {
-        for ($i = 1; $i -le $lo.ListColumns.Count; $i++) {
-            if ($lo.ListColumns($i).Name -eq $name) { return $i }
-        }
-        return 0
-    }
     # Absolute sheet columns, not table-relative - returning a live Range/
     # ListRow COM object from a PowerShell function is unreliable (PowerShell
     # can silently unroll an enumerable COM object through the pipeline), so
@@ -95,9 +90,6 @@ try {
         return @()
     }
 
-    function Check([bool]$cond, [string]$msg) {
-        Write-Host ("  {0}  {1}" -f $(if ($cond) { 'OK  ' } else { 'FAIL' }), $msg)
-    }
 
     # ------------------------------------------------------- stock -> printer
     Write-Host '=== Paper Stock chosen first narrows/auto-fills Printer ==='

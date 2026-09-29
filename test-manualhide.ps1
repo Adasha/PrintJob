@@ -31,15 +31,6 @@ try {
     $main = $wb.Worksheets('Example Print Room')
     $lo = $main.ListObjects('tblJobs_MAIN')
 
-    function Col($lo, $name) {
-        for ($i = 1; $i -le $lo.ListColumns.Count; $i++) {
-            if ($lo.ListColumns($i).Name -eq $name) { return $i }
-        }
-        return 0
-    }
-    function Check([bool]$cond, [string]$msg) {
-        Write-Host ("  {0}  {1}" -f $(if ($cond) { 'OK  ' } else { 'FAIL' }), $msg)
-    }
     function ButtonLeft($ws, $prefix) {
         $n = $ws.Buttons().Count
         for ($i = 1; $i -le $n; $i++) {

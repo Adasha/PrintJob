@@ -10,6 +10,7 @@
 # %TEMP%, never src\PrintJob.xlsm.
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'TestCommon.ps1')
 . (Join-Path $PSScriptRoot 'test-fixture-annexe.ps1')
 $deliverable = Join-Path $PSScriptRoot 'src\PrintJob.xlsm'
 
@@ -24,10 +25,6 @@ $fB = Join-Path $workDirB 'PrintJob.xlsm'
 Copy-Item $deliverable $fB
 
 $anyFail = $false
-function Check([bool]$cond, [string]$msg) {
-    Write-Host ("  {0}  {1}" -f $(if ($cond) { 'OK  ' } else { 'FAIL' }), $msg)
-    if (-not $cond) { $script:anyFail = $true }
-}
 
 Write-Host '=== Back up copy A ==='
 $xlA = New-Object -ComObject Excel.Application

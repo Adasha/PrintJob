@@ -44,9 +44,6 @@ try {
         }
         throw "column '$name' not found"
     }
-    function Check([bool]$cond, [string]$msg) {
-        Write-Host ("  {0}  {1}" -f $(if ($cond) { 'OK  ' } else { 'FAIL' }), $msg)
-    }
     # The items currently offered by a Paper Stock cell's dropdown, read back
     # through its validation source on the _Work staging sheet.
     function Stock-Items($cell) {

@@ -22,6 +22,7 @@
 # test-validation.ps1's header comment for why. Closes WITHOUT saving.
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'TestCommon.ps1')
 $deliverable = Join-Path $PSScriptRoot 'src\PrintJob.xlsm'
 $workDir = Join-Path ([IO.Path]::GetTempPath()) ('PrintCostsTest-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $workDir | Out-Null
@@ -38,12 +39,6 @@ try {
     $main = $wb.Worksheets('Example Print Room')
     $lo = $main.ListObjects('tblJobs_MAIN')
 
-    function Col($lo, $name) {
-        for ($i = 1; $i -le $lo.ListColumns.Count; $i++) {
-            if ($lo.ListColumns($i).Name -eq $name) { return $i }
-        }
-        return 0
-    }
     $stkCol = $lo.Range.Column + (Col $lo 'Paper Stock') - 1
     $qtyCol = $lo.Range.Column + (Col $lo 'Qty') - 1
 
@@ -51,9 +46,6 @@ try {
         [void]$main.Activate()
         [void]$xl.Run('btnAddPrintJob')
         return $lo.ListRows($lo.ListRows.Count).Range.Row
-    }
-    function Check([bool]$cond, [string]$msg) {
-        Write-Host ("  {0}  {1}" -f $(if ($cond) { 'OK  ' } else { 'FAIL' }), $msg)
     }
     function IsShaded($cell) {
         # Matches modValidation.QtyMarkedRewritten's own RGB(242,242,242).

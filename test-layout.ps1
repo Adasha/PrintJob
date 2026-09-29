@@ -1,17 +1,21 @@
 # This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
 # If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 #
-# Verifies the 2026-09-22 fix for reduced-clutter view's header collision:
-#   - Status/Job ID moved to after Paid, before the snapshot block.
-#   - The location header block (room name/department/code, rows 1-9,
-#     columns A/B) survives a reduced-view toggle intact.
-#   - The reduce-clutter button itself survives the toggle too.
-#   - _Data/Summary/Reports still reconcile after the reorder.
+# Verifies the workbook's shipped column layout on a location sheet:
+#   - Column order (2026-09-22): Status/Job ID sit after Paid, before the
+#     snapshot block; Notes right after Job ID; S_SchemaVer last.
+#   - Outline/hidden state (was test-groups.ps1): no outline group anywhere in
+#     the table; Notes visible; H_Issues and the snapshot block hidden via
+#     .Hidden. Guards Cut+Insert side effects (HISTORY: Sheet size column).
+#   - The location header block (rows 1-9, columns A/B) and the reduce-clutter
+#     button survive a reduced-view toggle intact.
+#   - _Data/Summary/Reports still reconcile.
 #
 # Drives a COPY in %TEMP%, never src\PrintJob.xlsm itself. Closes WITHOUT
 # saving.
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'TestCommon.ps1')
 $deliverable = Join-Path $PSScriptRoot 'src\PrintJob.xlsm'
 $workDir = Join-Path ([IO.Path]::GetTempPath()) ('PrintCostsTest-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $workDir | Out-Null
@@ -28,10 +32,30 @@ try {
     $main = $wb.Worksheets('Example Print Room')
     $lo = $main.ListObjects('tblJobs_MAIN')
 
-    function Check([bool]$cond, [string]$msg) {
-        Write-Host ("  {0}  {1}" -f $(if ($cond) { 'OK  ' } else { 'FAIL' }), $msg)
-    }
 
+    function SheetCol($header) { return $lo.Range.Column + (Col $lo $header) - 1 }
+
+    # ------------------------------------------------------- outline / hidden
+    Write-Host '=== No outline group; Notes visible; H_Issues/snapshot hidden ==='
+    foreach ($h in 'Paper Cost', 'Consumable Cost', 'Gross Cost', 'Disregarded', 'Chargeable Cost', 'Paid') {
+        $c = $main.Columns((SheetCol $h))
+        Check ($c.OutlineLevel -eq 1) "$h is at outline level 1, no group (got $($c.OutlineLevel))"
+    }
+    $notesCol = $main.Columns((SheetCol 'Notes'))
+    Check ($notesCol.OutlineLevel -eq 1) "Notes is at outline level 1 (got $($notesCol.OutlineLevel))"
+    Check (-not [bool]$notesCol.Hidden) 'Notes is NOT hidden'
+    foreach ($h in 'H_Issues', 'S_PrinterID', 'S_StampedBy') {
+        $c = $main.Columns((SheetCol $h))
+        Check ($c.OutlineLevel -eq 1) "$h is at outline level 1, no group (got $($c.OutlineLevel))"
+        Check ([bool]$c.Hidden) "$h is hidden via .Hidden, not a group"
+    }
+    $maxLevel = 0
+    for ($ci = 1; $ci -le $lo.ListColumns.Count; $ci++) {
+        $lvl = $main.Columns($lo.Range.Column + $ci - 1).OutlineLevel
+        if ($lvl -gt $maxLevel) { $maxLevel = $lvl }
+    }
+    Check ($maxLevel -eq 1) "max outline level across the whole table is 1 (got $maxLevel)"
+    Write-Host ''
     # ------------------------------------------------------------ new order
     Write-Host '=== Column order ==='
     $names = @()

@@ -15,6 +15,7 @@
 # saving except where noted.
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'TestCommon.ps1')
 $deliverable = Join-Path $PSScriptRoot 'src\PrintJob.xlsm'
 $workDir = Join-Path ([IO.Path]::GetTempPath()) ('PrintCostsTest-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $workDir | Out-Null
@@ -31,15 +32,6 @@ try {
     $main = $wb.Worksheets('Example Print Room')
     $lo = $main.ListObjects('tblJobs_MAIN')
 
-    function Col($lo, $name) {
-        for ($i = 1; $i -le $lo.ListColumns.Count; $i++) {
-            if ($lo.ListColumns($i).Name -eq $name) { return $i }
-        }
-        return 0
-    }
-    function Check([bool]$cond, [string]$msg) {
-        Write-Host ("  {0}  {1}" -f $(if ($cond) { 'OK  ' } else { 'FAIL' }), $msg)
-    }
 
     # --------------------------------------------------------------- schema
     Write-Host '=== Schema version bumped ==='
@@ -58,7 +50,7 @@ try {
     Check ($paidCol -gt 0) "Paid column exists"
     Check ($paidCol -eq $chgCol + 1) "Paid sits immediately after Chargeable Cost (chg=$chgCol paid=$paidCol)"
     # Not "immediately after Paid" any more: 2026-09-22's ReorderJobColumns
-    # (test-reorder.ps1 covers this precisely) moved Status/Job ID to sit
+    # (test-layout.ps1 covers this precisely) moved Status/Job ID to sit
     # between Paid and Notes, fixing a reduced-clutter-view header collision.
     Check ($notesCol -gt $paidCol) "Notes still sits after Paid (paid=$paidCol notes=$notesCol)"
 

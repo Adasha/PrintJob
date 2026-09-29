@@ -22,6 +22,7 @@
 # saving.
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'TestCommon.ps1')
 . (Join-Path $PSScriptRoot 'test-fixture-annexe.ps1')
 $deliverable = Join-Path $PSScriptRoot 'src\PrintJob.xlsm'
 $workDir = Join-Path ([IO.Path]::GetTempPath()) ('PrintCostsTest-' + [Guid]::NewGuid().ToString('N'))
@@ -41,15 +42,6 @@ try {
     $annex = $wb.Worksheets('Annexe')
     $lo = $main.ListObjects('tblJobs_MAIN')
 
-    function Col($lo, $name) {
-        for ($i = 1; $i -le $lo.ListColumns.Count; $i++) {
-            if ($lo.ListColumns($i).Name -eq $name) { return $i }
-        }
-        return 0
-    }
-    function Check([bool]$cond, [string]$msg) {
-        Write-Host ("  {0}  {1}" -f $(if ($cond) { 'OK  ' } else { 'FAIL' }), $msg)
-    }
     function IsHidden($ws, $lo, $header) {
         $c = $lo.Range.Column + (Col $lo $header) - 1
         return [bool]$ws.Columns($c).Hidden
