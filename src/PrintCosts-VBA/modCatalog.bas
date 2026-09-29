@@ -17,6 +17,11 @@ Option Explicit
 ' A lookup that finds nothing returns an object with Found = False rather than
 ' Nothing, so callers can test .Found without guarding every reference.
 
+' The two built-in student-supplied stocks (see "student-supplied stock" at
+' the foot of this module). Reserved names: not tblPapers rows.
+Public Const SUPPLIED_ROLL As String = "Supplied (Roll)"
+Public Const SUPPLIED_SHEET As String = "Supplied (Sheet)"
+
 Private mStocks As clsDict      ' by description
 Private mPrinters As clsDict    ' by model
 Private mTechs As clsDict       ' by name -> TechID
@@ -70,7 +75,7 @@ Public Sub LoadCatalog(Optional ByVal Force As Boolean = False)
 
     Set lo = Tbl("tblPapers")
     For i = 1 To lo.ListRows.Count
-        If Len(CellIn(lo, i, "Description").Value) > 0 Then
+        If Len(CellIn(lo, i, "Description").Value) > 0 And Not IsBuiltInStock(CStr(CellIn(lo, i, "Description").Value)) Then
             Set s = New clsStock
             s.StockID = CStr(CellIn(lo, i, "StockID").Value)
             s.Description = CStr(CellIn(lo, i, "Description").Value)
@@ -84,10 +89,15 @@ Public Sub LoadCatalog(Optional ByVal Force As Boolean = False)
             If ColumnExists(lo, "Supplied by student") Then
                 s.SuppliedByStudent = (StrComp(CStr(CellIn(lo, i, "Supplied by student").Value), "Yes", vbTextCompare) = 0)
             End If
+            ' Paper the student supplies is never charged for, whatever the
+            ' Cost cell says - the flag decides, not the number.
+            If s.SuppliedByStudent Then s.Cost = 0
             s.Found = True
             mStocks.Add s.Description, s
         End If
     Next i
+    ' Last, so both stay at the bottom of the Paper Stock dropdown.
+    AddBuiltInStocks
 
     Set lo = Tbl("tblPrinters")
     For i = 1 To lo.ListRows.Count
@@ -166,7 +176,7 @@ End Function
 ' Roll"), which is exactly the coarseness this rework replaces with a real
 ' numeric fit check (printer/paper compatibility rework plan).
 '
-' The two "Supplied (Roll)"/"Supplied (Sheet)" catalogue rows (student-
+' The two built-in "Supplied (Roll)"/"Supplied (Sheet)" stocks (student-
 ' supplied stock) have no fixed size to check here - the real dimensions
 ' aren't known until job entry (Print Width mm / the job-row Sheet size
 ' column), so compatibility for them is just "the printer takes this kind of
@@ -181,14 +191,14 @@ Public Function Compatible(ByVal Model As String, ByVal Description As String) A
 
     If s.Measure = "Roll" Then
         If p.MaxRollWidthMM <= 0 Then Exit Function
-        If s.SuppliedByStudent Then
+        If s.PerJobSize Then
             Compatible = True
         Else
             Compatible = (s.WidthMM <= p.MaxRollWidthMM)
         End If
     ElseIf s.Measure = "Sheet" Then
         If Len(p.MaxSheetSize) = 0 Then Exit Function
-        If s.SuppliedByStudent Then
+        If s.PerJobSize Then
             Compatible = True
         Else
             Compatible = FitsWithinMaxSheet(s.WidthMM, s.HeightMM, p.MaxSheetWidthMM, p.MaxSheetHeightMM)
@@ -362,6 +372,7 @@ Public Sub AddCatalogRow(ByVal TableName As String)
     ' would be blank - and LoadCatalog reads only a literal "Yes" as active, so
     ' a row left blank is silently excluded from every dropdown.
     DefaultActive lo, r.Range.Cells(1, 1).Row - lo.DataBodyRange.Row + 1
+    DefaultSupplied lo, r.Range.Cells(1, 1).Row - lo.DataBodyRange.Row + 1
     RelockSheet ws
     Invalidate
     AppOn
@@ -377,6 +388,29 @@ Private Sub DefaultActive(ByVal lo As ListObject, ByVal RowNo As Long)
     If Len(Trim$(CStr(CellIn(lo, RowNo, "Active").Value))) = 0 Then
         CellIn(lo, RowNo, "Active").Value = "Yes"
     End If
+End Sub
+
+' Papers table only: a blank "Supplied by student" becomes "No" - a stock is
+' charged for unless it is explicitly marked as student-supplied. Caller has
+' already unlocked the sheet.
+Private Sub DefaultSupplied(ByVal lo As ListObject, ByVal RowNo As Long)
+    If Not ColumnExists(lo, "Supplied by student") Then Exit Sub
+    If Len(Trim$(CStr(CellIn(lo, RowNo, "Supplied by student").Value))) = 0 Then
+        CellIn(lo, RowNo, "Supplied by student").Value = "No"
+    End If
+End Sub
+
+' A stock marked Supplied by student never has a paper cost (LoadCatalog
+' enforces it); this keeps the visible Cost cell honest as well. Caller has
+' already unlocked the sheet.
+Private Sub ZeroSuppliedCost(ByVal lo As ListObject, ByVal RowNo As Long)
+    If Not ColumnExists(lo, "Supplied by student") Then Exit Sub
+    If StrComp(Trim$(CStr(CellIn(lo, RowNo, "Supplied by student").Value)), "Yes", vbTextCompare) <> 0 Then Exit Sub
+    If NumOf(CellIn(lo, RowNo, "Cost")) = 0 Then Exit Sub
+    CellIn(lo, RowNo, "Cost").Value = 0
+    Say "Paper supplied by the student is not charged for.", _
+        "Cost has been set to 0 on '" & Trim$(CStr(CellIn(lo, RowNo, "Description").Value)) & "' because 'Supplied by student' is Yes.", _
+        "Set 'Supplied by student' to No if the print room buys and charges for this stock."
 End Sub
 
 ' Called from ThisWorkbook.Workbook_SheetChange for every edit on the Papers
@@ -422,7 +456,20 @@ Public Sub OnPaperEdited(ByVal Target As Range)
             End If
         End If
 
-        If Len(Trim$(CStr(CellIn(lo, n, "Description").Value))) > 0 Then DefaultActive lo, n
+        ' "Supplied (Roll)"/"Supplied (Sheet)" are built in (AddBuiltInStocks);
+        ' a table row can not use either name.
+        If IsBuiltInStock(CStr(CellIn(lo, n, "Description").Value)) Then
+            Say "'" & Trim$(CStr(CellIn(lo, n, "Description").Value)) & "' is a built-in paper stock and can not be used as a name here.", _
+                "The two 'Supplied' stocks are always available and are not stored on the Papers sheet.", _
+                "Choose a different description. To record paper a student supplies in bulk, use your own name and set 'Supplied by student' to Yes."
+            CellIn(lo, n, "Description").ClearContents
+        End If
+
+        If Len(Trim$(CStr(CellIn(lo, n, "Description").Value))) > 0 Then
+            DefaultActive lo, n
+            DefaultSupplied lo, n
+            ZeroSuppliedCost lo, n
+        End If
     Next c
     On Error GoTo 0
     RelockSheet ws
@@ -487,34 +534,124 @@ Public Sub EnsureStdSizesName()
 End Sub
 
 ' -------------------------------------------------- student-supplied stock -
-' "Supplied (Roll)"/"Supplied (Sheet)" ship as ordinary tblPapers rows (Cost 0,
-' Supplied by student = Yes). Setup only restores one if it has been deleted:
-' an existing row is never touched. Appended at the bottom so the Paper Stock
-' dropdown keeps both supplied options last (StocksFor follows row order).
-Public Sub EnsureSuppliedStockRows()
-    RestoreSuppliedStockRow "Supplied (Roll)", "Roll"
-    RestoreSuppliedStockRow "Supplied (Sheet)", "Sheet"
+' Two kinds of "supplied by the student" paper:
+'
+' 1. The built-in "Supplied (Roll)" / "Supplied (Sheet)" stocks. They are NOT
+'    rows of tblPapers: they exist for every printer and location alike, so
+'    LoadCatalog adds them in code (AddBuiltInStocks) and nobody can delete,
+'    rename or re-cost them. The two names are reserved (IsBuiltInStock,
+'    OnPaperEdited). They have no catalogue size - the real size is entered
+'    on each job (Print Width mm / Sheet size) - and no paper cost.
+' 2. Any tblPapers row with Supplied by student = Yes, e.g. a bulk delivery
+'    of paper a student supplies for many jobs. It defaults to No, keeps its
+'    own catalogue size like any other stock, and LoadCatalog forces its
+'    Cost to 0.
+
+Public Function IsBuiltInStock(ByVal Description As String) As Boolean
+    Description = Trim$(Description)
+    IsBuiltInStock = (StrComp(Description, SUPPLIED_ROLL, vbTextCompare) = 0) _
+                  Or (StrComp(Description, SUPPLIED_SHEET, vbTextCompare) = 0)
+End Function
+
+Private Sub AddBuiltInStocks()
+    AddBuiltInStock "STK-SUP-ROLL", SUPPLIED_ROLL, "Roll"
+    AddBuiltInStock "STK-SUP-SHEET", SUPPLIED_SHEET, "Sheet"
 End Sub
 
-Private Sub RestoreSuppliedStockRow(ByVal Description As String, ByVal Family As String)
-    Dim lo As ListObject, i As Long, r As ListRow, ws As Worksheet
+Private Sub AddBuiltInStock(ByVal StockID As String, ByVal Description As String, ByVal Family As String)
+    Dim s As New clsStock
+    s.StockID = StockID
+    s.Description = Description
+    s.PaperType = "Student supplied"
+    s.Family = Family
+    s.Measure = Family              ' "Roll" / "Sheet" - fixed, not looked up
+    s.Cost = 0
+    s.Active = True
+    s.SuppliedByStudent = True
+    s.PerJobSize = True
+    s.Found = True
+    mStocks.Add s.Description, s
+End Sub
+
+' One-off migration, run by Setup (and harmless to repeat): earlier builds
+' shipped the two Supplied stocks as ordinary tblPapers rows. They are built
+' in now, so any such row is deleted. Jobs already recorded against them are
+' unaffected - each carries its own frozen S_* snapshot.
+Public Sub RemoveLegacySuppliedRows()
+    Dim lo As ListObject, ws As Worksheet, i As Long, n As Long, id As String
     Set lo = Tbl("tblPapers")
     If lo Is Nothing Then Exit Sub
+    If lo.DataBodyRange Is Nothing Then Exit Sub
     Set ws = lo.Parent
 
-    For i = 1 To lo.ListRows.Count
-        If StrComp(Trim$(CStr(CellIn(lo, i, "Description").Value)), Description, vbTextCompare) = 0 Then Exit Sub
+    For i = lo.ListRows.Count To 1 Step -1
+        id = Trim$(CStr(CellIn(lo, i, "StockID").Value))
+        If IsBuiltInStock(CStr(CellIn(lo, i, "Description").Value)) _
+            Or StrComp(id, "STK-SUP-ROLL", vbTextCompare) = 0 _
+            Or StrComp(id, "STK-SUP-SHEET", vbTextCompare) = 0 Then
+            If n = 0 Then UnlockSheet ws
+            lo.ListRows(i).Delete
+            n = n + 1
+        End If
     Next i
 
+    If n > 0 Then
+        RelockSheet ws
+        Invalidate
+        LogAudit "Migration", "Papers", n & " built-in 'Supplied' paper row" & IIf(n = 1, "", "s") & " removed from tblPapers (now built in)"
+    End If
+End Sub
+
+' Setup: every stock defaults to "Supplied by student = No", and a stock that
+' is Yes has a Cost of 0. Only fills blanks / zeroes a stray cost; never
+' flips a Yes or No the user chose.
+Public Sub NormaliseSuppliedFlags()
+    Dim lo As ListObject, ws As Worksheet, i As Long, n As Long
+    Set lo = Tbl("tblPapers")
+    If lo Is Nothing Then Exit Sub
+    If lo.DataBodyRange Is Nothing Then Exit Sub
+    If Not ColumnExists(lo, "Supplied by student") Then Exit Sub
+    Set ws = lo.Parent
+
     UnlockSheet ws
-    Set r = lo.ListRows.Add
-    r.Range.Cells(1, ColIdx(lo, "StockID")).Value = "STK-SUP-" & UCase$(Family)
-    r.Range.Cells(1, ColIdx(lo, "Description")).Value = Description
-    r.Range.Cells(1, ColIdx(lo, "Paper type")).Value = "Student supplied"
-    r.Range.Cells(1, ColIdx(lo, "Family")).Value = Family
-    r.Range.Cells(1, ColIdx(lo, "Cost")).Value = 0
-    r.Range.Cells(1, ColIdx(lo, "Active")).Value = "Yes"
-    r.Range.Cells(1, ColIdx(lo, "Supplied by student")).Value = "Yes"
+    For i = 1 To lo.ListRows.Count
+        If Len(Trim$(CStr(CellIn(lo, i, "Description").Value))) > 0 Then
+            If Len(Trim$(CStr(CellIn(lo, i, "Supplied by student").Value))) = 0 Then
+                CellIn(lo, i, "Supplied by student").Value = "No"
+                n = n + 1
+            End If
+            If StrComp(Trim$(CStr(CellIn(lo, i, "Supplied by student").Value)), "Yes", vbTextCompare) = 0 Then
+                If NumOf(CellIn(lo, i, "Cost")) <> 0 Then CellIn(lo, i, "Cost").Value = 0
+            End If
+        End If
+    Next i
     RelockSheet ws
-    Invalidate
+    If n > 0 Then Invalidate
+End Sub
+
+' The Yes/No dropdown and its help text on tblPapers[Supplied by student].
+' Re-applied here so the wording matches the behaviour above rather than
+' whatever the .xlsx template happens to carry.
+Public Sub EnsureSuppliedColumnValidation()
+    Dim lo As ListObject, ws As Worksheet
+    Set lo = Tbl("tblPapers")
+    If lo Is Nothing Then Exit Sub
+    If lo.DataBodyRange Is Nothing Then Exit Sub
+    If Not ColumnExists(lo, "Supplied by student") Then Exit Sub
+    Set ws = lo.Parent
+
+    UnlockSheet ws
+    With lo.ListColumns("Supplied by student").DataBodyRange.Validation
+        .Delete
+        .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Formula1:="Yes,No"
+        .IgnoreBlank = True
+        .InCellDropdown = True
+        .ShowInput = True
+        .ShowError = True
+        .InputTitle = "Supplied by student"
+        .InputMessage = "Yes for paper the student supplies, e.g. a bulk delivery used across many jobs: paper cost is always zero, whatever Cost says. No (the default) for stock the print room buys and charges for."
+        .ErrorTitle = "Supplied by student"
+        .ErrorMessage = "Choose Yes or No."
+    End With
+    RelockSheet ws
 End Sub

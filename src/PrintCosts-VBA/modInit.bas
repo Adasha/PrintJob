@@ -66,7 +66,9 @@ Public Sub InitialiseWorkbook()
     EnsureReducedViewSettings
     EnsureCostColumnsSetting
     EnsureStdSizesName
-    EnsureSuppliedStockRows
+    RemoveLegacySuppliedRows
+    NormaliseSuppliedFlags
+    EnsureSuppliedColumnValidation
 
     ' Moved here from after the per-sheet loop below (2026-09-27,
     ' user-reported: Settings-sheet buttons rendering over the top of
@@ -803,8 +805,8 @@ Private Function BuildJobIssuesFormula(ByVal t As String) As String
         "&IF(AND(" & t & "[[#This Row],[S_Measure]]=" & q & "Sheet" & q & "," & t & "[[#This Row],[Qty]]<>" & q & q & "," & t & "[[#This Row],[Qty]]<>INT(" & t & "[[#This Row],[Qty]]))," & q & "; Sheet quantity must be a whole number" & q & "," & q & q & ")" & _
         "&IF(AND(" & t & "[[#This Row],[S_Measure]]=" & q & "Sheet" & q & "," & t & "[[#This Row],[Print Width mm]]<>" & q & q & ")," & q & "; Print width does not apply to sheet stock" & q & "," & q & q & ")" & _
         "&IF(AND(" & t & "[[#This Row],[Print Width mm]]<>" & q & q & "," & t & "[[#This Row],[Print Width mm]]>" & t & "[[#This Row],[S_StockWidth_mm]])," & q & "; Print width exceeds stock width" & q & "," & q & q & ")" & _
-        "&IF(AND(" & t & "[[#This Row],[Paper Stock]]=" & q & "Supplied (Roll)" & q & "," & t & "[[#This Row],[Print Width mm]]=" & q & q & ")," & q & "; Print width required for student-supplied roll stock" & q & "," & q & q & ")" & _
-        "&IF(AND(" & t & "[[#This Row],[Paper Stock]]=" & q & "Supplied (Sheet)" & q & "," & t & "[[#This Row],[Sheet size]]=" & q & q & ")," & q & "; Sheet size required for student-supplied sheet stock" & q & "," & q & q & ")" & _
+        "&IF(AND(" & t & "[[#This Row],[Paper Stock]]=" & q & SUPPLIED_ROLL & q & "," & t & "[[#This Row],[Print Width mm]]=" & q & q & ")," & q & "; Print width required for student-supplied roll stock" & q & "," & q & q & ")" & _
+        "&IF(AND(" & t & "[[#This Row],[Paper Stock]]=" & q & SUPPLIED_SHEET & q & "," & t & "[[#This Row],[Sheet size]]=" & q & q & ")," & q & "; Sheet size required for student-supplied sheet stock" & q & "," & q & q & ")" & _
         ")"
 
     BuildJobIssuesFormula = f

@@ -92,10 +92,16 @@ Public Sub BuildSummary()
     f = "=IFERROR(LET(" & _
         "keys,SORT(UNIQUE(HSTACK(" & C("Location") & "," & C("Printer") & "," & C("Paper Stock") & "))),"
     f = f & "lo,INDEX(keys,,1),pr,INDEX(keys,,2),st,INDEX(keys,,3),"
+    ' The two built-in Supplied stocks are not tblPapers rows (modCatalog.
+    ' AddBuiltInStocks), so each lookup falls back to their fixed values
+    ' before giving up with "(not in Papers)".
+    Dim isRoll As String, isSheet As String
+    isRoll = "st=""" & SUPPLIED_ROLL & """"
+    isSheet = "st=""" & SUPPLIED_SHEET & """"
     f = f & "HSTACK(lo,pr,st," & _
-        "IFNA(XLOOKUP(st,tblPapers[Description],tblPapers[Paper type]),""(not in Papers)""),"
-    f = f & "IFNA(XLOOKUP(st,tblPapers[Description],tblPapers[Family]),""(not in Papers)""),"
-    f = f & "IFNA(IF(XLOOKUP(st,tblPapers[Description],tblPapers[Measure])=""Sheet"",""sheets"",""metres""),""-""),"
+        "IFNA(XLOOKUP(st,tblPapers[Description],tblPapers[Paper type]),IF(OR(" & isRoll & "," & isSheet & "),""Student supplied"",""(not in Papers)"")),"
+    f = f & "IFNA(XLOOKUP(st,tblPapers[Description],tblPapers[Family]),IF(" & isRoll & ",""Roll"",IF(" & isSheet & ",""Sheet"",""(not in Papers)""))),"
+    f = f & "IFNA(IF(XLOOKUP(st,tblPapers[Description],tblPapers[Measure])=""Sheet"",""sheets"",""metres""),IF(" & isRoll & ",""metres"",IF(" & isSheet & ",""sheets"",""-""))),"
     f = f & "COUNTIFS(" & C("Location") & ",lo," & C("Printer") & ",pr," & C("Paper Stock") & ",st),"
     f = f & SumBy("Qty") & "," & SumBy("Area m2") & "," & SumBy("Paper Cost") & ","
     f = f & SumBy("Consumable Cost") & "," & SumBy("Gross Cost") & ","

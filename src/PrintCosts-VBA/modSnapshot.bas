@@ -29,13 +29,13 @@ Public Sub StampRow(ByVal ws As Worksheet, ByVal RowNo As Long)
 
     stockW = s.WidthMM
     stockH = s.HeightMM
-    ' Student-supplied sheet stock has no catalogue size - the row's own
+    ' The built-in Supplied (Sheet) stock has no catalogue size - the row's own
     ' "Sheet size" pick (the nearest standard size) is what the Area
     ' formula's Sheet branch needs stamped here instead. Roll needs no
     ' equivalent: Print Width mm is required for 'Supplied (Roll)'
     ' (modValidation), and the Area formula always uses it in preference to
     ' S_StockWidth_mm once it's set, so a stamped 0 there is never read.
-    If s.Found And s.SuppliedByStudent And s.Measure = "Sheet" Then
+    If s.Found And s.PerJobSize And s.Measure = "Sheet" Then
         If ColumnExists(lo, "Sheet size") Then
             StdSizeDims CStr(CellIn(lo, RowNo, "Sheet size").Value), stockW, stockH
         End If

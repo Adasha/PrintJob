@@ -3,6 +3,40 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.10.1 - student-supplied stock made built in, direct
+user request: the "Supplied (Roll)"/"Supplied (Sheet)" rows could be deleted
+from the Papers sheet and were only restored by Setup, and nothing stopped
+them being renamed or re-costed - yet the job-row status formulas match
+their exact names. They are ever-present regardless of printer or location,
+so they are no longer tblPapers rows:
+  - modCatalog.LoadCatalog adds them in code (AddBuiltInStocks; PerJobSize
+    = True on clsStock marks them), last in the dropdown. Their names are
+    reserved (SUPPLIED_ROLL/SUPPLIED_SHEET, IsBuiltInStock); typing either
+    into the Papers table is cleared with a message (OnPaperEdited).
+  - modCatalog.RemoveLegacySuppliedRows (Setup) deletes the old rows from
+    existing workbooks and writes an audit note. Recorded jobs are
+    unaffected - they carry their own S_* snapshot. EnsureSuppliedStockRows
+    and RestoreSuppliedStockRow are gone.
+  - modReports.BuildSummary's Type/Family/Unit XLOOKUPs against tblPapers
+    fall back to the fixed values for the two names instead of showing
+    "(not in Papers)".
+  - "Supplied by student" stays on tblPapers, now for user stocks such as a
+    bulk delivery of paper a student supplies: it defaults to No (new rows,
+    typed rows, and Setup fills blanks - NormaliseSuppliedFlags), and Yes
+    means paper cost is always 0. Before, zero cost held only because the
+    two shipped rows happened to have Cost = 0; LoadCatalog now forces
+    Cost = 0 for any Yes row and OnPaperEdited resets the visible cell.
+  - Behaviour change: the "size entered per job" rules (Print Width mm
+    required, Sheet size required, compatible with any printer that takes
+    that kind of stock) now apply only to the two built-in stocks, not to
+    every Yes row - a Yes row uses its own catalogue size like any stock.
+  - modCatalog.EnsureSuppliedColumnValidation re-applies the column's Yes/No
+    list with corrected help text (the template's said Yes was only for the
+    two shipped rows). PrintCosts.xlsx itself is unchanged and still ships
+    the two rows; Setup removes them on build.
+  - test-suppliedstock.ps1's "setup restores a deleted row" section is
+    replaced with checks for the above.
+
 0.10.0 - printer/paper compatibility rework, direct user request: testing
 showed the family-based compatibility model was too coarse for real
 printer/stock combinations - tblPaperFamilies was standing in for roll-
