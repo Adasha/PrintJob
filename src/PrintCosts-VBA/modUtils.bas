@@ -219,6 +219,17 @@ Public Function IsBlankRow(ByVal lo As ListObject, ByVal RowNo As Long) As Boole
     IsBlankRow = (typed Is Nothing)
 End Function
 
+' Empties a table row's typed cells but leaves calculated-column formulas alone.
+' Range.ClearContents on the whole row also wipes Unit, Area m2, the cost columns and
+' Status, and a row left like that is what ListRows.Add copies - so every later job on
+' the sheet had no Unit and no costs. Used wherever a job row is blanked rather than deleted.
+Public Sub ClearTypedCells(ByVal RowRange As Range)
+    Dim c As Range
+    For Each c In RowRange.Cells
+        If Not c.HasFormula Then c.ClearContents
+    Next c
+End Sub
+
 ' ------------------------------------------------------------------- names ---
 Public Function LocRange(ByVal ws As Worksheet, ByVal RefName As String) As Range
     On Error GoTo Missing

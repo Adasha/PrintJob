@@ -821,7 +821,7 @@ Private Sub ResetPrintRoom(ByVal ws As Worksheet, ByVal RoomName As String, ByVa
             lo.ListRows(i).Delete
         Next i
         If lo.ListRows.Count = 1 Then
-            lo.ListRows(1).Range.ClearContents
+            ClearTypedCells lo.ListRows(1).Range
             MarkQtyRewritten CellIn(lo, 1, "Qty"), False
         End If
     End If

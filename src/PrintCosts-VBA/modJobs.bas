@@ -264,7 +264,7 @@ Public Sub ClearAll(ByVal ws As Worksheet)
     For i = lo.ListRows.Count To 2 Step -1
         lo.ListRows(i).Delete
     Next i
-    lo.ListRows(1).Range.ClearContents
+    ClearTypedCells lo.ListRows(1).Range
     ' ClearContents empties values, not formatting - if row 1 itself was
     ' shaded (a real cm-derived value cleared along with everything else),
     ' it would otherwise stay shaded forever with nothing left in it.
