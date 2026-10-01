@@ -1,22 +1,22 @@
 # This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
 # If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 #
-# LOC_RollUnit order-dependency fix (docs/ARCHITECTURE.md §16.3, 2026-09-27).
+# LOC_RollUnit as a DISPLAY unit (docs/ARCHITECTURE.md §16.3, 2026-10-01).
 #
-# modValidation.OnQtyChanged's cm->m conversion used to only fire on Qty's
-# own Change event. A roll length typed BEFORE Paper Stock was chosen was
-# left as raw, un-converted centimetres forever - on a Centimetres location
-# that silently stored a job 100x too large in metres. Fixed by extracting
-# the conversion into ConvertQtyIfCentimetres, now also called from
-# OnStockChanged the moment Paper Stock resolves to a Roll stock.
+# On a Centimetres location Qty holds centimetres and the Unit column reads
+# "cm"; Area m2 and Paper Cost still come out the same as for the equivalent
+# length in metres, and the consolidated _Data range (what every report reads)
+# always carries metres and "metres". Changing the setting rescales the
+# existing roll rows, never twice, never touching Sheet stock.
 #
 # Covers:
-#   - natural order (Paper Stock, then Qty) still converts, unchanged
-#   - reversed order (Qty, then Paper Stock) now ALSO converts - the bug
-#   - an already-converted Qty is not divided by 100 again when Paper Stock
-#     changes a second time (e.g. swapping between two Roll stocks)
-#   - a Metres-location job is never touched regardless of order
-#   - a Sheet-stock job is never touched regardless of order
+#   - Metres sheet: Unit "metres", Qty as typed
+#   - switching to Centimetres: roll Qty x100, Unit "cm", Area/Paper Cost unchanged
+#   - re-picking the same unit does not rescale again
+#   - Sheet stock Qty and Unit ("sheets") untouched by the setting
+#   - a roll row typed on a Centimetres sheet: cost matches the metres equivalent
+#   - _Data stays in metres for the cm rows (Qty/100, Unit "metres")
+#   - switching back to Metres restores the original lengths
 #
 # Drives a COPY in %TEMP%, never src\PrintJob.xlsm itself - see
 # test-validation.ps1's header comment for why. Closes WITHOUT saving.
@@ -34,89 +34,115 @@ $xl.Visible = $false
 $xl.DisplayAlerts = $false
 $wb = $null
 try {
-    $wb = $xl.Workbooks.Open($f)
+    $wb = Invoke-ComRetry { $xl.Workbooks.Open($f) }
     $xl.Run('SetQuiet', $true)
     $main = $wb.Worksheets('Example Print Room')
     $lo = $main.ListObjects('tblJobs_MAIN')
+    $data = $wb.Worksheets('_Data')
 
     $stkCol = $lo.Range.Column + (Col $lo 'Paper Stock') - 1
     $qtyCol = $lo.Range.Column + (Col $lo 'Qty') - 1
+    $unitCol = $lo.Range.Column + (Col $lo 'Unit') - 1
+    $areaCol = $lo.Range.Column + (Col $lo 'Area m2') - 1
+    $costCol = $lo.Range.Column + (Col $lo 'Paper Cost') - 1
+    $idCol = $lo.Range.Column + (Col $lo 'Job ID') - 1
 
     function New-Row {
         [void]$main.Activate()
         [void]$xl.Run('btnAddPrintJob')
         return $lo.ListRows($lo.ListRows.Count).Range.Row
     }
-    function IsShaded($cell) {
-        # Matches modValidation.QtyMarkedRewritten's own RGB(242,242,242).
-        return ($cell.Interior.Color -eq (242 + 242 * 256 + 242 * 65536))
+    function Set-Cell([int]$row, [int]$col, $v) { $c = $main.Cells($row, $col); if ($v -is [string]) { $c.Value2 = [string]$v } else { $c.Value2 = [double]$v }; Start-Sleep -Milliseconds 300 }
+    function Near($a, $b) { return ([Math]::Abs([double]$a - [double]$b) -lt 0.000001) }
+    # Finds a job's row in _Data (header row 9, data from row 10) by Job ID.
+    function Data-Row($jobId) {
+        $hdr = 9
+        $idc = 1..60 | Where-Object { $data.Cells($hdr, $_).Value2 -eq 'Job ID' } | Select-Object -First 1
+        for ($r = 10; $r -lt 400; $r++) { if ($data.Cells($r, $idc).Value2 -eq $jobId) { return $r } }
+        return 0
     }
+    function Data-Col($name) { return (1..60 | Where-Object { $data.Cells(9, $_).Value2 -eq $name } | Select-Object -First 1) }
 
     $rollUnit = $main.Range('LOC_RollUnit')
+    $rollUnit.Value2 = 'Metres'
+    Start-Sleep -Milliseconds 300
 
-    # --------------------------------------------------------- natural order
-    Write-Host '=== Centimetres location, natural order (Paper Stock then Qty) ==='
-    $rollUnit.Value2 = 'Centimetres'
+    # -------------------------------------------------------- Metres baseline
+    Write-Host '=== Metres sheet ==='
     $r1 = New-Row
-    $main.Cells($r1, $stkCol).Value2 = 'Canvas 914mm roll'
-    Start-Sleep -Milliseconds 300
-    $main.Cells($r1, $qtyCol).Value2 = 250
-    Start-Sleep -Milliseconds 300
-    $got = [double]$main.Cells($r1, $qtyCol).Value2
-    Check ($got -eq 2.5) "250 cm converts to 2.5 m (got $got)"
-    Check (IsShaded $main.Cells($r1, $qtyCol)) 'Qty is shaded (converted)'
+    Set-Cell $r1 $stkCol 'Canvas 914mm roll'
+    Set-Cell $r1 $qtyCol 2.5
+    $area1 = [double]$main.Cells($r1, $areaCol).Value2
+    $cost1 = [double]$main.Cells($r1, $costCol).Value2
+    Check ($main.Cells($r1, $unitCol).Value2 -eq 'metres') 'Unit reads "metres"'
+    Check (Near $main.Cells($r1, $qtyCol).Value2 2.5) 'Qty is 2.5 as typed'
+    Check ($cost1 -gt 0) "Paper Cost calculated ($cost1)"
 
-    # -------------------------------------------------- reversed order (bug)
-    Write-Host ''
-    Write-Host '=== Centimetres location, reversed order (Qty typed BEFORE Paper Stock) ==='
     $r2 = New-Row
-    $main.Cells($r2, $qtyCol).Value2 = 150
-    Start-Sleep -Milliseconds 300
-    $beforeStock = [double]$main.Cells($r2, $qtyCol).Value2
-    Check ($beforeStock -eq 150) "Qty sits unconverted while Paper Stock is still blank (got $beforeStock)"
-    Check (-not (IsShaded $main.Cells($r2, $qtyCol))) 'Qty not yet shaded (nothing converted yet)'
+    Set-Cell $r2 $stkCol 'Gloss 200gsm SRA3 sheet'
+    Set-Cell $r2 $qtyCol 40
+    $costSheet = [double]$main.Cells($r2, $costCol).Value2
 
-    $main.Cells($r2, $stkCol).Value2 = 'Canvas 914mm roll'
-    Start-Sleep -Milliseconds 300
-    $got = [double]$main.Cells($r2, $qtyCol).Value2
-    Check ($got -eq 1.5) "choosing Paper Stock afterwards now converts 150 cm to 1.5 m (got $got) - the fix"
-    Check (IsShaded $main.Cells($r2, $qtyCol)) 'Qty is shaded (converted) after the fix fires'
-
-    # ------------------------------------------ no double-conversion on swap
+    # ------------------------------------------------- switch to Centimetres
     Write-Host ''
-    Write-Host '=== Swapping Paper Stock again does not re-convert an already-converted Qty ==='
-    $main.Cells($r2, $stkCol).Value2 = 'Satin photo 610mm roll'
-    Start-Sleep -Milliseconds 300
-    $got = [double]$main.Cells($r2, $qtyCol).Value2
-    Check ($got -eq 1.5) "Qty stays at 1.5 m, not divided by 100 again (got $got)"
-
-    # ----------------------------------------------------- Metres unaffected
-    Write-Host ''
-    Write-Host '=== Metres location: reversed order never converts ==='
-    $rollUnit.Value2 = 'Metres'
-    $r3 = New-Row
-    $main.Cells($r3, $qtyCol).Value2 = 150
-    Start-Sleep -Milliseconds 300
-    $main.Cells($r3, $stkCol).Value2 = 'Canvas 914mm roll'
-    Start-Sleep -Milliseconds 300
-    $got = [double]$main.Cells($r3, $qtyCol).Value2
-    Check ($got -eq 150) "Qty stays 150 on a Metres location regardless of order (got $got)"
-    Check (-not (IsShaded $main.Cells($r3, $qtyCol))) 'Qty never shaded on a Metres location'
-
-    # ------------------------------------------------------ Sheet unaffected
-    Write-Host ''
-    Write-Host '=== Centimetres location, Sheet stock: Qty (a sheet count) is never touched ==='
+    Write-Host '=== Switch to Centimetres: existing roll rows rescale ==='
     $rollUnit.Value2 = 'Centimetres'
-    $r4 = New-Row
-    $main.Cells($r4, $qtyCol).Value2 = 40
-    Start-Sleep -Milliseconds 300
-    $main.Cells($r4, $stkCol).Value2 = 'Gloss 200gsm SRA3 sheet'
-    Start-Sleep -Milliseconds 300
-    $got = [double]$main.Cells($r4, $qtyCol).Value2
-    Check ($got -eq 40) "Qty stays 40 sheets, not treated as a length (got $got)"
-    Check (-not (IsShaded $main.Cells($r4, $qtyCol))) 'Qty never shaded for a Sheet stock'
+    Start-Sleep -Milliseconds 500
+    Check (Near $main.Cells($r1, $qtyCol).Value2 250) "roll Qty 2.5 m now shows 250 (got $($main.Cells($r1, $qtyCol).Value2))"
+    Check ($main.Cells($r1, $unitCol).Value2 -eq 'cm') 'roll Unit reads "cm"'
+    Check (Near $main.Cells($r1, $areaCol).Value2 $area1) 'Area m2 unchanged (still metres-based)'
+    Check (Near $main.Cells($r1, $costCol).Value2 $cost1) 'Paper Cost unchanged'
+    Check (Near $main.Cells($r2, $qtyCol).Value2 40) 'Sheet Qty untouched (40)'
+    Check ($main.Cells($r2, $unitCol).Value2 -eq 'sheets') 'Sheet Unit still "sheets"'
+    Check (Near $main.Cells($r2, $costCol).Value2 $costSheet) 'Sheet Paper Cost unchanged'
 
+    # ---------------------------------------------- same unit re-picked
+    Write-Host ''
+    Write-Host '=== Re-picking the same unit does not rescale again ==='
+    $rollUnit.Value2 = 'Centimetres'
+    Start-Sleep -Milliseconds 500
+    Check (Near $main.Cells($r1, $qtyCol).Value2 250) 'Qty still 250'
+
+    # ------------------------------------------- new roll row typed in cm
+    Write-Host ''
+    Write-Host '=== Roll row typed in cm costs the same as its metres equivalent ==='
+    $r3 = New-Row
+    Set-Cell $r3 $stkCol 'Canvas 914mm roll'
+    Set-Cell $r3 $qtyCol 250
+    Check (Near $main.Cells($r3, $qtyCol).Value2 250) 'Qty stays 250 as typed (no rewrite)'
+    Check ($main.Cells($r3, $unitCol).Value2 -eq 'cm') 'Unit reads "cm"'
+    Check (Near $main.Cells($r3, $costCol).Value2 $cost1) 'Paper Cost equals the 2.5 m job'
+    Check (Near $main.Cells($r3, $areaCol).Value2 $area1) 'Area m2 equals the 2.5 m job'
+
+    # ----------------------------------------------------------- _Data
+    Write-Host ''
+    Write-Host '=== _Data (reports) always in metres ==='
+    $xl.Calculate()
+    $qCol = Data-Col 'Qty'; $uCol = Data-Col 'Unit'
+    $id1 = $main.Cells($r1, $idCol).Value2
+    $dr = Data-Row $id1
+    Check ($dr -gt 0) "job $id1 found in _Data"
+    if ($dr -gt 0) {
+        Check (Near $data.Cells($dr, $qCol).Value2 2.5) "_Data Qty is 2.5 m (got $($data.Cells($dr, $qCol).Value2))"
+        Check ($data.Cells($dr, $uCol).Value2 -eq 'metres') '_Data Unit is "metres"'
+    }
+    $id2 = $main.Cells($r2, $idCol).Value2
+    $dr2 = Data-Row $id2
+    if ($dr2 -gt 0) {
+        Check (Near $data.Cells($dr2, $qCol).Value2 40) '_Data sheet Qty is 40'
+        Check ($data.Cells($dr2, $uCol).Value2 -eq 'sheets') '_Data sheet Unit is "sheets"'
+    } else { Check $false "sheet job $id2 found in _Data" }
+
+    # ----------------------------------------------------- back to Metres
+    Write-Host ''
+    Write-Host '=== Back to Metres restores the lengths ==='
     $rollUnit.Value2 = 'Metres'
+    Start-Sleep -Milliseconds 500
+    Check (Near $main.Cells($r1, $qtyCol).Value2 2.5) 'row 1 back to 2.5'
+    Check (Near $main.Cells($r3, $qtyCol).Value2 2.5) 'row 3 back to 2.5'
+    Check ($main.Cells($r1, $unitCol).Value2 -eq 'metres') 'Unit back to "metres"'
+    Check (Near $main.Cells($r2, $qtyCol).Value2 40) 'Sheet Qty still 40'
+
     $xl.Run('SetQuiet', $false)
 }
 finally {
@@ -128,3 +154,4 @@ Write-Host ''
 Write-Host 'closed without saving'
 
 Remove-Item $workDir -Recurse -Force -ErrorAction SilentlyContinue
+if ($script:anyFail) { exit 1 }

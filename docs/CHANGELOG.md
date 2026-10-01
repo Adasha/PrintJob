@@ -3,6 +3,23 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.10.11 - Location sheets: roll length unit is a display setting, direct
+user request.
+  - LOC_RollUnit now decides how every roll length on that sheet is shown:
+    Qty is held and typed in the chosen unit and the Unit column reads "cm"
+    or "metres". Changing the setting converts the roll lengths already
+    entered. Sheet stock is unaffected.
+  - Calculations still run in metres: Unit, Area m2 and Paper Cost formulas
+    (modInit.EnsureRollUnitFormulas) divide a "cm" row's Qty by 100, and
+    modRegistry.MetresBlock converts cm rows back to metres in _Data, so
+    reports, Summary and snapshots log metres. Other locations use their
+    own setting.
+  - Removed the old rewrite-on-entry conversion (ConvertQtyIfCentimetres and
+    its grey shading). Import converts a roll Qty between the file's unit
+    and the room's, and no longer freezes the calculated Unit cell.
+  - Existing Centimetres sheets are migrated once (roll Qty x100) on the
+    next Refresh Locations / rebuild. No schema change.
+
 0.10.10 - Location sheets: disregard-cost defaults moved to the left with the
 other options, direct user request.
   - "Disregard paper" and "Disregard consumable" (LOC_DefDisPaper/

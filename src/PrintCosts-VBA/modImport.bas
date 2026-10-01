@@ -229,8 +229,13 @@ Private Sub WriteImportedRow(ByVal lo As ListObject, ByVal RowNo As Long, ByVal 
     WriteText lo, RowNo, "Technician", d
     WriteText lo, RowNo, "Printer", d
     WriteText lo, RowNo, "Paper Stock", d
-    WriteText lo, RowNo, "Unit", d
+    ' Unit is a calculated column (it now follows the room's roll length
+    ' unit), so it is not written - that would freeze the formula to a
+    ' string for this row. The file's own Unit text is only read, below, to
+    ' say what unit its Qty is in: a roll length is converted if the file
+    ' (cm, or metres/older files) and this room's roll length unit differ.
     WriteNum lo, RowNo, "Qty", d
+    ConvertImportedRollQty lo, RowNo, Trim$(CStr(d.Item("Unit")))
     WriteNum lo, RowNo, "Print Width mm", d
     ' Missing from a file exported before this column existed (schema < 1.2)
     ' - d.Item returns Empty, which writes blank, same graceful degradation
@@ -255,6 +260,17 @@ Private Sub WriteImportedRow(ByVal lo As ListObject, ByVal RowNo As Long, ByVal 
     WriteDate lo, RowNo, "S_StampedAt", d
     WriteText lo, RowNo, "S_StampedBy", d
     WriteText lo, RowNo, "S_SchemaVer", d
+End Sub
+
+Private Sub ConvertImportedRollQty(ByVal lo As ListObject, ByVal RowNo As Long, ByVal FileUnit As String)
+    Dim c As Range, fileCm As Boolean, roomCm As Boolean
+    If StrComp(FileUnit, "cm", vbTextCompare) <> 0 And StrComp(FileUnit, "metres", vbTextCompare) <> 0 Then Exit Sub
+    Set c = CellIn(lo, RowNo, "Qty")
+    If IsEmpty(c.Value2) Then Exit Sub
+    fileCm = (StrComp(FileUnit, "cm", vbTextCompare) = 0)
+    roomCm = (RollUnitOf(lo.Parent) = "Centimetres")
+    If roomCm And Not fileCm Then c.Value2 = Round(CDbl(c.Value2) * 100, 6)
+    If fileCm And Not roomCm Then c.Value2 = Round(CDbl(c.Value2) / 100, 6)
 End Sub
 
 Private Sub WriteText(ByVal lo As ListObject, ByVal RowNo As Long, ByVal Header As String, ByVal d As clsDict)
