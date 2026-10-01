@@ -51,27 +51,27 @@ try {
 
     # ------------------------------------------------------------ named cells
     Write-Host '=== Named cells exist and are laid out one per row at A3:B5 ==='
-    $expectedRows = @{ LOC_DefTech = 3; LOC_DefPrinter = 4; LOC_DefPaper = 5 }
+    $expectedRows = @{ LOC_DefTech = 4; LOC_DefPrinter = 5; LOC_DefPaper = 6 }
     foreach ($nm in 'LOC_DefTech', 'LOC_DefPrinter', 'LOC_DefPaper') {
         $found = $false
         try { $r = $main.Names.Item($nm).RefersToRange; $found = ($r.Row -eq $expectedRows[$nm]) } catch {}
         Check $found "$nm exists and refers to row $($expectedRows[$nm])"
     }
-    Check ([string]$main.Range('A3').Text -eq 'Default: technician') "A3 label reads correctly (got '$($main.Range('A3').Text)')"
+    Check ([string]$main.Range('A4').Text -eq 'Default: technician') "A4 label reads correctly (got '$($main.Range('A4').Text)')"
 
     # Disregard-cost defaults sit under Default: paper (2026-09-29), row 8 is a blank spacer,
     # and the settings below moved down to rows 9-11.
-    $layout = @{ LOC_DefDisPaper = 6; LOC_DefDisCons = 7; LOC_RollUnit = 9 }
+    $layout = @{ LOC_DefDisPaper = 8; LOC_DefDisCons = 9; LOC_RollUnit = 11 }
     foreach ($nm in $layout.Keys) {
         $found = $false
         try { $r = $main.Names.Item($nm).RefersToRange; $found = ($r.Row -eq $layout[$nm] -and $r.Column -eq 2) } catch {}
         Check $found "$nm refers to B$($layout[$nm])"
     }
-    Check ([string]$main.Range('A6').Text -eq 'Disregard paper') "A6 label reads correctly (got '$($main.Range('A6').Text)')"
-    Check ([string]$main.Range('A7').Text -eq 'Disregard consumable') "A7 label reads correctly (got '$($main.Range('A7').Text)')"
-    Check ([string]$main.Range('A8').Text -eq '' -and [string]$main.Range('B8').Text -eq '') 'Row 8 is a blank spacer'
-    Check ([string]$main.Range('A9').Text -eq 'Roll length unit') "A9 label reads correctly (got '$($main.Range('A9').Text)')"
-    Check ([string]$main.Range('A11').Text -eq 'Print jobs') "A11 label reads correctly (got '$($main.Range('A11').Text)')"
+    Check ([string]$main.Range('A8').Text -eq 'Disregard paper') "A8 label reads correctly (got '$($main.Range('A8').Text)')"
+    Check ([string]$main.Range('A9').Text -eq 'Disregard consumable') "A9 label reads correctly (got '$($main.Range('A9').Text)')"
+    Check ([string]$main.Range('A10').Text -eq '' -and [string]$main.Range('B10').Text -eq '') 'Row 10 is a blank spacer'
+    Check ([string]$main.Range('A11').Text -eq 'Roll length unit') "A11 label reads correctly (got '$($main.Range('A11').Text)')"
+    Check ([string]$main.Range('A13').Text -eq 'Print jobs') "A13 label reads correctly (got '$($main.Range('A13').Text)')"
 
     # ------------------------------------------------------------- pre-fill
     Write-Host ''

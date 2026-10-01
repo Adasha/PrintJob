@@ -86,6 +86,7 @@ Public Sub RefreshLocations()
         UnlockSheet ws
         problems = problems & AssignCode(ws, codes)
         NameJobTable ws, CStr(codes.Item("#" & ws.Name))
+        EnsureHeaderGaps ws
         FixButtons ws
         EnsureJobDefaults ws
         EnsureRollUnitSetting ws

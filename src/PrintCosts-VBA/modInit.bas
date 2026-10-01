@@ -35,7 +35,19 @@ Private Const SIDE_PANEL_COL As Long = 36
 ' Location sheet's toolbar row. PrintCosts.xlsx ships the final layout: the
 ' config block in A1:B11, a blank row 12, this toolbar on row 13 and the job
 ' table's header on row 15.
-Private Const TOOLBAR_ROW As Long = 13
+Private Const TOOLBAR_ROW As Long = 15
+Private Const GAP_ROW_HEIGHT As Double = 6
+' Header block rows on a location sheet (see EnsureHeaderGaps for the gap rows).
+Private Const ROW_NAME As Long = 1
+Private Const ROW_DEPT As Long = 2
+Private Const ROW_DEF_TECH As Long = 4
+Private Const ROW_DEF_PRINTER As Long = 5
+Private Const ROW_DEF_PAPER As Long = 6
+Private Const ROW_DIS_PAPER As Long = 8
+Private Const ROW_DIS_CONS As Long = 9
+Private Const ROW_ROLL_UNIT As Long = 11
+Private Const ROW_PRINTERS As Long = 12
+Private Const ROW_JOB_COUNT As Long = 13
 Private Const REDUCED_COLUMNS_DEFAULT As String = "Status;Job ID;Printer;Area m2;Disregard Paper;Disregard Consumable;S_SchemaVer"
 
 ' SidePanelButtonLayout's own inputs (2026-09-27, cost-columns toggle) -
@@ -99,6 +111,7 @@ Public Sub InitialiseWorkbook()
         UnlockSheet ws
         ClearButtons ws
         If IsLocation(ws) Then
+            EnsureHeaderGaps ws
             DrawLocationButtons ws
             ConfigValidation ws
             EnsureJobDefaults ws
@@ -262,8 +275,8 @@ Fail:
 End Sub
 
 Private Sub DrawLocationButtons(ByVal ws As Worksheet)
-    ' The toolbar's row is TOOLBAR_ROW (13). PrintCosts.xlsx already has the
-    ' blank rows above it that the config block (A1:B11) needs. Two columns
+    ' The toolbar's row is TOOLBAR_ROW (15). The config block (A1:B13, with two
+    ' short gap rows added by EnsureHeaderGaps) sits above it. Two columns
     ' apart; buttons are drawn over the placeholders and the labels cleared.
     '
     ' Layout fix (2026-09-25, user-reported): a button anchored over a column
@@ -353,13 +366,12 @@ Private Sub DrawLocationButtons(ByVal ws As Worksheet)
         Next i
     End If
 
-    ' Clear defaults - column D, row 4 (over Technician), roughly centred
-    ' against the three-row default-selector block it clears (A3:B5) without
-    ' overlapping the labels themselves - column D is free there (D1:D2 hold
-    ' the block's own explanatory prose, D3 onward is empty). Still anchored
+    ' Clear defaults - column D, middle row of the three-row default-selector
+    ' block it clears (A4:B6), without overlapping the labels themselves -
+    ' column D is free there (D1:D2 are cleared by EnsureJobDefaults). Still anchored
     ' inside the table's column span, so RelocateAtRiskButtons covers it
     ' (below).
-    DrawOne ws, 4, 4, "Clear defaults", "btnClearDefaults", 110
+    DrawOne ws, ROW_DEF_PRINTER, 4, "Clear defaults", "btnClearDefaults", 110
 End Sub
 
 ' The side panel's shared button height and vertical step, derived from
@@ -465,41 +477,115 @@ End Sub
 ' LOC_Export.
 Public Sub EnsureJobDefaults(ByVal ws As Worksheet)
     UnlockSheet ws
-    ws.Range("A3").Value = "Default: technician"
-    ws.Range("A3").Font.Bold = True
-    ws.Range("A4").Value = "Default: printer"
-    ws.Range("A4").Font.Bold = True
-    ws.Range("A5").Value = "Default: paper"
-    ws.Range("A5").Font.Bold = True
+    ' D1:D2 used to hold a heading and explanatory prose; cleared, styles
+    ' included, so nothing of them lingers on sheets built before this.
+    ws.Range("D1:D2").Clear
 
-    EnsureLocName ws, "LOC_DefTech", "$B$3"
-    EnsureLocName ws, "LOC_DefPrinter", "$B$4"
-    EnsureLocName ws, "LOC_DefPaper", "$B$5"
+    ' Room name and department are fixed once set (Add print room asks for
+    ' both up front); a blank one stays editable so it can still be filled in.
+    With ws.Cells(ROW_NAME, 2)
+        .Locked = (Len(Trim$(CStr(.Value))) > 0)
+    End With
+    With ws.Cells(ROW_DEPT, 2)
+        .Locked = (Len(Trim$(CStr(.Value))) > 0)
+    End With
 
-    StyleInputCell ws.Range("B3")
-    StyleInputCell ws.Range("B4")
-    StyleInputCell ws.Range("B5")
+    SetHeaderLabel ws, ROW_DEF_TECH, "Default: technician"
+    SetHeaderLabel ws, ROW_DEF_PRINTER, "Default: printer"
+    SetHeaderLabel ws, ROW_DEF_PAPER, "Default: paper"
+
+    EnsureLocName ws, "LOC_DefTech", "$B$" & ROW_DEF_TECH
+    EnsureLocName ws, "LOC_DefPrinter", "$B$" & ROW_DEF_PRINTER
+    EnsureLocName ws, "LOC_DefPaper", "$B$" & ROW_DEF_PAPER
+
+    StyleDefaultCell ws.Cells(ROW_DEF_TECH, 2)
+    StyleDefaultCell ws.Cells(ROW_DEF_PRINTER, 2)
+    StyleDefaultCell ws.Cells(ROW_DEF_PAPER, 2)
 
     ' The two disregard-cost defaults (2026-09-29, moved here from the side
-    ' panel - now shipped there in PrintCosts.xlsx). Yes/No, seeded onto each new job like
-    ' the selectors above but not cleared by Clear defaults. Row 8 is left
-    ' blank as a gap between these and the roll-unit setting below. Labels
-    ' match the job table's own "Disregard Paper"/"Disregard Consumable"
-    ' headers and fit column A without clipping.
-    ws.Range("A6").Value = "Disregard paper"
-    ws.Range("A6").Font.Bold = True
-    ws.Range("A7").Value = "Disregard consumable"
-    ws.Range("A7").Font.Bold = True
-    EnsureLocName ws, "LOC_DefDisPaper", "$B$6"
-    EnsureLocName ws, "LOC_DefDisCons", "$B$7"
-    StyleInputCell ws.Range("B6")
-    StyleInputCell ws.Range("B7")
+    ' panel). Yes/No, seeded onto each new job like the selectors above but
+    ' not cleared by Clear defaults; start at No. Labels match the job
+    ' table's own "Disregard Paper"/"Disregard Consumable" headers and are
+    ' styled exactly like the selector labels.
+    SetHeaderLabel ws, ROW_DIS_PAPER, "Disregard paper"
+    SetHeaderLabel ws, ROW_DIS_CONS, "Disregard consumable"
+    EnsureLocName ws, "LOC_DefDisPaper", "$B$" & ROW_DIS_PAPER
+    EnsureLocName ws, "LOC_DefDisCons", "$B$" & ROW_DIS_CONS
+    StyleDefaultCell ws.Cells(ROW_DIS_PAPER, 2)
+    StyleDefaultCell ws.Cells(ROW_DIS_CONS, 2)
+    If Len(Trim$(CStr(ws.Cells(ROW_DIS_PAPER, 2).Value))) = 0 Then ws.Cells(ROW_DIS_PAPER, 2).Value = "No"
+    If Len(Trim$(CStr(ws.Cells(ROW_DIS_CONS, 2).Value))) = 0 Then ws.Cells(ROW_DIS_CONS, 2).Value = "No"
     RelockSheet ws
 
     ' Both directions of spec 1a's filtering apply here too (spec 1b: "these
     ' selectors should implement the same filtering and autofill principles
     ' as the table cells").
     BindDefaultCells ws
+End Sub
+
+' Same label look for every row of the header block's left column.
+Private Sub SetHeaderLabel(ByVal ws As Worksheet, ByVal Row As Long, ByVal Text As String)
+    Dim ref As Range
+    Set ref = ws.Cells(ROW_DEF_TECH, 1)
+    With ws.Cells(Row, 1)
+        .Value = Text
+        .Font.Name = ref.Font.Name
+        .Font.Size = ref.Font.Size
+        .Font.Color = ref.Font.Color
+        .Font.Bold = True
+        .Font.Italic = False
+        .HorizontalAlignment = ref.HorizontalAlignment
+        .VerticalAlignment = ref.VerticalAlignment
+        .IndentLevel = ref.IndentLevel
+        .Interior.Pattern = xlNone
+    End With
+End Sub
+
+' Input cell with the same border on all four edges (the blue left edge of
+' StyleInputCell plus a thin grey frame), so the default cells match.
+Private Sub StyleDefaultCell(ByVal target As Range)
+    StyleInputCell target
+    Dim e As Variant
+    For Each e In Array(xlEdgeTop, xlEdgeBottom, xlEdgeRight)
+        With target.Borders(e)
+            .LineStyle = xlContinuous
+            .Weight = xlThin
+            .Color = RGB(166, 166, 166)
+        End With
+    Next e
+End Sub
+
+' Opens a short blank gap row between the department and the defaults, and
+' between the defaults and the disregard options. Idempotent: detected from
+' where the named default cells sit, so it migrates older sheets once and then
+' does nothing. Insert is entire-row, so named cells, the job table and the
+' side-panel cells all shift together; buttons are free-floating, so any at or
+' below the first gap are moved down by hand.
+Public Sub EnsureHeaderGaps(ByVal ws As Worksheet)
+    Dim tech As Range, paper As Range, dis As Range
+    Set tech = LocRange(ws, "LOC_DefTech")
+    Set paper = LocRange(ws, "LOC_DefPaper")
+    Set dis = LocRange(ws, "LOC_DefDisPaper")
+    If tech Is Nothing Or paper Is Nothing Or dis Is Nothing Then Exit Sub
+
+    UnlockSheet ws
+    If tech.Row = ROW_DEF_TECH - 1 Then InsertGapRow ws, ROW_DEF_TECH - 1
+    If dis.Row = paper.Row + 1 Then InsertGapRow ws, paper.Row + 1
+    RelockSheet ws
+End Sub
+
+Private Sub InsertGapRow(ByVal ws As Worksheet, ByVal Row As Long)
+    Dim cutoff As Double, i As Long
+    cutoff = ws.Rows(Row).Top
+    ws.Rows(Row).Insert Shift:=xlDown
+    With ws.Rows(Row)
+        .ClearFormats
+        .Validation.Delete
+        .RowHeight = GAP_ROW_HEIGHT
+    End With
+    For i = 1 To ws.Buttons.Count
+        If ws.Buttons(i).Top >= cutoff Then ws.Buttons(i).Top = ws.Buttons(i).Top + GAP_ROW_HEIGHT
+    Next i
 End Sub
 
 ' Per-location roll-stock entry unit: some print rooms prefer to type a roll
@@ -520,15 +606,14 @@ End Sub
 ' Qty exactly as before and has no idea this setting exists.
 Public Sub EnsureRollUnitSetting(ByVal ws As Worksheet)
     UnlockSheet ws
-    ws.Range("A9").Value = "Roll length unit"
-    ws.Range("A9").Font.Bold = True
+    SetHeaderLabel ws, ROW_ROLL_UNIT, "Roll length unit"
 
-    EnsureLocName ws, "LOC_RollUnit", "$B$9"
+    EnsureLocName ws, "LOC_RollUnit", "$B$" & ROW_ROLL_UNIT
 
     Dim c As Range
-    Set c = ws.Range("B9")
+    Set c = ws.Cells(ROW_ROLL_UNIT, 2)
     If Len(Trim$(CStr(c.Value))) = 0 Then c.Value = "Metres"
-    StyleInputCell c
+    StyleDefaultCell c
     With c.Validation
         .Delete
         .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Formula1:="Metres,Centimetres"
@@ -561,8 +646,8 @@ End Sub
 ' job count below.
 Public Sub EnsurePrintersDisplay(ByVal ws As Worksheet)
     UnlockSheet ws
-    ws.Range("A10").Value = "Printers at this location"
-    ws.Range("A10").Font.Bold = True
+    ws.Cells(ROW_PRINTERS, 1).Value = "Printers at this location"
+    ws.Cells(ROW_PRINTERS, 1).Font.Bold = True
 
     ' Built with Chr(34) rather than a hand-escaped string literal - the
     ' quote-doubling needed to embed this many nested string arguments in a
@@ -573,13 +658,13 @@ Public Sub EnsurePrintersDisplay(ByVal ws As Worksheet)
     '   " ("&SUBSTITUTE(list,";",", ")&")"))
     Dim q As String
     q = Chr(34)
-    ws.Range("B10").Formula2 = "=LET(list,LOC_Printers,n,IF(list=" & q & q & _
+    ws.Cells(ROW_PRINTERS, 2).Formula2 = "=LET(list,LOC_Printers,n,IF(list=" & q & q & _
         ",0,LEN(list)-LEN(SUBSTITUTE(list," & q & ";" & q & "," & q & q & _
         "))+1),IF(n=0," & q & "0 printers ()" & q & ",n&" & q & " printer" & _
         q & "&IF(n=1," & q & q & "," & q & "s" & q & ")&" & q & " (" & q & _
         "&SUBSTITUTE(list," & q & ";" & q & "," & q & ", " & q & ")&" & q & _
         ")" & q & "))"
-    ws.Range("B10").Locked = True
+    ws.Cells(ROW_PRINTERS, 2).Locked = True
     RelockSheet ws
 End Sub
 
@@ -599,11 +684,11 @@ Public Sub EnsureJobCountDisplay(ByVal ws As Worksheet)
     If lo Is Nothing Then Exit Sub
 
     UnlockSheet ws
-    ws.Range("A11").Value = "Print jobs"
-    ws.Range("A11").Font.Bold = True
-    ws.Range("A11").HorizontalAlignment = xlRight
-    ws.Range("B11").Formula = "=ROWS(" & lo.Name & ")"
-    ws.Range("B11").Locked = True
+    ws.Cells(ROW_JOB_COUNT, 1).Value = "Print jobs"
+    ws.Cells(ROW_JOB_COUNT, 1).Font.Bold = True
+    ws.Cells(ROW_JOB_COUNT, 1).HorizontalAlignment = xlRight
+    ws.Cells(ROW_JOB_COUNT, 2).Formula = "=ROWS(" & lo.Name & ")"
+    ws.Cells(ROW_JOB_COUNT, 2).Locked = True
     RelockSheet ws
 End Sub
 
