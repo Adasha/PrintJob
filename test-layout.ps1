@@ -80,7 +80,7 @@ try {
 
     Write-Host ''
     Write-Host '=== Reduce clutter ON: header block still visible, button still there ==='
-    [void]$xl.Run('btnViewReduced')
+    [void]$xl.Run('SetViewMode', 'Reduced')
     Start-Sleep -Milliseconds 300
     Check (-not [bool]$main.Columns('A').Hidden) "column A is NOT hidden (header block lives there)"
     Check (-not [bool]$main.Columns('B').Hidden) "column B is NOT hidden (header block lives there)"
@@ -92,20 +92,15 @@ try {
     Check ([bool]$main.Columns($sheetStatusCol).Hidden) "Status's own (new) column IS hidden"
     Check ([bool]$main.Columns($sheetJobIdCol).Hidden) "Job ID's own (new) column IS hidden"
 
-    $n = $main.Buttons().Count
     $found = $false
-    for ($i = 1; $i -le $n; $i++) {
-        if ([string]$main.Buttons($i).Name -like 'pcb_btnViewReduced*') {
-            $found = $true
-            $btn = $main.Buttons($i)
-            Write-Host ("  button caption: '{0}'  left={1}" -f $btn.Caption, [Math]::Round($btn.Left))
-        }
+    for ($i = 1; $i -le $main.DropDowns().Count; $i++) {
+        if ([string]$main.DropDowns($i).Name -like 'pcb_ddViewMode*') { $found = $true }
     }
-    Check $found "the Reduced button itself is still present/found after switching ON"
+    Check $found "the view drop-down is still present after switching to Reduced"
 
     Write-Host ''
     Write-Host '=== Reduce clutter OFF again: everything restored ==='
-    [void]$xl.Run('btnViewAll')
+    [void]$xl.Run('SetViewMode', 'All')
     Start-Sleep -Milliseconds 300
     Check (-not [bool]$main.Columns($sheetStatusCol).Hidden) "Status's column visible again"
     Check (-not [bool]$main.Columns($sheetJobIdCol).Hidden) "Job ID's column visible again"

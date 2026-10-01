@@ -3,6 +3,24 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.10.14 - Location sheets: column views as a drop-down, cost-detail toggle
+beside it, direct user request.
+  - The All / Reduced / Minimal buttons are now one drop-down (forms control
+    pcb_ddViewMode, modInit.DrawViewDropDown) on row 2 where the All button
+    was. Picking an entry runs modMain.ddViewMode -> modInit.ViewDropDownChanged
+    -> SetViewMode, so every location sheet changes together; modMain's three
+    btnView* macros are gone and tests call SetViewMode directly.
+  - The Hide/Show cost detail button moves from the side panel to the view
+    row, directly right of the drop-down, so the row shows both column
+    settings. This replaces 0.10.13's "Cost detail: shown/hidden" text
+    indicator, which is removed. The side panel is down to six buttons.
+  - RepositionViewButtons places the label, drop-down and cost button on the
+    first usable visible columns left to right, re-reads the drop-down's
+    selection from SET_LOC_REDUCED_VIEW and re-captions the cost button on every
+    column-visibility change, so ToggleCostColumns no longer needs its own
+    relabel pass. ClearButtons also deletes pcb_ drop-downs.
+  - No schema change. Needs a rebuild.
+
 0.10.13 - Location sheets: cost-detail state shown beside the column views,
 direct user request.
   - modInit.RepositionViewButtons now writes "Cost detail: shown" or "Cost

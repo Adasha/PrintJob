@@ -56,14 +56,17 @@ Private Const REDUCED_COLUMNS_LEGACY As String = "Status;Job ID;Printer;Area m2;
 ' includes Reduced - the setting holds only the extras).
 Private Const MINIMAL_EXTRA_DEFAULT As String = "Printer;Disregard Paper;Disregard Consumable;Print Width mm;Sheet size"
 
-' The view-mode row on a location sheet: a label and three buttons, laid out
-' left to right from VIEW_FIRST_COL (D) on VIEW_ROW (2), each on a visible
-' column - see RepositionViewButtons.
+' The view row on a location sheet: a "Show columns:" label, an All/Reduced/
+' Minimal drop-down and the Hide/Show cost detail button, laid out left to
+' right from VIEW_FIRST_COL (D) on VIEW_ROW (2), each on a visible column - see
+' RepositionViewButtons.
 Private Const VIEW_ROW As Long = 2
 Private Const VIEW_FIRST_COL As Long = 4
 Private Const VIEW_LABEL_W As Double = 75
-Private Const VIEW_BTN_W As Double = 70
+Private Const VIEW_DD_W As Double = 90
+Private Const VIEW_COST_W As Double = 110
 Private Const VIEW_BTN_GAP As Double = 2
+Private Const VIEW_DD_NAME As String = "ddViewMode"
 
 ' SidePanelButtonLayout's own inputs (2026-09-27, cost-columns toggle) -
 ' declared here with this module's other module-level constants for exactly
@@ -71,7 +74,7 @@ Private Const VIEW_BTN_GAP As Double = 2
 ' from that one: a first draft of this pair was declared mid-file, next to
 ' SidePanelButtonLayout itself, and hit the identical "Variable not defined"
 ' compile failure this comment already warns about.
-Private Const SIDE_PANEL_BTN_COUNT As Long = 7
+Private Const SIDE_PANEL_BTN_COUNT As Long = 6
 Private Const SIDE_PANEL_MIN_GAP As Double = 3
 
 ' Set by a setup run and consumed by the message Refresh Locations shows, so a
@@ -321,12 +324,12 @@ Private Sub DrawLocationButtons(ByVal ws As Worksheet)
     DrawOne ws, TOOLBAR_ROW, 3, "Repeat Job", "btnRepeatJob", 110
     DrawOne ws, TOOLBAR_ROW, 5, "Now", "btnNow", 110
 
-    ' Column-view buttons (2026-10-01): "Show columns:" label and All/Reduced/
-    ' Minimal on row 2, from D. Positioned (and kept off hidden columns) by
-    ' RepositionViewButtons; drawn here at their nominal columns.
-    DrawOne ws, VIEW_ROW, VIEW_FIRST_COL + 1, "All", "btnViewAll", VIEW_BTN_W
-    DrawOne ws, VIEW_ROW, VIEW_FIRST_COL + 2, "Reduced", "btnViewReduced", VIEW_BTN_W
-    DrawOne ws, VIEW_ROW, VIEW_FIRST_COL + 3, "Minimal", "btnViewMinimal", VIEW_BTN_W
+    ' View row (2026-10-01): "Show columns:" label, an All/Reduced/Minimal
+    ' drop-down and the Hide/Show cost detail button on row 2, from D.
+    ' Positioned (and kept off hidden columns) by RepositionViewButtons; drawn
+    ' here at their nominal columns.
+    DrawViewDropDown ws
+    DrawOne ws, VIEW_ROW, VIEW_FIRST_COL + 2, CostColumnsCaption(), "btnToggleCostColumns", VIEW_COST_W
 
     Dim c As Long
     For c = 1 To 15
@@ -383,8 +386,8 @@ Private Sub DrawLocationButtons(ByVal ws As Worksheet)
         headerTop = ws.Cells(lo.Range.Row, 1).Top
         SidePanelButtonLayout headerTop, btnH, stepPx
         Dim capts() As Variant, macros() As Variant
-        capts = Array("Select printers...", "Check this sheet", CostColumnsCaption(), "Remove Row", "Clear All", "Export...", "Import...")
-        macros = Array("btnSelectPrinters", "btnCheckSheet", "btnToggleCostColumns", "btnRemoveRow", "btnClearAll", "btnExport", "btnImportLocation")
+        capts = Array("Select printers...", "Check this sheet", "Remove Row", "Clear All", "Export...", "Import...")
+        macros = Array("btnSelectPrinters", "btnCheckSheet", "btnRemoveRow", "btnClearAll", "btnExport", "btnImportLocation")
         For i = 0 To UBound(macros)
             DrawOneAtTop ws, SIDE_PANEL_COL, i * stepPx, CStr(capts(i)), CStr(macros(i)), 140, btnH
         Next i
@@ -1068,6 +1071,62 @@ Private Sub ClearButtons(ByVal ws As Worksheet)
     For i = ws.Buttons.Count To 1 Step -1
         If Left$(ws.Buttons(i).Name, Len(BTN_TAG)) = BTN_TAG Then ws.Buttons(i).Delete
     Next i
+    For i = ws.DropDowns.Count To 1 Step -1
+        If Left$(ws.DropDowns(i).Name, Len(BTN_TAG)) = BTN_TAG Then ws.DropDowns(i).Delete
+    Next i
+End Sub
+
+' The All/Reduced/Minimal drop-down (a forms control, so it works on Mac as
+' well as Windows, same reason the buttons are forms controls). Unlocked so
+' it can be changed while the sheet is protected. Its OnAction is
+' modMain.ddViewMode; RepositionViewButtons places it and keeps its
+' selection in step with the workbook-wide setting.
+Private Sub DrawViewDropDown(ByVal ws As Worksheet)
+    Dim d As DropDown, c As Range
+    Set c = ws.Cells(VIEW_ROW, VIEW_FIRST_COL + 1)
+    Set d = ws.DropDowns.Add(c.Left, c.Top, VIEW_DD_W, 22)
+    d.Placement = xlFreeFloating ' see DrawOne's comment - same column-resize drift risk
+    d.Name = BTN_TAG & VIEW_DD_NAME
+    d.AddItem "All"
+    d.AddItem "Reduced"
+    d.AddItem "Minimal"
+    d.ListIndex = 1
+    d.DropDownLines = 3
+    d.Locked = False
+    d.OnAction = "ddViewMode"
+End Sub
+
+Private Function FindDropDown(ByVal ws As Worksheet, ByVal Prefix As String) As DropDown
+    Dim i As Long
+    For i = 1 To ws.DropDowns.Count
+        If Left$(ws.DropDowns(i).Name, Len(Prefix)) = Prefix Then
+            Set FindDropDown = ws.DropDowns(i)
+            Exit Function
+        End If
+    Next i
+End Function
+
+' modMain.ddViewMode's target. Reads the choice from the drop-down that was
+' just used (Application.Caller names it) and applies it workbook-wide. When
+' there is no caller (run from code) it uses the active sheet's drop-down.
+Public Sub ViewDropDownChanged()
+    Dim ws As Worksheet, d As DropDown, nm As String
+    Set ws = ActiveSheet
+    On Error Resume Next
+    nm = CStr(Application.Caller)
+    On Error GoTo 0
+    If Len(nm) > 0 Then
+        On Error Resume Next
+        Set d = ws.DropDowns(nm)
+        On Error GoTo 0
+    End If
+    If d Is Nothing Then Set d = FindDropDown(ws, BTN_TAG & VIEW_DD_NAME)
+    If d Is Nothing Then Exit Sub
+    Select Case d.ListIndex
+        Case 2: SetViewMode "Reduced"
+        Case 3: SetViewMode "Minimal"
+        Case Else: SetViewMode "All"
+    End Select
 End Sub
 
 ' The row just below whichever ListObject on this sheet runs deepest - e.g.
@@ -1336,7 +1395,7 @@ Public Sub EnsureViewSettings()
     Dim c As Range
 
     Set c = EnsureSetting("LOC_REDUCED_VIEW", "Location column view", "")
-    SetSettingText c, "Location column view", "Which columns location sheets show: All, Reduced or Minimal. Set by the Show columns buttons on each location sheet; applies to every location."
+    SetSettingText c, "Location column view", "Which columns location sheets show: All, Reduced or Minimal. Set by the Show columns drop-down on each location sheet; applies to every location."
     Select Case LCase$(Trim$(CStr(c.Value)))
         Case "all", "reduced", "minimal"
         Case "yes": SetSettingValue c, "Reduced"
@@ -1400,7 +1459,7 @@ Public Sub ApplyReducedView(ByVal ws As Worksheet)
     RepositionSidePanelButtons ws
 End Sub
 
-' The three view buttons' target (modMain.btnViewAll/Reduced/Minimal). Stores
+' The view drop-down's target (ViewDropDownChanged). Stores
 ' the mode once, then re-applies it to every location sheet in one pass so all
 ' of them change together.
 Public Sub SetViewMode(ByVal Mode As String)
@@ -1455,25 +1514,13 @@ Public Sub ToggleCostColumns()
     hideIt = Not CostColumnsHidden()
     SetSetting "COST_COLS_HIDDEN", IIf(hideIt, "Yes", "No")
 
+    ' ApplyCostColumnsVisibility re-places the row-2 controls, which also
+    ' relabels the toggle (RepositionViewButtons).
     AppOff
     For Each ws In ThisWorkbook.Worksheets
-        If IsLocation(ws) Then
-            ApplyCostColumnsVisibility ws
-            RelabelCostColumnsButton ws
-        End If
+        If IsLocation(ws) Then ApplyCostColumnsVisibility ws
     Next ws
     AppOn
-End Sub
-
-Private Sub RelabelCostColumnsButton(ByVal ws As Worksheet)
-    Dim i As Long, prefix As String
-    prefix = BTN_TAG & "btnToggleCostColumns"
-    For i = 1 To ws.Buttons.Count
-        If Left$(ws.Buttons(i).Name, Len(prefix)) = prefix Then
-            ws.Buttons(i).Caption = CostColumnsCaption()
-            Exit For
-        End If
-    Next i
 End Sub
 
 ' General fix for the column-hide-takes-a-button-with-it gap (§4.1) - only
@@ -1492,16 +1539,17 @@ Private Sub RelocateAtRiskButtons(ByVal ws As Worksheet, ByVal lo As ListObject)
     RepositionViewButtons ws, lo
 End Sub
 
-' Lays the "Show columns:" label and the All/Reduced/Minimal buttons out
-' left to right on row VIEW_ROW, starting at the first visible column from
-' VIEW_FIRST_COL. Each item takes the first usable (visible, not H_Issues or
-' a snapshot column) table column whose left edge clears the previous item,
-' so when a column under one is hidden it slides to the next visible one
-' instead of vanishing or piling onto its neighbour. The label is cell text,
-' so it is moved by rewriting the cell. The active mode's button is bold.
+' Lays the "Show columns:" label, the All/Reduced/Minimal drop-down and the
+' Hide/Show cost detail button out left to right on row VIEW_ROW, starting at
+' the first visible column from VIEW_FIRST_COL. Each item takes the first
+' usable (visible, not H_Issues or a snapshot column) table column whose left
+' edge clears the previous item, so when a column under one is hidden it slides
+' to the next visible one instead of vanishing or piling onto its neighbour.
+' The label is cell text, so it is moved by rewriting the cell. The drop-down's
+' selection and the toggle's caption are re-read from the settings every time.
 Private Sub RepositionViewButtons(ByVal ws As Worksheet, ByVal lo As ListObject)
-    Dim macros As Variant, modes As Variant, i As Long, col As Long
-    Dim minLeft As Double, last As Long, b As Button, rowH As Double
+    Dim col As Long, minLeft As Double, last As Long
+    Dim b As Button, d As DropDown, rowH As Double
 
     last = lo.Range.Column + lo.ListColumns.Count - 1
     If last >= SIDE_PANEL_COL Then last = SIDE_PANEL_COL - 1
@@ -1520,34 +1568,31 @@ Private Sub RepositionViewButtons(ByVal ws As Worksheet, ByVal lo As ListObject)
     RelockSheet ws
     minLeft = ws.Cells(1, col).Left + VIEW_LABEL_W + VIEW_BTN_GAP
 
-    macros = Array("btnViewAll", "btnViewReduced", "btnViewMinimal")
-    modes = Array("All", "Reduced", "Minimal")
-    For i = 0 To 2
-        Set b = FindButton(ws, BTN_TAG & CStr(macros(i)))
-        col = NextViewColumn(ws, lo, last, minLeft)
-        If Not b Is Nothing And col > 0 Then
-            b.Left = ws.Cells(1, col).Left
-            b.Top = ws.Cells(VIEW_ROW, 1).Top + 0.5
-            b.Width = VIEW_BTN_W
-            b.Height = rowH
-            b.Placement = xlFreeFloating
-            b.Characters.Font.Bold = (StrComp(CStr(modes(i)), ViewMode(), vbTextCompare) = 0)
-            minLeft = b.Left + VIEW_BTN_W + VIEW_BTN_GAP
-        End If
-    Next i
-
-    ' Cost-detail state, in the same row so the view indicator covers both
-    ' independent settings (the three buttons above say nothing about the
-    ' Hide/Show cost detail toggle). Cell text on the next usable column.
+    Set d = FindDropDown(ws, BTN_TAG & VIEW_DD_NAME)
     col = NextViewColumn(ws, lo, last, minLeft)
-    If col > 0 Then
-        UnlockSheet ws
-        With ws.Cells(VIEW_ROW, col)
-            .Value = IIf(CostColumnsHidden(), "Cost detail: hidden", "Cost detail: shown")
-            .Font.Bold = True
-            .HorizontalAlignment = xlLeft
-        End With
-        RelockSheet ws
+    If Not d Is Nothing And col > 0 Then
+        d.Left = ws.Cells(1, col).Left
+        d.Top = ws.Cells(VIEW_ROW, 1).Top + 0.5
+        d.Width = VIEW_DD_W
+        d.Height = rowH
+        d.Placement = xlFreeFloating
+        Select Case ViewMode()
+            Case "Reduced": d.ListIndex = 2
+            Case "Minimal": d.ListIndex = 3
+            Case Else: d.ListIndex = 1
+        End Select
+        minLeft = d.Left + VIEW_DD_W + VIEW_BTN_GAP
+    End If
+
+    Set b = FindButton(ws, BTN_TAG & "btnToggleCostColumns")
+    col = NextViewColumn(ws, lo, last, minLeft)
+    If Not b Is Nothing And col > 0 Then
+        b.Left = ws.Cells(1, col).Left
+        b.Top = ws.Cells(VIEW_ROW, 1).Top + 0.5
+        b.Width = VIEW_COST_W
+        b.Height = rowH
+        b.Placement = xlFreeFloating
+        b.Caption = CostColumnsCaption()
     End If
 End Sub
 
@@ -1625,7 +1670,7 @@ End Sub
 Private Sub RepositionSidePanelButtons(ByVal ws As Worksheet)
     Dim macros As Variant, i As Long, j As Long, b As Button, prefix As String
     Dim targetLeft As Double, lo As ListObject, btnH As Double, stepPx As Double
-    macros = Array("btnSelectPrinters", "btnCheckSheet", "btnToggleCostColumns", "btnRemoveRow", "btnClearAll", "btnExport", "btnImportLocation")
+    macros = Array("btnSelectPrinters", "btnCheckSheet", "btnRemoveRow", "btnClearAll", "btnExport", "btnImportLocation")
     targetLeft = ws.Cells(1, SIDE_PANEL_COL).Left
 
     ' Must use the SAME height DrawLocationButtons drew these at (2026-09-27)
