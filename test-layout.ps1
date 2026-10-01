@@ -7,8 +7,8 @@
 #   - Outline/hidden state (was test-groups.ps1): no outline group anywhere in
 #     the table; Notes visible; H_Issues and the snapshot block hidden via
 #     .Hidden. Guards Cut+Insert side effects (HISTORY: Sheet size column).
-#   - The location header block (rows 1-9, columns A/B) and the reduce-clutter
-#     button survive a reduced-view toggle intact.
+#   - The location header block (rows 1-9, columns A/B) and the view buttons
+#     (All/Reduced/Minimal) survive a reduced-view toggle intact.
 #   - _Data/Summary/Reports still reconcile.
 #
 # Drives a COPY in %TEMP%, never src\PrintJob.xlsm itself. Closes WITHOUT
@@ -80,7 +80,7 @@ try {
 
     Write-Host ''
     Write-Host '=== Reduce clutter ON: header block still visible, button still there ==='
-    [void]$xl.Run('ToggleReducedView')
+    [void]$xl.Run('btnViewReduced')
     Start-Sleep -Milliseconds 300
     Check (-not [bool]$main.Columns('A').Hidden) "column A is NOT hidden (header block lives there)"
     Check (-not [bool]$main.Columns('B').Hidden) "column B is NOT hidden (header block lives there)"
@@ -95,17 +95,17 @@ try {
     $n = $main.Buttons().Count
     $found = $false
     for ($i = 1; $i -le $n; $i++) {
-        if ([string]$main.Buttons($i).Name -like 'pcb_btnToggleReducedView*') {
+        if ([string]$main.Buttons($i).Name -like 'pcb_btnViewReduced*') {
             $found = $true
             $btn = $main.Buttons($i)
             Write-Host ("  button caption: '{0}'  left={1}" -f $btn.Caption, [Math]::Round($btn.Left))
         }
     }
-    Check $found "the toggle button itself is still present/found after switching ON"
+    Check $found "the Reduced button itself is still present/found after switching ON"
 
     Write-Host ''
     Write-Host '=== Reduce clutter OFF again: everything restored ==='
-    [void]$xl.Run('ToggleReducedView')
+    [void]$xl.Run('btnViewAll')
     Start-Sleep -Milliseconds 300
     Check (-not [bool]$main.Columns($sheetStatusCol).Hidden) "Status's column visible again"
     Check (-not [bool]$main.Columns($sheetJobIdCol).Hidden) "Job ID's column visible again"

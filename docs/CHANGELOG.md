@@ -3,6 +3,26 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.10.12 - Location sheets: All / Reduced / Minimal column views, direct user
+request.
+  - A "Show columns:" label (D2) and three buttons (All, Reduced, Minimal)
+    sit on row 2 above the table. modInit.RepositionViewButtons lays them out
+    left to right on visible columns (the label is cell text, so it is
+    rewritten on the new column) and bolds the active mode's button. Runs from
+    RelocateAtRiskButtons, so every column-visibility change re-places them.
+  - Reduced hides SET_LOC_REDUCED_COLUMNS (now Status, Job ID, Area m2,
+    S_SchemaVer). Minimal hides that list plus the new
+    SET_LOC_MINIMAL_COLUMNS (Printer, Disregard Paper, Disregard Consumable,
+    Print Width mm, Sheet size), so it always includes Reduced. Both are
+    editable on Settings. SET_LOC_REDUCED_VIEW now holds All/Reduced/Minimal
+    (legacy Yes reads as Reduced). modInit.EnsureViewSettings provisions the
+    new row and migrates the old value and the old seven-column default.
+  - The Reduce clutter / Show all columns button is gone from the side panel
+    (modInit.ToggleReducedView -> SetViewMode, modMain.btnToggleReducedView ->
+    btnViewAll/Reduced/Minimal); the remaining seven buttons close up.
+    RepositionSidePanelButtons now sets Top as well as Left.
+  - Show/hide cost detail is unchanged. No schema change. Needs a rebuild.
+
 0.10.11 - Location sheets: roll length unit is a display setting, direct
 user request.
   - LOC_RollUnit now decides how every roll length on that sheet is shown:
