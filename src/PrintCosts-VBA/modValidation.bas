@@ -20,6 +20,17 @@ Public Function OnCellChanged(ByVal ws As Worksheet, ByVal Target As Range) As B
     ' bidirectional rebind as a table row's own Printer/Paper Stock (spec 1a).
     If OnDefaultCellChanged(ws, Target) Then Exit Function
 
+    ' Roll length unit (A6/B6): rescale the table's existing roll lengths.
+    If Target.Cells.Count = 1 Then
+        If Not LocRange(ws, "LOC_RollUnit") Is Nothing Then
+            If Not Application.Intersect(Target, LocRange(ws, "LOC_RollUnit")) Is Nothing Then
+                ApplyRollUnitChange ws
+                RefreshQtyValidation ws
+                Exit Function
+            End If
+        End If
+    End If
+
     Set lo = JobsTable(ws)
     If lo Is Nothing Then Exit Function
     If lo.DataBodyRange Is Nothing Then Exit Function
@@ -243,86 +254,57 @@ Private Sub OnStockChanged(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal 
             End If
         End If
     End If
-
-    ' Order-dependency fix (§16.3): a roll length typed before Paper Stock
-    ' was chosen never got its cm->m conversion, since that used to only run
-    ' on Qty's own Change event. Catches it here too, the moment Paper Stock
-    ' resolves to a Roll stock - ConvertQtyIfCentimetres's own guards (blank
-    ' Qty, already-converted, Sheet stock) make this a no-op whenever there
-    ' is nothing to do.
-    ConvertQtyIfCentimetres ws, lo, n
 End Sub
 
-' modInit.EnsureRollUnitSetting's LOC_RollUnit (per-location, spec: "let some
-' users enter roll lengths in centimetres without affecting the underlying
-' calculations"). Qty is what Area m2/Paper Cost read directly (§5.1) and
-' must always hold metres, so a Centimetres-preferring location has whatever
-' was just typed divided by 100 and the cell rewritten in place - the same
-' live-rewrite idiom OnWidthChanged (below) uses for its own cell. Sheet
-' stock is left alone: Qty there counts sheets, not a length, whatever this
-' setting says.
-'
-' Whatever is in the cell the moment Qty itself is edited is always treated
-' as fresh raw input - MarkQtyRewritten False first, unconditionally, then
-' ConvertQtyIfCentimetres decides whether to rewrite it. See that function's
-' own comment for the order-dependency gap this used to have (fixed
-' 2026-09-27) and why OnStockChanged (below) now also calls it.
-'
-' Shaded (direct user report, 2026-09-27) means exactly one thing: the value
-' shown is not what was typed - it was rewritten by the cm->m divide below,
-' not entered directly. That has to be re-earned on every edit, not just set
-' once - MarkQtyRewritten runs first and clears it unconditionally, so a
-' technician who overwrites a shaded cm-derived Qty with a plain metres
-' figure (on this same row, whether newly added or long-existing) sees the
-' shading gone on that same edit, only coming back if the rewrite below
-' actually fires again.
+' modInit.EnsureRollUnitSetting's LOC_RollUnit (per-location) is a DISPLAY unit
+' for roll lengths on this sheet (2026-10-01, replacing the old type-in-cm,
+' store-as-metres rewrite): Qty holds whatever unit the setting names, and
+' the Unit, Area m2 and Paper Cost formulas (modInit.EnsureRollUnitFormulas)
+' and the consolidated _Data range (modRegistry.WriteConsolidated) convert
+' back to metres, so nothing outside this sheet ever sees centimetres.
+' Qty's own edit therefore needs no conversion - it only clears the grey
+' "rewritten" shading older builds left behind.
 Private Sub OnQtyChanged(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal n As Long)
     MarkQtyRewritten CellIn(lo, n, "Qty"), False
-    ConvertQtyIfCentimetres ws, lo, n
 End Sub
 
-' Shared by OnQtyChanged (Qty itself just edited) and OnStockChanged (Paper
-' Stock just chosen or changed) - the real fix for the order-dependency gap
-' recorded in docs/ARCHITECTURE.md §16.3 (2026-09-25 NOTE, resolved
-' 2026-09-27). A roll length typed before Paper Stock is chosen used to sit
-' as raw, un-converted centimetres forever, since the conversion only ever
-' ran on Qty's own Change event - on a Centimetres location that meant a job
-' silently stored 100x too large in metres, with nothing in CheckSheet/
-' CheckWorkbook to catch it. Now OnStockChanged calls this too, the moment a
-' Roll stock is chosen, so the conversion finally happens regardless of which
-' of the two cells was filled in first.
-'
-' MarkQtyRewritten's own shading is reused as the "already converted" flag,
-' rather than adding a new one - it already means exactly that (see
-' OnQtyChanged's comment above), and is the only place this state is
-' recorded. Guarding on it here is what stops a value the *Qty* handler
-' already converted from being divided by 100 a second time when Paper Stock
-' happens to change again afterwards (e.g. swapping between two Roll
-' stocks): QtyMarkedRewritten catches that and does nothing, leaving an
-' already-correct metres value alone.
-Private Sub ConvertQtyIfCentimetres(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal n As Long)
-    Dim stk As String, s As clsStock, q As Double, c As Range
-    Set c = CellIn(lo, n, "Qty")
+' Called when LOC_RollUnit itself is edited. Rescales every existing roll
+' job's Qty so the sheet shows the same lengths in the new unit - Sheet
+' stock counts sheets, and a row with no stock chosen yet is left alone
+' (nothing says it is a length). LOC_RollUnitApplied (modInit) records the
+' unit the stored values are currently in, so re-selecting the unit already
+' showing - which still fires Change - is a no-op and a value is never
+' scaled twice. Rounded to 6 places to shed the floating-point residue of
+' x100 / x0.01.
+Public Sub ApplyRollUnitChange(ByVal ws As Worksheet)
+    Dim lo As ListObject, was As String, now As String
+    now = RollUnitOf(ws)
+    was = AppliedRollUnit(ws)
+    If StrComp(was, now, vbTextCompare) = 0 Then Exit Sub
 
-    If StrComp(LocValue(ws, "LOC_RollUnit"), "Centimetres", vbTextCompare) <> 0 Then Exit Sub
-    If Len(c.Value) = 0 Then Exit Sub
-    If QtyMarkedRewritten(c) Then Exit Sub
-
-    stk = CStr(CellIn(lo, n, "Paper Stock").Value)
-    If Len(stk) = 0 Then Exit Sub
-    Set s = Stock(stk)
-    If s.Measure <> "Roll" Then Exit Sub
-
-    q = NumOf(c)
-    If q > 0 Then
-        c.Value = q / 100
-        MarkQtyRewritten c, True
+    Set lo = JobsTable(ws)
+    If Not lo Is Nothing Then
+        If StrComp(now, "Centimetres", vbTextCompare) = 0 Then
+            ScaleRollQty lo, 100
+        Else
+            ScaleRollQty lo, 0.01
+        End If
     End If
+    SetAppliedRollUnit ws, now
 End Sub
 
-Private Function QtyMarkedRewritten(ByVal c As Range) As Boolean
-    QtyMarkedRewritten = (c.Interior.Color = RGB(242, 242, 242))
-End Function
+Public Sub ScaleRollQty(ByVal lo As ListObject, ByVal Factor As Double)
+    Dim i As Long, c As Range
+    If lo.DataBodyRange Is Nothing Then Exit Sub
+    For i = 1 To lo.ListRows.Count
+        If CStr(CellIn(lo, i, "S_Measure").Value) = "Roll" Then
+            Set c = CellIn(lo, i, "Qty")
+            If Not IsEmpty(c.Value2) Then
+                If IsNumeric(c.Value2) Then c.Value2 = Round(CDbl(c.Value2) * Factor, 6)
+            End If
+        End If
+    Next i
+End Sub
 
 ' RGB(242,242,242)/RGB(128,128,128): the same grey-fill/grey-text look this
 ' workbook already uses for a calculated cell (e.g. Unit, Area m2) - Qty

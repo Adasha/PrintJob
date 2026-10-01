@@ -90,6 +90,7 @@ Public Sub RefreshLocations()
         FixButtons ws
         EnsureJobDefaults ws
         EnsureRollUnitSetting ws
+        EnsureRollUnitFormulas ws
         EnsurePrintersDisplay ws
         EnsureJobCountDisplay ws
         BindColumns ws
@@ -473,8 +474,7 @@ Private Sub WriteConsolidated(ByVal sheets As Collection, ByVal codes As clsDict
             code = CStr(codes.Item("#" & ws.Name))
             t = lo.Name
             If Len(blocks) > 0 Then blocks = blocks & ","
-            blocks = blocks & "HSTACK(IF(SEQUENCE(ROWS(" & t & "[" & FIRST_JOB_COL & "]))>0," & _
-                     """" & code & """)," & t & "[[" & FIRST_JOB_COL & "]:[" & LAST_JOB_COL & "]])"
+            blocks = blocks & MetresBlock(lo, code)
         End If
     Next v
 
@@ -499,6 +499,26 @@ Private Sub WriteConsolidated(ByVal sheets As Collection, ByVal codes As clsDict
 
     RelockSheet dws
 End Sub
+
+' One location's rows for the consolidated range, in metres. A Centimetres
+' room's roll rows carry Unit "cm" and a Qty in centimetres (the roll length
+' unit is display-only, modInit.EnsureRollUnitSetting), so they are divided by
+' 100 and relabelled "metres" here - this is the single place that keeps the
+' reports, Summary and the Reports snapshot export in metres whatever a
+' sheet shows. Keyed on the row's own Unit, not the sheet's setting, so a
+' row can never be converted twice or missed.
+Private Function MetresBlock(ByVal lo As ListObject, ByVal code As String) As String
+    Dim t As String, b As String, c0 As Long, q As Long, u As Long
+    t = lo.Name
+    c0 = lo.ListColumns(FIRST_JOB_COL).Index
+    q = lo.ListColumns("Qty").Index - c0 + 1
+    u = lo.ListColumns("Unit").Index - c0 + 1
+    b = "HSTACK(IF(SEQUENCE(ROWS(" & t & "[" & FIRST_JOB_COL & "]))>0,""" & code & """)," & _
+        t & "[[" & FIRST_JOB_COL & "]:[" & LAST_JOB_COL & "]])"
+    ' Column indexes are +1 for the Location column HSTACKed in front.
+    MetresBlock = "LET(b," & b & ",isCm,INDEX(b,," & (u + 1) & ")=""cm"",k,SEQUENCE(1,COLUMNS(b))," & _
+        "IF((k=" & (q + 1) & ")*isCm,b/100,IF((k=" & (u + 1) & ")*isCm,""metres"",b)))"
+End Function
 
 Private Sub WriteHeaders(ByVal dws As Worksheet, ByVal lo As ListObject)
     Dim i As Long, c1 As Long, c2 As Long
@@ -834,6 +854,9 @@ Private Sub ResetPrintRoom(ByVal ws As Worksheet, ByVal RoomName As String, ByVa
     ClearLocCell ws, "LOC_DefDisCons"
     ClearLocCell ws, "LOC_Printers"
     ClearLocCell ws, "LOC_RollUnit"
+    On Error Resume Next
+    ws.Names("LOC_RollUnitApplied").Delete
+    On Error GoTo 0
 
     Set c = LocRange(ws, "LOC_Code")
     If Not c Is Nothing Then

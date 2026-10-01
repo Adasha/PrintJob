@@ -116,6 +116,7 @@ Public Sub InitialiseWorkbook()
             ConfigValidation ws
             EnsureJobDefaults ws
             EnsureRollUnitSetting ws
+            EnsureRollUnitFormulas ws
             EnsurePrintersDisplay ws
             EnsureJobCountDisplay ws
             BindColumns ws
@@ -600,10 +601,12 @@ End Sub
 ' hand-edit of the .xlsx, so a shipped name (the way LOC_DefDisPaper is
 ' done) is not an option.
 '
-' Only Qty's stored value ever changes to reflect this (modValidation.
-' OnQtyChanged, converting a Centimetres-location's raw entry to metres on
-' the cell itself) - Area m2/Paper Cost/every other formula on the row reads
-' Qty exactly as before and has no idea this setting exists.
+' Display unit only (2026-10-01): Qty and the Unit column show roll lengths
+' in this unit on THIS sheet, and EnsureRollUnitFormulas makes Unit/Area m2/
+' Paper Cost convert back to metres, as does the consolidated _Data range
+' (modRegistry.WriteConsolidated) - so reports, Summary and every other
+' location are untouched. Changing the setting rescales the existing roll
+' rows (modValidation.ApplyRollUnitChange).
 Public Sub EnsureRollUnitSetting(ByVal ws As Worksheet)
     UnlockSheet ws
     SetHeaderLabel ws, ROW_ROLL_UNIT, "Roll length unit"
@@ -622,10 +625,102 @@ Public Sub EnsureRollUnitSetting(ByVal ws As Worksheet)
         .ShowInput = True
         .ShowError = True
         .InputTitle = "Roll length unit"
-        .InputMessage = "How a roll job's length is typed into Qty on this sheet. Always converted to, and stored as, metres regardless of this setting - Sheet stock is unaffected."
+        .InputMessage = "The unit roll lengths are shown and typed in on this sheet (Qty and the Unit column). Changing it converts the roll lengths already entered. Reports, Summary and other locations always use metres - Sheet stock is unaffected."
         .ErrorTitle = "Roll length unit"
         .ErrorMessage = "Choose Metres or Centimetres."
     End With
+    RelockSheet ws
+End Sub
+
+' Qty's validation rule, worded for the room's own roll length unit. Split
+' out so a unit change can swap just this rule without re-running the whole
+' EnsureJobColumnValidation (which also clears the Printer/Paper Stock lists).
+Private Sub AddQtyRule(ByVal ws As Worksheet, ByVal lo As ListObject)
+    Dim qtyMsg As String
+    If StrComp(RollUnitOf(ws), "Centimetres", vbTextCompare) = 0 Then
+        qtyMsg = "Sheets for sheet stock, centimetres for roll stock (see 'Roll length unit' above). Must be greater than zero."
+    Else
+        qtyMsg = "Sheets for sheet stock, metres for roll stock. Must be greater than zero."
+    End If
+    AddRule lo, "Qty", xlValidateDecimal, "0", False, "Qty", qtyMsg, qtyMsg, xlGreater
+End Sub
+
+Public Sub RefreshQtyValidation(ByVal ws As Worksheet)
+    Dim lo As ListObject
+    Set lo = JobsTable(ws)
+    If lo Is Nothing Then Exit Sub
+    If lo.DataBodyRange Is Nothing Then Exit Sub
+    UnlockSheet ws
+    lo.ListColumns("Qty").DataBodyRange.Validation.Delete
+    AddQtyRule ws, lo
+    RelockSheet ws
+End Sub
+
+' "Centimetres" or "Metres" (blank/anything else reads as Metres, the default).
+Public Function RollUnitOf(ByVal ws As Worksheet) As String
+    If StrComp(LocValue(ws, "LOC_RollUnit"), "Centimetres", vbTextCompare) = 0 Then
+        RollUnitOf = "Centimetres"
+    Else
+        RollUnitOf = "Metres"
+    End If
+End Function
+
+' LOC_RollUnitApplied: a sheet-scoped constant name recording which unit the
+' stored roll Qty values are actually in, so a change to LOC_RollUnit (which
+' fires Change even when the same item is re-picked) knows what to convert
+' FROM. Absent on a sheet that has never been through this - reads as Metres,
+' which is what every sheet before 2026-10-01 stored.
+Public Function AppliedRollUnit(ByVal ws As Worksheet) As String
+    Dim r As String
+    On Error Resume Next
+    r = ws.Names("LOC_RollUnitApplied").RefersTo
+    On Error GoTo 0
+    If InStr(1, r, "Centimetres", vbTextCompare) > 0 Then AppliedRollUnit = "Centimetres" Else AppliedRollUnit = "Metres"
+End Function
+
+Public Sub SetAppliedRollUnit(ByVal ws As Worksheet, ByVal Unit As String)
+    On Error Resume Next
+    ws.Names("LOC_RollUnitApplied").Delete
+    On Error GoTo 0
+    ws.Names.Add Name:="LOC_RollUnitApplied", RefersTo:="=""" & Unit & """", Visible:=False
+End Sub
+
+' Unit/Area m2/Paper Cost, restated so a Centimetres room's Qty is read as
+' centimetres: Unit says "cm", and the two calculations divide a "cm" row's
+' Qty by 100 so they still work in metres - Area m2 and money are the same
+' whatever the sheet shows. Called from InitialiseWorkbook and Refresh
+' Locations, after EnsureRollUnitSetting (the formulas name LOC_RollUnit).
+'
+' One-time migration: a sheet whose Unit formula predates this (no mention of
+' LOC_RollUnit) and is set to Centimetres holds metres in Qty, since the old
+' build converted on entry - so its roll rows are scaled x100 here, once. The
+' formula rewrite below is what makes it once.
+Public Sub EnsureRollUnitFormulas(ByVal ws As Worksheet)
+    Dim lo As ListObject, legacy As Boolean, m As String
+    Set lo = JobsTable(ws)
+    If lo Is Nothing Then Exit Sub
+    If lo.DataBodyRange Is Nothing Then Exit Sub
+    If Not ColumnExists(lo, "Unit") Or Not ColumnExists(lo, "Qty") Then Exit Sub
+
+    UnlockSheet ws
+    legacy = (InStr(1, lo.ListColumns("Unit").DataBodyRange.Cells(1, 1).Formula2, "LOC_RollUnit", vbTextCompare) = 0)
+    If legacy Then
+        If StrComp(RollUnitOf(ws), "Centimetres", vbTextCompare) = 0 Then ScaleRollQty lo, 100
+        SetAppliedRollUnit ws, RollUnitOf(ws)
+    End If
+
+    m = "IF([@Unit]=""cm"",100,1)"
+    lo.ListColumns("Unit").DataBodyRange.Formula2 = _
+        "=IF([@[S_Measure]]="""","""",IF([@[S_Measure]]=""Sheet"",""sheets"",IF(LOC_RollUnit=""Centimetres"",""cm"",""metres"")))"
+    If ColumnExists(lo, "Area m2") Then
+        lo.ListColumns("Area m2").DataBodyRange.Formula2 = _
+            "=IF([@Qty]="""","""",IF([@[S_Measure]]=""Sheet"",([@[S_StockWidth_mm]]/1000)*([@[S_SheetHeight_mm]]/1000)*[@Qty]," & _
+            "(IF([@[Print Width mm]]="""",[@[S_StockWidth_mm]],[@[Print Width mm]])/1000)*[@Qty]/" & m & "))"
+    End If
+    If ColumnExists(lo, "Paper Cost") Then
+        lo.ListColumns("Paper Cost").DataBodyRange.Formula2 = _
+            "=IF([@Qty]="""","""",ROUND([@Qty]/" & m & "*[@[S_UnitCost]],SET_ROUND_DP))"
+    End If
     RelockSheet ws
 End Sub
 
@@ -721,7 +816,7 @@ End Sub
 ' picker all restore them. Qty's message depends on the room's LOC_RollUnit, which
 ' is why this is code rather than only what the .xlsx ships.
 Public Sub EnsureJobColumnValidation(ByVal ws As Worksheet, ByVal lo As ListObject)
-    Dim dateMsg As String, qtyMsg As String
+    Dim dateMsg As String
     If lo.DataBodyRange Is Nothing Then Exit Sub
 
     UnlockSheet ws
@@ -730,12 +825,7 @@ Public Sub EnsureJobColumnValidation(ByVal ws As Worksheet, ByVal lo As ListObje
     dateMsg = "Date and time the print was produced. Use the Now button to stamp the current date and time."
     AddRule lo, "Date/Time", xlValidateDate, "01/01/2000", True, "Date and time", dateMsg, dateMsg, xlGreater
 
-    If StrComp(LocValue(ws, "LOC_RollUnit"), "Centimetres", vbTextCompare) = 0 Then
-        qtyMsg = "Sheets for sheet stock, centimetres for roll stock (converted and stored as metres - see 'Roll length unit' above). Must be greater than zero."
-    Else
-        qtyMsg = "Sheets for sheet stock, metres for roll stock. Must be greater than zero."
-    End If
-    AddRule lo, "Qty", xlValidateDecimal, "0", False, "Qty", qtyMsg, qtyMsg, xlGreater
+    AddQtyRule ws, lo
 
     AddRule lo, "Print Width mm", xlValidateDecimal, "0", True, "Print width", _
         "Optional, roll stock only, in millimetres. Leave blank to use the full width of the roll. It must not exceed the stock width. Required for 'Supplied (Roll)'.", _
