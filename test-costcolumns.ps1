@@ -77,8 +77,13 @@ try {
     Check (-not (IsHidden $main $lo 'Chargeable Cost')) "Chargeable Cost is visible"
     Check (-not (IsHidden $main $lo 'Paid')) "Paid is visible"
 
+    $costBtn = $null
+    for ($i = 1; $i -le $main.Buttons().Count; $i++) { if ([string]$main.Buttons($i).Name -like 'pcb_btnToggleCostColumns*') { $costBtn = $main.Buttons($i) } }
+    Check ($null -ne $costBtn) 'cost toggle exists'
+    Check ([double]$costBtn.Top -lt [double]$main.Cells(3, 1).Top) 'cost toggle is on row 2 (view row), not in the side panel'
+
     $col36Before = [double]$main.Cells(1, 36).Left
-    $sidePanel = 'pcb_btnSelectPrinters', 'pcb_btnCheckSheet', 'pcb_btnToggleCostColumns', 'pcb_btnRemoveRow', 'pcb_btnClearAll', 'pcb_btnExport', 'pcb_btnImportLocation'
+    $sidePanel = 'pcb_btnSelectPrinters', 'pcb_btnCheckSheet', 'pcb_btnRemoveRow', 'pcb_btnClearAll', 'pcb_btnExport', 'pcb_btnImportLocation'
     foreach ($p in $sidePanel) {
         Check ((SidePanelLeft $main $p) -eq $col36Before) "$p sits on column 36 before hiding (Left=$col36Before)"
     }
@@ -116,6 +121,8 @@ try {
 
     $btnCaption = FindButtonCaption $main 'pcb_btnToggleCostColumns'
     Check ($btnCaption -eq 'Show cost detail') "button caption flipped to 'Show cost detail' (got '$btnCaption')"
+    $annexCaption = FindButtonCaption $annex 'pcb_btnToggleCostColumns'
+    Check ($annexCaption -eq 'Show cost detail') "Annexe's toggle relabelled too (got '$annexCaption')"
 
     # ------------------------------------------ THE FIX: no lag, same click
     Write-Host ''

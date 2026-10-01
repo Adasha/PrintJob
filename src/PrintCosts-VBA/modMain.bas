@@ -115,28 +115,12 @@ Fail:
     ReportError "Clear defaults"
 End Sub
 
-Public Sub btnViewAll()
+Public Sub ddViewMode()
     On Error GoTo Fail
-    SetViewMode "All"
+    ViewDropDownChanged
     Exit Sub
 Fail:
-    ReportError "Show all columns"
-End Sub
-
-Public Sub btnViewReduced()
-    On Error GoTo Fail
-    SetViewMode "Reduced"
-    Exit Sub
-Fail:
-    ReportError "Show reduced columns"
-End Sub
-
-Public Sub btnViewMinimal()
-    On Error GoTo Fail
-    SetViewMode "Minimal"
-    Exit Sub
-Fail:
-    ReportError "Show minimal columns"
+    ReportError "Show columns"
 End Sub
 
 Public Sub btnToggleCostColumns()

@@ -70,6 +70,20 @@ try {
         }
         return -1
     }
+    function FindDropDown($ws, $prefix) {
+        $n = $ws.DropDowns().Count
+        for ($i = 1; $i -le $n; $i++) {
+            $d = $ws.DropDowns($i)
+            if ([string]$d.Name -like "$prefix*") { return $d }
+        }
+        return $null
+    }
+    function ShapeColumn($ws, $shape) {
+        for ($c = 1; $c -le 60; $c++) {
+            if ([Math]::Abs($ws.Cells(1, $c).Left - $shape.Left) -lt 0.5) { return $c }
+        }
+        return -1
+    }
     function ViewSetting { [string]$wb.Names.Item('SET_LOC_REDUCED_VIEW').RefersToRange.Text }
 
     $reducedCols = 'Status', 'Job ID', 'Area m2'
@@ -94,13 +108,23 @@ try {
     Check $hIssuesHiddenBefore 'H_Issues (permanently hidden) starts hidden'
 
     Write-Host ''
-    Write-Host '=== View row: label in D2, buttons on E/F/G, side panel toggle gone ==='
+    Write-Host '=== View row: label in D2, drop-down on E, cost toggle after it; side panel toggle gone ==='
     Check ([string]$main.Range('D2').Text -eq 'Show columns:') "D2 reads 'Show columns:' (got '$([string]$main.Range('D2').Text)')"
-    Check ((ButtonColumn $main 'pcb_btnViewAll') -eq 5) 'All sits on column E'
-    Check ((ButtonColumn $main 'pcb_btnViewReduced') -eq 6) 'Reduced sits on column F'
-    Check ((ButtonColumn $main 'pcb_btnViewMinimal') -eq 7) 'Minimal sits on column G'
+    $dd = FindDropDown $main 'pcb_ddViewMode'
+    Check ($null -ne $dd) 'view drop-down exists'
+    Check ((ShapeColumn $main $dd) -eq 5) 'drop-down sits on column E (where the All button was)'
+    Check ([int]$dd.ListCount -eq 3) "drop-down lists three modes (got $($dd.ListCount))"
+    Check (([string]$dd.List(1) -eq 'All') -and ([string]$dd.List(2) -eq 'Reduced') -and ([string]$dd.List(3) -eq 'Minimal')) 'drop-down lists All, Reduced, Minimal'
+    Check ([int]$dd.ListIndex -eq 1) 'drop-down starts on All'
+    $cost = FindButton $main 'pcb_btnToggleCostColumns'
+    Check ($null -ne $cost) 'cost toggle exists'
+    Check (([double]$cost.Top - [double]$dd.Top) -lt 1 -and [double]$cost.Top -lt [double]$main.Cells(3, 1).Top) 'cost toggle is on row 2 beside the drop-down'
+    Check ([double]$cost.Left -ge ([double]$dd.Left + [double]$dd.Width)) 'cost toggle sits to the right of the drop-down without overlapping'
+    Check ($null -eq (FindButton $main 'pcb_btnViewAll')) 'old All button is gone'
+    Check ($null -eq (FindButton $main 'pcb_btnViewReduced')) 'old Reduced button is gone'
+    Check ($null -eq (FindButton $main 'pcb_btnViewMinimal')) 'old Minimal button is gone'
     Check ($null -eq (FindButton $main 'pcb_btnToggleReducedView')) 'old Reduce clutter button is gone'
-    $sidePanel = 'pcb_btnSelectPrinters', 'pcb_btnCheckSheet', 'pcb_btnToggleCostColumns', 'pcb_btnRemoveRow', 'pcb_btnClearAll', 'pcb_btnExport', 'pcb_btnImportLocation'
+    $sidePanel = 'pcb_btnSelectPrinters', 'pcb_btnCheckSheet', 'pcb_btnRemoveRow', 'pcb_btnClearAll', 'pcb_btnExport', 'pcb_btnImportLocation'
     foreach ($p in $sidePanel) {
         Check ((ButtonColumn $main $p) -eq 36) "$p sits in the side panel (column 36)"
     }
@@ -114,7 +138,7 @@ try {
     # ----------------------------------------------------------- Reduced view
     Write-Host ''
     Write-Host '=== Reduced hides only the reduced list, on every location sheet ==='
-    [void]$xl.Run('btnViewReduced')
+    [void]$xl.Run('SetViewMode', 'Reduced')
     Start-Sleep -Milliseconds 300
     foreach ($h in $reducedCols) {
         Check (IsHidden $main $lo $h) "$h is hidden on Example Print Room"
@@ -126,13 +150,13 @@ try {
     Check (-not (IsHidden $main $lo 'Chargeable Cost')) 'Chargeable Cost stays visible'
     Check ((IsHidden $main $lo 'H_Issues') -eq $hIssuesHiddenBefore) "H_Issues' state is untouched"
     Check ((ViewSetting) -eq 'Reduced') 'setting reads Reduced'
-    Check ([bool](FindButton $main 'pcb_btnViewReduced').Characters().Font.Bold) 'Reduced button is bold (active)'
-    Check (-not [bool](FindButton $main 'pcb_btnViewAll').Characters().Font.Bold) 'All button is not bold'
+    Check ([int](FindDropDown $main 'pcb_ddViewMode').ListIndex -eq 2) 'drop-down shows Reduced'
+    Check ([int](FindDropDown $annex 'pcb_ddViewMode').ListIndex -eq 2) 'drop-down shows Reduced on Annexe too'
 
     # ----------------------------------------------------------- Minimal view
     Write-Host ''
     Write-Host '=== Minimal hides reduced list AND the extras ==='
-    [void]$xl.Run('btnViewMinimal')
+    [void]$xl.Run('SetViewMode', 'Minimal')
     Start-Sleep -Milliseconds 300
     foreach ($h in ($reducedCols + $minimalExtra)) {
         Check (IsHidden $main $lo $h) "$h is hidden in Minimal"
@@ -146,29 +170,45 @@ try {
     $lblCol = $null
     for ($c = 4; $c -le 12; $c++) { if ([string]$main.Cells(2, $c).Text -eq 'Show columns:') { $lblCol = $c; break } }
     Check ($lblCol -eq 4) "label still on D (Technician is visible; found col $lblCol)"
-    $cAll = ButtonColumnVisible $main 'pcb_btnViewAll'
-    $cRed = ButtonColumnVisible $main 'pcb_btnViewReduced'
-    $cMin = ButtonColumnVisible $main 'pcb_btnViewMinimal'
-    Check (($cAll -gt 0) -and -not [bool]$main.Columns($cAll).Hidden) "All is on a visible column (col $cAll)"
-    Check (($cRed -gt $cAll) -and -not [bool]$main.Columns($cRed).Hidden) "Reduced is on a later visible column (col $cRed)"
-    Check (($cMin -gt $cRed) -and -not [bool]$main.Columns($cMin).Hidden) "Minimal is on a later visible column (col $cMin)"
-    $bA = FindButton $main 'pcb_btnViewAll'; $bR = FindButton $main 'pcb_btnViewReduced'; $bM = FindButton $main 'pcb_btnViewMinimal'
-    Check (($bA.Left + $bA.Width) -le $bR.Left) 'All and Reduced do not overlap'
-    Check (($bR.Left + $bR.Width) -le $bM.Left) 'Reduced and Minimal do not overlap'
-    Check ([Math]::Abs($bA.Width - 70) -lt 0.5) 'view buttons keep their width'
+    $dd = FindDropDown $main 'pcb_ddViewMode'
+    $cost = FindButton $main 'pcb_btnToggleCostColumns'
+    $cDd = 0
+    for ($c = 1; $c -le 60; $c++) { if ([Math]::Abs($main.Cells(1, $c).Left - [double]$dd.Left) -lt 0.5 -and -not [bool]$main.Columns($c).Hidden) { $cDd = $c; break } }
+    Check ([int]$dd.ListIndex -eq 3) 'drop-down shows Minimal'
+    Check (($cDd -gt 0) -and -not [bool]$main.Columns($cDd).Hidden) "drop-down is on a visible column (col $cDd)"
+    $cCost = ButtonColumnVisible $main 'pcb_btnToggleCostColumns'
+    Check (($cCost -gt $cDd) -and -not [bool]$main.Columns($cCost).Hidden) "cost toggle is on a later visible column (col $cCost)"
+    Check (([double]$dd.Left + [double]$dd.Width) -le [double]$cost.Left) 'drop-down and cost toggle do not overlap'
+    Check ([Math]::Abs([double]$dd.Width - 90) -lt 0.5) 'drop-down keeps its width'
+    Check ([Math]::Abs([double]$cost.Width - 110) -lt 0.5) 'cost toggle keeps its width'
 
     # ------------------------------------------------------------- back to All
     Write-Host ''
-    Write-Host '=== All shows everything again; buttons back on E/F/G ==='
-    [void]$xl.Run('btnViewAll')
+    Write-Host '=== All shows everything again; drop-down back on E ==='
+    [void]$xl.Run('SetViewMode', 'All')
     Start-Sleep -Milliseconds 300
     foreach ($h in ($reducedCols + $minimalExtra)) {
         Check (-not (IsHidden $main $lo $h)) "$h is visible again"
     }
     Check ((IsHidden $main $lo 'H_Issues') -eq $hIssuesHiddenBefore) "H_Issues' state is STILL untouched"
-    Check ((ButtonColumn $main 'pcb_btnViewAll') -eq 5) 'All back on column E'
-    Check ((ButtonColumn $main 'pcb_btnViewReduced') -eq 6) 'Reduced back on column F'
-    Check ((ButtonColumn $main 'pcb_btnViewMinimal') -eq 7) 'Minimal back on column G'
+    Check ((ShapeColumn $main (FindDropDown $main 'pcb_ddViewMode')) -eq 5) 'drop-down back on column E'
+    Check ([int](FindDropDown $main 'pcb_ddViewMode').ListIndex -eq 1) 'drop-down shows All again'
+
+    # --------------------------------------------- picking from the drop-down
+    Write-Host ''
+    Write-Host '=== Picking from the drop-down (ddViewMode) applies the view workbook-wide ==='
+    $main.Activate()
+    (FindDropDown $main 'pcb_ddViewMode').ListIndex = 3
+    [void]$xl.Run('ddViewMode')
+    Start-Sleep -Milliseconds 300
+    Check ((ViewSetting) -eq 'Minimal') 'ddViewMode picked Minimal'
+    Check (IsHidden $annex $aloAnnex 'Printer') 'Minimal applied to Annexe as well'
+    Check ([int](FindDropDown $annex 'pcb_ddViewMode').ListIndex -eq 3) "Annexe's drop-down follows"
+    (FindDropDown $main 'pcb_ddViewMode').ListIndex = 1
+    [void]$xl.Run('ddViewMode')
+    Start-Sleep -Milliseconds 300
+    Check ((ViewSetting) -eq 'All') 'ddViewMode picked All'
+    Check (-not (IsHidden $main $lo 'Printer')) 'All restored the columns'
 
     # --------------------------------------------- settings drive both views
     Write-Host ''
@@ -177,14 +217,14 @@ try {
     $origExtra = [string]$wb.Names.Item('SET_LOC_MINIMAL_COLUMNS').RefersToRange.Text
     $wb.Names.Item('SET_LOC_REDUCED_COLUMNS').RefersToRange.Value = 'Notes'
     $wb.Names.Item('SET_LOC_MINIMAL_COLUMNS').RefersToRange.Value = 'Paid'
-    [void]$xl.Run('btnViewReduced')
+    [void]$xl.Run('SetViewMode', 'Reduced')
     Start-Sleep -Milliseconds 300
     Check (IsHidden $main $lo 'Notes') 'Reduced hides Notes (edited list)'
     Check (-not (IsHidden $main $lo 'Paid')) 'Reduced does not hide Paid (extra only)'
-    [void]$xl.Run('btnViewMinimal')
+    [void]$xl.Run('SetViewMode', 'Minimal')
     Start-Sleep -Milliseconds 300
     Check ((IsHidden $main $lo 'Notes') -and (IsHidden $main $lo 'Paid')) 'Minimal hides Notes (from Reduced) and Paid (extra)'
-    [void]$xl.Run('btnViewAll')
+    [void]$xl.Run('SetViewMode', 'All')
     Start-Sleep -Milliseconds 300
     Check (-not (IsHidden $main $lo 'Notes') -and -not (IsHidden $main $lo 'Paid')) 'All shows both again'
 
@@ -192,7 +232,7 @@ try {
     $techCol = $lo.Range.Column + (Col $lo 'Technician') - 1
     Check ((ButtonColumn $main 'pcb_btnClearDefaults') -eq $techCol) 'btnClearDefaults starts anchored on Technician'
     $wb.Names.Item('SET_LOC_REDUCED_COLUMNS').RefersToRange.Value = 'Technician'
-    [void]$xl.Run('btnViewReduced')
+    [void]$xl.Run('SetViewMode', 'Reduced')
     Start-Sleep -Milliseconds 300
     Check (IsHidden $main $lo 'Technician') 'Technician is hidden (test-only list)'
     $moved = ButtonColumnVisible $main 'pcb_btnClearDefaults'
@@ -201,7 +241,7 @@ try {
     for ($c = 4; $c -le 12; $c++) { if ([string]$main.Cells(2, $c).Text -eq 'Show columns:') { $lblCol = $c; break } }
     Check (($lblCol -gt 4) -and -not [bool]$main.Columns($lblCol).Hidden) "label moved off hidden column D (now col $lblCol)"
     Check ([string]$main.Range('D2').Text -eq '') 'D2 no longer holds the label'
-    [void]$xl.Run('btnViewAll')
+    [void]$xl.Run('SetViewMode', 'All')
     Start-Sleep -Milliseconds 300
     Check ((ButtonColumn $main 'pcb_btnClearDefaults') -eq $techCol) 'btnClearDefaults back on Technician'
     Check ([string]$main.Range('D2').Text -eq 'Show columns:') 'label back on D2'
@@ -214,8 +254,8 @@ try {
     Write-Host '=== In-table buttons keep their width across repeated view changes ==='
     $atRisk = 'pcb_btnAddPrintJob', 'pcb_btnRepeatJob', 'pcb_btnNow', 'pcb_btnClearDefaults'
     for ($cycle = 1; $cycle -le 2; $cycle++) {
-        [void]$xl.Run('btnViewMinimal'); Start-Sleep -Milliseconds 300
-        [void]$xl.Run('btnViewAll'); Start-Sleep -Milliseconds 300
+        [void]$xl.Run('SetViewMode', 'Minimal'); Start-Sleep -Milliseconds 300
+        [void]$xl.Run('SetViewMode', 'All'); Start-Sleep -Milliseconds 300
         foreach ($p in $atRisk) {
             $b = FindButton $main $p
             Check ([double]$b.Width -eq 110) "$p is still 110pt wide after cycle $cycle"
@@ -230,13 +270,13 @@ try {
     foreach ($p in $sidePanel) {
         Check ([double](FindButton $main $p).Left -eq $col36Before) "$p sits on column 36 before hiding"
     }
-    [void]$xl.Run('btnViewMinimal'); Start-Sleep -Milliseconds 300
+    [void]$xl.Run('SetViewMode', 'Minimal'); Start-Sleep -Milliseconds 300
     $col36Hidden = [double]$main.Cells(1, 36).Left
     Check ($col36Hidden -ne $col36Before) 'Minimal actually moved column 36 (otherwise this proves nothing)'
     foreach ($p in $sidePanel) {
         Check ([double](FindButton $main $p).Left -eq $col36Hidden) "$p followed column 36 while hidden"
     }
-    [void]$xl.Run('btnViewAll'); Start-Sleep -Milliseconds 300
+    [void]$xl.Run('SetViewMode', 'All'); Start-Sleep -Milliseconds 300
     foreach ($p in $sidePanel) {
         Check ([double](FindButton $main $p).Left -eq $col36Before) "$p back on column 36 after revealing"
     }
