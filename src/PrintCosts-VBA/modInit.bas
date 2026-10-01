@@ -1535,6 +1535,20 @@ Private Sub RepositionViewButtons(ByVal ws As Worksheet, ByVal lo As ListObject)
             minLeft = b.Left + VIEW_BTN_W + VIEW_BTN_GAP
         End If
     Next i
+
+    ' Cost-detail state, in the same row so the view indicator covers both
+    ' independent settings (the three buttons above say nothing about the
+    ' Hide/Show cost detail toggle). Cell text on the next usable column.
+    col = NextViewColumn(ws, lo, last, minLeft)
+    If col > 0 Then
+        UnlockSheet ws
+        With ws.Cells(VIEW_ROW, col)
+            .Value = IIf(CostColumnsHidden(), "Cost detail: hidden", "Cost detail: shown")
+            .Font.Bold = True
+            .HorizontalAlignment = xlLeft
+        End With
+        RelockSheet ws
+    End If
 End Sub
 
 ' First table column from VIEW_FIRST_COL to ToCol that is safe to anchor on

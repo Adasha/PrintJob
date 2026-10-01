@@ -3,6 +3,15 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.10.13 - Location sheets: cost-detail state shown beside the column views,
+direct user request.
+  - modInit.RepositionViewButtons now writes "Cost detail: shown" or "Cost
+    detail: hidden" on row 2, on the first usable column after the Minimal
+    button, so the view indicator covers the Hide/Show cost detail toggle as
+    well as All/Reduced/Minimal. It reruns on every column-visibility change,
+    including ToggleCostColumns, so every location sheet updates in the same
+    click. test-costcolumns covers it. No schema change. Needs a rebuild.
+
 0.10.12 - Location sheets: All / Reduced / Minimal column views, direct user
 request.
   - A "Show columns:" label (D2) and three buttons (All, Reduced, Minimal)

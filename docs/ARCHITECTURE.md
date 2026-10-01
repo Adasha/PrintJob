@@ -1056,8 +1056,21 @@ Several acceptance tests are about what happens as a person types, which is wort
 
 Sections 16.2–16.5 (phase 8 scope, other loose ends, the phase 9 snag list, the printer/paper compatibility rework) were completed-work logs and now live in `docs/HISTORY.md`, numbering preserved. Still open from them:
 
-- **`LOC_RollUnit` is per-location, not per-row.** A location cannot mix centimetre and metre entry job-by-job (HISTORY §16.3).
-- **Settings-page button arrangement** has had no overall pass across every sheet's buttons (HISTORY §16.3).
+**Punch list (updated 2026-10-01).** Carried forward:
+
+- **`LOC_RollUnit` is per-sheet, not per-row.** Since 0.10.11 it is a deliberate display setting (Qty is held in the chosen unit and converted back to metres for `_Data`), but a location still cannot mix centimetre and metre entry job-by-job. A genuine per-row unit would be a schema bump touching `AddPrintJob`, `RepeatJob`, Export and Import. Only if it turns out to matter in practice.
+- **Button arrangement** has had no overall pass across every sheet's buttons. 0.10.12 moved the column-view buttons to row 2 and shrank the side panel to seven, so this is partly eased, but the Settings page is still untouched (HISTORY §16.3).
+- **Phase 10 manual run.** The acceptance tests in §15 marked "Phase 10" (AT-01 to AT-09, AT-15) have never been exercised by a person typing; AT-15 needs a Mac.
+- **O7**, aggregation granularity for an automated master (§14). Still deferred.
+
+Added in this pass:
+
+- **Docs drift.** HISTORY §16.3 still describes `ConvertQtyIfCentimetres` and its grey shading, both removed in 0.10.11. §14's "New, from this pass" paragraph still lists phase-8 gaps as open, though they were closed in 0.8.1. SETUP.md should be rechecked against the 0.10.x features (add/remove room, view buttons, compatibility rework).
+- **`ReorderJobColumns` validation corruption** is masked, not fixed at its root (HISTORY §16.4, 0.9.15). Re-check whenever a new job-table column forces another reorder.
+- **Clean up `src\*.bak.xlsm`.** Five backups from 2026-10-01 are sitting beside `PrintJob.xlsm`; run `prune-backups.ps1` and consider having `build.ps1` prune on success.
+- **Column-view edge cases.** Check that Reduced/Minimal survive Refresh Locations, Add print room (a new room should start in All) and Import into a hidden-column sheet, and that a Settings edit to `SET_LOC_MINIMAL_COLUMNS` naming a nonexistent header fails soft.
+- **Reports date filters** have no calendar picker (platform limit, HISTORY §16.3). Revisit if a future Excel adds one.
+- **Mixed-unit import.** Import converts roll Qty between the file's unit and the room's (0.10.11); add a test with a cm export imported into a metres room, and the reverse, if `test-rollunit.ps1` does not already cover both.
 
 
 ---
