@@ -21,6 +21,7 @@
 # saving.
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'TestCommon.ps1')
 $deliverable = Join-Path $PSScriptRoot 'src\PrintJob.xlsm'
 $workDir = Join-Path ([IO.Path]::GetTempPath()) ('PrintCostsTest-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $workDir | Out-Null
@@ -37,12 +38,6 @@ try {
     $main = $wb.Worksheets('Example Print Room')
     $lo = $main.ListObjects('tblJobs_MAIN')
 
-    function Col($lo, $name) {
-        for ($i = 1; $i -le $lo.ListColumns.Count; $i++) {
-            if ($lo.ListColumns($i).Name -eq $name) { return $i }
-        }
-        return 0
-    }
     $techCol = $lo.Range.Column + (Col $lo 'Technician') - 1
     $prnCol  = $lo.Range.Column + (Col $lo 'Printer') - 1
     $stkCol  = $lo.Range.Column + (Col $lo 'Paper Stock') - 1
@@ -53,9 +48,6 @@ try {
         return $lo.ListRows($lo.ListRows.Count).Range.Row
     }
 
-    function Check([bool]$cond, [string]$msg) {
-        Write-Host ("  {0}  {1}" -f $(if ($cond) { 'OK  ' } else { 'FAIL' }), $msg)
-    }
 
     # ------------------------------------------------------------ named cells
     Write-Host '=== Named cells exist and are laid out one per row at A3:B5 ==='

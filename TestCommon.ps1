@@ -1,7 +1,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
 # If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 #
-# Shared by the test-*.ps1 regression scripts: a retry-with-backoff wrapper
+# Shared by the test-*.ps1 regression scripts (dot-sourced): Check and Col at the bottom; first, a retry-with-backoff wrapper
 # for a COM call that immediately follows a heavy VBA operation on the
 # macro-enabled deliverable - most commonly Workbooks.Open itself
 # (Workbook_Open runs real work on every open: ProtectAll, Invalidate,
@@ -29,4 +29,20 @@ function Invoke-ComRetry {
             Start-Sleep -Seconds ($attempt * 2)
         }
     }
+}
+
+# One assertion line. Prints "  OK    msg" or "  FAIL  msg" (run-tests.ps1
+# fails a script on any FAIL line) and records the failure in $script:anyFail
+# for scripts that also want an explicit non-zero exit at the end.
+function Check([bool]$cond, [string]$msg) {
+    Write-Host ("  {0}  {1}" -f $(if ($cond) { 'OK  ' } else { 'FAIL' }), $msg)
+    if (-not $cond) { $script:anyFail = $true }
+}
+
+# 1-based position of the ListObject column called $name, or 0 if absent.
+function Col($lo, $name) {
+    for ($i = 1; $i -le $lo.ListColumns.Count; $i++) {
+        if ($lo.ListColumns($i).Name -eq $name) { return $i }
+    }
+    return 0
 }

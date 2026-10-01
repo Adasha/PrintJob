@@ -25,10 +25,6 @@ $f = Join-Path $workDir 'PrintJob.xlsm'
 Copy-Item $deliverable $f
 
 $script:anyFail = $false
-function Check([bool]$cond, [string]$msg) {
-    Write-Host ("  {0}  {1}" -f $(if ($cond) { 'OK  ' } else { 'FAIL' }), $msg)
-    if (-not $cond) { $script:anyFail = $true }
-}
 
 $specs = @(
     @{ Sheet = 'Print Technicians'; Table = 'tblTechnicians'; Code = 'TCH'; Id = 'TechID';    Name = 'Name';        Hwm = 'TECH_ID_HWM' },

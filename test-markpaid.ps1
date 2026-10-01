@@ -19,6 +19,7 @@
 # Drives a COPY in %TEMP%, never src\PrintJob.xlsm itself.
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'TestCommon.ps1')
 . (Join-Path $PSScriptRoot 'test-fixture-annexe.ps1')
 $deliverable = Join-Path $PSScriptRoot 'src\PrintJob.xlsm'
 $workDir = Join-Path ([IO.Path]::GetTempPath()) ('PrintCostsTest-' + [Guid]::NewGuid().ToString('N'))
@@ -40,9 +41,6 @@ try {
     $loMain = $main.ListObjects('tblJobs_MAIN')
     $loAnnexe = $annexe.ListObjects('tblJobs_ANNEX')
 
-    function Check([bool]$cond, [string]$msg) {
-        Write-Host ("  {0}  {1}" -f $(if ($cond) { 'OK  ' } else { 'FAIL' }), $msg)
-    }
 
     # Job ID -> Paid, across both rooms. Trimmed text; blank stays ''.
     function Snapshot {

@@ -838,17 +838,6 @@ Public Function ExportFolder() As String
     End If
 End Function
 
-' Ensures the optional EXPORT_FOLDER override exists on Settings (snag list
-' item 10). Run once per setup rather than shipped in the .xlsx, for the same
-' reason modVersion.EnsureVersionSettings' rows are - so the workbook file
-' stays something VBA can reconstruct.
-Public Sub EnsureExportSettings()
-    EnsureSetting "EXPORT_FOLDER", "Export folder", _
-        "Optional. Leave blank to export beside the workbook (the default). " & _
-        "If set, the folder must already exist on this computer - there is no " & _
-        "Browse button, because Application.FileDialog does not exist on Mac."
-End Sub
-
 Private Function IsUrl(ByVal p As String) As Boolean
     IsUrl = (InStr(1, p, "http://", vbTextCompare) = 1) Or _
             (InStr(1, p, "https://", vbTextCompare) = 1)

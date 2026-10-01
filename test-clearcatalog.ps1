@@ -32,9 +32,6 @@ try {
     $wb = Invoke-ComRetry { $xl.Workbooks.Open($f) }
     $xl.Run('SetQuiet', $true)
 
-    function Check([bool]$cond, [string]$msg) {
-        Write-Host ("  {0}  {1}" -f $(if ($cond) { 'OK  ' } else { 'FAIL' }), $msg)
-    }
     function Rows([string]$sheet, [string]$table) {
         return [int]$xl.Run('RowCount', $wb.Worksheets($sheet).ListObjects($table))
     }

@@ -64,12 +64,6 @@ try {
     $lo = $main.ListObjects('tblJobs_MAIN')
     $before = $lo.ListRows.Count
 
-    function Col($lo, $name) {
-        for ($i = 1; $i -le $lo.ListColumns.Count; $i++) {
-            if ($lo.ListColumns($i).Name -eq $name) { return $i }
-        }
-        return 0
-    }
 
     # ---------------------------------------------------------------- AT-14
     Write-Host '=== AT-14: Clear All confirmation ==='

@@ -44,9 +44,6 @@ try {
     $loMain = $main.ListObjects('tblJobs_MAIN')
     $loAnnexe = $annexe.ListObjects('tblJobs_ANNEX')
 
-    function Check([bool]$cond, [string]$msg) {
-        Write-Host ("  {0}  {1}" -f $(if ($cond) { 'OK  ' } else { 'FAIL' }), $msg)
-    }
     # Retried: right after an event-driven select/write Excel can still be
     # settling and reject the next COM call (see TestCommon.ps1).
     function Snapshot {

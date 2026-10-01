@@ -62,9 +62,6 @@ try {
         [void]$xl.Run('btnAddPrintJob')
         return $lo.ListRows($lo.ListRows.Count).Range.Row
     }
-    function Check([bool]$cond, [string]$msg) {
-        Write-Host ("  {0}  {1}" -f $(if ($cond) { 'OK  ' } else { 'FAIL' }), $msg)
-    }
 
     # ---------------------------------------------------- roll, zero paper cost
     Write-Host '=== Supplied (Roll): zero paper cost, normal consumable cost ==='

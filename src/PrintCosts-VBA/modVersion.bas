@@ -84,10 +84,10 @@ Public Sub EnsureSchemaSetting()
     SetSetting "SCHEMA", SCHEMA_VER
 End Sub
 
-' Public: modExport.EnsureExportSettings reuses this for the same reason
-' EnsureVersionSettings' own rows go through it - a setting is not real to
-' modSettings.SettingText until it has a SET_<KEY> name, and this is the one
-' place that adds a row to tblSettings and names it in the same step.
+' Public: modCatalog's ID counters go through it as well as EnsureVersionSettings'
+' own rows - a setting is not real to modSettings.SettingText until it has a
+' SET_<KEY> name, and this is the one place that adds a row to tblSettings and
+' names it in the same step.
 Public Function EnsureSetting(ByVal Key As String, ByVal Label As String, ByVal Notes As String) As Range
     Dim lo As ListObject, i As Long, r As ListRow, c As Range
 

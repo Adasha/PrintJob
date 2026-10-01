@@ -37,15 +37,6 @@ try {
     $annex = $wb.Worksheets('Annexe')
     $lo = $main.ListObjects('tblJobs_MAIN')
 
-    function Col($lo, $name) {
-        for ($i = 1; $i -le $lo.ListColumns.Count; $i++) {
-            if ($lo.ListColumns($i).Name -eq $name) { return $i }
-        }
-        return 0
-    }
-    function Check([bool]$cond, [string]$msg) {
-        Write-Host ("  {0}  {1}" -f $(if ($cond) { 'OK  ' } else { 'FAIL' }), $msg)
-    }
     function IsHidden($ws, $lo, $header) {
         return [bool](Invoke-ComRetry -Attempts 5 {
             $c = $lo.Range.Column + (Col $lo $header) - 1
