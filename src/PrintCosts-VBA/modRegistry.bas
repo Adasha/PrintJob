@@ -93,6 +93,7 @@ Public Sub RefreshLocations()
         EnsureRollUnitFormulas ws
         EnsurePrintersDisplay ws
         EnsureJobCountDisplay ws
+        ClearBelowTableValidation ws
         BindColumns ws
         ApplyReducedView ws
         ApplyCostColumnsVisibility ws

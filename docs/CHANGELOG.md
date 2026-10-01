@@ -3,6 +3,29 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.10.15 - Job-table validation: stale rules below the table cleared, and a
+guard against column moves resurfacing the 0.9.15 corruption.
+  - Found while closing out the "ReorderJobColumns corrupts validation" tech-
+    debt item. ReorderJobColumns itself was deleted on 2026-09-29, but the
+    shipped PrintCosts.xlsx still carried hand-placed rules on rows 28-2010,
+    below the table, in columns A, D, E, F, H, I, J, K - including a Yes/No
+    list on J, which is Sheet size since Disregard Paper moved to K. The
+    table body was correct; EnsureJobColumnValidation only ever cleared the
+    body, so these were never touched, and rows the table grows into could
+    inherit them.
+  - modInit.ClearBelowTableValidation (new) strips validation under the
+    table (across the table's columns, to the end of the sheet). It runs
+    once per sheet from setup and Refresh Locations, NOT from BindColumns:
+    run on every row added it left Excel rejecting the next COM call, and
+    test-suppliedstock failed 6 of 6. Every rule was already bound by header
+    name; with the stray cells gone, nothing positional is left to drift
+    when a column is reordered, inserted or removed.
+  - test-jobvalidation.ps1 (new): rules on the right column by name, first
+    and last row; no validation on any other column; nothing below the table;
+    a newly added row correct; and columns moved with the old Cut + Insert
+    Shift:=xlToRight are repaired by one BindColumns. Fails on 0.10.14.
+  - No schema change. Needs a rebuild.
+
 0.10.14 - Location sheets: column views as a drop-down, cost-detail toggle
 beside it, direct user request.
   - The All / Reduced / Minimal buttons are now one drop-down (forms control
