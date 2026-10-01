@@ -1,17 +1,16 @@
 # This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
 # If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 #
-# Snag 1e: workbook-wide reduced-clutter view toggle on location sheets.
+# Column views on location sheets (snag 1e, reworked 2026-10-01): All /
+# Reduced / Minimal buttons on row 2 (label in D2, buttons after it).
 #
-#   - Toggling hides/shows Status, Job ID, Printer, Area m2, Disregard Paper,
-#     Disregard Consumable on EVERY location sheet at once (one workbook-
-#     wide setting, not per-sheet).
-#   - The hidden-column list lives in a setting (SET_LOC_REDUCED_COLUMNS),
-#     editable without a rebuild.
-#   - A permanently-hidden column (H_Issues) is never touched by this - it
-#     must stay hidden regardless of which state the toggle is in.
-#   - The button caption flips between "Reduce clutter" and "Show all
-#     columns" on every location sheet at once.
+#   - One workbook-wide setting (SET_LOC_REDUCED_VIEW = All/Reduced/Minimal).
+#   - Reduced hides SET_LOC_REDUCED_COLUMNS; Minimal hides those plus
+#     SET_LOC_MINIMAL_COLUMNS. Both lists are editable settings.
+#   - A permanently-hidden column (H_Issues) is never touched.
+#   - The view buttons slide off any hidden column; the old toggle is gone from
+#     the side panel and the remaining seven buttons stay on column 36.
+#   - Add Print Job / Now / etc. keep their width and relocate off hidden columns.
 #
 # Drives a COPY in %TEMP%, never src\PrintJob.xlsm itself. Closes WITHOUT
 # saving.
@@ -36,6 +35,7 @@ try {
     $main = $wb.Worksheets('Example Print Room')
     $annex = $wb.Worksheets('Annexe')
     $lo = $main.ListObjects('tblJobs_MAIN')
+    $aloAnnex = $annex.ListObjects('tblJobs_ANNEX')
 
     function IsHidden($ws, $lo, $header) {
         return [bool](Invoke-ComRetry -Attempts 5 {
@@ -44,232 +44,201 @@ try {
             $ws.Columns($c).Hidden
         })
     }
-
-    # -------------------------------------------------------------- setting
-    Write-Host '=== Settings self-provisioned ==='
-    $onOff = [string]$wb.Names.Item('SET_LOC_REDUCED_VIEW').RefersToRange.Text
-    $list = [string]$wb.Names.Item('SET_LOC_REDUCED_COLUMNS').RefersToRange.Text
-    Check ($onOff -eq 'No') "SET_LOC_REDUCED_VIEW defaults to No (got '$onOff')"
-    Check ($list -like '*Status*Job ID*Printer*Area m2*Disregard Paper*Disregard Consumable*') "SET_LOC_REDUCED_COLUMNS holds the expected shortlist (got '$list')"
-
-    # ---------------------------------------------------------- initial state
-    Write-Host ''
-    Write-Host '=== Full view initially: nothing in the shortlist is hidden ==='
-    foreach ($h in 'Status', 'Job ID', 'Printer', 'Area m2', 'Disregard Paper', 'Disregard Consumable') {
-        Check (-not (IsHidden $main $lo $h)) "$h is visible on Example Print Room"
-    }
-    $hIssuesHiddenBefore = IsHidden $main $lo 'H_Issues'
-    Check $hIssuesHiddenBefore "H_Issues (permanently hidden, unrelated to this toggle) starts hidden"
-
-    # -------------------------------------------------------------- toggle on
-    Write-Host ''
-    Write-Host '=== Toggling ON hides the shortlist on every location sheet ==='
-    [void]$xl.Run('ToggleReducedView')
-    Start-Sleep -Milliseconds 300
-    $aloAnnex = $annex.ListObjects('tblJobs_ANNEX')
-    foreach ($h in 'Status', 'Job ID', 'Printer', 'Area m2', 'Disregard Paper', 'Disregard Consumable') {
-        Check (IsHidden $main $lo $h) "$h is hidden on Example Print Room"
-        Check (IsHidden $annex $aloAnnex $h) "$h is hidden on Annexe too (workbook-wide, not per-sheet)"
-    }
-    Check (-not (IsHidden $main $lo 'Chargeable Cost')) "Chargeable Cost (not in the shortlist) stays visible"
-    Check (-not (IsHidden $main $lo 'Paid')) "Paid (not in the shortlist) stays visible"
-    Check ((IsHidden $main $lo 'H_Issues') -eq $hIssuesHiddenBefore) "H_Issues' state is untouched by this toggle"
-
-    $onOffAfter = [string]$wb.Names.Item('SET_LOC_REDUCED_VIEW').RefersToRange.Text
-    Check ($onOffAfter -eq 'Yes') "SET_LOC_REDUCED_VIEW now reads Yes"
-
-    $prefix = 'pcb_btnToggleReducedView'
-    function FindButtonCaption($ws, $prefix) {
+    function FindButton($ws, $prefix) {
         $n = $ws.Buttons().Count
         for ($i = 1; $i -le $n; $i++) {
             $b = $ws.Buttons($i)
-            if ([string]$b.Name -like "$prefix*") { return [string]$b.Caption }
+            if ([string]$b.Name -like "$prefix*") { return $b }
         }
         return $null
     }
-    $btnCaption = FindButtonCaption $main $prefix
-    Check ($btnCaption -eq 'Show all columns') "button caption flipped to 'Show all columns' (got '$btnCaption')"
-
-    # ------------------------------------------------------------- toggle off
-    Write-Host ''
-    Write-Host '=== Toggling OFF shows the shortlist again ==='
-    [void]$xl.Run('ToggleReducedView')
-    Start-Sleep -Milliseconds 300
-    foreach ($h in 'Status', 'Job ID', 'Printer', 'Area m2', 'Disregard Paper', 'Disregard Consumable') {
-        Check (-not (IsHidden $main $lo $h)) "$h is visible again on Example Print Room"
-    }
-    Check ((IsHidden $main $lo 'H_Issues') -eq $hIssuesHiddenBefore) "H_Issues' state is STILL untouched (stays permanently hidden)"
-    $btnCaption2 = FindButtonCaption $main $prefix
-    Check ($btnCaption2 -eq 'Reduce clutter') "button caption flipped back to 'Reduce clutter' (got '$btnCaption2')"
-
-    # ------------------------------------------- button relocation (2026-09-25 fix)
-    # A button anchored over a column the reduced view hides used to vanish
-    # with it (Remove Row/Clear All sat on Printer/Disregard Consumable).
-    # Fix: occasional-use buttons, including the toggle itself (moved here
-    # same day - not used often enough to earn a spot near the table), now
-    # live in a side panel, all seven sharing column 36 (Import briefly
-    # lived at a second column, paired with Export, until user-reported
-    # feedback that it had visibly drifted away from the rest of the stack
-    # - DrawOneAtTop packs all seven into one column at even pixel steps
-    # instead) immune by construction; the few still inside the table (Add
-    # Print Job, Now, Clear defaults) self-relocate off whatever column is
-    # currently hidden. REDUCED_COLUMNS_DEFAULT alone never hides any of
-    # those three, so this needs its own list to actually exercise the
-    # relocation path.
-    Write-Host ''
-    Write-Host '=== Buttons anchored inside the table self-relocate off a hidden column ==='
-
-    function ButtonColumn($ws, $prefix) {
-        $n = $ws.Buttons().Count
-        for ($i = 1; $i -le $n; $i++) {
-            $b = $ws.Buttons($i)
-            if ([string]$b.Name -like "$prefix*") {
-                for ($c = 1; $c -le 60; $c++) {
-                    if ([Math]::Abs($ws.Cells(1, $c).Left - $b.Left) -lt 0.5) { return $c }
-                }
-                return -1
-            }
-        }
-        return 0
-    }
-
-    # Lowest-index match only, unlike ButtonColumn above: hiding a column
-    # collapses it to zero width, so the FIRST visible column after it slides
-    # left to share its exact pixel Left - the hidden column and the visible
-    # one it now touches are indistinguishable by position alone. A button
-    # relocated onto that visible neighbour is correctly placed, but
-    # ButtonColumn would report the hidden column instead, since it always
-    # returns the lowest column index at that Left. This variant returns the
-    # first VISIBLE column at that Left instead, which is the one the
-    # relocation logic actually cares about.
+    # First VISIBLE column whose Left matches the button's (a hidden column
+    # shares its Left with the visible one after it).
     function ButtonColumnVisible($ws, $prefix) {
-        $n = $ws.Buttons().Count
-        for ($i = 1; $i -le $n; $i++) {
-            $b = $ws.Buttons($i)
-            if ([string]$b.Name -like "$prefix*") {
-                for ($c = 1; $c -le 60; $c++) {
-                    if ([Math]::Abs($ws.Cells(1, $c).Left - $b.Left) -lt 0.5 -and -not [bool]$ws.Columns($c).Hidden) { return $c }
-                }
-                return -1
-            }
+        $b = FindButton $ws $prefix
+        if (-not $b) { return 0 }
+        for ($c = 1; $c -le 60; $c++) {
+            if ([Math]::Abs($ws.Cells(1, $c).Left - $b.Left) -lt 0.5 -and -not [bool]$ws.Columns($c).Hidden) { return $c }
         }
-        return 0
+        return -1
     }
-
-    $techCol = $lo.Range.Column + (Col $lo 'Technician') - 1
-
-    foreach ($p in 'pcb_btnRemoveRow', 'pcb_btnSelectPrinters', 'pcb_btnCheckSheet', 'pcb_btnClearAll', 'pcb_btnExport', 'pcb_btnToggleReducedView', 'pcb_btnImportLocation') {
-        Check ((ButtonColumn $main $p) -eq 36) "$p sits in the side panel (column 36), immune to column-hide"
+    function ButtonColumn($ws, $prefix) {
+        $b = FindButton $ws $prefix
+        if (-not $b) { return 0 }
+        for ($c = 1; $c -le 60; $c++) {
+            if ([Math]::Abs($ws.Cells(1, $c).Left - $b.Left) -lt 0.5) { return $c }
+        }
+        return -1
     }
-    Check ((ButtonColumn $main 'pcb_btnClearDefaults') -eq $techCol) "btnClearDefaults starts anchored on Technician"
+    function ViewSetting { [string]$wb.Names.Item('SET_LOC_REDUCED_VIEW').RefersToRange.Text }
 
-    $wb.Names.Item('SET_LOC_REDUCED_COLUMNS').RefersToRange.Value = 'Technician'
-    [void]$xl.Run('ToggleReducedView')
-    Start-Sleep -Milliseconds 300
-    Check (IsHidden $main $lo 'Technician') "Technician is hidden (test-only hide list)"
-    $movedCol = ButtonColumnVisible $main 'pcb_btnClearDefaults'
-    Check ($movedCol -gt 0) "btnClearDefaults relocated to a visible column (found col $movedCol; was anchored on Technician, col $techCol, now hidden)"
-    Check (-not [bool]$main.Columns($movedCol).Hidden) "btnClearDefaults' new column ($movedCol) is actually visible"
-    foreach ($p in 'pcb_btnRemoveRow', 'pcb_btnSelectPrinters', 'pcb_btnCheckSheet', 'pcb_btnClearAll', 'pcb_btnExport', 'pcb_btnToggleReducedView', 'pcb_btnImportLocation') {
-        Check ((ButtonColumn $main $p) -eq 36) "$p still in the side panel, unaffected by the test-only hide list"
-    }
+    $reducedCols = 'Status', 'Job ID', 'Area m2'
+    $minimalExtra = 'Printer', 'Disregard Paper', 'Disregard Consumable', 'Print Width mm', 'Sheet size'
 
-    [void]$xl.Run('ToggleReducedView')
-    Start-Sleep -Milliseconds 300
-    Check (-not (IsHidden $main $lo 'Technician')) "Technician is visible again"
-    Check ((ButtonColumn $main 'pcb_btnClearDefaults') -eq $techCol) "btnClearDefaults moved back onto Technician now that it's visible"
+    # -------------------------------------------------------------- settings
+    Write-Host '=== Settings self-provisioned ==='
+    Check ((ViewSetting) -eq 'All') "SET_LOC_REDUCED_VIEW defaults to All (got '$(ViewSetting)')"
+    $list = [string]$wb.Names.Item('SET_LOC_REDUCED_COLUMNS').RefersToRange.Text
+    $extra = [string]$wb.Names.Item('SET_LOC_MINIMAL_COLUMNS').RefersToRange.Text
+    Check ($list -like '*Status*Job ID*Area m2*S_SchemaVer*') "SET_LOC_REDUCED_COLUMNS holds the reduced list (got '$list')"
+    Check ($list -notlike '*Printer*') "reduced list no longer names Printer (got '$list')"
+    Check ($extra -like '*Printer*Disregard Paper*Disregard Consumable*Print Width mm*Sheet size*') "SET_LOC_MINIMAL_COLUMNS holds the extra columns (got '$extra')"
 
-    $wb.Names.Item('SET_LOC_REDUCED_COLUMNS').RefersToRange.Value = $list
-
-    # ------------------------------------- button width survives hide/reveal (2026-09-26 fix)
-    # User-reported: after hiding then revealing columns once, the Now button
-    # ended up straddling the D/E column border with only its "N" visible.
-    # Root cause was Buttons.Add defaulting to Placement:=xlMoveAndSize, so
-    # Excel silently shrank the button's own Width when Printer (its anchor
-    # column, and one of REDUCED_COLUMNS_DEFAULT's own entries) got hidden -
-    # RelocateButton only ever restored .Left, never .Width, so the shrunk
-    # width stuck even once the button landed back on a visible column. The
-    # position-only ButtonColumn check above would not have caught this
-    # (Width can be wrong while Left still happens to land on a cell edge),
-    # so this checks Width explicitly, across two full toggle cycles to
-    # mirror the reported "hide then reveal" sequence.
+    # ---------------------------------------------------------- initial state
     Write-Host ''
-    Write-Host '=== Now/Add Print Job/Repeat Job keep their width across repeated hide/reveal cycles ==='
-
-    function ButtonWidth($ws, $prefix) {
-        $n = $ws.Buttons().Count
-        for ($i = 1; $i -le $n; $i++) {
-            $b = $ws.Buttons($i)
-            if ([string]$b.Name -like "$prefix*") { return [double]$b.Width }
-        }
-        return -1
+    Write-Host '=== All: nothing in either list is hidden ==='
+    foreach ($h in ($reducedCols + $minimalExtra)) {
+        Check (-not (IsHidden $main $lo $h)) "$h is visible on Example Print Room"
     }
-    function ButtonPlacement($ws, $prefix) {
-        $n = $ws.Buttons().Count
-        for ($i = 1; $i -le $n; $i++) {
-            $b = $ws.Buttons($i)
-            if ([string]$b.Name -like "$prefix*") { return [int]$b.Placement }
-        }
-        return -1
+    $hIssuesHiddenBefore = IsHidden $main $lo 'H_Issues'
+    Check $hIssuesHiddenBefore 'H_Issues (permanently hidden) starts hidden'
+
+    Write-Host ''
+    Write-Host '=== View row: label in D2, buttons on E/F/G, side panel toggle gone ==='
+    Check ([string]$main.Range('D2').Text -eq 'Show columns:') "D2 reads 'Show columns:' (got '$([string]$main.Range('D2').Text)')"
+    Check ((ButtonColumn $main 'pcb_btnViewAll') -eq 5) 'All sits on column E'
+    Check ((ButtonColumn $main 'pcb_btnViewReduced') -eq 6) 'Reduced sits on column F'
+    Check ((ButtonColumn $main 'pcb_btnViewMinimal') -eq 7) 'Minimal sits on column G'
+    Check ($null -eq (FindButton $main 'pcb_btnToggleReducedView')) 'old Reduce clutter button is gone'
+    $sidePanel = 'pcb_btnSelectPrinters', 'pcb_btnCheckSheet', 'pcb_btnToggleCostColumns', 'pcb_btnRemoveRow', 'pcb_btnClearAll', 'pcb_btnExport', 'pcb_btnImportLocation'
+    foreach ($p in $sidePanel) {
+        Check ((ButtonColumn $main $p) -eq 36) "$p sits in the side panel (column 36)"
+    }
+    # Stack is packed from the top: first button at the sheet top, no gap where the toggle was.
+    $tops = $sidePanel | ForEach-Object { [double](FindButton $main $_).Top }
+    $step = $tops[1] - $tops[0]
+    for ($i = 1; $i -lt $tops.Count; $i++) {
+        Check ([Math]::Abs(($tops[$i] - $tops[$i - 1]) - $step) -lt 0.5) "side panel step between button $i and the previous one is even (closed up)"
     }
 
+    # ----------------------------------------------------------- Reduced view
+    Write-Host ''
+    Write-Host '=== Reduced hides only the reduced list, on every location sheet ==='
+    [void]$xl.Run('btnViewReduced')
+    Start-Sleep -Milliseconds 300
+    foreach ($h in $reducedCols) {
+        Check (IsHidden $main $lo $h) "$h is hidden on Example Print Room"
+        Check (IsHidden $annex $aloAnnex $h) "$h is hidden on Annexe too (workbook-wide)"
+    }
+    foreach ($h in $minimalExtra) {
+        Check (-not (IsHidden $main $lo $h)) "$h stays visible in Reduced"
+    }
+    Check (-not (IsHidden $main $lo 'Chargeable Cost')) 'Chargeable Cost stays visible'
+    Check ((IsHidden $main $lo 'H_Issues') -eq $hIssuesHiddenBefore) "H_Issues' state is untouched"
+    Check ((ViewSetting) -eq 'Reduced') 'setting reads Reduced'
+    Check ([bool](FindButton $main 'pcb_btnViewReduced').Characters().Font.Bold) 'Reduced button is bold (active)'
+    Check (-not [bool](FindButton $main 'pcb_btnViewAll').Characters().Font.Bold) 'All button is not bold'
+
+    # ----------------------------------------------------------- Minimal view
+    Write-Host ''
+    Write-Host '=== Minimal hides reduced list AND the extras ==='
+    [void]$xl.Run('btnViewMinimal')
+    Start-Sleep -Milliseconds 300
+    foreach ($h in ($reducedCols + $minimalExtra)) {
+        Check (IsHidden $main $lo $h) "$h is hidden in Minimal"
+        Check (IsHidden $annex $aloAnnex $h) "$h is hidden in Minimal on Annexe"
+    }
+    Check (-not (IsHidden $main $lo 'Chargeable Cost')) 'Chargeable Cost stays visible'
+    Check ((IsHidden $main $lo 'H_Issues') -eq $hIssuesHiddenBefore) "H_Issues' state is untouched"
+    Check ((ViewSetting) -eq 'Minimal') 'setting reads Minimal'
+
+    # Printer (column E) is hidden now, so the buttons must have slid right.
+    $lblCol = $null
+    for ($c = 4; $c -le 12; $c++) { if ([string]$main.Cells(2, $c).Text -eq 'Show columns:') { $lblCol = $c; break } }
+    Check ($lblCol -eq 4) "label still on D (Technician is visible; found col $lblCol)"
+    $cAll = ButtonColumnVisible $main 'pcb_btnViewAll'
+    $cRed = ButtonColumnVisible $main 'pcb_btnViewReduced'
+    $cMin = ButtonColumnVisible $main 'pcb_btnViewMinimal'
+    Check (($cAll -gt 0) -and -not [bool]$main.Columns($cAll).Hidden) "All is on a visible column (col $cAll)"
+    Check (($cRed -gt $cAll) -and -not [bool]$main.Columns($cRed).Hidden) "Reduced is on a later visible column (col $cRed)"
+    Check (($cMin -gt $cRed) -and -not [bool]$main.Columns($cMin).Hidden) "Minimal is on a later visible column (col $cMin)"
+    $bA = FindButton $main 'pcb_btnViewAll'; $bR = FindButton $main 'pcb_btnViewReduced'; $bM = FindButton $main 'pcb_btnViewMinimal'
+    Check (($bA.Left + $bA.Width) -le $bR.Left) 'All and Reduced do not overlap'
+    Check (($bR.Left + $bR.Width) -le $bM.Left) 'Reduced and Minimal do not overlap'
+    Check ([Math]::Abs($bA.Width - 70) -lt 0.5) 'view buttons keep their width'
+
+    # ------------------------------------------------------------- back to All
+    Write-Host ''
+    Write-Host '=== All shows everything again; buttons back on E/F/G ==='
+    [void]$xl.Run('btnViewAll')
+    Start-Sleep -Milliseconds 300
+    foreach ($h in ($reducedCols + $minimalExtra)) {
+        Check (-not (IsHidden $main $lo $h)) "$h is visible again"
+    }
+    Check ((IsHidden $main $lo 'H_Issues') -eq $hIssuesHiddenBefore) "H_Issues' state is STILL untouched"
+    Check ((ButtonColumn $main 'pcb_btnViewAll') -eq 5) 'All back on column E'
+    Check ((ButtonColumn $main 'pcb_btnViewReduced') -eq 6) 'Reduced back on column F'
+    Check ((ButtonColumn $main 'pcb_btnViewMinimal') -eq 7) 'Minimal back on column G'
+
+    # --------------------------------------------- settings drive both views
+    Write-Host ''
+    Write-Host '=== Editing the settings changes what each view hides; Minimal still includes Reduced ==='
+    $origList = [string]$wb.Names.Item('SET_LOC_REDUCED_COLUMNS').RefersToRange.Text
+    $origExtra = [string]$wb.Names.Item('SET_LOC_MINIMAL_COLUMNS').RefersToRange.Text
+    $wb.Names.Item('SET_LOC_REDUCED_COLUMNS').RefersToRange.Value = 'Notes'
+    $wb.Names.Item('SET_LOC_MINIMAL_COLUMNS').RefersToRange.Value = 'Paid'
+    [void]$xl.Run('btnViewReduced')
+    Start-Sleep -Milliseconds 300
+    Check (IsHidden $main $lo 'Notes') 'Reduced hides Notes (edited list)'
+    Check (-not (IsHidden $main $lo 'Paid')) 'Reduced does not hide Paid (extra only)'
+    [void]$xl.Run('btnViewMinimal')
+    Start-Sleep -Milliseconds 300
+    Check ((IsHidden $main $lo 'Notes') -and (IsHidden $main $lo 'Paid')) 'Minimal hides Notes (from Reduced) and Paid (extra)'
+    [void]$xl.Run('btnViewAll')
+    Start-Sleep -Milliseconds 300
+    Check (-not (IsHidden $main $lo 'Notes') -and -not (IsHidden $main $lo 'Paid')) 'All shows both again'
+
+    # Technician hidden by a test-only list: label and in-table buttons relocate.
+    $techCol = $lo.Range.Column + (Col $lo 'Technician') - 1
+    Check ((ButtonColumn $main 'pcb_btnClearDefaults') -eq $techCol) 'btnClearDefaults starts anchored on Technician'
+    $wb.Names.Item('SET_LOC_REDUCED_COLUMNS').RefersToRange.Value = 'Technician'
+    [void]$xl.Run('btnViewReduced')
+    Start-Sleep -Milliseconds 300
+    Check (IsHidden $main $lo 'Technician') 'Technician is hidden (test-only list)'
+    $moved = ButtonColumnVisible $main 'pcb_btnClearDefaults'
+    Check (($moved -gt 0) -and -not [bool]$main.Columns($moved).Hidden) "btnClearDefaults relocated to a visible column ($moved)"
+    $lblCol = $null
+    for ($c = 4; $c -le 12; $c++) { if ([string]$main.Cells(2, $c).Text -eq 'Show columns:') { $lblCol = $c; break } }
+    Check (($lblCol -gt 4) -and -not [bool]$main.Columns($lblCol).Hidden) "label moved off hidden column D (now col $lblCol)"
+    Check ([string]$main.Range('D2').Text -eq '') 'D2 no longer holds the label'
+    [void]$xl.Run('btnViewAll')
+    Start-Sleep -Milliseconds 300
+    Check ((ButtonColumn $main 'pcb_btnClearDefaults') -eq $techCol) 'btnClearDefaults back on Technician'
+    Check ([string]$main.Range('D2').Text -eq 'Show columns:') 'label back on D2'
+
+    $wb.Names.Item('SET_LOC_REDUCED_COLUMNS').RefersToRange.Value = $origList
+    $wb.Names.Item('SET_LOC_MINIMAL_COLUMNS').RefersToRange.Value = $origExtra
+
+    # --------------------------- button width survives repeated view changes
+    Write-Host ''
+    Write-Host '=== In-table buttons keep their width across repeated view changes ==='
     $atRisk = 'pcb_btnAddPrintJob', 'pcb_btnRepeatJob', 'pcb_btnNow', 'pcb_btnClearDefaults'
     for ($cycle = 1; $cycle -le 2; $cycle++) {
-        [void]$xl.Run('ToggleReducedView')
-        Start-Sleep -Milliseconds 300
-        [void]$xl.Run('ToggleReducedView')
-        Start-Sleep -Milliseconds 300
+        [void]$xl.Run('btnViewMinimal'); Start-Sleep -Milliseconds 300
+        [void]$xl.Run('btnViewAll'); Start-Sleep -Milliseconds 300
         foreach ($p in $atRisk) {
-            Check ((ButtonWidth $main $p) -eq 110) "$p is still 110pt wide after hide/reveal cycle $cycle"
-            Check ((ButtonPlacement $main $p) -eq 3) "$p is xlFreeFloating (3) after hide/reveal cycle $cycle"
+            $b = FindButton $main $p
+            Check ([double]$b.Width -eq 110) "$p is still 110pt wide after cycle $cycle"
+            Check ([int]$b.Placement -eq 3) "$p is xlFreeFloating after cycle $cycle"
         }
     }
-    Check ((ButtonColumn $main 'pcb_btnNow') -gt 0) "btnNow's Left still lands cleanly on a column edge, not straddling a border"
 
-    # ---------------------------------- side panel tracks column 36 through toggles (2026-09-26 fix)
-    # User-reported, same session: once the at-risk buttons above stopped
-    # drifting, the side panel (Select printers.../Check this sheet/the
-    # toggle itself/Remove Row/Clear All/Export.../Import...) turned out to
-    # have its own version of the same bug - hiding the reduced-view
-    # shortlist shrinks the total width of everything to the LEFT of
-    # SIDE_PANEL_COL (column 36), which shifts that column's own pixel
-    # position left. With Placement:=xlFreeFloating (this fix's own change)
-    # the side panel no longer follows that shift automatically, so it ended
-    # up sitting further right of column 36 than before - the opposite
-    # direction from a naive guess, but exactly what "hiding clutter leaves
-    # them even further right" describes. ApplyReducedView now calls
-    # RepositionSidePanelButtons on every run (not just from setup) to keep
-    # them pinned to column 36's current position.
+    # ---------------------------------- side panel tracks column 36 through views
     Write-Host ''
-    Write-Host '=== Side panel stays pinned to column 36 through a hide/reveal cycle ==='
-
-    function SidePanelLeft($ws, $prefix) {
-        $n = $ws.Buttons().Count
-        for ($i = 1; $i -le $n; $i++) {
-            $b = $ws.Buttons($i)
-            if ([string]$b.Name -like "$prefix*") { return [double]$b.Left }
-        }
-        return -1
-    }
-
-    $sidePanel = 'pcb_btnSelectPrinters', 'pcb_btnCheckSheet', 'pcb_btnToggleReducedView', 'pcb_btnRemoveRow', 'pcb_btnClearAll', 'pcb_btnExport', 'pcb_btnImportLocation'
+    Write-Host '=== Side panel stays pinned to column 36 through a Minimal/All cycle ==='
     $col36Before = [double]$main.Cells(1, 36).Left
     foreach ($p in $sidePanel) {
-        Check ((SidePanelLeft $main $p) -eq $col36Before) "$p sits on column 36 before hiding (Left=$col36Before)"
+        Check ([double](FindButton $main $p).Left -eq $col36Before) "$p sits on column 36 before hiding"
     }
-
-    [void]$xl.Run('ToggleReducedView')
-    Start-Sleep -Milliseconds 300
+    [void]$xl.Run('btnViewMinimal'); Start-Sleep -Milliseconds 300
     $col36Hidden = [double]$main.Cells(1, 36).Left
-    Check ($col36Hidden -ne $col36Before) "hiding the shortlist actually moved column 36 (was $col36Before, now $col36Hidden) - otherwise this check proves nothing"
+    Check ($col36Hidden -ne $col36Before) 'Minimal actually moved column 36 (otherwise this proves nothing)'
     foreach ($p in $sidePanel) {
-        Check ((SidePanelLeft $main $p) -eq $col36Hidden) "$p followed column 36 to its new position while hidden (Left=$col36Hidden)"
+        Check ([double](FindButton $main $p).Left -eq $col36Hidden) "$p followed column 36 while hidden"
     }
-
-    [void]$xl.Run('ToggleReducedView')
-    Start-Sleep -Milliseconds 300
+    [void]$xl.Run('btnViewAll'); Start-Sleep -Milliseconds 300
     foreach ($p in $sidePanel) {
-        Check ((SidePanelLeft $main $p) -eq $col36Before) "$p is back on column 36 after revealing (Left=$col36Before)"
+        Check ([double](FindButton $main $p).Left -eq $col36Before) "$p back on column 36 after revealing"
     }
 
     $xl.Run('SetQuiet', $false)

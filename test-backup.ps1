@@ -101,7 +101,7 @@ try {
     # come back stale (observed tblPapers.ListRows.Count as 0 right after the
     # call, then correctly 9 moments later with no code in between other than
     # a Write-Host) - the same class of Excel/COM property-read timing gotcha
-    # ToggleReducedView's own callers already pause for elsewhere in this
+    # the view buttons' own callers already pause for elsewhere in this
     # test suite.
     Start-Sleep -Milliseconds 300
 

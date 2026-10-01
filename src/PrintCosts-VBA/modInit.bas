@@ -48,7 +48,22 @@ Private Const ROW_DIS_CONS As Long = 9
 Private Const ROW_ROLL_UNIT As Long = 11
 Private Const ROW_PRINTERS As Long = 12
 Private Const ROW_JOB_COUNT As Long = 13
-Private Const REDUCED_COLUMNS_DEFAULT As String = "Status;Job ID;Printer;Area m2;Disregard Paper;Disregard Consumable;S_SchemaVer"
+Private Const REDUCED_COLUMNS_DEFAULT As String = "Status;Job ID;Area m2;S_SchemaVer"
+' What shipped before the Reduced/Minimal split (2026-10-01): the old single list.
+' EnsureViewSettings swaps it for the new default if it finds it untouched.
+Private Const REDUCED_COLUMNS_LEGACY As String = "Status;Job ID;Printer;Area m2;Disregard Paper;Disregard Consumable;S_SchemaVer"
+' Minimal view hides these IN ADDITION to the Reduced list (so Minimal always
+' includes Reduced - the setting holds only the extras).
+Private Const MINIMAL_EXTRA_DEFAULT As String = "Printer;Disregard Paper;Disregard Consumable;Print Width mm;Sheet size"
+
+' The view-mode row on a location sheet: a label and three buttons, laid out
+' left to right from VIEW_FIRST_COL (D) on VIEW_ROW (2), each on a visible
+' column - see RepositionViewButtons.
+Private Const VIEW_ROW As Long = 2
+Private Const VIEW_FIRST_COL As Long = 4
+Private Const VIEW_LABEL_W As Double = 75
+Private Const VIEW_BTN_W As Double = 70
+Private Const VIEW_BTN_GAP As Double = 2
 
 ' SidePanelButtonLayout's own inputs (2026-09-27, cost-columns toggle) -
 ' declared here with this module's other module-level constants for exactly
@@ -56,7 +71,7 @@ Private Const REDUCED_COLUMNS_DEFAULT As String = "Status;Job ID;Printer;Area m2
 ' from that one: a first draft of this pair was declared mid-file, next to
 ' SidePanelButtonLayout itself, and hit the identical "Variable not defined"
 ' compile failure this comment already warns about.
-Private Const SIDE_PANEL_BTN_COUNT As Long = 8
+Private Const SIDE_PANEL_BTN_COUNT As Long = 7
 Private Const SIDE_PANEL_MIN_GAP As Double = 3
 
 ' Set by a setup run and consumed by the message Refresh Locations shows, so a
@@ -79,6 +94,7 @@ Public Sub InitialiseWorkbook()
     EnsureVersionSettings
     EnsureSchemaSetting
     EnsureCatalogIdSettings
+    EnsureViewSettings
     EnsureStdSizesName
     RemoveLegacySuppliedRows
     NormaliseSuppliedFlags
@@ -305,6 +321,13 @@ Private Sub DrawLocationButtons(ByVal ws As Worksheet)
     DrawOne ws, TOOLBAR_ROW, 3, "Repeat Job", "btnRepeatJob", 110
     DrawOne ws, TOOLBAR_ROW, 5, "Now", "btnNow", 110
 
+    ' Column-view buttons (2026-10-01): "Show columns:" label and All/Reduced/
+    ' Minimal on row 2, from D. Positioned (and kept off hidden columns) by
+    ' RepositionViewButtons; drawn here at their nominal columns.
+    DrawOne ws, VIEW_ROW, VIEW_FIRST_COL + 1, "All", "btnViewAll", VIEW_BTN_W
+    DrawOne ws, VIEW_ROW, VIEW_FIRST_COL + 2, "Reduced", "btnViewReduced", VIEW_BTN_W
+    DrawOne ws, VIEW_ROW, VIEW_FIRST_COL + 3, "Minimal", "btnViewMinimal", VIEW_BTN_W
+
     Dim c As Long
     For c = 1 To 15
         With ws.Cells(TOOLBAR_ROW, c)
@@ -360,9 +383,9 @@ Private Sub DrawLocationButtons(ByVal ws As Worksheet)
         headerTop = ws.Cells(lo.Range.Row, 1).Top
         SidePanelButtonLayout headerTop, btnH, stepPx
         Dim capts() As Variant, macros() As Variant
-        capts = Array("Select printers...", "Check this sheet", ReducedViewCaption(), CostColumnsCaption(), "Remove Row", "Clear All", "Export...", "Import...")
-        macros = Array("btnSelectPrinters", "btnCheckSheet", "btnToggleReducedView", "btnToggleCostColumns", "btnRemoveRow", "btnClearAll", "btnExport", "btnImportLocation")
-        For i = 0 To 7
+        capts = Array("Select printers...", "Check this sheet", CostColumnsCaption(), "Remove Row", "Clear All", "Export...", "Import...")
+        macros = Array("btnSelectPrinters", "btnCheckSheet", "btnToggleCostColumns", "btnRemoveRow", "btnClearAll", "btnExport", "btnImportLocation")
+        For i = 0 To UBound(macros)
             DrawOneAtTop ws, SIDE_PANEL_COL, i * stepPx, CStr(capts(i)), CStr(macros(i)), 140, btnH
         Next i
     End If
@@ -1285,34 +1308,110 @@ End Sub
 ' constant (REDUCED_COLUMNS_DEFAULT, declared with this module's other
 ' constants at the top), so it can be edited without a rebuild if the
 ' shortlist changes later - the snag list's own "keep it flexible".
-Private Function ReducedViewOn() As Boolean
-    ReducedViewOn = (StrComp(SettingText("LOC_REDUCED_VIEW", "No"), "Yes", vbTextCompare) = 0)
+' View mode (2026-10-01, replaces the single Reduce clutter toggle): "All",
+' "Reduced" or "Minimal", held in SET_LOC_REDUCED_VIEW (a legacy "Yes" reads as
+' Reduced, anything else as All). Reduced hides SET_LOC_REDUCED_COLUMNS;
+' Minimal hides those AND SET_LOC_MINIMAL_COLUMNS, so it always includes the
+' Reduced list.
+Private Function ViewMode() As String
+    Select Case LCase$(SettingText("LOC_REDUCED_VIEW", "All"))
+        Case "reduced", "yes": ViewMode = "Reduced"
+        Case "minimal": ViewMode = "Minimal"
+        Case Else: ViewMode = "All"
+    End Select
 End Function
 
-Private Function ReducedViewCaption() As String
-    ReducedViewCaption = IIf(ReducedViewOn(), "Show all columns", "Reduce clutter")
+Private Function ReducedColumnsText() As String
+    ReducedColumnsText = SettingText("LOC_REDUCED_COLUMNS", REDUCED_COLUMNS_DEFAULT)
 End Function
 
-' Applies the CURRENT setting to one location sheet's table - called on
+Private Function MinimalExtraText() As String
+    MinimalExtraText = SettingText("LOC_MINIMAL_COLUMNS", MINIMAL_EXTRA_DEFAULT)
+End Function
+
+' Self-provisions the view settings. The two shipped in PrintCosts.xlsx
+' (LOC_REDUCED_VIEW, LOC_REDUCED_COLUMNS) are kept and re-labelled; the old
+' Yes/No value and the old seven-column default are migrated once.
+Public Sub EnsureViewSettings()
+    Dim c As Range
+
+    Set c = EnsureSetting("LOC_REDUCED_VIEW", "Location column view", "")
+    SetSettingText c, "Location column view", "Which columns location sheets show: All, Reduced or Minimal. Set by the Show columns buttons on each location sheet; applies to every location."
+    Select Case LCase$(Trim$(CStr(c.Value)))
+        Case "all", "reduced", "minimal"
+        Case "yes": SetSettingValue c, "Reduced"
+        Case Else: SetSettingValue c, "All"
+    End Select
+
+    Set c = EnsureSetting("LOC_REDUCED_COLUMNS", "Reduced view - hidden columns", "")
+    SetSettingText c, "Reduced view - hidden columns", "Semicolon-separated column headers hidden by the Reduced view. Edit to change what it hides - no rebuild needed. Minimal hides these as well."
+    If Len(Trim$(CStr(c.Value))) = 0 Or StrComp(Trim$(CStr(c.Value)), REDUCED_COLUMNS_LEGACY, vbTextCompare) = 0 Then
+        SetSettingValue c, REDUCED_COLUMNS_DEFAULT
+    End If
+
+    Set c = EnsureSetting("LOC_MINIMAL_COLUMNS", "Minimal view - extra hidden columns", "")
+    SetSettingText c, "Minimal view - extra hidden columns", "Semicolon-separated column headers the Minimal view hides IN ADDITION to the Reduced list above (Minimal always includes Reduced). Edit to change - no rebuild needed."
+    If Len(Trim$(CStr(c.Value))) = 0 Then SetSettingValue c, MINIMAL_EXTRA_DEFAULT
+End Sub
+
+' Label (column B) and notes (column D) of a settings row, from its Value cell.
+Private Sub SetSettingText(ByVal ValueCell As Range, ByVal Label As String, ByVal Notes As String)
+    UnlockSheet ValueCell.Parent
+    ValueCell.Offset(0, -1).Value = Label
+    ValueCell.Offset(0, 1).Value = Notes
+    RelockSheet ValueCell.Parent
+End Sub
+
+Private Sub SetSettingValue(ByVal ValueCell As Range, ByVal Value As String)
+    UnlockSheet ValueCell.Parent
+    ValueCell.Value = Value
+    RelockSheet ValueCell.Parent
+End Sub
+
+' Applies the CURRENT view mode to one location sheet's table - called on
 ' every InitialiseWorkbook/RefreshLocations run (so a freshly duplicated
 ' sheet, or one predating the feature, always ends up in sync) and again
-' from ToggleReducedView for every location sheet at once.
+' from SetViewMode for every location sheet at once. Only the columns either
+' view can hide are touched - never a blanket reset (see ApplyColumnVisibility).
 Public Sub ApplyReducedView(ByVal ws As Worksheet)
-    Dim lo As ListObject
+    Dim lo As ListObject, hideText As String, showText As String
     Set lo = JobsTable(ws)
     If lo Is Nothing Then Exit Sub
-    ApplyColumnVisibility lo, SplitList(SettingText("LOC_REDUCED_COLUMNS", REDUCED_COLUMNS_DEFAULT)), ReducedViewOn()
+
+    Select Case ViewMode()
+        Case "Reduced"
+            hideText = ReducedColumnsText()
+            showText = MinimalExtraText()
+        Case "Minimal"
+            hideText = ReducedColumnsText() & LIST_SEP & MinimalExtraText()
+        Case Else
+            showText = ReducedColumnsText() & LIST_SEP & MinimalExtraText()
+    End Select
+    ' Show first, hide second: a column named in both lists ends up hidden.
+    ApplyColumnVisibility lo, SplitList(showText), False
+    ApplyColumnVisibility lo, SplitList(hideText), True
     RelocateAtRiskButtons ws, lo
-    ' User-reported, 2026-09-26: hiding the shortlist (all of it left of
-    ' SIDE_PANEL_COL) shrinks the total width in front of the side panel, so
-    ' column 36's own pixel position shifts left - but with the side panel's
-    ' buttons now Placement:=xlFreeFloating (RepositionLocationButtons' own
-    ' comment), they no longer follow that shift and end up sitting further
-    ' right of column 36 than before, not on it. ToggleReducedView reaches
-    ' this Sub directly, without going through InitialiseWorkbook's separate
-    ' RepositionLocationButtons call, so the side panel needs re-settling
-    ' here too - on every call, not just from setup.
+    ' User-reported, 2026-09-26: hiding columns left of SIDE_PANEL_COL shifts
+    ' that column's pixel position left, but the side panel's buttons are
+    ' Placement:=xlFreeFloating and no longer follow, so they ended up sitting
+    ' right of column 36 rather than on it. SetViewMode reaches this Sub
+    ' directly, without InitialiseWorkbook's separate RepositionLocationButtons
+    ' call, so the side panel needs re-settling here too - on every call.
     RepositionSidePanelButtons ws
+End Sub
+
+' The three view buttons' target (modMain.btnViewAll/Reduced/Minimal). Stores
+' the mode once, then re-applies it to every location sheet in one pass so all
+' of them change together.
+Public Sub SetViewMode(ByVal Mode As String)
+    Dim ws As Worksheet
+    SetSetting "LOC_REDUCED_VIEW", Mode
+
+    AppOff
+    For Each ws In ThisWorkbook.Worksheets
+        If IsLocation(ws) Then ApplyReducedView ws
+    Next ws
+    AppOn
 End Sub
 
 ' --------------------------------------------------------- cost columns ---
@@ -1350,7 +1449,7 @@ End Sub
 
 ' modMain.btnToggleCostColumns' target. Flips the setting once, then
 ' re-applies it to every location sheet and relabels every toggle button in
-' one pass, same shape as ToggleReducedView.
+' one pass, same shape as SetViewMode.
 Public Sub ToggleCostColumns()
     Dim hideIt As Boolean, ws As Worksheet
     hideIt = Not CostColumnsHidden()
@@ -1381,7 +1480,7 @@ End Sub
 ' the handful of buttons DrawLocationButtons still anchors inside the job
 ' table's own column span (everything else lives in the side panel, immune
 ' by construction) need this. Called every time column visibility can have
-' changed - InitialiseWorkbook, RefreshLocations and ToggleReducedView all
+' changed - InitialiseWorkbook, RefreshLocations and SetViewMode all
 ' reach it via ApplyReducedView - so a button self-heals back onto a visible
 ' column whichever way the setting just moved, including back to its own
 ' preferred column once reduced view is switched off again.
@@ -1390,7 +1489,80 @@ Private Sub RelocateAtRiskButtons(ByVal ws As Worksheet, ByVal lo As ListObject)
     RelocateButton ws, lo, "btnRepeatJob", "Student No"
     RelocateButton ws, lo, "btnNow", "Printer"
     RelocateButton ws, lo, "btnClearDefaults", "Technician"
+    RepositionViewButtons ws, lo
 End Sub
+
+' Lays the "Show columns:" label and the All/Reduced/Minimal buttons out
+' left to right on row VIEW_ROW, starting at the first visible column from
+' VIEW_FIRST_COL. Each item takes the first usable (visible, not H_Issues or
+' a snapshot column) table column whose left edge clears the previous item,
+' so when a column under one is hidden it slides to the next visible one
+' instead of vanishing or piling onto its neighbour. The label is cell text,
+' so it is moved by rewriting the cell. The active mode's button is bold.
+Private Sub RepositionViewButtons(ByVal ws As Worksheet, ByVal lo As ListObject)
+    Dim macros As Variant, modes As Variant, i As Long, col As Long
+    Dim minLeft As Double, last As Long, b As Button, rowH As Double
+
+    last = lo.Range.Column + lo.ListColumns.Count - 1
+    If last >= SIDE_PANEL_COL Then last = SIDE_PANEL_COL - 1
+    rowH = ws.Cells(VIEW_ROW, 1).Height - 1
+    If rowH < 12 Then rowH = 12
+
+    col = NextViewColumn(ws, lo, last, -1)
+    If col = 0 Then Exit Sub
+    UnlockSheet ws
+    ws.Range(ws.Cells(VIEW_ROW, VIEW_FIRST_COL), ws.Cells(VIEW_ROW, SIDE_PANEL_COL - 1)).ClearContents
+    With ws.Cells(VIEW_ROW, col)
+        .Value = "Show columns:"
+        .Font.Bold = True
+        .HorizontalAlignment = xlLeft
+    End With
+    RelockSheet ws
+    minLeft = ws.Cells(1, col).Left + VIEW_LABEL_W + VIEW_BTN_GAP
+
+    macros = Array("btnViewAll", "btnViewReduced", "btnViewMinimal")
+    modes = Array("All", "Reduced", "Minimal")
+    For i = 0 To 2
+        Set b = FindButton(ws, BTN_TAG & CStr(macros(i)))
+        col = NextViewColumn(ws, lo, last, minLeft)
+        If Not b Is Nothing And col > 0 Then
+            b.Left = ws.Cells(1, col).Left
+            b.Top = ws.Cells(VIEW_ROW, 1).Top + 0.5
+            b.Width = VIEW_BTN_W
+            b.Height = rowH
+            b.Placement = xlFreeFloating
+            b.Characters.Font.Bold = (StrComp(CStr(modes(i)), ViewMode(), vbTextCompare) = 0)
+            minLeft = b.Left + VIEW_BTN_W + VIEW_BTN_GAP
+        End If
+    Next i
+End Sub
+
+' First table column from VIEW_FIRST_COL to ToCol that is safe to anchor on
+' (visible, not H_Issues or a snapshot column) and whose left edge is at or
+' past MinLeft. Returns 0 if there is none.
+Private Function NextViewColumn(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal ToCol As Long, ByVal MinLeft As Double) As Long
+    Dim c As Long
+    For c = VIEW_FIRST_COL To ToCol
+        If c >= lo.Range.Column Then
+            If IsSafeAnchorColumn(lo, c - lo.Range.Column + 1) Then
+                If ws.Cells(1, c).Left >= MinLeft - 0.5 Then
+                    NextViewColumn = c
+                    Exit Function
+                End If
+            End If
+        End If
+    Next c
+End Function
+
+Private Function FindButton(ByVal ws As Worksheet, ByVal Prefix As String) As Button
+    Dim i As Long
+    For i = 1 To ws.Buttons.Count
+        If Left$(ws.Buttons(i).Name, Len(Prefix)) = Prefix Then
+            Set FindButton = ws.Buttons(i)
+            Exit Function
+        End If
+    Next i
+End Function
 
 Private Sub RelocateButton(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal Macro As String, ByVal PreferredHeader As String)
     Dim b As Button, prefix As String, i As Long, col As Long
@@ -1439,7 +1611,7 @@ End Sub
 Private Sub RepositionSidePanelButtons(ByVal ws As Worksheet)
     Dim macros As Variant, i As Long, j As Long, b As Button, prefix As String
     Dim targetLeft As Double, lo As ListObject, btnH As Double, stepPx As Double
-    macros = Array("btnSelectPrinters", "btnCheckSheet", "btnToggleReducedView", "btnToggleCostColumns", "btnRemoveRow", "btnClearAll", "btnExport", "btnImportLocation")
+    macros = Array("btnSelectPrinters", "btnCheckSheet", "btnToggleCostColumns", "btnRemoveRow", "btnClearAll", "btnExport", "btnImportLocation")
     targetLeft = ws.Cells(1, SIDE_PANEL_COL).Left
 
     ' Must use the SAME height DrawLocationButtons drew these at (2026-09-27)
@@ -1461,6 +1633,9 @@ Private Sub RepositionSidePanelButtons(ByVal ws As Worksheet)
         Next j
         If Not b Is Nothing Then
             b.Left = targetLeft
+            ' Top too: with the reduced-view toggle gone (2026-10-01) the stack
+            ' closes up, and a sheet drawn before that must close up with it.
+            b.Top = i * stepPx
             b.Width = 140
             b.Height = btnH
             b.Placement = xlFreeFloating
@@ -1582,35 +1757,6 @@ Public Sub ApplyColumnVisibility(ByVal lo As ListObject, ByVal Headers As Varian
         If col > 0 Then lo.ListColumns(col).Range.EntireColumn.Hidden = Hide
     Next i
     RelockSheet ws
-End Sub
-
-' modMain.btnToggleReducedView's target. Flips the setting once, then
-' re-applies it to every location sheet and relabels every toggle button in
-' one pass, so all of them change state together rather than one at a time.
-Public Sub ToggleReducedView()
-    Dim reduceIt As Boolean, ws As Worksheet
-    reduceIt = Not ReducedViewOn()
-    SetSetting "LOC_REDUCED_VIEW", IIf(reduceIt, "Yes", "No")
-
-    AppOff
-    For Each ws In ThisWorkbook.Worksheets
-        If IsLocation(ws) Then
-            ApplyReducedView ws
-            RelabelReducedViewButton ws
-        End If
-    Next ws
-    AppOn
-End Sub
-
-Private Sub RelabelReducedViewButton(ByVal ws As Worksheet)
-    Dim i As Long, prefix As String
-    prefix = BTN_TAG & "btnToggleReducedView"
-    For i = 1 To ws.Buttons.Count
-        If Left$(ws.Buttons(i).Name, Len(prefix)) = prefix Then
-            ws.Buttons(i).Caption = ReducedViewCaption()
-            Exit For
-        End If
-    Next i
 End Sub
 
 ' ------------------------------------------------------- status colour ---

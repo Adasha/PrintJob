@@ -59,7 +59,7 @@ try {
 
     $main.Activate()
     $techCol = $lo.Range.Column + (Col $lo 'Technician') - 1
-    $sidePanel = 'pcb_btnSelectPrinters', 'pcb_btnCheckSheet', 'pcb_btnToggleReducedView', 'pcb_btnRemoveRow', 'pcb_btnClearAll', 'pcb_btnExport', 'pcb_btnImportLocation'
+    $sidePanel = 'pcb_btnSelectPrinters', 'pcb_btnCheckSheet', 'pcb_btnRemoveRow', 'pcb_btnClearAll', 'pcb_btnExport', 'pcb_btnImportLocation'
 
     Write-Host '=== Baseline ==='
     Check ((ButtonColumnVisible $main 'pcb_btnClearDefaults') -eq $techCol) "btnClearDefaults starts on Technician (col $techCol)"
