@@ -3,6 +3,24 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.10.16 - Settings page: buttons moved above the tables and grouped.
+  - Direct user request. The ten action buttons sat below tblSettings, three
+    columns apart in two rows, so they spread across the sheet and fell off
+    screen on a long table. They now sit in a three-row band between the
+    description and the tables: Print rooms (Add, Remove, Refresh Locations),
+    Data (Export All, Import, Backup, Restore) and Workbook (Check workbook,
+    Re-stamp prices, About), each row labelled in column A, buttons 130pt
+    wide with a 4pt gap.
+  - modInit.EnsureSettingsButtonBand (new) inserts the three rows once,
+    detected from tblSettings' header row, clears the old below-the-table
+    area and the stale "Commands" note at P2:P3, and writes the labels.
+    modInit.DrawBandButton (new) places each button by slot. TablesBottom is
+    deleted (its only caller is gone). The +/- table buttons now follow the
+    tables' header row instead of a fixed row 3.
+  - test-settingslayout.ps1 (new): one of each button, in the right group
+    row, above the table titles, clustered, inside columns A:D; idempotent
+    across a second setup run.
+
 0.10.15 - Job-table validation: stale rules below the table cleared, and a
 guard against column moves resurfacing the 0.9.15 corruption.
   - Found while closing out the "ReorderJobColumns corrupts validation" tech-
