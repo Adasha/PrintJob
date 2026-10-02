@@ -6,7 +6,7 @@
 #
 #   1. Reports: hidden Job ID column; Summary key (Location x Printer x Paper
 #      Stock); AT-10 / AT-12 criteria cases; Technician/Printer/Paper
-#      Stock/Quantity filters; dropdown and date validation; buttons within the
+#      Stock filters; dropdown and date validation; buttons within the
 #      first screenful; sort-by-column; breakdowns.
 #   2. Export names toggle (live view always shows names), the Reports
 #      minimum-columns view, and the Paid column.
@@ -151,9 +151,9 @@ try {
     $c.Range('B7:B8').ClearContents() | Out-Null
 
     Write-Host ''
-    Write-Host '=== Reports: new filters (Technician / Printer / Paper Stock / Quantity) ==='
+    Write-Host '=== Reports: new filters (Technician / Printer / Paper Stock) ==='
     Write-Host '  (F5/F6/F7 are now dropdowns - Technician exact-matches recorded jobs, Printer/Paper stock list the whole active catalogue)'
-    Write-Host '  (2026-09-27: Technician/Printer/Paper Stock/Quantity shifted down one row, F4:F7 -> F5:F8, to make room for Location at F4)'
+    Write-Host '  (2026-09-27: Technician/Printer/Paper Stock shifted down one row, F4:F6 -> F5:F7, to make room for Location at F4)'
     $c.Range('F5').Value2 = 'J. Okonkwo'
     $xl.CalculateFullRebuild()
     Write-Host ("  Technician = 'J. Okonkwo': jobs={0}" -f $c.Range('B13').Text)
@@ -166,11 +166,6 @@ try {
     Check (-not ([int]$c.Range('B13').Text -eq 0)) 'expected at least one match on Printer filter'
     $c.Range('F6').ClearContents() | Out-Null
 
-    $c.Range('F8').Value2 = 12
-    $xl.CalculateFullRebuild()
-    Write-Host ("  Quantity = 12: jobs={0}" -f $c.Range('B13').Text)
-    Check (-not ([int]$c.Range('B13').Text -eq 0)) 'expected at least one match on Quantity filter'
-    $c.Range('F8').ClearContents() | Out-Null
     $xl.CalculateFullRebuild()
 
     Write-Host ''
@@ -361,7 +356,7 @@ try {
 
     Write-Host '=== Filtered to one printer: Printer promotes ==='
     # F6, not F5 (2026-09-27: Location took F4, Technician/Printer/Paper
-    # Stock/Quantity shifted down one row).
+    # Stock shifted down one row).
     $rep.Range('F6').Value2 = 'Epson SureColor P9500'
     $xl.CalculateFullRebuild()
     $rep.Activate()

@@ -256,17 +256,13 @@ Private Function Criteria() As String
     s = s & "*IF($F$6="""",TRUE," & C("Printer") & "=$F$6)"
     s = s & "*IF($F$7="""",TRUE," & C("Paper Stock") & "=$F$7)"
 
-    ' Quantity: exact match, blank ignored, *1-coerced the same way the date
-    ' boxes are so a value left as text by an unformatted cell is treated as
-    ' no filter rather than as a quantity of zero.
-    s = s & "*IF($F$8="""",TRUE,IF(ISERROR($F$8*1),TRUE," & _
-        "IFERROR(" & C("Qty") & "*1,0)=$F$8*1))"
+    ' (A Quantity filter at $F$8 was removed 2026-10-02, direct user request.)
 
     ' Location (print room), added 2026-09-25 - a dropdown of registered print
     ' rooms (RefreshReportFilterLists, AllLocationCodes), same exact-match
     ' treatment as Technician/Printer/Paper Stock above. Moved from $O$4 to
     ' $F$4 (2026-09-27, see its CritCell call site) once Technician/Printer/
-    ' Paper Stock/Quantity shifted down a row and freed it.
+    ' Paper Stock shifted down a row and freed it.
     s = s & "*IF($F$4="""",TRUE," & C("Location") & "=$F$4)"
 
     Criteria = s
@@ -367,28 +363,27 @@ Public Sub BuildReports()
     ' gap between groups is gone, but a readable label beats a tidy gap to a
     ' label nobody could see.
     '
-    ' Technician/Printer/Paper stock/Quantity moved down one row, D5:D8/F5:F8
+    ' Technician/Printer/Paper stock moved down one row, D5:D7/F5:F7
     ' (2026-09-27, direct user request), freeing D4/F4 for the Location
     ' (print room) filter immediately below - see that CritCell call for why
     ' it moved out of N4/O4.
     CritCell ws, "D5", "F5", "Technician"
     CritCell ws, "D6", "F6", "Printer"
     CritCell ws, "D7", "F7", "Paper stock"
-    CritCell ws, "D8", "F8", "Quantity"
 
     ' Location (print room) filter. Originally parked at N4/O4 (2026-09-25) to
     ' dodge E/G/H/I:M, the columns ApplyReportsMinimumColumns hides entirely
     ' by results-header name (the same trap O10's own 2026-09-22 comment
     ' names) - a label or input parked there can render hidden or orphaned
     ' under the default view. Moved to D4/F4 (2026-09-27, direct user
-    ' request) - the row the Technician/Printer/Paper Stock/Quantity group
+    ' request) - the row the Technician/Printer/Paper Stock group
     ' vacated by shifting down one row (above) - rather than staying at N4/O4,
     ' so the whole filter block reads top-to-bottom as one contiguous group:
-    ' Location, Technician, Printer, Paper stock, Quantity.
+    ' Location, Technician, Printer, Paper stock.
     CritCell ws, "D4", "F4", "Location (print room)"
 
     ' Sort by/direction sit below the filters, above the totals row (snag list
-    ' item 3) rather than beside the Technician/Printer/Paper/Quantity group -
+    ' item 3) rather than beside the Technician/Printer/Paper group -
     ' row 9 is the "name and number don't match" warning below, so this is the
     ' one free row between the filters and Matching.
     CritCell ws, "A10", "B10", "Sort by"
@@ -1021,12 +1016,12 @@ End Sub
 ' it actually narrows the results. The free-text and dropdown boxes count when
 ' they hold something other than spaces (Criteria itself would treat a lone
 ' space as a real search term - refusing is the safe direction). From date,
-' To date and Quantity are coerced with *1 in Criteria and IGNORED when that
+' To date are coerced with *1 in Criteria and IGNORED when that
 ' fails, so text that will not coerce does not count here either. Sort by,
 ' Sort direction and Export names are not filters and are not looked at.
 '
 ' Cell addresses match Criteria: B4 name, B5 number, B7/B8 dates, F4 room,
-' F5 technician, F6 printer, F7 paper stock, F8 quantity. If a filter box
+' F5 technician, F6 printer, F7 paper stock. If a filter box
 ' moves, change it here AND there.
 Public Function HasActiveFilter(ByVal ws As Worksheet) As Boolean
     Dim a As Variant
@@ -1036,7 +1031,7 @@ Public Function HasActiveFilter(ByVal ws As Worksheet) As Boolean
             Exit Function
         End If
     Next a
-    For Each a In Array("B7", "B8", "F8")
+    For Each a In Array("B7", "B8")
         If FilterBoxHasText(ws.Range(CStr(a))) Then
             If Not CBool(ws.Evaluate("ISERROR(" & CStr(a) & "*1)")) Then
                 HasActiveFilter = True
@@ -1066,7 +1061,7 @@ Public Function RequireActiveFilter(ByVal ws As Worksheet, ByVal Action As Strin
     Say "Set at least one filter before you " & Action & ".", _
         "With no filter set, every record in the workbook is shown, so this would change all of them. " & _
         "As a safeguard it only runs while at least one filter is filled in: student or department, dates, " & _
-        "print room, technician, printer, paper stock or quantity.", _
+        "print room, technician, printer, printer or paper stock.", _
         "Fill in a filter, check that the records shown are the ones you mean, then try again."
 End Function
 
@@ -1558,7 +1553,7 @@ Public Sub RefreshReportFilterLists(ByVal ws As Worksheet)
     ApplyTo ws, ws.Range("B5"), DistinctValues("Student No"), "REP|StudentNo", _
         "Student/Department number", "Pick a recorded number, or type one that hasn't been logged yet.", Strict:=False
 
-    ' Rows shifted down one, F5:F8 (2026-09-27) - see BuildReports' CritCell
+    ' Rows shifted down one, F5:F7 (2026-09-27) - see BuildReports' CritCell
     ' call sites for why.
     ApplyTo ws, ws.Range("F5"), DistinctValues("Technician"), "REP|Technician", _
         "Technician", "Choose a technician, or leave blank to include all."

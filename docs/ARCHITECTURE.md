@@ -523,10 +523,9 @@ A live `FILTER`+`SORTBY` driven by criteria cells; results update as criteria ar
 | F5 | Technician | Dropdown, exact match |
 | F6 | Printer | Dropdown, exact match |
 | F7 | Paper Stock | Dropdown, exact match |
-| F8 | Quantity | Dropdown, exact match |
 | O10 | **Export names** (label at N10) | **Yes/No, defaults to No — governs the exported report only; the live results always show names. Snag 2a, see below** |
 
-**Filter block reordered (2026-09-27, direct user request).** Technician/Printer/Paper Stock/Quantity moved down one row each (`D4:D7`/`F4:F7` → `D5:D8`/`F5:F8`), and Location (print room) moved into the row they vacated (`D4`/`F4`) — previously at `N4`/`O4`, parked there only to dodge the columns `ApplyReportsMinimumColumns` hides by default (below). The whole block now reads top-to-bottom as one group: Location, Technician, Printer, Paper stock, Quantity.
+**Filter block reordered (2026-09-27, direct user request).** Technician/Printer/Paper Stock moved down one row each (`D4:D6`/`F4:F6` → `D5:D7`/`F5:F7`), and Location (print room) moved into the row they vacated (`D4`/`F4`) — previously at `N4`/`O4`, parked there only to dodge the columns `ApplyReportsMinimumColumns` hides by default (below). The whole block now reads top-to-bottom as one group: Location, Technician, Printer, Paper stock. (A Quantity filter that followed Paper stock at `D8`/`F8` was removed 2026-10-02, direct user request.)
 
 Layout convention (snag item 2, resolved): **label → input → hint → gap**, input immediately to the right of its label, with an unused trailing column separating the two filter groups — replacing the earlier NAME | gap | INPUT | hint arrangement.
 
@@ -560,7 +559,7 @@ They cannot use `SUMIFS` for the breakdowns below — its arguments must be rang
 
 **This is the whole of AT-10 for v1.** A student's total across every print *room* in this workbook is in scope and served here; only the cross-*workbook* case is deferred (D17, §12).
 
-**Verified** by `test-reports.ps1`: all criteria combinations including Technician/Printer/Paper Stock/Quantity and sort-by-any-column, single-day ranges including times, partial and case-insensitive names, the disjoint-criteria warning, and a date left as text. Breakdowns reconcile exactly to the Summary totals.
+**Verified** by `test-reports.ps1`: all criteria combinations including Technician/Printer/Paper Stock and sort-by-any-column, single-day ranges including times, partial and case-insensitive names, the disjoint-criteria warning, and a date left as text. Breakdowns reconcile exactly to the Summary totals.
 
 ### 8.4 Reports filter dropdowns
 
@@ -876,7 +875,7 @@ Buttons: `btnClearTechnicians` / `btnClearPrinters` / `btnClearPapers` (`modMain
 
 **The write** (`MarkVisibleReportsConfirmed`, Public so tests can bypass `Ask()`): Job IDs and locations are copied into memory first (writing `Paid` recalculates the live spill); each room's `Job ID` column is read **once** into a Job ID → row map, rather than rescanning the table per record as `FindReportRow` does; each affected room sheet is unlocked once up front and relocked together at the end and in the error path. Logged to `tblAudit` as `Mark visible Paid (Reports)` / `Mark visible Unpaid (Reports)`.
 
-**Filter safeguard — shared with Delete visible records (§10.6).** `modReports.HasActiveFilter` / `RequireActiveFilter`: both bulk commands refuse to run unless at least one filter is set, so neither can be pointed at the whole job list by a stray click. It **mirrors `Criteria()`** rather than testing "is a box non-empty": a box counts only if it actually narrows the results. The free-text and dropdown boxes (name, number, room, technician, printer, paper stock) count unless empty or spaces-only; From date, To date and Quantity count only if `*1` coercion succeeds (`Criteria` ignores them otherwise). Sort by, Sort direction and Export names are not filters. The check runs first in the interactive entry point — before any prompt or count — and again inside each `…Confirmed` routine, which is the code that actually writes. **If a filter box moves, `HasActiveFilter`'s address list must change with `Criteria()`** (comment in both).
+**Filter safeguard — shared with Delete visible records (§10.6).** `modReports.HasActiveFilter` / `RequireActiveFilter`: both bulk commands refuse to run unless at least one filter is set, so neither can be pointed at the whole job list by a stray click. It **mirrors `Criteria()`** rather than testing "is a box non-empty": a box counts only if it actually narrows the results. The free-text and dropdown boxes (name, number, room, technician, printer, paper stock) count unless empty or spaces-only; From date and To date count only if `*1` coercion succeeds (`Criteria` ignores them otherwise). Sort by, Sort direction and Export names are not filters. The check runs first in the interactive entry point — before any prompt or count — and again inside each `…Confirmed` routine, which is the code that actually writes. **If a filter box moves, `HasActiveFilter`'s address list must change with `Criteria()`** (comment in both).
 
 **Why column O.** Tried at V first: `test-reports.ps1` requires every Reports button within the first screenful (Left ≤ 900pt) and V sits at ~1020pt. A2's instruction text runs to ~689pt, so N or earlier would overlap its tail; O (~720pt) is clear of it, and is the always-visible `Paid` column of the results table, so a hidden column can never swallow the cluster.
 

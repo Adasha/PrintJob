@@ -71,9 +71,9 @@ try {
         }
         return @{ Rng = $rng; LocCol = $locCol; JobCol = $jobCol; N = $rng.Rows.Count; VKeys = $keys }
     }
-    $filterCells = @('B4','B5','B7','B8','F4','F5','F6','F7','F8','B10','F10','O10')
+    $filterCells = @('B4','B5','B7','B8','F4','F5','F6','F7','B10','F10','O10')
     function FilterState { ($filterCells | ForEach-Object { '{0}={1}' -f $_, [string]$rep.Range($_).Value2 }) -join ';' }
-    function ClearFilters { foreach ($a in @('B4','B5','B7','B8','F4','F5','F6','F7','F8')) { $rep.Range($a).ClearContents() | Out-Null }; $xl.CalculateFullRebuild() }
+    function ClearFilters { foreach ($a in @('B4','B5','B7','B8','F4','F5','F6','F7')) { $rep.Range($a).ClearContents() | Out-Null }; $xl.CalculateFullRebuild() }
 
     # ------------------------------------------------------------ the cluster
     Write-Host '=== The cluster on the Reports header ==='
@@ -109,9 +109,6 @@ try {
     $rep.Range('B7').Value2 = 'not a date'
     Check (-not [bool]$xl.Run('HasActiveFilter', $rep)) 'From date text that will not coerce (ignored by Criteria) -> false'
     $rep.Range('B7').ClearContents() | Out-Null
-    $rep.Range('F8').Value2 = 'lots'
-    Check (-not [bool]$xl.Run('HasActiveFilter', $rep)) 'Quantity text that will not coerce -> false'
-    $rep.Range('F8').ClearContents() | Out-Null
     $rep.Range('B10').Value2 = 'Qty'
     Check (-not [bool]$xl.Run('HasActiveFilter', $rep)) 'Sort by set, no filter -> false (sort is not a filter)'
     $rep.Range('B10').ClearContents() | Out-Null

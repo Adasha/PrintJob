@@ -3,6 +3,11 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.10.20 - Reports sheet enhancements (in progress, one step at a time).
+  - Quantity filter removed from the Reports filter block (was D8/F8). The
+    other filters keep their cells for now; the block is rearranged in a later
+    step of the same series.
+
 0.10.19 - Export/backup from a OneDrive folder on Mac.
   - Excel for Mac reports a OneDrive-synced workbook's path as a URL, and the
     scan for the local folder used the sandbox HOME (the Excel container), so it
