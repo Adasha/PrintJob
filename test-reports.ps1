@@ -6,7 +6,7 @@
 #
 #   1. Reports: hidden Job ID column; Summary key (Location x Printer x Paper
 #      Stock); AT-10 / AT-12 criteria cases; Technician/Printer/Paper
-#      Stock/Quantity filters; dropdown and date validation; buttons within the
+#      Stock filters; dropdown and date validation; buttons within the
 #      first screenful; sort-by-column; breakdowns.
 #   2. Export names toggle (live view always shows names), the Reports
 #      minimum-columns view, and the Paid column.
@@ -53,16 +53,16 @@ try {
     $rep = $c
 
     # Reports' results columns move whenever one is added - found by header
-    # (row 15) rather than hardcoded.
+    # (row 17) rather than hardcoded.
     function ReportsCol($header) {
         for ($col = 1; $col -le 30; $col++) {
-            if ([string]$c.Cells(15, $col).Text -eq $header) { return $col }
+            if ([string]$c.Cells(17, $col).Text -eq $header) { return $col }
         }
         return 0
     }
     Write-Host '=== Reports: hidden Job ID correlation column ==='
     $jobIdCol = ReportsCol 'Job ID'
-    Check (-not ($jobIdCol -eq 0)) 'no Job ID header found on row 15'
+    Check (-not ($jobIdCol -eq 0)) 'no Job ID header found on row 17'
     # [char] on its own is a .NET Char, and Excel's COM Columns(...) indexer
     # silently takes THAT as a numeric column index (its ordinal value, e.g.
     # 82 for 'R') rather than the single-letter column reference it looks
@@ -71,7 +71,7 @@ try {
     # side by side: same column, different (wrong) answer without this cast.
     $jobIdColLetter = ([char](64 + $jobIdCol)).ToString()
     Check (-not (-not $c.Columns($jobIdColLetter).Hidden)) "column $jobIdColLetter (Job ID) should be hidden"
-    $sp = $c.Range('A16').SpillingToRange
+    $sp = $c.Range('A18').SpillingToRange
     Write-Host ("  results spill: {0} rows x {1} cols" -f $sp.Rows.Count, $sp.Columns.Count)
     $jobIdSample = [string]$sp.Cells(1, $jobIdCol).Value2
     Write-Host ("  {0}16 (Job ID) sample value: '{1}'" -f $jobIdColLetter, $jobIdSample)
@@ -115,14 +115,14 @@ try {
         Set-Crit $c.Range('B7') $from
         Set-Crit $c.Range('B8') $to
         $xl.CalculateFullRebuild()
-        $jobs = $c.Range('B13').Text
+        $jobs = $c.Range('B15').Text
         # "Matching" totals moved from a label-left-of-value row (B/D/F/H/J/L)
-        # to a label-above-value layout (row 12/13, same column) on
+        # to a label-above-value layout (row 14/15, same column) on
         # 2026-09-22 - the six metrics only ever sit on columns the
         # minimum-columns view (snag 2d) never hides, so Chargeable is F13
         # now, not H13.
-        $charge = $c.Range('F13').Text
-        $warn = [string]$c.Range('A9').Text
+        $charge = $c.Range('F15').Text
+        $warn = [string]$c.Range('A11').Text
         $line = "  {0,-34} jobs={1,-4} chargeable={2,-10}" -f $label, $jobs, $charge
         if ($warn -ne '') { $line += " WARN: $warn" }
         Write-Host $line
@@ -151,31 +151,56 @@ try {
     $c.Range('B7:B8').ClearContents() | Out-Null
 
     Write-Host ''
-    Write-Host '=== Reports: new filters (Technician / Printer / Paper Stock / Quantity) ==='
+    Write-Host '=== Reports: new filters (Technician / Printer / Paper Stock) ==='
     Write-Host '  (F5/F6/F7 are now dropdowns - Technician exact-matches recorded jobs, Printer/Paper stock list the whole active catalogue)'
-    Write-Host '  (2026-09-27: Technician/Printer/Paper Stock/Quantity shifted down one row, F4:F7 -> F5:F8, to make room for Location at F4)'
+    Write-Host '  (2026-09-27: Technician/Printer/Paper Stock shifted down one row, F4:F6 -> F5:F7, to make room for Location at F4)'
     $c.Range('F5').Value2 = 'J. Okonkwo'
     $xl.CalculateFullRebuild()
-    Write-Host ("  Technician = 'J. Okonkwo': jobs={0}" -f $c.Range('B13').Text)
-    Check (-not ([int]$c.Range('B13').Text -eq 0)) 'expected at least one match on Technician filter'
+    Write-Host ("  Technician = 'J. Okonkwo': jobs={0}" -f $c.Range('B15').Text)
+    Check (-not ([int]$c.Range('B15').Text -eq 0)) 'expected at least one match on Technician filter'
     $c.Range('F5').ClearContents() | Out-Null
 
-    $c.Range('F6').Value2 = 'Epson SureColor P9500'
+    $c.Range('F7').Value2 = 'Epson SureColor P9500'
     $xl.CalculateFullRebuild()
-    Write-Host ("  Printer = 'Epson SureColor P9500': jobs={0}" -f $c.Range('B13').Text)
-    Check (-not ([int]$c.Range('B13').Text -eq 0)) 'expected at least one match on Printer filter'
-    $c.Range('F6').ClearContents() | Out-Null
+    Write-Host ("  Printer = 'Epson SureColor P9500': jobs={0}" -f $c.Range('B15').Text)
+    Check (-not ([int]$c.Range('B15').Text -eq 0)) 'expected at least one match on Printer filter'
+    $c.Range('F7').ClearContents() | Out-Null
 
-    $c.Range('F8').Value2 = 12
+    Write-Host ''
+    Write-Host '=== Reports: filter block layout (2026-10-02) ==='
+    $expect = [ordered]@{
+        A4 = 'Student/dept. name'; A5 = 'Student number'; A7 = 'From date'; A8 = 'To date'; A10 = 'Paid'
+        D4 = 'Location (print room)'; D5 = 'Technician'; D7 = 'Printer'; D8 = 'Paper stock'; D9 = 'Paper type'
+        A12 = 'Sort by'; D12 = 'Sort direction'
+    }
+    foreach ($k in $expect.Keys) {
+        Check ([string]$c.Range($k).Text -eq $expect[$k]) "$k reads '$($expect[$k])' (got '$($c.Range($k).Text)')"
+    }
+    foreach ($k in 'A6', 'D6', 'A9', 'B9', 'A11') {
+        Check ([string]$c.Range($k).Text -eq '') "$k is a blank gap row (got '$($c.Range($k).Text)')"
+    }
+
+    Write-Host ''
+    Write-Host '=== Reports: Paid and Paper type filters ==='
     $xl.CalculateFullRebuild()
-    Write-Host ("  Quantity = 12: jobs={0}" -f $c.Range('B13').Text)
-    Check (-not ([int]$c.Range('B13').Text -eq 0)) 'expected at least one match on Quantity filter'
-    $c.Range('F8').ClearContents() | Out-Null
+    $all = [int]$c.Range('B15').Text
+    $c.Range('B10').Value2 = 'Yes'; $xl.CalculateFullRebuild(); $yes = [int]$c.Range('B15').Text
+    $c.Range('B10').Value2 = 'No';  $xl.CalculateFullRebuild(); $no = [int]$c.Range('B15').Text
+    $c.Range('B10').ClearContents() | Out-Null
+    Write-Host ("  all={0} paid=Yes: {1}  paid=No: {2}" -f $all, $yes, $no)
+    Check (($yes + $no) -eq $all) 'Paid Yes + No should account for every job (blank counts as No)'
+    $c.Range('F9').Value2 = 'Roll';  $xl.CalculateFullRebuild(); $roll = [int]$c.Range('B15').Text
+    $c.Range('F9').Value2 = 'Sheet'; $xl.CalculateFullRebuild(); $sheet = [int]$c.Range('B15').Text
+    $c.Range('F9').ClearContents() | Out-Null
+    Write-Host ("  paper type Roll: {0}  Sheet: {1}" -f $roll, $sheet)
+    Check (($roll + $sheet) -eq $all) 'Roll + Sheet should account for every job'
+    Check ($roll -gt 0 -and $sheet -gt 0) 'fixture should contain both roll and sheet jobs'
+
     $xl.CalculateFullRebuild()
 
     Write-Host ''
     Write-Host '=== Reports: dropdown/date-picker UI controls ==='
-    foreach ($addr in 'F5', 'F6', 'F7', 'B10', 'F10') {
+    foreach ($addr in 'F5', 'F7', 'F8', 'B12', 'F12', 'B10', 'F9') {
         $t = $c.Range($addr).Validation.Type
         Write-Host ("  {0} validation type: {1} (3 = list/dropdown)" -f $addr, $t)
         Check (-not ($t -ne 3)) "$addr should be a list dropdown"
@@ -185,7 +210,7 @@ try {
         Write-Host ("  {0} validation type: {1} (4 = date; the native calendar picker is web-only and does not appear on desktop Excel)" -f $addr, $t)
         Check (-not ($t -ne 4)) "$addr should be Date-type validation"
     }
-    Write-Host '  OK: Technician/Printer/Paper Stock/Sort by/Sort direction are dropdowns; From/To date use Date validation'
+    Write-Host '  OK: Technician/Printer/Paper Stock/Paper type/Paid/Sort by/Sort direction are dropdowns; From/To date use Date validation'
 
     Write-Host ''
     Write-Host '=== Reports: buttons within the first screenful ==='
@@ -196,10 +221,10 @@ try {
 
     Write-Host ''
     Write-Host '=== Reports: sort by column ==='
-    $c.Range('B10').Value2 = 'Qty'
-    $c.Range('F10').Value2 = 'Descending'
+    $c.Range('B12').Value2 = 'Qty'
+    $c.Range('F12').Value2 = 'Descending'
     $xl.CalculateFullRebuild()
-    $sp = $c.Range('A16').SpillingToRange
+    $sp = $c.Range('A18').SpillingToRange
     $qtyCol = ReportsCol 'Qty'
     $qtys = @()
     for ($r = 1; $r -le $sp.Rows.Count; $r++) { $qtys += [double]$sp.Cells($r, $qtyCol).Value2 }
@@ -209,8 +234,8 @@ try {
     for ($i = 0; $i -lt $qtys.Count; $i++) { if ($qtys[$i] -ne $sortedDesc[$i]) { $matches = $false } }
     Check (-not (-not $matches)) 'results were not sorted by Qty Descending'
     Write-Host '  OK: SORTBY reordered the results as requested'
-    $c.Range('B10').ClearContents() | Out-Null
-    $c.Range('F10').ClearContents() | Out-Null
+    $c.Range('B12').ClearContents() | Out-Null
+    $c.Range('F12').ClearContents() | Out-Null
     $xl.CalculateFullRebuild()
 
     Write-Host ''
@@ -218,7 +243,7 @@ try {
     # Shifted from Q16/U16 to T16/X16 on 2026-09-22 - the results table grew
     # by 3 columns (Student Name/No, Paid), which pushed the old Q15 start
     # into the table itself.
-    foreach ($addr in 'T16', 'X16') {
+    foreach ($addr in 'T18', 'X18') {
         Write-Host ("  {0}:" -f $addr)
         try {
             $sp = $c.Range($addr).SpillingToRange
@@ -233,14 +258,14 @@ try {
     # ============================================== Export names / min columns
     # -------------------------------------------------- 2a: default state
     Write-Host '=== Export names toggle: defaults to No (data protection), live view unaffected ==='
-    Check ([string]$c.Range('N10').Text -eq 'Export names') "N10 label reads 'Export names' (got '$($c.Range('N10').Text)')"
-    Check ([string]$c.Range('O10').Text -eq 'No') "O10 defaults to No (got '$($c.Range('O10').Text)')"
+    Check ([string]$c.Range('N12').Text -eq 'Export names') "N12 label reads 'Export names' (got '$($c.Range('N12').Text)')"
+    Check ([string]$c.Range('O12').Text -eq 'No') "O12 defaults to No (got '$($c.Range('O12').Text)')"
     $xl.CalculateFullRebuild()
     $nameCol = ReportsCol 'Student name'
     $noCol = ReportsCol 'Student no'
     Check ($nameCol -gt 0) "Student name column exists in the results table (col $nameCol)"
     Check ($noCol -gt 0) "Student no column exists in the results table (col $noCol)"
-    $sp = $c.Range('A16').SpillingToRange
+    $sp = $c.Range('A18').SpillingToRange
     $anyNameNo = $false
     for ($r = 1; $r -le $sp.Rows.Count; $r++) {
         if ([string]$sp.Cells($r, $nameCol).Value2 -ne '') { $anyNameNo = $true }
@@ -250,9 +275,9 @@ try {
     # ------------------------------------------------------- 2a: toggled on
     Write-Host ''
     Write-Host '=== Export names = Yes: live view still shows them ==='
-    $c.Range('O10').Value2 = 'Yes'
+    $c.Range('O12').Value2 = 'Yes'
     $xl.CalculateFullRebuild()
-    $sp = $c.Range('A16').SpillingToRange
+    $sp = $c.Range('A18').SpillingToRange
     $anyName = $false
     for ($r = 1; $r -le $sp.Rows.Count; $r++) {
         if ([string]$sp.Cells($r, $nameCol).Value2 -ne '') { $anyName = $true }
@@ -261,7 +286,7 @@ try {
     $sampleName = [string]$sp.Cells(1, $nameCol).Value2
     Write-Host "  sample: '$sampleName'"
 
-    $c.Range('O10').Value2 = 'No'
+    $c.Range('O12').Value2 = 'No'
     $xl.CalculateFullRebuild()
 
     # ------------------------------------------------------------- 2d
@@ -285,7 +310,7 @@ try {
     Write-Host '=== Paid appears in the results table ==='
     $paidCol = ReportsCol 'Paid'
     Check ($paidCol -gt 0) "Paid column exists in the results table (col $paidCol)"
-    $sp = $c.Range('A16').SpillingToRange
+    $sp = $c.Range('A18').SpillingToRange
     $sample = [string]$sp.Cells(1, $paidCol).Value2
     Write-Host "  row 1 Paid = '$sample'"
     # This sample workbook's rows predate the Paid column (blank = unpaid,
@@ -361,8 +386,8 @@ try {
 
     Write-Host '=== Filtered to one printer: Printer promotes ==='
     # F6, not F5 (2026-09-27: Location took F4, Technician/Printer/Paper
-    # Stock/Quantity shifted down one row).
-    $rep.Range('F6').Value2 = 'Epson SureColor P9500'
+    # Stock shifted down one row).
+    $rep.Range('F7').Value2 = 'Epson SureColor P9500'
     $xl.CalculateFullRebuild()
     $rep.Activate()
     $xl.Run('btnExportReport')
@@ -451,7 +476,7 @@ try {
     # not a product bug - Export report is never run twice a second in
     # practice).
     Remove-Item $xlsx1.FullName -Force -ErrorAction SilentlyContinue
-    $rep.Range('F6').Value2 = ''
+    $rep.Range('F7').Value2 = ''
     $xl.CalculateFullRebuild()
     $rep.Activate()
     $xl.Run('btnExportReport')
@@ -498,7 +523,7 @@ try {
         # Export names (Reports!O10, 2026-09-29): defaults to No, so the
         # exported Student name/no VALUES are blank even though the live
         # results show them (test-reports2.ps1 covers the live side).
-        Check ([string]$rep.Range('O10').Text -eq 'No') "Export names is No for this export"
+        Check ([string]$rep.Range('O12').Text -eq 'No') "Export names is No for this export"
         $nameIdx = [array]::IndexOf($tableHeaders2, 'Student name') + 1
         $noIdx = [array]::IndexOf($tableHeaders2, 'Student no') + 1
         Check ($nameIdx -gt 0 -and $noIdx -gt 0) "Student name/no columns still present in the export (blank, not dropped)"
@@ -518,7 +543,7 @@ try {
     Write-Host ''
     Write-Host '=== Export names = Yes: the export includes them ==='
     Remove-Item $xlsx2.FullName -Force -ErrorAction SilentlyContinue
-    $rep.Range('O10').Value2 = 'Yes'
+    $rep.Range('O12').Value2 = 'Yes'
     $xl.CalculateFullRebuild()
     $rep.Activate()
     $xl.Run('btnExportReport')
@@ -555,7 +580,7 @@ try {
         $xl4.Quit()
         [void][Runtime.InteropServices.Marshal]::ReleaseComObject($xl4)
     }
-    $rep.Range('O10').Value2 = 'No'
+    $rep.Range('O12').Value2 = 'No'
 
     $xl.Run('SetQuiet', $false)
 }

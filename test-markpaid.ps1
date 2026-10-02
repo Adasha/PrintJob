@@ -56,10 +56,10 @@ try {
     }
     # The visible set, as table|jobId keys, plus the columns the routine needs.
     function VisibleInfo {
-        $rng = $rep.Range('A16').SpillingToRange
+        $rng = $rep.Range('A18').SpillingToRange
         $locCol = 0; $jobCol = 0
         for ($c = 1; $c -le 20; $c++) {
-            $hd = [string]$rep.Cells(15, $c).Value2
+            $hd = [string]$rep.Cells(17, $c).Value2
             if ($hd -eq 'Location') { $locCol = $c }
             if ($hd -eq 'Job ID') { $jobCol = $c }
         }
@@ -71,9 +71,9 @@ try {
         }
         return @{ Rng = $rng; LocCol = $locCol; JobCol = $jobCol; N = $rng.Rows.Count; VKeys = $keys }
     }
-    $filterCells = @('B4','B5','B7','B8','F4','F5','F6','F7','F8','B10','F10','O10')
+    $filterCells = @('B4','B5','B7','B8','B10','F4','F5','F7','F8','F9','B12','F12','O12')
     function FilterState { ($filterCells | ForEach-Object { '{0}={1}' -f $_, [string]$rep.Range($_).Value2 }) -join ';' }
-    function ClearFilters { foreach ($a in @('B4','B5','B7','B8','F4','F5','F6','F7','F8')) { $rep.Range($a).ClearContents() | Out-Null }; $xl.CalculateFullRebuild() }
+    function ClearFilters { foreach ($a in @('B4','B5','B7','B8','B10','F4','F5','F7','F8','F9')) { $rep.Range($a).ClearContents() | Out-Null }; $xl.CalculateFullRebuild() }
 
     # ------------------------------------------------------------ the cluster
     Write-Host '=== The cluster on the Reports header ==='
@@ -109,16 +109,13 @@ try {
     $rep.Range('B7').Value2 = 'not a date'
     Check (-not [bool]$xl.Run('HasActiveFilter', $rep)) 'From date text that will not coerce (ignored by Criteria) -> false'
     $rep.Range('B7').ClearContents() | Out-Null
-    $rep.Range('F8').Value2 = 'lots'
-    Check (-not [bool]$xl.Run('HasActiveFilter', $rep)) 'Quantity text that will not coerce -> false'
-    $rep.Range('F8').ClearContents() | Out-Null
-    $rep.Range('B10').Value2 = 'Qty'
+    $rep.Range('B12').Value2 = 'Qty'
     Check (-not [bool]$xl.Run('HasActiveFilter', $rep)) 'Sort by set, no filter -> false (sort is not a filter)'
-    $rep.Range('B10').ClearContents() | Out-Null
+    $rep.Range('B12').ClearContents() | Out-Null
     $rep.Range('B7').Value2 = [double](Get-Date '2020-01-01').ToOADate()
     Check ([bool]$xl.Run('HasActiveFilter', $rep)) 'a real From date -> true'
     $rep.Range('B7').ClearContents() | Out-Null
-    $rep.Range('F6').Value2 = 'Epson SureColor P9500'
+    $rep.Range('F7').Value2 = 'Epson SureColor P9500'
     Check ([bool]$xl.Run('HasActiveFilter', $rep)) 'Printer set -> true'
     ClearFilters
 
@@ -159,7 +156,7 @@ try {
     # ------------------------------------------------- filtered: Paid = Yes
     Write-Host ''
     Write-Host '=== With a filter: only the visible rows change ==='
-    $rep.Range('F6').Value2 = 'Epson SureColor P9500'
+    $rep.Range('F7').Value2 = 'Epson SureColor P9500'
     $xl.CalculateFullRebuild()
     $vis = VisibleInfo
     Write-Host ("  filtered to Printer = 'Epson SureColor P9500': {0} of {1} records visible" -f $vis.N, $before.Count)
@@ -185,7 +182,7 @@ try {
     $hiddenChanged = @($after.Keys | Where-Object { -not $visSet.ContainsKey($_) -and $after[$_] -ne $baseline[$_] }).Count
     Check ($hiddenChanged -eq 0) 'no hidden row was touched'
     Check ((FilterState) -eq $filtersBefore) 'filter and sort boxes are exactly as they were'
-    Check (([string]$rep.Range('F6').Value2) -eq 'Epson SureColor P9500') 'Printer filter still set'
+    Check (([string]$rep.Range('F7').Value2) -eq 'Epson SureColor P9500') 'Printer filter still set'
     Check ($log -like '*marked Paid*') 'confirmation message names Paid'
     Check ($main.ProtectContents -and $annexe.ProtectContents) 'room sheets are protected again afterwards'
 

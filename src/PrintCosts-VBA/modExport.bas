@@ -250,7 +250,7 @@ End Function
 ' what the filters showed at the moment of export, same as modExport's own
 ' CSVs are a snapshot rather than a link back into the workbook.
 Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
-    Const HDR_ROW As Long = 15
+    Const HDR_ROW As Long = 17
     Dim lastCol As Long, rng As Range, block As Variant, n As Long
     Dim path As String, wbOut As Workbook
     Dim promoted As Collection, header As Variant, full As Variant, tableHeaderRow As Long
@@ -265,13 +265,13 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
     End If
 
     On Error Resume Next
-    Set rng = repWs.Range("A16").SpillingToRange
+    Set rng = repWs.Range("A18").SpillingToRange
     On Error GoTo 0
     If rng Is Nothing Then
         Say "There is nothing to export.", "The Reports sheet has no results yet."
         Exit Sub
     End If
-    ' A16 may be spilling FILTER's own "no jobs match"/"no jobs recorded"
+    ' A18 may be spilling FILTER's own "no jobs match"/"no jobs recorded"
     ' fallback TEXT rather than real rows - the first cell of a real row is
     ' always a Date/Time serial number, so ISNUMBER is what tells them apart.
     If Not IsNumeric(rng.Cells(1, 1).Value2) Then
@@ -281,7 +281,7 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
     n = rng.Rows.Count
 
     block = SnapshotBlock(repWs, rng, HDR_ROW, lastCol, n)
-    ' "Export names" (Reports!O10): the live results always show student
+    ' "Export names" (Reports!O12): the live results always show student
     ' name/no; only the exported file honours the toggle, so blank them here
     ' unless it is Yes. Before PromoteUniformColumns, which leaves an
     ' all-blank column alone.
@@ -296,12 +296,12 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
     block = PromoteUniformColumns(block, promoted)
 
     ' Total chargeable / Still owed reuse the Reports sheet's own "Matching"
-    ' totals (F13/O13, modReports.BuildReports) rather than re-summing here -
+    ' totals (F15/O15, modReports.BuildReports) rather than re-summing here -
     ' those are already computed over the exact same filter criteria the
     ' export is a snapshot of, so there is exactly one place that knows how
     ' "still owed" reconciles to "total chargeable minus paid".
-    totalChargeable = SafeNum(repWs.Range("F13").Value)
-    stillOwed = SafeNum(repWs.Range("O13").Value)
+    totalChargeable = SafeNum(repWs.Range("F15").Value)
+    stillOwed = SafeNum(repWs.Range("O15").Value)
 
     block = AppendTotalsRow(block)
     header = SnapshotHeaderBlock(repWs, rng, n, promoted, totalChargeable, stillOwed)
@@ -334,7 +334,7 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
         .Range(.Cells(1, 1), .Cells(1, 2)).Font.Size = 14
         ' Total chargeable / Still owed, rows 8 and 9 of the header block -
         ' see SnapshotHeaderBlock. Bolded and currency-formatted the same way
-        ' the on-sheet Matching totals (F13/O13) already are, so the numbers
+        ' the on-sheet Matching totals (F15/O15) already are, so the numbers
         ' read as money rather than bare decimals.
         .Range(.Cells(8, 1), .Cells(9, 2)).Font.Bold = True
         .Range(.Cells(8, 2), .Cells(9, 2)).NumberFormat = CurrencyFormatCode()
@@ -412,14 +412,14 @@ End Function
 
 ' Blanks the Student name / Student no VALUES (not the columns) of BLOCK
 ' (header row 1, data rows 2..) unless the Reports sheet's Export names
-' toggle (O10) is exactly "Yes" - so anything else, including an empty cell,
+' toggle (O12) is exactly "Yes" - so anything else, including an empty cell,
 ' is treated as No (data protection: opt in to reveal, not opt out).
 ' Matches by header text, like the rest of this module, so it does not care
 ' where the columns sit.
 Private Function BlankNameColumns(ByVal block As Variant, ByVal repWs As Worksheet) As Variant
     Dim c As Long, r As Long, hdr As String
 
-    If StrComp(Trim$(CStr(repWs.Range("O10").Value)), "Yes", vbTextCompare) = 0 Then
+    If StrComp(Trim$(CStr(repWs.Range("O12").Value)), "Yes", vbTextCompare) = 0 Then
         BlankNameColumns = block
         Exit Function
     End If
