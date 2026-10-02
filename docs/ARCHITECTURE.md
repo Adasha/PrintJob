@@ -1077,10 +1077,57 @@ Added in this pass:
 - ~~**`ReorderJobColumns` validation corruption**~~ **Closed 2026-10-01.** `ReorderJobColumns` itself was deleted on 2026-09-29 (layout now ships in the .xlsx). What remained was stale hand-placed validation on rows 28-2010 *below* the table in the shipped template (e.g. a Yes/No list on what had become Sheet size), which `EnsureJobColumnValidation` never cleared. `modInit.ClearBelowTableValidation` now clears it once per sheet (setup and Refresh Locations; not from `BindColumns`, which runs on every row added and made Excel reject the next COM call), and every rule is bound by header name, so a future reorder/insert cannot misplace one. Guarded by `test-jobvalidation.ps1`, which also moves columns with the old Cut + Insert and checks one `BindColumns` repairs them.
 - ~~**Clean up `src\*.bak.xlsm`**~~ **Closed 2026-10-02.** `build.ps1` no longer prunes; `run-tests.ps1` prunes to the newest backup after a full, all-green run (see §13.1).
 - ~~**Column-view edge cases**~~ **Closed 2026-10-02**, no code change needed. The view is workbook-wide (one `SET_LOC_REDUCED_VIEW`), so the original wording was off: a new room starts in the *current* mode, not always All, and follows later changes with every other room. `test-viewedge.ps1` pins down: Refresh Locations and a full `InitialiseWorkbook` keep Minimal; Add print room in Minimal and in All; Import into a sheet with hidden columns fills them and leaves them hidden; a Settings list naming a nonexistent header, empty entries or a blank list fails soft (bad entries skipped, blank falls back to the defaults).
+- **Per-colour consumables and run-length (set-up) costing** — planned, not started; the current model cannot express it. See §17.
 - **Reports date filters** have no calendar picker (platform limit, HISTORY §16.3). Revisit if a future Excel adds one.
 - ~~**`LOC_RollUnit` is per-sheet, not per-row**~~ **Closed 2026-10-02, working as intended.** The roll length unit is a deliberate per-sheet display setting (0.10.11): Qty is held in the sheet's unit and converted to metres for `_Data`. A location is not meant to mix centimetre and metre entry job-by-job, so no per-row unit (and no schema bump) is planned.
 - ~~**Mixed-unit import**~~ **Closed 2026-10-02**, no code change needed. `test-importunits.ps1` (Example Print Room on Metres, the Annexe fixture on Centimetres) covers a metres export into a cm room (roll Qty x100, Unit "cm"), a cm export into a metres room (/100, Unit "metres"), Area m2 and Paper Cost unchanged both ways, sheet stock never converted, a cm round trip landing back on the original metres, and a same-unit control.
 
+
+---
+
+## 17. Planned: per-colour consumables and run-length costing
+
+**Status: future work, not scheduled. Raised 2026-10-02.** Some printer types, RISO duplicators being the motivating case, do not fit the cost model in §5.1, which assumes every printer has one flat rate per m2 of printed area.
+
+### 17.1 What the current model cannot express
+
+1. **Several consumables with different prices.** A RISO uses a separate ink (and often a separate master) per colour, and the colours do not cost the same. `tblPrinters` carries a single `Consumable type` and a single `Cost per m2`, snapshotted to `S_ConsRate`; `Consumable Cost = Area m2 x S_ConsRate`. There is nowhere to say "this job used black and fluorescent orange".
+2. **A set-up cost, then a cheap run.** The first sheet carries a one-off cost (making the master, priming the drum, spoilage) and each further copy is far cheaper. `Consumable Cost` is linear in area, and area is linear in `Qty`, so sheet 1 and sheet 500 cost the same. A flat rate must either overcharge long runs or undercharge short ones.
+
+These are two separate problems that arrive together. Either can be built without the other.
+
+### 17.2 Constraints any design must respect
+
+- **AT-09 / §6.** Job-row formulas read only snapshot columns and the row's own inputs, never `tblPrinters` or `tblPapers`. New rates must be stamped as `S_*` values at row creation, so a later price change never alters history.
+- **§3.5 / §5.** Adding a job-row column is a schema bump (`modUtils.SCHEMA_VER`, currently 1.2) and flows through Export, Import and `_Data`. Import must keep costing correctly without catalogue reconciliation (§10.5), so anything added has to be carried in the export file too.
+- **Printers that do not need this must not pay for it.** An inkjet or laser printer keeps today's one-rate behaviour, with no extra input.
+- **Mac and Windows parity (§9.3).** No new picker may depend on ActiveX.
+
+### 17.3 Options (not yet chosen)
+
+**Run-length cost** is the simpler half. A printer gains `Set-up cost` and `Run cost per m2`, and the consumable formula becomes `Set-up + Area x Run rate`, with set-up applied once per job. Both rates are snapshotted. Preferred: keep it inside `Consumable Cost`, so Gross/Disregarded/Chargeable need no change and *Disregard Consumable* already covers it. Open: whether set-up is per job or per colour pass (on a RISO each colour is a separate master, so per colour is closer to reality).
+
+**Per-colour pricing** needs the job to say which consumables it used. Two shapes:
+
+| Shape | How | Trade-off |
+|---|---|---|
+| A. Consumable rates catalogue | New `tblConsumableRates` (Printer, Consumable, Set-up, Run rate). A job picks a consumable (colour) from a dropdown filtered by printer; a multi-colour job is several rows. | Smallest schema change. Keeps one consumable per row, so every existing formula and report works. But "one job" and "one row" stop being the same thing, which Job ID (§3.2) and Summary job counts would have to account for. |
+| B. Colours on the job row | A `Colours` list or a block of per-colour columns on the job. | One row per job, which suits reporting. Awkward in a fixed-column table, and a wide change touching Export, Import and every report. |
+
+Leaning A.
+
+### 17.4 Decisions needed before building
+
+1. Is set-up charged per job, per colour, or per master? Ask the print room what a RISO master costs to make versus a copy to run.
+2. Should a multi-colour job be one row or several (A versus B)?
+3. Does Qty mean copies (RISO, sheet-fed) as it does for sheet stock today? Ink area would then be area per copy.
+4. Is a flat rate per colour per m2 accurate enough, or does ink usage need coverage as an input? Assume flat to start with.
+5. Schema impact: the version bump, what Export and Import carry, and whether `_Data` and the Reports consolidated range need new columns.
+
+### 17.5 Suggested staging
+
+1. Run-length cost on a single consumable (set-up plus run rate on the printer). Smallest step, solves the "cheap subsequent copies" half, testable on its own.
+2. Per-colour consumables on top, once 17.4 (2) is decided.
 
 ---
 
