@@ -110,6 +110,7 @@ Public Sub InitialiseWorkbook()
     EnsureSchemaSetting
     EnsureCatalogIdSettings
     EnsureViewSettings
+    EnsureReportHeadingSetting
     EnsureStdSizesName
     RemoveLegacySuppliedRows
     NormaliseSuppliedFlags
@@ -1479,6 +1480,16 @@ Public Sub EnsureViewSettings()
     Set c = EnsureSetting("LOC_MINIMAL_COLUMNS", "Minimal view - extra hidden columns", "")
     SetSettingText c, "Minimal view - extra hidden columns", "Semicolon-separated column headers the Minimal view hides IN ADDITION to the Reduced list above (Minimal always includes Reduced). Edit to change - no rebuild needed."
     If Len(Trim$(CStr(c.Value))) = 0 Then SetSettingValue c, MINIMAL_EXTRA_DEFAULT
+End Sub
+
+' The heading printed at the top of an exported Reports report (Settings >
+' Report heading). Self-provisioned like the view settings above, so no
+' hand edit of the shipped .xlsx; blank falls back to the default title.
+Public Sub EnsureReportHeadingSetting()
+    Dim c As Range
+    Set c = EnsureSetting("REPORT_HEADING", "Report heading", "")
+    SetSettingText c, "Report heading", "The heading printed at the top of an exported Reports report. Leave blank for 'Print job report'."
+    If Len(Trim$(CStr(c.Value))) = 0 Then SetSettingValue c, DEFAULT_REPORT_HEADING
 End Sub
 
 ' Label (column B) and notes (column D) of a settings row, from its Value cell.
