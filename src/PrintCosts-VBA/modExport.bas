@@ -889,7 +889,26 @@ Public Function ExportFolder() As String
         ExportFolder = p
     Else
         ExportFolder = LocalRootOf(p)
+        If Len(ExportFolder) = 0 Then ExportFolder = FallbackFolder()
     End If
+End Function
+
+' Last resort when the OneDrive URL cannot be mapped to a folder this machine
+' can see (e.g. a SharePoint library opened online rather than synced).
+' Mac: the sandbox's own Documents folder, which Excel can always write.
+' Windows: the user's Documents folder. The success message names the full
+' path, so the file is never lost, just not beside the workbook.
+Private Function FallbackFolder() As String
+    Dim h As String, d As String
+    h = Environ$("HOME")
+    If Len(h) > 0 Then
+        d = h & "/Documents"
+    Else
+        h = Environ$("USERPROFILE")
+        If Len(h) = 0 Then Exit Function
+        d = h & "\Documents"
+    End If
+    If FolderExists(d) Then FallbackFolder = d
 End Function
 
 Private Function IsUrl(ByVal p As String) As Boolean
@@ -952,7 +971,7 @@ Private Function CandidateOneDriveRoots() As Collection
         If Len(CStr(v)) > 0 Then out.Add CStr(v)
     Next v
 
-    home = Environ$("HOME")
+    home = RealMacHome()
     If Len(home) > 0 Then
         base = home & "/Library/CloudStorage"
         name = Dir$(base & "/OneDrive*", vbDirectory)
@@ -960,9 +979,25 @@ Private Function CandidateOneDriveRoots() As Collection
             If name <> "." And name <> ".." Then out.Add base & "/" & name
             name = Dir$()
         Loop
+        ' The older OneDrive client layout, still used by some installs.
+        If FolderExists(home & "/OneDrive") Then out.Add home & "/OneDrive"
     End If
 
     Set CandidateOneDriveRoots = out
+End Function
+
+' Excel for Mac is sandboxed, and inside the sandbox HOME is the app's
+' container (~/Library/Containers/com.microsoft.Excel/Data), not the user's
+' home - so "$HOME/Library/CloudStorage" named a folder that does not exist
+' and the scan above found nothing. The real home is whatever precedes
+' "/Library/Containers/". Returns "" off Mac.
+Private Function RealMacHome() As String
+    Dim h As String, i As Long
+    h = Environ$("HOME")
+    If Len(h) = 0 Then Exit Function
+    i = InStr(1, h, "/Library/Containers/", vbTextCompare)
+    If i > 1 Then h = Left$(h, i - 1)
+    RealMacHome = h
 End Function
 
 ' ========================================================== fingerprint ===
