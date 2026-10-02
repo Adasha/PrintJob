@@ -1019,7 +1019,7 @@ Run the four `test-*.ps1` regression scripts **one at a time**, not in a tight l
 
 | # | Item |
 |---|---|
-| **O7** | Aggregation granularity for a future *automated* master — job-level, summary-level, or job-level without names. See §12.2–§12.4: a manual, job-level-with-names route already exists via Export All Locations + Import, which somewhat pre-empts the urgency of this decision but does not resolve it for automation |
+| **O7** | Aggregation granularity for a future *automated* master — job-level, summary-level, or job-level without names. See §12.2–§12.4: a manual, job-level-with-names route already exists via Export All Locations + Import, which somewhat pre-empts the urgency of this decision but does not resolve it for automation; since 0.10.17 Export asks whether to include student names (§10.4), so the no-names form already exists for the manual route |
 
 **Tracked in §16 rather than here:** the open implementation debt (punch list in §16.2) is not given numbered "O" items, since it is not open design questions. The phase-8 visual-polish gaps were closed in 0.8.1 and the stale in-code version stamp in 0.8.0 (§16.1); their history is in `docs/HISTORY.md`.
 
@@ -1068,7 +1068,7 @@ Sections 16.2–16.5 (phase 8 scope, other loose ends, the phase 9 snag list, th
 
 - ~~**Button arrangement**~~ **Settings page done 2026-10-02 (0.10.16).** The ten buttons moved from below `tblSettings` to a band above the tables, grouped Print rooms / Data / Workbook and packed close together instead of three columns apart; `test-settingslayout.ps1` pins the positions and that a second setup run does not insert the band again. With 0.10.12 to 0.10.14 (column-view and cost-detail controls, six-button side panel) this closes the item; the other sheets were not changed.
 - **Phase 10 manual run.** The acceptance tests in §15 marked "Phase 10" (AT-01 to AT-09, AT-15) have never been exercised by a person typing; AT-15 needs a Mac.
-- **O7**, aggregation granularity for an automated master (§14). Still deferred.
+- **O7**, aggregation granularity for an automated master (§14). Still deferred. Since 0.10.17 the manual route lets each site choose at export whether to include student names (§10.4), so the "job level without names" form of file exists; what an automated tool may require is still undecided.
 
 Added in this pass:
 

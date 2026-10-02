@@ -369,7 +369,8 @@ The scripted ones pass. Phase 8 (visual polish — the Summary legend,
 conditional formatting for warning/error states, and currency wired to the
 global setting) is built; see `docs/HISTORY.md` §16.2. Also not built:
 aggregation for an automated master workbook (`docs/ARCHITECTURE.md` §12.2).
-Export All Locations plus Import covers the manual route.
+Export All Locations plus Import covers the manual route, and Export asks
+whether to include student names.
 
 The validation sweep (phase 7) is done. AT-11, AT-14 and AT-16 pass, and
 nothing in the workbook needed changing to make them — the mechanisms were
