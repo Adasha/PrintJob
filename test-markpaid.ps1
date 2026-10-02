@@ -71,7 +71,7 @@ try {
         }
         return @{ Rng = $rng; LocCol = $locCol; JobCol = $jobCol; N = $rng.Rows.Count; VKeys = $keys }
     }
-    $filterCells = @('B4','B5','B7','B8','B10','F4','F5','F7','F8','F9','B12','F12','O12')
+    $filterCells = @('B4','B5','B7','B8','B10','F4','F5','F7','F8','F9','B12','F12')
     function FilterState { ($filterCells | ForEach-Object { '{0}={1}' -f $_, [string]$rep.Range($_).Value2 }) -join ';' }
     function ClearFilters { foreach ($a in @('B4','B5','B7','B8','B10','F4','F5','F7','F8','F9')) { $rep.Range($a).ClearContents() | Out-Null }; $xl.CalculateFullRebuild() }
 

@@ -339,7 +339,7 @@ Public Sub BuildReports()
     ' tail; O starts at ~720pt, clear of it. (3) O is "Paid" in the results
     ' table, one of the columns ApplyReportsMinimumColumns always keeps
     ' visible, so the cluster cannot vanish with a hidden column - the same
-    ' reason Export names lives at N10/O10.
+    ' reason the (since removed) Export names toggle lived at N:O.
     ws.Range("O1").Value = "Mark all as..."
     ws.Range("O1").Font.Bold = True
 
@@ -420,29 +420,10 @@ Public Sub BuildReports()
     AddList ws.Range("B12"), QuotedList(hdrs), "Sort by", "Which column to sort the results by."
     AddList ws.Range("F12"), """Ascending"",""Descending""", "Sort direction", "Which way to sort."
 
-    ' Snag list item 2a: student name/number are not EXPORTED unless switched
-    ' on - defaults to No (data protection: opt in to reveal, not opt out).
-    ' Renamed "Export names" 2026-09-29 (direct user request): it governs the
-    ' exported report only (modExport.ExportReportSnapshot); the live results
-    ' table always shows names. This is an export option, not a filter
-    ' criterion,
-    ' so it moves onto the sort-controls row rather than sharing row 9 with
-    ' the (unrelated) name/number warning, where it used to sit at E9/F9.
-    '
-    ' N10/O10, not the next free columns (I/J) after Sort direction: this
-    ' sheet's minimum-columns view (ApplyReportsMinimumColumns) hides entire
-    ' COLUMNS by results-header name, and that hide reaches every row on the
-    ' sheet, not just the results table - which is exactly why E9's label was
-    ' invisible before (E is "Printer", one of the hidden columns) while its
-    ' F9 dropdown (F is "Paper stock", always kept visible) still showed with
-    ' nothing beside it. N and O are "Chargeable"/"Paid" - both permanently
-    ' kept - and free on this row, so label and dropdown survive the default
-    ' view together. (Sort direction's own label has this same latent problem
-    ' and was fixed the same way, 2026-09-26 - see its own CritCell call
-    ' above, D10 rather than E10.)
-    CritCell ws, "N12", "O12", "Export names"
-    AddList ws.Range("O12"), """Yes"",""No""", "Export names", "Yes includes the student/department name and number in an exported report. No (the default) leaves them blank in the export, for data protection. The results shown here always include them."
-    If Len(Trim$(CStr(ws.Range("O12").Value))) = 0 Then ws.Range("O12").Value = "No"
+    ' Export names (a Yes/No toggle that lived at N12/O12) was removed
+    ' 2026-10-02, direct user request: Export report now asks Yes / No /
+    ' Cancel at export time instead (modExport.AskIncludeNamesReport), the
+    ' same as the room exports. The live results always show names.
 
     ' Spec 14.1: both criteria given, neither matching the other. Row 11
     ' (was row 9 before 2026-10-02): the gap row under the filters.
@@ -514,11 +495,11 @@ Public Sub BuildReports()
     ' when there is nothing to sort - SORTBY on that text would otherwise
     ' error and the outer IFERROR would show the wrong one of the two
     ' messages.
-    ' Student Name/No: always shown here. The "Export names" toggle at O10
+    ' Student Name/No: always shown here. The old "Export names" toggle
     ' (snag 2a) used to blank these values in this formula, which hid them
     ' from the live view too; since 2026-09-29 it is applied at export time
-    ' instead (modExport.BlankNameColumns), so this formula has no reference
-    ' to O10 at all.
+    ' instead (modExport.RedactNameColumn; since 2026-10-02 the export asks Yes/No instead), so this formula has no reference
+    ' to a toggle at all.
     '
     ' Built with Chr(34) for the formula's own empty-string literal rather
     ' than hand-counting doubled quotes in a VBA string literal - a single
@@ -1047,8 +1028,8 @@ End Sub
 ' they hold something other than spaces (Criteria itself would treat a lone
 ' space as a real search term - refusing is the safe direction). From date,
 ' To date are coerced with *1 in Criteria and IGNORED when that
-' fails, so text that will not coerce does not count here either. Sort by,
-' Sort direction and Export names are not filters and are not looked at.
+' fails, so text that will not coerce does not count here either. Sort by and
+' Sort direction are not filters and are not looked at.
 '
 ' Cell addresses match Criteria: B4 name, B5 number, B7/B8 dates, F4 room,
 ' F5 technician, F7 printer, F8 paper stock, F9 paper type, B10 paid. If a filter box

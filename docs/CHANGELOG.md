@@ -3,7 +3,7 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
-0.10.20 - Reports filter block (Quantity out, Paid and Paper type in, re-laid out).
+0.10.20 - Reports sheet: new filter block, export-names prompt.
   - Quantity filter removed. New Paid (Yes/No; No includes blank) and Paper type
     (Roll/Sheet, from the consolidated Unit column; "cm" accepted as well as "metres") filters.
   - Filters are two columns with gap rows: left Student/dept. name, Student
@@ -12,6 +12,11 @@ Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module
     number"). The sort settings, name warning, Matching totals, results table,
     breakdowns and freeze panes all moved down two rows (results now from A18).
   - "Set at least one filter" safeguard counts the new filters.
+  - Export names toggle removed from the Reports sheet. Export report now asks
+    Yes / No / Cancel (default No). No replaces each student name with a line
+    of 10 hyphens (kept visible on every row, not promoted to the header);
+    student numbers are never redacted. A names-redacted report is not stamped
+    as exported. Cancel exports nothing. Same model as the room export.
   - Reports-related tests re-pointed at the new rows; new layout and Paid/Paper
     type checks in test-reports.ps1.
 

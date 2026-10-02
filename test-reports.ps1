@@ -8,13 +8,13 @@
 #      Stock); AT-10 / AT-12 criteria cases; Technician/Printer/Paper
 #      Stock filters; dropdown and date validation; buttons within the
 #      first screenful; sort-by-column; breakdowns.
-#   2. Export names toggle (live view always shows names), the Reports
+#   2. Export-names prompt (live view always shows names), the Reports
 #      minimum-columns view, and the Paid column.
 #   3. Summary sheet: no "Go to Settings" button; ToggleConfigSheets stays on
 #      Summary.
 #   4. Export report: header block, single-value promotion (Printer promoted
 #      when filtered, nothing promoted when not), exported name/no blank under
-#      Export names = No and populated under Yes. Needs a SECOND location
+#      redacted to hyphens when the prompt is answered No, populated under Yes. Needs a SECOND location
 #      sheet (test-fixture-annexe.ps1): PrintCosts.xlsx ships only "Example
 #      Print Room", so with one room every row's Location is trivially uniform
 #      and PromoteUniformColumns correctly promotes and drops it even when
@@ -257,9 +257,8 @@ try {
 
     # ============================================== Export names / min columns
     # -------------------------------------------------- 2a: default state
-    Write-Host '=== Export names toggle: defaults to No (data protection), live view unaffected ==='
-    Check ([string]$c.Range('N12').Text -eq 'Export names') "N12 label reads 'Export names' (got '$($c.Range('N12').Text)')"
-    Check ([string]$c.Range('O12').Text -eq 'No') "O12 defaults to No (got '$($c.Range('O12').Text)')"
+    Write-Host '=== Export names toggle is gone (2026-10-02); live view always shows names ==='
+    Check ([string]$c.Range('N12').Text -eq '' -and [string]$c.Range('O12').Text -eq '') 'no Export names label or dropdown at N12:O12'
     $xl.CalculateFullRebuild()
     $nameCol = ReportsCol 'Student name'
     $noCol = ReportsCol 'Student no'
@@ -270,23 +269,21 @@ try {
     for ($r = 1; $r -le $sp.Rows.Count; $r++) {
         if ([string]$sp.Cells($r, $nameCol).Value2 -ne '') { $anyNameNo = $true }
     }
-    Check $anyNameNo "the live results still show Student names while Export names is No"
+    Check $anyNameNo "the live results still show Student names in the live view"
 
     # ------------------------------------------------------- 2a: toggled on
     Write-Host ''
-    Write-Host '=== Export names = Yes: live view still shows them ==='
-    $c.Range('O12').Value2 = 'Yes'
+    Write-Host '=== Live view shows names (again, after a rebuild) ==='
     $xl.CalculateFullRebuild()
     $sp = $c.Range('A18').SpillingToRange
     $anyName = $false
     for ($r = 1; $r -le $sp.Rows.Count; $r++) {
         if ([string]$sp.Cells($r, $nameCol).Value2 -ne '') { $anyName = $true }
     }
-    Check $anyName "at least one row shows a Student name with Export names Yes"
+    Check $anyName "at least one row shows a Student name in the live view"
     $sampleName = [string]$sp.Cells(1, $nameCol).Value2
     Write-Host "  sample: '$sampleName'"
 
-    $c.Range('O12').Value2 = 'No'
     $xl.CalculateFullRebuild()
 
     # ------------------------------------------------------------- 2d
@@ -385,6 +382,7 @@ try {
     }
 
     Write-Host '=== Filtered to one printer: Printer promotes ==='
+    $xl.Run('SetExportNames', $false)
     # F6, not F5 (2026-09-27: Location took F4, Technician/Printer/Paper
     # Stock shifted down one row).
     $rep.Range('F7').Value2 = 'Epson SureColor P9500'
@@ -520,19 +518,21 @@ try {
         Check (-not ($tableHeaders2 -contains 'Area m2')) "Area m2 excluded from the export by default"
         Check ($tableHeaders2.Count -eq 16) "all 16 exported result columns present (got $($tableHeaders2.Count))"
 
-        # Export names (Reports!O10, 2026-09-29): defaults to No, so the
-        # exported Student name/no VALUES are blank even though the live
-        # results show them (test-reports2.ps1 covers the live side).
-        Check ([string]$rep.Range('O12').Text -eq 'No') "Export names is No for this export"
+        # Export prompt (2026-10-02): answered No for this export (SetExportNames),
+        # so Student name VALUES are redacted to a line of 10 hyphens - not blank,
+        # not dropped - while Student no is left alone (test-reports2.ps1 covers
+        # the live side).
         $nameIdx = [array]::IndexOf($tableHeaders2, 'Student name') + 1
         $noIdx = [array]::IndexOf($tableHeaders2, 'Student no') + 1
-        Check ($nameIdx -gt 0 -and $noIdx -gt 0) "Student name/no columns still present in the export (blank, not dropped)"
-        $leak = 0
+        Check ($nameIdx -gt 0 -and $noIdx -gt 0) "Student name/no columns still present in the export"
+        $nameVals = 0; $nameHyphens = 0; $noVals = 0
         for ($r = $tableRow2 + 1; $r -lt $info2.Rows; $r++) {   # stops before the Total row
-            if ($nameIdx -gt 0 -and [string]$info2.Sheet.Cells($r, $nameIdx).Value2 -ne '') { $leak++ }
-            if ($noIdx -gt 0 -and [string]$info2.Sheet.Cells($r, $noIdx).Value2 -ne '') { $leak++ }
+            $nv = [string]$info2.Sheet.Cells($r, $nameIdx).Value2
+            if ($nv -ne '') { $nameVals++; if ($nv -eq '----------') { $nameHyphens++ } }
+            if ([string]$info2.Sheet.Cells($r, $noIdx).Value2 -ne '') { $noVals++ }
         }
-        Check ($leak -eq 0) "exported Student name/no are all blank while Export names is No ($leak non-blank)"
+        Check ($nameVals -gt 0 -and $nameVals -eq $nameHyphens) "every exported Student name is the 10-hyphen placeholder ($nameHyphens of $nameVals)"
+        Check ($noVals -gt 0) "Student no is NOT redacted ($noVals values kept)"
     }
     finally {
         $wbCheck2.Close($false)
@@ -541,9 +541,9 @@ try {
     }
 
     Write-Host ''
-    Write-Host '=== Export names = Yes: the export includes them ==='
+    Write-Host '=== Export prompt answered Yes: the export includes names ==='
     Remove-Item $xlsx2.FullName -Force -ErrorAction SilentlyContinue
-    $rep.Range('O12').Value2 = 'Yes'
+    $xl.Run('SetExportNames', $true)
     $xl.CalculateFullRebuild()
     $rep.Activate()
     $xl.Run('btnExportReport')
@@ -573,14 +573,14 @@ try {
         }
         # A single shared name is promoted to a header line instead of a column.
         $promotedName3 = @($info3.Lines | Where-Object { $_ -like 'Student name:*' }).Count -gt 0
-        Check ($anyName3 -or $promotedName3) "exported file contains student names when Export names is Yes"
+        Check ($anyName3 -or $promotedName3) "exported file contains student names when the prompt is answered Yes"
     }
     finally {
         $wbCheck3.Close($false)
         $xl4.Quit()
         [void][Runtime.InteropServices.Marshal]::ReleaseComObject($xl4)
     }
-    $rep.Range('O12').Value2 = 'No'
+    $xl.Run('SetExportNames', $false)
 
     $xl.Run('SetQuiet', $false)
 }

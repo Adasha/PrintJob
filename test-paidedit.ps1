@@ -74,7 +74,7 @@ try {
     }
     function SpillCount { Invoke-ComRetry -Attempts 5 { [int]$rep.Range('A18').SpillingToRange.Rows.Count } }
     function SpillIntact { ([string]$rep.Range('A18').Text -notlike '#SPILL*') -and ((SpillCount) -eq $n) }
-    $filterCells = @('B4','B5','B7','B8','B10','F4','F5','F7','F8','F9','B12','F12','O12')
+    $filterCells = @('B4','B5','B7','B8','B10','F4','F5','F7','F8','F9','B12','F12')
     function FilterState { ($filterCells | ForEach-Object { '{0}={1}' -f $_, [string]$rep.Range($_).Value2 }) -join ';' }
     function AuditActions {
         $aud = $wb.Worksheets('_Audit').ListObjects('tblAudit')
