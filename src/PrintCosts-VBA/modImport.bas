@@ -125,7 +125,7 @@ End Function
 ' SetQuiet (an unattended run must never confirm a destructive op on the
 ' user's behalf), same reason modJobs.RemoveRow/ClearAll are shaped this way.
 Public Sub ApplyImport(ByVal ws As Worksheet, ByVal rows As Collection)
-    Dim lo As ListObject, appended As Long, overwrite As Long
+    Dim lo As ListObject, appended As Long, overwrite As Long, d1 As clsDict
     Set lo = JobsTable(ws)
     If lo Is Nothing Then
         Say "This sheet has no print job table.", "Import only works on a print room sheet."
@@ -139,9 +139,13 @@ Public Sub ApplyImport(ByVal ws As Worksheet, ByVal rows As Collection)
 
     CountChange lo, rows, appended, overwrite
 
+    Dim noNames As String
+    Set d1 = rows.Item(1)
+    If Not d1.Exists("Student Name") Then _
+        noNames = vbCrLf & "This file has no student names; names on overwritten records are kept." & vbCrLf
     If Not Ask("Import into '" & LocValue(ws, "LOC_Name") & "'?" & vbCrLf & vbCrLf & _
         appended & " new record" & IIf(appended = 1, "", "s") & " will be added." & vbCrLf & _
-        overwrite & " existing record" & IIf(overwrite = 1, "", "s") & " will be OVERWRITTEN with the imported version." & vbCrLf & vbCrLf & _
+        overwrite & " existing record" & IIf(overwrite = 1, "", "s") & " will be OVERWRITTEN with the imported version." & vbCrLf & noNames & vbCrLf & _
         "This cannot be undone.", "Import") Then Exit Sub
 
     ApplyImportConfirmed ws, rows
@@ -224,7 +228,7 @@ End Function
 Private Sub WriteImportedRow(ByVal lo As ListObject, ByVal RowNo As Long, ByVal d As clsDict)
     WriteText lo, RowNo, "Job ID", d
     WriteDate lo, RowNo, "Date/Time", d
-    WriteText lo, RowNo, "Student Name", d
+    If d.Exists("Student Name") Then WriteText lo, RowNo, "Student Name", d
     WriteText lo, RowNo, "Student No", d
     WriteText lo, RowNo, "Technician", d
     WriteText lo, RowNo, "Printer", d
@@ -321,7 +325,7 @@ Public Function ReadImportRows(ByVal path As String) As Collection
     Dim fi() As Variant, i As Long, c As Long, r As Long
     Dim lastRow As Long, lastCol As Long
     Dim headers() As String, rows As New Collection, d As clsDict
-    Dim wasUpdating As Boolean
+    Dim wasUpdating As Boolean, omitNames As Boolean
 
     ' Every field forced to Text on the way in, mirroring modExport's "@"
     ' number format on the way out - so "00001" keeps its leading zeros and an
@@ -350,6 +354,10 @@ Public Function ReadImportRows(ByVal path As String) As Collection
             "This file does not look like a print job export - no header row was found where one was expected."
     End If
 
+    ' Marker written beside "Rows" by an export made without student names.
+    omitNames = (StrComp(Trim$(CStr(ws.Cells(HDR_ROW - 1, 3).Value)), "Student names", vbTextCompare) = 0 And _
+                 StrComp(Trim$(CStr(ws.Cells(HDR_ROW - 1, 4).Value)), "Omitted", vbTextCompare) = 0)
+
     ReDim headers(1 To lastCol)
     For c = 1 To lastCol
         headers(c) = Trim$(CStr(ws.Cells(HDR_ROW, c).Value))
@@ -360,7 +368,11 @@ Public Function ReadImportRows(ByVal path As String) As Collection
         If Len(Trim$(CStr(ws.Cells(r, 1).Value))) = 0 Then Exit For
         Set d = New clsDict
         For c = 1 To lastCol
-            d.Add headers(c), CStr(ws.Cells(r, c).Value)
+            ' No "Student Name" key at all when the file left names out, so
+            ' WriteImportedRow leaves the sheet's own names untouched.
+            If Not (omitNames And StrComp(headers(c), "Student Name", vbTextCompare) = 0) Then
+                d.Add headers(c), CStr(ws.Cells(r, c).Value)
+            End If
         Next c
         rows.Add d
     Next r

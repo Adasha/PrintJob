@@ -743,6 +743,14 @@ A header block — schema version, site ID, location code and name, generated-at
 
 **The durable check, regardless of platform: the export verifies the file exists on disk before stamping anything as exported.** An earlier defect had the export announce success having written nothing (because the resolved path was wrong), then stamp the location as exported — which meant the §4.3 warning between a sheet deletion and its records said the opposite of the truth. That check is what makes the whole export status trustworthy.
 
+**Student names — asked at export (0.10.17, 2026-10-02).** *Export* and *Export All Locations* open a Yes / No / Cancel prompt, "Include student names in this export?" (default button No). **No blanks `Student Name` only**; `Student No` and every other column stay, so a master built from these files can still total by student. The column itself is kept, because the header row names columns and importers map by name. The header block says so beside `Rows` (row 8, columns C:D: `Student names,Omitted`), not on a new line, so the header row stays on row 9. Notes are not scrubbed, which the prompt says. Cancel writes nothing.
+
+Two consequences follow from a names-free file not being a complete record:
+- **It does not stamp the room as exported.** The §4.3 sheet-deletion warning stays on, because this file could not restore the names. The dialog says so.
+- **Import leaves names alone.** `ReadImportRows` sees the marker and drops `Student Name` from each row, and `WriteImportedRow` skips a column the row lacks, so an overwrite keeps the name already on the sheet and an appended row has a blank name. The confirm dialog states this. A file without the marker still overwrites the name as before.
+
+**Backup always keeps names** (`ExportAllLocations False`, no prompt), being a recovery record. A quiet (unattended) run includes names unless a test calls `SetExportNames False`. Verified by `test-exportnames.ps1`.
+
 **Import is a later revision — see §10.5, now built.**
 
 **Knowing what is unexported — derived, not tracked.** A per-location fingerprint computed on demand:
@@ -935,9 +943,9 @@ v1 does not have to *do* anything automated for aggregation; it has to avoid bre
 
 - **Summary-level** aggregates by Location × Printer × Paper stock, discarding the student. A master built from summaries could never produce a cross-site student total — the entire purpose of Reports and AT-10.
 - **Job-level** preserves it, and costs nothing extra since the export already exists.
-- **Job-level with student number but no names** keeps cross-site totals working while narrowing what leaves each site.
+- **Job-level with student number but no names** keeps cross-site totals working while narrowing what leaves each site. **Now exists for the manual route**: Export asks whether to include names (§10.4, 0.10.17), so a site can send this form of file.
 
-**Still deferred deliberately on data-protection grounds** for any *automated* collation tool — a decision about lawful basis and data handling rather than about software. Recorded here so it is re-decided from these three options rather than re-derived. See §12.4 for why the built manual mechanism has, in effect, already made a job-level choice for the manual case without that choice needing to be finalised for an automated one.
+**Still deferred deliberately on data-protection grounds** for any *automated* collation tool (the per-export names choice above lets each site decide for the manual route, but does not settle what an automated tool may require) — a decision about lawful basis and data handling rather than about software. Recorded here so it is re-decided from these three options rather than re-derived. See §12.4 for why the built manual mechanism has, in effect, already made a job-level choice for the manual case without that choice needing to be finalised for an automated one.
 
 ### 12.3 The transport, when automated collation is built
 

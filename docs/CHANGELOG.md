@@ -3,6 +3,23 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.10.17 - Export asks whether to include student names.
+  - Direct user request, from the O7 aggregation discussion. Export and
+    Export All Locations open a Yes / No / Cancel prompt (default No). No
+    blanks Student Name only; Student No and every other column are kept.
+    The header block notes "Student names, Omitted" beside Rows, so the
+    header row stays on row 9.
+  - A names-free file is not a complete record, so it does not stamp the room
+    as exported (the sheet-deletion warning stays on), and Import leaves the
+    names already on overwritten rows alone. Backup always includes names
+    (ExportAllLocations False, no prompt). A quiet run includes names unless
+    a test calls modExport.SetExportNames False.
+  - test-exportnames.ps1 (new): names in by default and stamped; names
+    omitted marks the header, blanks the name, keeps Student No and the
+    snapshot columns, leaves the export status alone; importing it keeps the
+    sheet's names on overwrite and appends blank-name rows; a with-names file
+    still overwrites.
+
 0.10.16 - Settings page: buttons moved above the tables and grouped.
   - Direct user request. The ten action buttons sat below tblSettings, three
     columns apart in two rows, so they spread across the sheet and fell off

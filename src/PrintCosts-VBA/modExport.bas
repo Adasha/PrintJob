@@ -36,6 +36,11 @@ Private Const XLSX_FORMAT As Long = 51      ' xlOpenXMLWorkbook
 ' follows this automatically, onto AL6.
 Private Const EXPORT_CELL As String = "$AM$6"
 
+' Student names in the job-level CSV (design 10.4, O7). Export asks; a quiet
+' (unattended) run cannot, so it includes names, as the backup and the tests
+' always have, unless a test says otherwise through SetExportNames.
+Private mQuietNames As Long
+
 ' The canonical export order. Fixed here rather than mirroring the sheet, so
 ' files stay comparable across versions even after the table is reordered.
 '
@@ -57,10 +62,12 @@ End Function
 
 ' =============================================================== export ===
 Public Sub ExportLocation(ByVal ws As Worksheet)
-    Dim n As Long, path As String, status As String
+    Dim n As Long, path As String, status As String, names As VbMsgBoxResult
 
     On Error GoTo Fail
-    status = ExportOne(ws, n, path)
+    names = AskIncludeNames()
+    If names = vbCancel Then Exit Sub
+    status = ExportOne(ws, n, path, (names = vbYes))
     Select Case status
         Case "EMPTY"
             Say "There is nothing to export.", "'" & LocValue(ws, "LOC_Name") & "' has no print jobs recorded."
@@ -76,7 +83,8 @@ Public Sub ExportLocation(ByVal ws As Worksheet)
         Case ""
             Say n & " print job" & IIf(n = 1, "", "s") & " exported.", _
                 "Written to:" & vbCrLf & path, _
-                "The file holds every column, including the frozen prices each job was costed at, so it is a complete record of this print room."
+                IIf(names = vbYes, "The file holds every column, including the frozen prices each job was costed at, so it is a complete record of this print room.", _
+                    NamesOmittedNote())
     End Select
     Exit Sub
 Fail:
@@ -88,14 +96,20 @@ End Sub
 ' with ExportLocation rather than looping the button macro, so this is one
 ' AppOff/AppOn bracket for the whole batch (no recalculation thrash between
 ' locations) and one summary dialog instead of N.
-Public Sub ExportAllLocations()
+' AskNames is False only for Backup, which is a recovery record and always
+' keeps names.
+Public Sub ExportAllLocations(Optional ByVal AskNames As Boolean = True)
     Dim ws As Worksheet, n As Long, path As String, status As String
     Dim done As Long, skipped As Long, detail As String, failed As String, why As String
+    Dim names As VbMsgBoxResult
 
     On Error GoTo Fail
+    names = vbYes
+    If AskNames Then names = AskIncludeNames()
+    If names = vbCancel Then Exit Sub
     AppOff
     For Each ws In LocationSheets()
-        status = ExportOne(ws, n, path)
+        status = ExportOne(ws, n, path, (names = vbYes))
         Select Case status
             Case ""
                 done = done + 1
@@ -118,11 +132,38 @@ Public Sub ExportAllLocations()
     If Len(failed) > 0 Then why = why & vbCrLf & "Could not be exported:" & vbCrLf & failed
 
     Say done & " print room" & IIf(done = 1, "", "s") & " exported.", why, _
-        "Each file holds every column, including the frozen prices each job was costed at, so it is a complete record of that print room."
+        IIf(names = vbYes, "Each file holds every column, including the frozen prices each job was costed at, so it is a complete record of that print room.", _
+            NamesOmittedNote())
     Exit Sub
 Fail:
     AppReset
     ReportError "Export All Locations"
+End Sub
+
+' Yes / No / Cancel: does this export carry student names? No blanks Student
+' Name only - Student No stays, so a master can still total by student. The
+' default button is No, the choice that sends less personal data out.
+Private Function AskIncludeNames() As VbMsgBoxResult
+    If gQuiet Then
+        AskIncludeNames = IIf(mQuietNames = vbNo, vbNo, vbYes)
+        Exit Function
+    End If
+    AskIncludeNames = MsgBox("Include student names in this export?" & vbCrLf & vbCrLf & _
+        "Yes - the file is a complete record, and can restore a print room." & vbCrLf & _
+        "No - student names are left blank; student numbers are kept." & vbCrLf & vbCrLf & _
+        "Any names typed into the Notes column are not removed.", _
+        vbQuestion + vbYesNoCancel + vbDefaultButton2, "Export")
+End Function
+
+Private Function NamesOmittedNote() As String
+    NamesOmittedNote = "Student names were left out, so this is not a complete record of the print room. " & _
+        "It has not been marked as exported, and a later import keeps the names already on the sheet."
+End Function
+
+' For tests only (called over COM): what a quiet run answers to the names
+' question. Normal quiet behaviour, and the default, is Yes.
+Public Sub SetExportNames(ByVal IncludeNames As Boolean)
+    mQuietNames = IIf(IncludeNames, vbYes, vbNo)
 End Sub
 
 ' Does the actual export, without showing anything. Returns "" on success
@@ -130,7 +171,8 @@ End Sub
 ' EMPTY / NOPATH / NOFILE naming what stopped it - so ExportLocation and
 ' ExportAllLocations can each decide how to tell the user, one dialog at a
 ' time or rolled into a single summary.
-Private Function ExportOne(ByVal ws As Worksheet, ByRef n As Long, ByRef path As String) As String
+Private Function ExportOne(ByVal ws As Worksheet, ByRef n As Long, ByRef path As String, _
+                           Optional ByVal IncludeNames As Boolean = True) As String
     Dim lo As ListObject, cols As Variant, block As Variant, wbOut As Workbook
 
     Set lo = JobsTable(ws)
@@ -145,7 +187,7 @@ Private Function ExportOne(ByVal ws As Worksheet, ByRef n As Long, ByRef path As
     End If
 
     cols = ExportColumns
-    block = BuildBlock(ws, lo, n, cols)
+    block = BuildBlock(ws, lo, n, cols, IncludeNames)
 
     path = ExportPath(ws)
     If Len(path) = 0 Then
@@ -185,8 +227,12 @@ Private Function ExportOne(ByVal ws As Worksheet, ByRef n As Long, ByRef path As
         Exit Function
     End If
 
-    StampExported ws
-    RefreshExportStatus ws
+    ' A file without names cannot restore the room, so it must not clear the
+    ' "unexported" warning that guards against a sheet deletion.
+    If IncludeNames Then
+        StampExported ws
+        RefreshExportStatus ws
+    End If
 End Function
 
 ' ======================================================= report snapshot ===
@@ -731,11 +777,12 @@ End Function
 
 ' Header block, then a blank line, then the header row, then the records.
 Private Function BuildBlock(ByVal ws As Worksheet, ByVal lo As ListObject, _
-                            ByVal n As Long, ByVal cols As Variant) As Variant
+                            ByVal n As Long, ByVal cols As Variant, _
+                            Optional ByVal IncludeNames As Boolean = True) As Variant
     Const HEAD As Long = 8
     Dim a() As Variant, w As Long, r As Long, c As Long, hdr As String
     w = UBound(cols) - LBound(cols) + 1
-    If w < 2 Then w = 2
+    If w < 4 Then w = 4
     ReDim a(1 To HEAD + 1 + n, 1 To w)
 
     a(1, 1) = "Print Cost Management export"
@@ -746,6 +793,9 @@ Private Function BuildBlock(ByVal ws As Worksheet, ByVal lo As ListObject, _
     a(6, 1) = "Location name":   a(6, 2) = LocValue(ws, "LOC_Name")
     a(7, 1) = "Generated":       a(7, 2) = Format$(Now, "yyyy-mm-dd hh:nn:ss")
     a(8, 1) = "Rows":            a(8, 2) = n
+    ' Beside Rows, not a new line: the header row stays on row 9, where every
+    ' importer already looks for it. Import reads this to leave names alone.
+    If Not IncludeNames Then a(8, 3) = "Student names": a(8, 4) = "Omitted"
 
     For c = LBound(cols) To UBound(cols)
         a(HEAD + 1, c - LBound(cols) + 1) = CStr(cols(c))
@@ -754,7 +804,11 @@ Private Function BuildBlock(ByVal ws As Worksheet, ByVal lo As ListObject, _
     For r = 1 To n
         For c = LBound(cols) To UBound(cols)
             hdr = CStr(cols(c))
-            a(HEAD + 1 + r, c - LBound(cols) + 1) = CellOut(lo, r, hdr)
+            If Not IncludeNames And StrComp(hdr, "Student Name", vbTextCompare) = 0 Then
+                a(HEAD + 1 + r, c - LBound(cols) + 1) = ""
+            Else
+                a(HEAD + 1 + r, c - LBound(cols) + 1) = CellOut(lo, r, hdr)
+            End If
         Next c
     Next r
 
