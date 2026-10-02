@@ -227,6 +227,7 @@ job IDs already carry it.
 | `run-tests.ps1` | Runs every `test-*.ps1` in turn and prints one line per script; `-Only` takes name fragments. Logs land in `%TEMP%\testrun-<Label>` |
 | `test-addroom.ps1`, `test-removeroom.ps1` | The Add print room and Remove print room commands |
 | `test-reducedview.ps1`, `test-costcolumns.ps1` | The All / Reduced / Minimal column views and the Hide/Show cost detail toggle |
+| `test-viewedge.ps1` | Column views meeting Refresh Locations, setup, Add print room, Import and bad Settings lists |
 | `test-rollunit.ps1` | The per-room roll length unit (cm or metres) |
 | `test-jobvalidation.ps1` | Job-table validation is bound to the right columns by name, nothing is left below the table, and a column move is repaired |
 | `test-paidedit.ps1`, `test-markpaid.ps1` | Editing Paid on the Reports sheet, and Mark all as Paid / Unpaid with its filter safeguard |
