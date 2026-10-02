@@ -577,7 +577,7 @@ They cannot use `SUMIFS` for the breakdowns below — its arguments must be rang
 | Sheet | Buttons |
 |---|---|
 | Summary | Refresh Locations, Check workbook, **Hide/Show settings sheets** (Go to Settings removed, 2026-09-22 — see §16.4) |
-| Settings | Two rows of four, below `tblSettings` (0.9.12, §16.4 addendum): Refresh Locations, Check workbook, Re-stamp prices…, About / Export All Locations…, Import (choose room)…, **Backup workbook…**, **Restore workbook…** (§10.7) |
+| Settings | A band of three labelled rows **above** the tables (0.10.16, 2026-10-02), buttons packed from column B with a 4pt gap: **Print rooms** — Add print room…, Remove print room…, Refresh Locations / **Data** — Export All Locations…, Import (choose room)…, Backup workbook…, Restore workbook… (§10.7) / **Workbook** — Check workbook, Re-stamp prices…, About. Small +/- pairs sit above the three lookup tables. `modInit.EnsureSettingsButtonBand` inserts the three rows once (detected from `tblSettings`' header row, as `EnsureHeaderGaps` does), so the tables' header row is 8, not the 5 the shipped `.xlsx` has |
 | Each location | Add Print Job, Now (toolbar, row 13); Remove Row, Select printers…, Check this sheet, Clear All, Export…, Import…, **Reduce clutter / Show all columns** (side panel, §4.1, 2026-09-25); **Clear defaults** (row 4, over Technician) |
 | Reports | **Export report…**, **Delete visible records…** (column T, rows 1 and 3); **Mark all as…** cluster — label `O1`, **Paid** (row 2) and **Unpaid** (row 3) buttons (§10.9) |
 
@@ -1058,7 +1058,7 @@ Sections 16.2–16.5 (phase 8 scope, other loose ends, the phase 9 snag list, th
 
 **Punch list (updated 2026-10-02).** Carried forward:
 
-- **Button arrangement** has had no overall pass across every sheet's buttons. 0.10.12 to 0.10.14 moved the column-view and cost-detail controls to row 2 and shrank the side panel to six, so this is partly eased, but the Settings page is still untouched (HISTORY §16.3).
+- ~~**Button arrangement**~~ **Settings page done 2026-10-02 (0.10.16).** The ten buttons moved from below `tblSettings` to a band above the tables, grouped Print rooms / Data / Workbook and packed close together instead of three columns apart; `test-settingslayout.ps1` pins the positions and that a second setup run does not insert the band again. With 0.10.12 to 0.10.14 (column-view and cost-detail controls, six-button side panel) this closes the item; the other sheets were not changed.
 - **Phase 10 manual run.** The acceptance tests in §15 marked "Phase 10" (AT-01 to AT-09, AT-15) have never been exercised by a person typing; AT-15 needs a Mac.
 - **O7**, aggregation granularity for an automated master (§14). Still deferred.
 

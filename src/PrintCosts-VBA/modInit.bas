@@ -75,6 +75,18 @@ Private Const VIEW_DD_NAME As String = "ddViewMode"
 ' SidePanelButtonLayout itself, and hit the identical "Variable not defined"
 ' compile failure this comment already warns about.
 Private Const SIDE_PANEL_BTN_COUNT As Long = 6
+
+' Settings sheet's button band (2026-10-02): the three rows between the sheet's
+' description (row 2) and the tables' subtitle row, one per button group. The
+' shipped .xlsx has tblSettings' header on row 5; EnsureSettingsButtonBand
+' inserts the rows so it ends up on SETTINGS_TABLE_HEADER_ROW. Declared here
+' with the other module-level constants - see REDUCED_COLUMNS_DEFAULT's note.
+Private Const SETTINGS_BAND_FIRST_ROW As Long = 3
+Private Const SETTINGS_BAND_ROWS As Long = 3
+Private Const SETTINGS_TABLE_HEADER_ROW As Long = 8
+Private Const SETTINGS_BAND_ROW_H As Double = 26
+Private Const SETTINGS_BTN_W As Double = 130
+Private Const SETTINGS_BTN_GAP As Double = 4
 Private Const SIDE_PANEL_MIN_GAP As Double = 3
 
 ' Set by a setup run and consumed by the message Refresh Locations shows, so a
@@ -104,21 +116,11 @@ Public Sub InitialiseWorkbook()
     EnsureCatalogIds
     EnsureSuppliedColumnValidation
 
-    ' Moved here from after the per-sheet loop below (2026-09-27,
-    ' user-reported: Settings-sheet buttons rendering over the top of
-    ' tblSettings). FormatSettingsNotes word-wraps and AutoFits tblSettings'
-    ' Notes column - which can grow several of its rows considerably taller
-    ' than the sheet's default - but the Settings-sheet buttons a few lines
-    ' into that loop (Refresh Locations etc.) are positioned from
-    ' TablesBottom(ws), read at THAT moment. Every EnsureXSetting call that
-    ' can add a row to tblSettings has already run by this point, so its
-    ' final row count - and hence its final row heights, once this runs - are
-    ' both settled before the loop ever measures TablesBottom for Settings.
-    ' Previously this went unnoticed because Buttons.Add's default
-    ' Placement:=xlMoveAndSize silently followed the table's growth spurt
-    ' when this ran afterward, same as every other button-drift bug fixed
-    ' this session; DrawOne now sets Placement:=xlFreeFloating, so a button
-    ' positioned before a later row-height change no longer tracks it.
+    ' Runs before the per-sheet loop, not after it (2026-09-27). Row heights
+    ' have to be settled before anything is positioned from them, and the
+    ' Settings buttons are free-floating (DrawOne's note), so they do not
+    ' follow a later row-height change. (They now sit above the tables, which
+    ' this cannot move, but the ordering is still the safe one.)
     FormatSettingsNotes
 
     ' Summary and Reports, likewise built here. Their formulas read
@@ -180,54 +182,39 @@ Public Sub InitialiseWorkbook()
             DrawOne ws, 4, 5, "Clear table", "btnClearTechnicians", 110
             SetFreeze ws, ""
         ElseIf StrComp(ws.Name, "Settings", vbTextCompare) = 0 Then
-            ' The eight action buttons used to run down the right-hand side of
-            ' the sheet (column T), out of the way but also out of sight on a
-            ' normal-width window. They now sit in the space the removed About
-            ' block (modVersion.WriteAbout, retired) used to occupy, directly
-            ' below whichever table on this sheet runs deepest - tblSettings
-            ' once EnsureSetting has added its self-provisioned rows, in every
-            ' build seen so far. TablesBottom() finds that row the same way
-            ' WriteAbout used to. The old About text lived in columns A:D at
-            ' bottom+1 upward; clearing that band first means a workbook built
-            ' before this change loses the stale text on its next setup run,
-            ' not just on a from-scratch rebuild.
-            Dim settingsBottom As Long
-            settingsBottom = TablesBottom(ws)
-            UnlockSheet ws
-            ws.Range(ws.Cells(settingsBottom + 1, 1), ws.Cells(settingsBottom + 20, 4)).Clear
-            RelockSheet ws
+            ' Buttons sit in a band ABOVE the tables (2026-10-02, direct user
+            ' request; they used to sit below tblSettings, out of sight on a
+            ' long table, and before that down column T). Three rows, one per
+            ' logical group, each with a label in column A and its buttons
+            ' packed left to right from column B with a small fixed gap
+            ' (SETTINGS_BTN_GAP) rather than anchored three columns apart,
+            ' which spread four buttons across the whole sheet:
+            '   Print rooms - Add / Remove print room, Refresh Locations
+            '   Data        - Export All, Import, Backup, Restore
+            '   Workbook    - Check workbook, Re-stamp prices, About
+            ' EnsureSettingsButtonBand makes the room and writes the labels;
+            ' it also clears the old below-the-table band, so an older
+            ' workbook migrates on its next setup run.
+            EnsureSettingsButtonBand ws
+            Dim bandRow As Long, bandLeft As Double
+            bandRow = SETTINGS_BAND_FIRST_ROW
+            bandLeft = ws.Cells(1, 2).Left
+            DrawBandButton ws, bandRow, bandLeft, 0, "Add print room...", "btnAddPrintRoom"
+            DrawBandButton ws, bandRow, bandLeft, 1, "Remove print room...", "btnRemovePrintRoom"
+            DrawBandButton ws, bandRow, bandLeft, 2, "Refresh Locations", "btnRefreshLocations"
 
-            ' Two logical groups, four buttons each, one row per group so both
-            ' read at a glance: everyday workbook actions first, then the
-            ' data-movement actions (export/import/backup/restore). Columns
-            ' three apart (roughly 190px at the sheet's default column width)
-            ' so a 130px-wide button never crowds its neighbour.
-            DrawOne ws, settingsBottom + 2, 1, "Refresh Locations", "btnRefreshLocations", 130
-            DrawOne ws, settingsBottom + 2, 4, "Check workbook", "btnCheckWorkbook", 130
-            DrawOne ws, settingsBottom + 2, 7, "Re-stamp prices...", "btnReStamp", 130
-            DrawOne ws, settingsBottom + 2, 10, "About", "btnAbout", 130
+            DrawBandButton ws, bandRow + 1, bandLeft, 0, "Export All Locations...", "btnExportAll"
+            DrawBandButton ws, bandRow + 1, bandLeft, 1, "Import (choose room)...", "btnImportGlobal"
+            DrawBandButton ws, bandRow + 1, bandLeft, 2, "Backup workbook...", "btnBackupWorkbook"
+            DrawBandButton ws, bandRow + 1, bandLeft, 3, "Restore workbook...", "btnRestoreWorkbook"
 
-            DrawOne ws, settingsBottom + 4, 1, "Export All Locations...", "btnExportAll", 130
-            DrawOne ws, settingsBottom + 4, 4, "Import (choose room)...", "btnImportGlobal", 130
-            DrawOne ws, settingsBottom + 4, 7, "Backup workbook...", "btnBackupWorkbook", 130
-            DrawOne ws, settingsBottom + 4, 10, "Restore workbook...", "btnRestoreWorkbook", 130
-            ' A third row, direct user request (2026-09-27): automates the
-            ' documented manual add-a-location procedure (ARCHITECTURE.md
-            ' §4.4 - modRegistry.AddPrintRoom's own comment). Its own row
-            ' rather than a fifth slot on either group above - it is neither
-            ' an "everyday workbook action" nor a data-movement action, and
-            ' the two existing rows are already full at four buttons each.
-            ' Remove print room (2026-09-27, same day) sits right next to it
-            ' rather than opening a fourth row - Add/Remove read as one pair,
-            ' and this is the "later look at button arrangement" §16.3
-            ' flagged: putting the new button beside its natural counterpart
-            ' instead of picking its own spot in isolation.
-            DrawOne ws, settingsBottom + 6, 1, "Add print room...", "btnAddPrintRoom", 130
-            DrawOne ws, settingsBottom + 6, 4, "Remove print room...", "btnRemovePrintRoom", 130
+            DrawBandButton ws, bandRow + 2, bandLeft, 0, "Check workbook", "btnCheckWorkbook"
+            DrawBandButton ws, bandRow + 2, bandLeft, 1, "Re-stamp prices...", "btnReStamp"
+            DrawBandButton ws, bandRow + 2, bandLeft, 2, "About", "btnAbout"
             ' Small +/- buttons above the three lookup tables (snag list item
-            ' 5). Row 4 is already the table's own subtitle ("Paper stock
-            ' types" etc.) on this sheet, unlike the blank row 4 on Printers/
-            ' Papers/Print Technicians, so these sit in row 3 instead.
+            ' 5), on the row two above each table's header - the row above
+            ' the table's own subtitle ("Paper stock types" etc.), which
+            ' differs from the blank row on Printers/Papers/Print Technicians.
             '
             ' "Size"/"Consumable" rather than "StandardSizes"/
             ' "Consumables": Button.Name silently TRUNCATES
@@ -237,12 +224,14 @@ Public Sub InitialiseWorkbook()
             ' came back with its trailing "8" dropped, not an error, which
             ' is a worse bug than a clean failure would have been. The other
             ' three, at 34 each, raised 1004 outright.
-            DrawSmall ws, 3, 6, "+", "btnAddRowPaperTypes", 24
-            DrawSmall ws, 3, 7, "-", "btnRemoveRowPaperTypes", 24
-            DrawSmall ws, 3, 9, "+", "btnAddRowSize", 24
-            DrawSmall ws, 3, 10, "-", "btnRemoveRowSize", 24
-            DrawSmall ws, 3, 13, "+", "btnAddRowConsumable", 24
-            DrawSmall ws, 3, 14, "-", "btnRemoveRowConsumable", 24
+            Dim smallRow As Long
+            smallRow = Tbl("tblSettings").Range.Row - 2
+            DrawSmall ws, smallRow, 6, "+", "btnAddRowPaperTypes", 24
+            DrawSmall ws, smallRow, 7, "-", "btnRemoveRowPaperTypes", 24
+            DrawSmall ws, smallRow, 9, "+", "btnAddRowSize", 24
+            DrawSmall ws, smallRow, 10, "-", "btnRemoveRowSize", 24
+            DrawSmall ws, smallRow, 13, "+", "btnAddRowConsumable", 24
+            DrawSmall ws, smallRow, 14, "-", "btnRemoveRowConsumable", 24
             SetFreeze ws, ""
         ElseIf StrComp(ws.Name, "Reports", vbTextCompare) = 0 Then
             ' Rows 1-3, column T (2026-09-26, moved from F): F sat directly
@@ -1064,6 +1053,60 @@ Public Sub DrawOneAtTop(ByVal ws As Worksheet, ByVal ColNo As Long, ByVal Top As
     b.Characters.Font.Size = 10
 End Sub
 
+' Makes room for, and labels, the Settings button band. Idempotent, detected
+' from where tblSettings' header sits (same approach as EnsureHeaderGaps): the
+' shipped file has it on row 5, so the rows are inserted once and later runs
+' find it already on SETTINGS_TABLE_HEADER_ROW and only rewrite the labels.
+' Insert is entire-row, so the tables, their defined names and validation all
+' shift together; buttons are free-floating, but ClearButtons has already
+' removed this sheet's and the caller redraws them.
+Private Sub EnsureSettingsButtonBand(ByVal ws As Worksheet)
+    Dim lo As ListObject, need As Long, r As Long, labels As Variant, i As Long
+    Set lo = Tbl("tblSettings")
+    If lo Is Nothing Then Exit Sub
+    UnlockSheet ws
+    need = SETTINGS_TABLE_HEADER_ROW - lo.Range.Row
+    If need > 0 Then
+        ' Pre-band layouts: a "Commands" heading and its placeholder note sat
+        ' at P2:P3 from before the buttons moved; both are stale.
+        If CStr(ws.Range("P2").Value) = "Commands" Then ws.Range("P2").ClearContents
+        If Left$(CStr(ws.Range("P3").Value), 18) = "Buttons appear her" Then ws.Range("P3").ClearContents
+        ' Older layouts also had the buttons (and, before them, the About
+        ' text) in the space under the tables.
+        ws.Range(ws.Cells(lo.Range.Row + lo.Range.Rows.Count, 1), ws.Cells(lo.Range.Row + lo.Range.Rows.Count + 20, 4)).Clear
+        ws.Rows(SETTINGS_BAND_FIRST_ROW & ":" & (SETTINGS_BAND_FIRST_ROW + need - 1)).Insert Shift:=xlDown
+    End If
+    labels = Array("Print rooms", "Data", "Workbook")
+    For i = 0 To SETTINGS_BAND_ROWS - 1
+        r = SETTINGS_BAND_FIRST_ROW + i
+        With ws.Rows(r)
+            .ClearFormats
+            .RowHeight = SETTINGS_BAND_ROW_H
+        End With
+        With ws.Cells(r, 1)
+            .Value = labels(i)
+            .Font.Bold = True
+            .Font.Size = 10
+            .VerticalAlignment = xlCenter
+        End With
+    Next i
+    RelockSheet ws
+End Sub
+
+' One button in the Settings band: Slot is its position (0-based) within the
+' row, laid out from BandLeft at a fixed width and gap, vertically centred on
+' the row. Name is BTN_TAG & Macro & "_" & row & "_" & slot (<= 31 chars - see
+' DrawOne's note on the truncation).
+Private Sub DrawBandButton(ByVal ws As Worksheet, ByVal RowNo As Long, ByVal BandLeft As Double, ByVal Slot As Long, ByVal Caption As String, ByVal Macro As String)
+    Dim b As Button
+    Set b = ws.Buttons.Add(BandLeft + Slot * (SETTINGS_BTN_W + SETTINGS_BTN_GAP), ws.Rows(RowNo).Top + (ws.Rows(RowNo).Height - 22) / 2, SETTINGS_BTN_W, 22)
+    b.Placement = xlFreeFloating ' see DrawOne's comment - same column-resize drift risk
+    SetButtonName b, BTN_TAG & Macro & "_" & RowNo & "_" & Slot
+    b.Caption = Caption
+    b.OnAction = Macro
+    b.Characters.Font.Size = 10
+End Sub
+
 ' A compact square button (snag list item 5) - the "+"/"-" row buttons on the
 ' Settings sheet's four lookup tables, narrow enough to sit above a table
 ' without needing a row of its own the way the wider text buttons
@@ -1165,18 +1208,6 @@ Public Sub ViewDropDownChanged()
         Case Else: SetViewMode "All"
     End Select
 End Sub
-
-' The row just below whichever ListObject on this sheet runs deepest - e.g.
-' tblSettings on Settings, which grows every time modVersion.EnsureSetting
-' adds a self-provisioned row. Used to anchor content that must sit clear of
-' every table on the sheet regardless of how many rows each currently has.
-Private Function TablesBottom(ByVal ws As Worksheet) As Long
-    Dim lo As ListObject, bottom As Long
-    For Each lo In ws.ListObjects
-        If lo.Range.Row + lo.Range.Rows.Count - 1 > bottom Then bottom = lo.Range.Row + lo.Range.Rows.Count - 1
-    Next lo
-    TablesBottom = bottom
-End Function
 
 ' ------------------------------------------------------------- freeze panes ---
 ' Freeze panes are a per-window view setting with no non-UI object model
