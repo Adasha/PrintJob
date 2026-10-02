@@ -138,6 +138,7 @@ Public Sub InitialiseWorkbook()
             EnsureRollUnitFormulas ws
             EnsurePrintersDisplay ws
             EnsureJobCountDisplay ws
+            ClearBelowTableValidation ws
             BindColumns ws
             ApplyStatusFormat ws
             ApplyReducedView ws
@@ -841,6 +842,14 @@ End Sub
 ' modLists.BindColumns so setup, Refresh Locations, Check workbook/sheet and the
 ' picker all restore them. Qty's message depends on the room's LOC_RollUnit, which
 ' is why this is code rather than only what the .xlsx ships.
+'
+' Every rule is bound to its column by HEADER NAME, never by letter or position, and the
+' table body is cleared before they go on - so reordering, inserting or removing a job-table
+' column cannot leave a rule on the wrong column (Excel's Cut+Insert spreads a rule onto the
+' cells it shifts, and a positional rule goes stale the moment a column moves). Validation on
+' cells BELOW the table is a separate matter - see ClearBelowTableValidation, run once per
+' sheet by setup and Refresh Locations, not here (this runs on every row added). Rows the
+' table grows into take their validation from the row above, i.e. from here.
 Public Sub EnsureJobColumnValidation(ByVal ws As Worksheet, ByVal lo As ListObject)
     Dim dateMsg As String
     If lo.DataBodyRange Is Nothing Then Exit Sub
@@ -868,6 +877,34 @@ Public Sub EnsureJobColumnValidation(ByVal ws As Worksheet, ByVal lo As ListObje
         "Whether this chargeable cost has been paid. Blank means not recorded either way and counts as unpaid in totals.", _
         "Choose Yes or No.", , True
 
+    RelockSheet ws
+End Sub
+
+' Strips validation from the cells under the job table, across the table's own columns, down
+' to the end of the sheet. Validation there is not part of the table: the shipped template
+' once carried hand-placed rules on rows 28-2010 (a Yes/No list on what had become Sheet
+' size) that EnsureJobColumnValidation never saw and rows added to the table could inherit.
+'
+' Called once per sheet from setup and Refresh Locations - NOT from BindColumns. Run on every
+' row added (every BindColumns), it left Excel rejecting the very next COM call and
+' test-suppliedstock failed 6 of 6. Finds the validated cells first (SpecialCells covers the
+' used range only) so a clean sheet is left untouched.
+Public Sub ClearBelowTableValidation(ByVal ws As Worksheet)
+    Dim lo As ListObject, firstRow As Long, firstCol As Long, lastCol As Long, stray As Range
+    Set lo = JobsTable(ws)
+    If lo Is Nothing Then Exit Sub
+    firstRow = lo.Range.Row + lo.Range.Rows.Count
+    If firstRow > ws.Rows.Count Then Exit Sub
+    firstCol = lo.Range.Column
+    lastCol = firstCol + lo.Range.Columns.Count - 1
+
+    On Error Resume Next    ' SpecialCells raises when nothing matches
+    Set stray = ws.Range(ws.Cells(firstRow, firstCol), ws.Cells(ws.Rows.Count, lastCol)).SpecialCells(xlCellTypeAllValidation)
+    On Error GoTo 0
+    If stray Is Nothing Then Exit Sub
+
+    UnlockSheet ws
+    stray.Validation.Delete
     RelockSheet ws
 End Sub
 
