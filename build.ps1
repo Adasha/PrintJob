@@ -201,9 +201,9 @@ finally {
     if (Test-Path $work) { Remove-Item $work -Force -ErrorAction SilentlyContinue }
 }
 
-# Backups are build outputs and regenerable, so a deep history of them earns
-# nothing and syncs a few hundred megabytes over time.
-& (Join-Path $PSScriptRoot 'prune-backups.ps1') -Keep 5
+# Backups are NOT pruned here. The backup just taken is the way back if this
+# build turns out bad, so it stays until run-tests.ps1 has passed a full run
+# against the new build; that script then calls prune-backups.ps1.
 
 # A regression guard for the bug that destroyed the source once already. The
 # build must leave the .xlsx exactly as it found it; if that ever stops being

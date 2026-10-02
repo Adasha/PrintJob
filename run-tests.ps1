@@ -9,10 +9,15 @@
 #   run-tests.ps1                   all tests
 #   run-tests.ps1 -Only groups,paid name fragments; runs matching scripts
 #   run-tests.ps1 -Label baseline   log folder suffix (logs land in %TEMP%\testrun-<Label>)
+#   run-tests.ps1 -KeepBackups 3    backups to keep after a green full run (default 1)
+#
+# After a FULL run (no -Only) in which every script passes, old src\*.bak.xlsm
+# are pruned: the build has been tested, so only the newest backup is kept as
+# a way back. A partial or failing run prunes nothing.
 #
 # Close Excel workbooks first; do not run while src\PrintJob.xlsm is open.
 
-param([string[]]$Only, [string]$Label = (Get-Date -Format 'HHmmss'))
+param([string[]]$Only, [string]$Label = (Get-Date -Format 'HHmmss'), [int]$KeepBackups = 1)
 
 $logDir = Join-Path ([IO.Path]::GetTempPath()) "testrun-$Label"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
@@ -44,4 +49,7 @@ foreach ($t in $tests) {
 }
 $bad = @($results | Where-Object { $_.Status -notlike 'pass*' }).Count
 Write-Host ("`n{0} of {1} passed. Logs: {2}" -f ($results.Count - $bad), $results.Count, $logDir)
+if ($bad -eq 0 -and -not $Only -and $results.Count -gt 0) {
+    & (Join-Path $PSScriptRoot 'prune-backups.ps1') -Keep $KeepBackups
+}
 exit $bad

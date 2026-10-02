@@ -233,7 +233,7 @@ job IDs already carry it.
 | `test-jobvalidation.ps1` | Job-table validation is bound to the right columns by name, nothing is left below the table, and a column move is repaired |
 | `test-paidedit.ps1`, `test-markpaid.ps1` | Editing Paid on the Reports sheet, and Mark all as Paid / Unpaid with its filter safeguard |
 | `test-backup.ps1`, `test-clearcatalog.ps1`, `test-newpaperrow.ps1` | Backup/Restore workbook, Clear table on the catalogue sheets, and Add row on Papers |
-| `prune-backups.ps1` | Keeps the N most recent `*.bak.xlsm` and removes the rest. `build.ps1` calls it with `-Keep 5` |
+| `prune-backups.ps1` | Keeps the N most recent `*.bak.xlsm` and removes the rest. `run-tests.ps1` calls it with `-Keep 1` after a full, all-green run (`build.ps1` no longer prunes) |
 
 **The tests are non-destructive by construction, not by care.** `test-validation.ps1`
 reads the Clear All confirmation by putting the workbook in quiet mode first:

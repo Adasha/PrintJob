@@ -959,7 +959,7 @@ A `.xlsm` cannot be assembled outside Excel: the VBA project is a binary structu
 
 - `src\PrintCosts.xlsx` — everything a file can carry.
 - `src\PrintCosts-VBA\*.bas`, `*.cls` — the complete VBA source, the authoritative copy.
-- `build.ps1` — validates the source, backs up the existing `.xlsm`, copies the source to `%TEMP%`, imports every module into the copy, pastes `ThisWorkbook.cls` into the existing document module, runs `InitialiseWorkbook` then `StampBuild` in quiet mode, saves to a temp `.xlsm`, copies that into `src\`, and prunes old backups to the five most recent.
+- `build.ps1` — validates the source, backs up the existing `.xlsm`, copies the source to `%TEMP%`, imports every module into the copy, pastes `ThisWorkbook.cls` into the existing document module, runs `InitialiseWorkbook` then `StampBuild` in quiet mode, saves to a temp `.xlsm`, and copies that into `src\`. It does not prune backups; `run-tests.ps1` does that after a green full run.
 
 Requires **Trust access to the VBA project object model**, once. Windows only. The manual import route in `src\PrintCosts-VBA\SETUP.md` is the only route on Mac and must list all eighteen files — it was missing four (`modRegistry`, `modReports`, `modExport`, `modVersion`) until 0.7.1, which produced a project that would not compile on Mac. **`modImport.bas` makes the current total nineteen** — re-check SETUP.md's list stays complete whenever a module is added.
 
@@ -967,7 +967,7 @@ Requires **Trust access to the VBA project object model**, once. Windows only. T
 
 **Excel also saves to `%TEMP%`, and the result is copied into place** — saving a few-hundred-KB workbook directly into an actively-syncing OneDrive folder was refused every time with an error that reads like a missing method rather than a contested destination.
 
-**Backups are pruned to five.** They are build outputs, regenerable from the `.xlsx` plus the VBA source.
+**Backups are pruned after the tests pass.** They are build outputs, regenerable from the `.xlsx` plus the VBA source, but the one `build.ps1` just took is the way back from a bad build, so `build.ps1` leaves them alone. After a full `run-tests.ps1` run in which every script passes, `prune-backups.ps1 -Keep 1` removes the rest (`-KeepBackups N` overrides). A partial (`-Only`) or failing run prunes nothing, and several builds in a row without a test run accumulate backups until the next green run.
 
 Two things the automation buys beyond convenience: a **compile check** (running a macro over COM forces the whole project to compile, so a syntax error fails the build rather than surfacing on a user's first click), and **safe testability** (quiet mode makes the test scripts non-destructive by construction, not by care).
 
@@ -993,7 +993,7 @@ Two things the automation buys beyond convenience: a **compile check** (running 
 | `test-catalogids.ps1` | Site-prefixed catalogue IDs: every named row has a unique well-formed ID; Add row and typed rows are allocated the next number and a deleted ID is never reissued; restoring another site's catalogue adds rows (renaming clashing names to `Name (SITE)`), overwrites nothing, is idempotent, and does not wind the counters back |
 | `test-import.ps1` | Export All Locations, and Import restoring into origin and into a different room |
 | `test-deletereports.ps1` | Export report (the static-value `.xlsx` snapshot) and the Reports-page bulk delete, including the audit log entry |
-| `prune-backups.ps1` | Keeps the N most recent backups |
+| `prune-backups.ps1` | Keeps the N most recent backups; called by `run-tests.ps1` after a green full run |
 
 **Every test script drives a copy in `%TEMP%`, never `src\PrintCosts.xlsm` directly** — required because `Workbook_Open` does real work on every open (`ProtectAll`, `Invalidate`, `HealButtons`), and because this file is held through a **cloud-backed handle**: AutoSave commits those changes immediately, so `$wb.Saved` reads `True` on the line right after `Open` despite every sheet having just been modified, and the bytes land at `Close`/`Quit` regardless of `Close($false)` or a late `AutoSaveOn = $false`. This is not the sync client — it reproduces with syncing paused and settled. `probe.ps1` and `verify.ps1` sidestep it entirely by opening **read-only**.
 
@@ -1066,7 +1066,7 @@ Added in this pass:
 
 - ~~**Docs drift**~~ **Closed 2026-10-02.** HISTORY §16.3's `ConvertQtyIfCentimetres` entry is marked superseded by 0.10.11, §14's stale phase-8 paragraph is rewritten, and SETUP.md is brought up to 0.10.x (twenty modules including `modBackup`, Add/Remove print room, column views, roll unit, Reports Paid editing, the current test scripts and `run-tests.ps1`, and the phase 10 status). SETUP.md should still be re-read whenever a user-facing feature ships.
 - ~~**`ReorderJobColumns` validation corruption**~~ **Closed 2026-10-01.** `ReorderJobColumns` itself was deleted on 2026-09-29 (layout now ships in the .xlsx). What remained was stale hand-placed validation on rows 28-2010 *below* the table in the shipped template (e.g. a Yes/No list on what had become Sheet size), which `EnsureJobColumnValidation` never cleared. `modInit.ClearBelowTableValidation` now clears it once per sheet (setup and Refresh Locations; not from `BindColumns`, which runs on every row added and made Excel reject the next COM call), and every rule is bound by header name, so a future reorder/insert cannot misplace one. Guarded by `test-jobvalidation.ps1`, which also moves columns with the old Cut + Insert and checks one `BindColumns` repairs them.
-- **Clean up `src\*.bak.xlsm`.** Five backups from 2026-10-01 are sitting beside `PrintJob.xlsm`; run `prune-backups.ps1` and consider having `build.ps1` prune on success.
+- ~~**Clean up `src\*.bak.xlsm`**~~ **Closed 2026-10-02.** `build.ps1` no longer prunes; `run-tests.ps1` prunes to the newest backup after a full, all-green run (see §13.1).
 - ~~**Column-view edge cases**~~ **Closed 2026-10-02**, no code change needed. The view is workbook-wide (one `SET_LOC_REDUCED_VIEW`), so the original wording was off: a new room starts in the *current* mode, not always All, and follows later changes with every other room. `test-viewedge.ps1` pins down: Refresh Locations and a full `InitialiseWorkbook` keep Minimal; Add print room in Minimal and in All; Import into a sheet with hidden columns fills them and leaves them hidden; a Settings list naming a nonexistent header, empty entries or a blank list fails soft (bad entries skipped, blank falls back to the defaults).
 - **Reports date filters** have no calendar picker (platform limit, HISTORY §16.3). Revisit if a future Excel adds one.
 - ~~**`LOC_RollUnit` is per-sheet, not per-row**~~ **Closed 2026-10-02, working as intended.** The roll length unit is a deliberate per-sheet display setting (0.10.11): Qty is held in the sheet's unit and converted to metres for `_Data`. A location is not meant to mix centimetre and metre entry job-by-job, so no per-row unit (and no schema bump) is planned.
