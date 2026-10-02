@@ -113,10 +113,7 @@ Private Function PickTargetLocation() As Worksheet
 End Function
 
 Private Function PickImportFile() As String
-    Dim f As Variant
-    f = Application.GetOpenFilename("CSV files (*.csv),*.csv", , "Import print jobs - choose a file")
-    If VarType(f) = vbBoolean Then Exit Function   ' Cancel
-    PickImportFile = CStr(f)
+    PickImportFile = PickCsvFile("Import print jobs - choose a file")
 End Function
 
 ' ================================================================= merge ===

@@ -11,6 +11,9 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 `build.ps1` does steps 2 to 5 below in one go: it backs up any existing
 `.xlsm`, imports every module into a fresh copy of the `.xlsx`, pastes in the
 `ThisWorkbook` code, runs `InitialiseWorkbook`, and saves `src\PrintJob.xlsm`.
+It also saves a copy named `src\PrintJob-v<version>-<yyyymmdd-HHmm>-g<sha>.xlsm`
+(a trailing `+` on the sha means uncommitted changes); that is the file to copy to
+another machine, so the name says which build it is. The newest five are kept.
 Step 1 is still needed once, and Excel must be closed on that file.
 
 It prints whatever `InitialiseWorkbook` would have shown in a dialog, because

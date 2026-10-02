@@ -190,6 +190,27 @@ try {
     $wb = $null
     Copy-Item $workDst $dst -Force
     Remove-Item $workDst -Force -ErrorAction SilentlyContinue
+
+    # A second, self-describing copy: PrintJob-v<version>-<yyyymmdd-HHmm>[-g<sha>].xlsm.
+    # PrintJob.xlsm stays the fixed name the tests and docs point at; this one
+    # is what gets copied to other machines, so the file itself says which
+    # build it is. The sha (when git is available) says which commit, and
+    # "+" marks uncommitted changes.
+    $ver = [regex]::Match((Get-Content (Join-Path $vba 'modVersion.bas') -Raw), 'APP_VERSION As String = "([^"]+)"').Groups[1].Value
+    $sha = ''
+    try {
+        $s = (& git -C $PSScriptRoot rev-parse --short HEAD 2>$null)
+        if ($LASTEXITCODE -eq 0 -and $s) {
+            $sha = '-g' + $s
+            if (& git -C $PSScriptRoot status --porcelain 2>$null) { $sha += '+' }
+        }
+    } catch { }
+    $verName = 'PrintJob-v{0}-{1}{2}.xlsm' -f $ver, (Get-Date -Format 'yyyyMMdd-HHmm'), $sha
+    Copy-Item $dst (Join-Path $root $verName) -Force
+    Write-Host "versioned copy -> $verName"
+    # Keep the newest five; they are regenerable build output.
+    Get-ChildItem $root -Filter 'PrintJob-v*.xlsm' | Sort-Object LastWriteTime -Descending |
+        Select-Object -Skip 5 | Remove-Item -Force -ErrorAction SilentlyContinue
     Write-Host ''
     Write-Host "wrote $dst"
     Write-Host "       $stamped"
