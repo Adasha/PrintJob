@@ -259,10 +259,10 @@ Public Sub InitialiseWorkbook()
             ' ~80pt, clear of the T buttons (848pt) beyond S.
             DrawOneAtTop ws, 15, ws.Cells(2, 15).Top + 0.5, "Paid", "btnMarkPaid", 78, ws.Cells(2, 15).Height - 1
             DrawOneAtTop ws, 15, ws.Cells(3, 15).Top + 0.5, "Unpaid", "btnMarkUnpaid", 78, ws.Cells(3, 15).Height - 1
-            ' Freezes above the print-job results table (row 15) so its
+            ' Freezes above the print-job results table (row 17) so its
             ' header row and the filter/totals area above stay visible while
             ' scrolling through matches - snag list item 9.
-            SetFreeze ws, "A15"
+            SetFreeze ws, "A17"
         End If
     Next ws
 

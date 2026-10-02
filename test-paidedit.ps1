@@ -62,7 +62,7 @@ try {
     function Cols {
         $o = @{ Loc = 0; Job = 0; Paid = 0 }
         for ($c = 1; $c -le 20; $c++) {
-            $hd = [string]$rep.Cells(15, $c).Value2
+            $hd = [string]$rep.Cells(17, $c).Value2
             if ($hd -eq 'Location') { $o.Loc = $c }
             if ($hd -eq 'Job ID') { $o.Job = $c }
             if ($hd -eq 'Paid') { $o.Paid = $c }
@@ -72,9 +72,9 @@ try {
     function RecordAt([int]$row) {
         return ('tblJobs_' + [string]$rep.Cells($row, $cols.Loc).Value2) + '|' + [string]$rep.Cells($row, $cols.Job).Value2
     }
-    function SpillCount { Invoke-ComRetry -Attempts 5 { [int]$rep.Range('A16').SpillingToRange.Rows.Count } }
-    function SpillIntact { ([string]$rep.Range('A16').Text -notlike '#SPILL*') -and ((SpillCount) -eq $n) }
-    $filterCells = @('B4','B5','B7','B8','F4','F5','F6','F7','B10','F10','O10')
+    function SpillCount { Invoke-ComRetry -Attempts 5 { [int]$rep.Range('A18').SpillingToRange.Rows.Count } }
+    function SpillIntact { ([string]$rep.Range('A18').Text -notlike '#SPILL*') -and ((SpillCount) -eq $n) }
+    $filterCells = @('B4','B5','B7','B8','B10','F4','F5','F7','F8','F9','B12','F12','O12')
     function FilterState { ($filterCells | ForEach-Object { '{0}={1}' -f $_, [string]$rep.Range($_).Value2 }) -join ';' }
     function AuditActions {
         $aud = $wb.Worksheets('_Audit').ListObjects('tblAudit')
@@ -94,21 +94,21 @@ try {
 
     # -------------------------------------------------------- the dropdown
     Write-Host '=== Paid cells: dropdown, unlocked; the rest stays locked ==='
-    $pc = $rep.Cells(16, $cols.Paid)
+    $pc = $rep.Cells(18, $cols.Paid)
     Check ($pc.Validation.Type -eq 3) 'Paid cell has list validation'
     Check ([string]$pc.Validation.Formula1 -eq 'Yes,No') "list is Yes,No (got '$($pc.Validation.Formula1)')"
     Check ([bool]$pc.Validation.InCellDropdown) 'in-cell dropdown arrow on'
     Check (-not [bool]$pc.Locked) 'Paid cell is unlocked'
     Check (-not [bool]$rep.Cells(2000, $cols.Paid).Locked) 'unlocked down to row 2000'
-    Check ([bool]$rep.Cells(16, 1).Locked) 'Date/Time cell beside it is still locked'
-    Check ([bool]$rep.Cells(16, $cols.Job).Locked) 'Job ID cell is still locked'
+    Check ([bool]$rep.Cells(18, 1).Locked) 'Date/Time cell beside it is still locked'
+    Check ([bool]$rep.Cells(18, $cols.Job).Locked) 'Job ID cell is still locked'
     Check ($rep.ProtectContents) 'Reports sheet is protected'
 
     # ------------------------------------------------ edit, both rooms
     Write-Host ''
     Write-Host '=== Editing Paid lands on the right record (both rooms) ==='
     $done = @{}
-    foreach ($row in 16..($n + 15)) {
+    foreach ($row in 18..($n + 17)) {
         $key = RecordAt $row
         $room = $key.Split('|')[0]
         if ($done.ContainsKey($room)) { continue }
@@ -132,7 +132,7 @@ try {
     # ----------------------------------------------- same value re-picked
     Write-Host ''
     Write-Host '=== Re-picking the value already shown changes nothing ==='
-    $row = 17
+    $row = 19
     $key = RecordAt $row
     $shown = ([string]$rep.Cells($row, $cols.Paid).Value2).Trim()
     # A blank Paid (never recorded) first has to become a real value, through a
@@ -151,7 +151,7 @@ try {
     Write-Host ''
     Write-Host '=== A cell below the results is refused and cleared ==='
     $xl.Run('SetQuiet', $true)
-    $orphanRow = 16 + $n + 2
+    $orphanRow = 18 + $n + 2
     $before = Snapshot
     Select-Cell $orphanRow
     Write-Cell $orphanRow 'Yes'
@@ -166,7 +166,7 @@ try {
     Write-Host ''
     Write-Host '=== A value that is not Yes/No is refused ==='
     $xl.Run('SetQuiet', $true)
-    $row = 18
+    $row = 20
     $before = Snapshot
     Select-Cell $row
     Write-Cell $row 'Maybe'
@@ -182,8 +182,8 @@ try {
     Write-Host '=== Writing several Paid cells at once is refused ==='
     $xl.Run('SetQuiet', $true)
     $before = Snapshot
-    Select-Cell 17
-    Invoke-ComRetry { $rep.Range($rep.Cells(17, $cols.Paid), $rep.Cells(19, $cols.Paid)).Value2 = 'Yes' }
+    Select-Cell 19
+    Invoke-ComRetry { $rep.Range($rep.Cells(19, $cols.Paid), $rep.Cells(21, $cols.Paid)).Value2 = 'Yes' }
     $log = [string]$xl.Run('QuietLog')
     Check ($log -like '*Change one Paid cell at a time*') 'said to change one cell at a time'
     $after = Snapshot
@@ -194,7 +194,7 @@ try {
     Write-Host ''
     Write-Host '=== A record that changed since it was selected is refused ==='
     $xl.Run('SetQuiet', $true)
-    $row = 19
+    $row = 21
     $key = RecordAt $row
     $room = $key.Split('|')[0]
     $lo = if ($room -eq 'tblJobs_MAIN') { $loMain } else { $loAnnexe }
@@ -237,9 +237,9 @@ try {
     # ---------------------------------- bulk buttons still fine afterwards
     Write-Host ''
     Write-Host '=== Mark all as... still works after edits ==='
-    $rep.Range('F6').Value2 = 'Epson SureColor P9500'
+    $rep.Range('F7').Value2 = 'Epson SureColor P9500'
     $xl.CalculateFullRebuild()
-    $rng = $rep.Range('A16').SpillingToRange
+    $rng = $rep.Range('A18').SpillingToRange
     $nn = $rng.Rows.Count
     $xl.Run('SetQuiet', $true)
     $xl.Run('MarkVisibleReportsConfirmed', $rep, $rng, $cols.Loc, $cols.Job, $nn, 'Yes')
