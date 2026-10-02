@@ -1013,7 +1013,7 @@ Run the four `test-*.ps1` regression scripts **one at a time**, not in a tight l
 |---|---|
 | **O7** | Aggregation granularity for a future *automated* master — job-level, summary-level, or job-level without names. See §12.2–§12.4: a manual, job-level-with-names route already exists via Export All Locations + Import, which somewhat pre-empts the urgency of this decision but does not resolve it for automation |
 
-**New, from this pass (§16):** the phase-8 visual-polish gaps (legend, conditional formatting, currency wiring — §16.2) and the stale in-code version stamp (§16.1) are tracked there rather than as numbered "O" items, since they are implementation debt rather than open design questions.
+**Tracked in §16 rather than here:** the open implementation debt (punch list in §16.2) is not given numbered "O" items, since it is not open design questions. The phase-8 visual-polish gaps were closed in 0.8.1 and the stale in-code version stamp in 0.8.0 (§16.1); their history is in `docs/HISTORY.md`.
 
 ---
 
@@ -1065,7 +1065,7 @@ Sections 16.2–16.5 (phase 8 scope, other loose ends, the phase 9 snag list, th
 
 Added in this pass:
 
-- **Docs drift.** HISTORY §16.3 still describes `ConvertQtyIfCentimetres` and its grey shading, both removed in 0.10.11. §14's "New, from this pass" paragraph still lists phase-8 gaps as open, though they were closed in 0.8.1. SETUP.md should be rechecked against the 0.10.x features (add/remove room, view buttons, compatibility rework).
+- ~~**Docs drift**~~ **Closed 2026-10-02.** HISTORY §16.3's `ConvertQtyIfCentimetres` entry is marked superseded by 0.10.11, §14's stale phase-8 paragraph is rewritten, and SETUP.md is brought up to 0.10.x (twenty modules including `modBackup`, Add/Remove print room, column views, roll unit, Reports Paid editing, the current test scripts and `run-tests.ps1`, and the phase 10 status). SETUP.md should still be re-read whenever a user-facing feature ships.
 - ~~**`ReorderJobColumns` validation corruption**~~ **Closed 2026-10-01.** `ReorderJobColumns` itself was deleted on 2026-09-29 (layout now ships in the .xlsx). What remained was stale hand-placed validation on rows 28-2010 *below* the table in the shipped template (e.g. a Yes/No list on what had become Sheet size), which `EnsureJobColumnValidation` never cleared. `modInit.ClearBelowTableValidation` now clears it once per sheet (setup and Refresh Locations; not from `BindColumns`, which runs on every row added and made Excel reject the next COM call), and every rule is bound by header name, so a future reorder/insert cannot misplace one. Guarded by `test-jobvalidation.ps1`, which also moves columns with the old Cut + Insert and checks one `BindColumns` repairs them.
 - **Clean up `src\*.bak.xlsm`.** Five backups from 2026-10-01 are sitting beside `PrintJob.xlsm`; run `prune-backups.ps1` and consider having `build.ps1` prune on success.
 - **Column-view edge cases.** Check that Reduced/Minimal survive Refresh Locations, Add print room (a new room should start in All) and Import into a hidden-column sheet, and that a Settings edit to `SET_LOC_MINIMAL_COLUMNS` naming a nonexistent header fails soft.
