@@ -5,7 +5,8 @@
 #
 # The backups are build outputs, regenerable from src\PrintCosts.xlsx plus the
 # VBA source, so a deep history of them earns nothing and syncs a few hundred
-# megabytes over time. build.ps1 calls this after every successful build.
+# megabytes over time. run-tests.ps1 calls this (with -Keep 1) after a full, all-green run, so
+# a backup outlives a build until the build has been tested.
 param([int] $Keep = 5)
 
 $ErrorActionPreference = 'Stop'
