@@ -3,6 +3,13 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.10.19 - Export/backup from a OneDrive folder on Mac.
+  - Excel for Mac reports a OneDrive-synced workbook's path as a URL, and the
+    scan for the local folder used the sandbox HOME (the Excel container), so it
+    never found ~/Library/CloudStorage. Now derives the real home, also tries
+    ~/OneDrive, and falls back to the sandbox Documents folder (path shown in the
+    success message). Untested on a real Mac.
+
 0.10.18 - File picker works on Excel for Mac; versioned build filename.
   - Restore workbook and Import (incl. add print room) raised 1004 "method
     'GetOpenFilename' of object '_Application' failed" on Mac. Both now call
