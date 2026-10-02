@@ -39,8 +39,13 @@ try {
     $jlo = $main.ListObjects('tblJobs_MAIN')
 
     function Col($lo, $name) {
-        for ($i = 1; $i -le $lo.ListColumns.Count; $i++) {
-            if ($lo.ListColumns($i).Name -eq $name) { return $i }
+        for ($try = 1; $try -le 5; $try++) {
+            try {
+                for ($i = 1; $i -le $lo.ListColumns.Count; $i++) {
+                    if ($lo.ListColumns($i).Name -eq $name) { return $i }
+                }
+            } catch {}
+            Start-Sleep -Milliseconds 500
         }
         throw "column '$name' not found"
     }
@@ -59,22 +64,26 @@ try {
         [void]$xl.Run('AddCatalogRow', 'tblPapers')
         $row = $plo.ListRows.Count
         $r = $plo.ListRows($row).Range
-        $r.Cells(1, (Col $plo 'StockID')).Value2 = 'STK-TEST-' + $row
-        $r.Cells(1, (Col $plo 'Description')).Value2 = $desc
-        $r.Cells(1, (Col $plo 'Paper type')).Value2 = 'Matte'
-        $r.Cells(1, (Col $plo 'Measure')).Value2 = $measure
-        $r.Cells(1, (Col $plo 'Size mode')).Value2 = $mode
-        if ($std) { $r.Cells(1, (Col $plo 'Std. size')).Value2 = $std }
-        if ($null -ne $w) { $r.Cells(1, (Col $plo 'Width mm')).Value2 = [double]$w }
-        if ($null -ne $h) { $r.Cells(1, (Col $plo 'Height mm')).Value2 = [double]$h }
-        $r.Cells(1, (Col $plo 'Cost')).Value2 = 0.5
+        Invoke-ComRetry -Attempts 5 { $r.Cells(1, (Col $plo 'StockID')).Value2 = 'STK-TEST-' + $row }
+        Invoke-ComRetry -Attempts 5 { $r.Cells(1, (Col $plo 'Description')).Value2 = $desc }
+        Invoke-ComRetry -Attempts 5 { $r.Cells(1, (Col $plo 'Paper type')).Value2 = 'Matte' }
+        Invoke-ComRetry -Attempts 5 { $r.Cells(1, (Col $plo 'Measure')).Value2 = $measure }
+        Invoke-ComRetry -Attempts 5 { $r.Cells(1, (Col $plo 'Size mode')).Value2 = $mode }
+        if ($std) { Invoke-ComRetry -Attempts 5 { $r.Cells(1, (Col $plo 'Std. size')).Value2 = $std } }
+        if ($null -ne $w) { Invoke-ComRetry -Attempts 5 { $r.Cells(1, (Col $plo 'Width mm')).Value2 = [double]$w } }
+        if ($null -ne $h) { Invoke-ComRetry -Attempts 5 { $r.Cells(1, (Col $plo 'Height mm')).Value2 = [double]$h } }
+        Invoke-ComRetry -Attempts 5 { $r.Cells(1, (Col $plo 'Cost')).Value2 = 0.5 }
         Start-Sleep -Milliseconds 300
         return $row
     }
     function Job-StockCell {
         [void]$main.Activate()
         [void]$xl.Run('btnAddPrintJob')
-        $jr = $jlo.ListRows($jlo.ListRows.Count).Range.Row
+        $jr = Invoke-ComRetry -Attempts 5 {
+            $row = [int]$jlo.ListRows($jlo.ListRows.Count).Range.Row
+            if ($row -lt 1) { throw 'new row not readable yet' }
+            $row
+        }
         return $main.Cells($jr, (Col $jlo 'Paper Stock'))
     }
 
@@ -101,7 +110,7 @@ try {
     Write-Host ''
     Write-Host '=== Changing Std. size re-fills Width/Height ==='
     [void]$papers.Activate()
-    $r.Cells(1, (Col $plo 'Std. size')).Value2 = 'A2'
+    Invoke-ComRetry -Attempts 5 { $r.Cells(1, (Col $plo 'Std. size')).Value2 = 'A2' }
     Start-Sleep -Milliseconds 300
     $w2 = [double]$r.Cells(1, (Col $plo 'Width mm')).Value2
     $h2 = [double]$r.Cells(1, (Col $plo 'Height mm')).Value2
@@ -119,9 +128,9 @@ try {
     # ------------------------------------------------ explicit Active = No kept
     Write-Host ''
     Write-Host '=== An explicit Active = No is never overwritten ==='
-    $r2.Cells(1, (Col $plo 'Active')).Value2 = 'No'
+    Invoke-ComRetry -Attempts 5 { $r2.Cells(1, (Col $plo 'Active')).Value2 = 'No' }
     Start-Sleep -Milliseconds 300
-    $r2.Cells(1, (Col $plo 'Description')).Value2 = $desc2 + ' x'
+    Invoke-ComRetry -Attempts 5 { $r2.Cells(1, (Col $plo 'Description')).Value2 = $desc2 + ' x' }
     Start-Sleep -Milliseconds 300
     Check ([string]$r2.Cells(1, (Col $plo 'Active')).Value2 -eq 'No') 'Active stays No after a further edit'
 
