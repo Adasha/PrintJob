@@ -41,6 +41,14 @@ Private Const EXPORT_CELL As String = "$AM$6"
 ' always have, unless a test says otherwise through SetExportNames.
 Private mQuietNames As Long
 
+' Rows in the Reports export header block before any promoted fields (see
+' SnapshotHeaderBlock): title, blank, site ID, site name, date range, rows, blank,
+' total chargeable, paid, still owed.
+Private Const HEADER_FIXED As Long = 10
+
+' The title of an exported report when Settings has no "Report heading".
+Public Const DEFAULT_REPORT_HEADING As String = "Print job report"
+
 ' What replaces a student name in an export that leaves names out: a line of 10
 ' hyphens, so a withheld name is visibly different from a missing one.
 Private Const NAME_PLACEHOLDER As String = "----------"
@@ -272,9 +280,9 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
     Dim lastCol As Long, rng As Range, block As Variant, n As Long
     Dim path As String, wbOut As Workbook
     Dim promoted As Collection, header As Variant, full As Variant, tableHeaderRow As Long
-    Dim totalChargeable As Double, stillOwed As Double
+    Dim totalChargeable As Double, stillOwed As Double, paidTotal As Double
     Dim footer As Variant, footerStartRow As Long
-    Dim names As VbMsgBoxResult
+    Dim names As VbMsgBoxResult, printSetOk As Boolean
 
     On Error GoTo Fail
     lastCol = LastHeaderColumn(repWs, HDR_ROW)
@@ -322,9 +330,10 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
     ' "still owed" reconciles to "total chargeable minus paid".
     totalChargeable = SafeNum(repWs.Range("F15").Value)
     stillOwed = SafeNum(repWs.Range("O15").Value)
+    paidTotal = SafeNum(repWs.Range("N15").Value)
 
     block = AppendTotalsRow(block)
-    header = SnapshotHeaderBlock(repWs, rng, n, promoted, totalChargeable, stillOwed)
+    header = SnapshotHeaderBlock(repWs, rng, n, promoted, totalChargeable, paidTotal, stillOwed)
     full = CombineBlocks(header, block)
     tableHeaderRow = UBound(header, 1) + 2   ' + 1 blank separator + 1 to reach the header row itself
 
@@ -348,30 +357,12 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
 
     AppOff
     Set wbOut = Application.Workbooks.Add
+    ' Written as values, then styled and given its print setup (A4 landscape,
+    ' one page wide, header row repeating) - see FormatReportForPrint.
     With wbOut.Worksheets(1)
         .Range(.Cells(1, 1), .Cells(UBound(full, 1), UBound(full, 2))).Value = full
-        .Range(.Cells(1, 1), .Cells(1, 2)).Font.Bold = True
-        .Range(.Cells(1, 1), .Cells(1, 2)).Font.Size = 14
-        ' Total chargeable / Still owed, rows 8 and 9 of the header block -
-        ' see SnapshotHeaderBlock. Bolded and currency-formatted the same way
-        ' the on-sheet Matching totals (F15/O15) already are, so the numbers
-        ' read as money rather than bare decimals.
-        .Range(.Cells(8, 1), .Cells(9, 2)).Font.Bold = True
-        .Range(.Cells(8, 2), .Cells(9, 2)).NumberFormat = CurrencyFormatCode()
-        .Rows(tableHeaderRow).Font.Bold = True
-        .Rows(tableHeaderRow).Interior.Color = RGB(222, 232, 244)
-        FormatSnapshotColumns wbOut.Worksheets(1), block
-        ' The totals row appended by AppendTotalsRow - last row of the table.
-        .Rows(tableHeaderRow + UBound(block, 1) - 1).Font.Bold = True
-        .Rows(tableHeaderRow + UBound(block, 1) - 1).Borders(xlEdgeTop).Weight = xlThin
-        ' Schema version / Generated, below the table - de-emphasised the same
-        ' grey already used for read-only/reference text elsewhere in the
-        ' workbook (modReports.LegendRow's GreyText, CritCell's hint text),
-        ' so provenance reads as background information, not as part of the
-        ' report itself.
-        .Range(.Cells(footerStartRow, 1), .Cells(footerStartRow + UBound(footer, 1) - 1, 2)).Font.Color = RGB(110, 110, 110)
-        .Columns.AutoFit
     End With
+    printSetOk = FormatReportForPrint(wbOut.Worksheets(1), block, tableHeaderRow, footerStartRow, UBound(footer, 1), UBound(full, 1))
     wbOut.SaveAs path, XLSX_FORMAT
     wbOut.Close False
     AppOn
@@ -390,7 +381,8 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
     Say n & " record" & IIf(n = 1, "", "s") & " exported.", _
         "Written to:" & vbCrLf & path, _
         "A point-in-time copy of the filtered, sorted results currently shown, for human use or physical archiving. " & _
-        "It will not update - run Export report again after changing the filters."
+        "It will not update - run Export report again after changing the filters." & _
+        IIf(printSetOk, "", vbCrLf & vbCrLf & "The print setup (A4 landscape, one page wide) could not be applied - Excel needs a printer installed for that. Set the page up in Excel before printing.")
     Exit Sub
 Fail:
     AppReset
@@ -421,15 +413,16 @@ Private Function LastHeaderColumn(ByVal ws As Worksheet, ByVal HdrRow As Long) A
     LastHeaderColumn = last
 End Function
 
-' Columns left out of the exported table by default - just Area m2 for now,
-' since it is derivable from Qty and the paper's own dimensions and isn't
-' something anyone reads directly off an export. Not user-configurable yet:
+' Columns left out of the exported table by default: Area m2 (derivable from Qty
+' and the paper's own dimensions, not something anyone reads directly off an
+' export) and Notes (free text, not wanted on a printed report; 2026-10-02).
+' Not user-configurable yet:
 ' a fixed list here, same status as ApplyReportsMinimumColumns' own "keep"
 ' set on the live Reports sheet (modReports) - a documented future
 ' enhancement is letting someone choose which columns an export includes,
 ' rather than a Settings toggle built now.
 Private Function ExcludedExportColumns() As Variant
-    ExcludedExportColumns = Array("Area m2")
+    ExcludedExportColumns = Array("Area m2", "Notes")
 End Function
 
 ' Redacts the Student name VALUES (not the column) of BLOCK (header row 1,
@@ -664,12 +657,13 @@ End Function
 ' rather than nine lines running together as one undifferentiated list.
 Private Function SnapshotHeaderBlock(ByVal repWs As Worksheet, ByVal rng As Range, _
                                      ByVal n As Long, ByVal promoted As Collection, _
-                                     ByVal TotalChargeable As Double, ByVal StillOwed As Double) As Variant
-    Const FIXED As Long = 9
+                                     ByVal TotalChargeable As Double, ByVal Paid As Double, _
+                                     ByVal StillOwed As Double) As Variant
+
     Dim a() As Variant, r As Long, item As Variant
 
-    ReDim a(1 To FIXED + promoted.Count, 1 To 2)
-    a(1, 1) = "Print job report"
+    ReDim a(1 To HEADER_FIXED + promoted.Count, 1 To 2)
+    a(1, 1) = SettingText("REPORT_HEADING", DEFAULT_REPORT_HEADING)
     ' Row 2 left blank - gap below the title.
     a(3, 1) = "Site ID":        a(3, 2) = SettingText("SITE_ID", "SITE")
     a(4, 1) = "Site name":      a(4, 2) = SettingText("SITE_NAME")
@@ -680,9 +674,10 @@ Private Function SnapshotHeaderBlock(ByVal repWs As Worksheet, ByVal rng As Rang
     ' the archive: Still owed is the same Chargeable total with paid charges
     ' removed, not a separate figure that could drift from it.
     a(8, 1) = "Total chargeable": a(8, 2) = TotalChargeable
-    a(9, 1) = "Still owed":       a(9, 2) = StillOwed
+    a(9, 1) = "Paid":             a(9, 2) = Paid
+    a(10, 1) = "Still owed":      a(10, 2) = StillOwed
 
-    r = FIXED
+    r = HEADER_FIXED
     For Each item In promoted
         r = r + 1
         a(r, 1) = CStr(item)
@@ -791,6 +786,136 @@ Private Sub FormatSnapshotColumns(ByVal outWs As Worksheet, ByVal block As Varia
         End Select
     Next c
 End Sub
+
+' ---------------------------------------------- printable report layout ---
+' Styles the exported report for paper (2026-10-02, direct user request) and
+' sets up its page: A4 landscape, one page wide, as many tall as needed, the
+' table's header row repeating on each page, page numbers in the footer.
+'
+' Built to survive a greyscale photocopy: every tint is pale (the header
+' band is the darkest at about 85% grey-white) with dark text on top, and no
+' meaning is carried by colour alone - rows are also separated by a hairline
+' rule, the header by a heavy one, and Paid is the words Yes/No.
+'
+' Returns False when the page setup could not be applied. Excel refuses
+' PageSetup changes when no printer is installed, which is a property of the
+' machine and not a reason to fail the export - the file is still written,
+' and the caller says the print setup was skipped.
+Private Function FormatReportForPrint(ByVal ws As Worksheet, ByVal block As Variant, _
+                                      ByVal tableHeaderRow As Long, ByVal footerStartRow As Long, _
+                                      ByVal footerRows As Long, ByVal lastRow As Long) As Boolean
+    Dim nCols As Long, firstData As Long, lastData As Long, totalsRow As Long
+    Dim c As Long, r As Long, hdr As String, rng As Range
+
+    nCols = UBound(block, 2)
+    totalsRow = tableHeaderRow + UBound(block, 1) - 1
+    firstData = tableHeaderRow + 1
+    lastData = totalsRow - 1
+
+    ws.Cells.Font.Size = 10
+
+    ' Title: the configurable heading (Settings > Report heading).
+    With ws.Cells(1, 1)
+        .Font.Bold = True
+        .Font.Size = 18
+    End With
+    ws.Range(ws.Cells(1, 1), ws.Cells(1, nCols)).Borders(xlEdgeBottom).Weight = xlMedium
+
+    ' Header block: grey labels, plain values; the money summary (total
+    ' chargeable / paid / still owed) bold on a pale band so it reads first.
+    ws.Range(ws.Cells(3, 1), ws.Cells(HEADER_FIXED, 1)).Font.Color = RGB(89, 89, 89)
+    ws.Range(ws.Cells(3, 2), ws.Cells(HEADER_FIXED, 2)).HorizontalAlignment = xlLeft
+    With ws.Range(ws.Cells(8, 1), ws.Cells(HEADER_FIXED, 2))
+        .Font.Bold = True
+        .Font.Color = RGB(0, 0, 0)
+        .Interior.Color = RGB(235, 238, 244)
+    End With
+    ws.Range(ws.Cells(8, 2), ws.Cells(HEADER_FIXED, 2)).NumberFormat = CurrencyFormatCode()
+
+    ' Table header: bold on a pale band, heavy rule underneath.
+    Set rng = ws.Range(ws.Cells(tableHeaderRow, 1), ws.Cells(tableHeaderRow, nCols))
+    rng.Font.Bold = True
+    rng.Interior.Color = RGB(217, 223, 235)
+    rng.Borders(xlEdgeBottom).Weight = xlMedium
+    rng.WrapText = False   ' a wrapped header autofits to its longest word and splits it mid-word
+    rng.VerticalAlignment = xlCenter
+
+    FormatSnapshotColumns ws, block
+
+    ' Data rows: hairline rule between rows, faint banding on every other row.
+    If lastData >= firstData Then
+        Set rng = ws.Range(ws.Cells(firstData, 1), ws.Cells(lastData, nCols))
+        With rng.Borders(xlInsideHorizontal)
+            .LineStyle = xlContinuous
+            .Weight = xlHairline
+            .Color = RGB(166, 166, 166)
+        End With
+        For r = firstData To lastData
+            If (r - firstData) Mod 2 = 1 Then
+                ws.Range(ws.Cells(r, 1), ws.Cells(r, nCols)).Interior.Color = RGB(244, 246, 250)
+            End If
+        Next r
+    End If
+
+    ' Alignment: numbers right (headers too, so they sit over their figures),
+    ' Paid centred, everything else left.
+    For c = 1 To nCols
+        hdr = CStr(block(1, c))
+        Set rng = ws.Range(ws.Cells(tableHeaderRow, c), ws.Cells(totalsRow, c))
+        Select Case hdr
+            Case "Qty", "Area m2", "Paper cost", "Consumable cost", "Gross", "Disregarded", "Chargeable"
+                rng.HorizontalAlignment = xlRight
+            Case "Paid"
+                rng.HorizontalAlignment = xlCenter
+            Case Else
+                rng.HorizontalAlignment = xlLeft
+        End Select
+    Next c
+
+    ' Totals row: bold, heavy rule above and a rule below.
+    Set rng = ws.Range(ws.Cells(totalsRow, 1), ws.Cells(totalsRow, nCols))
+    rng.Font.Bold = True
+    rng.Borders(xlEdgeTop).Weight = xlMedium
+    rng.Borders(xlEdgeBottom).Weight = xlThin
+
+    ' Provenance below the table, small and grey.
+    With ws.Range(ws.Cells(footerStartRow, 1), ws.Cells(footerStartRow + footerRows - 1, 2))
+        .Font.Color = RGB(110, 110, 110)
+        .Font.Size = 8
+        .HorizontalAlignment = xlLeft
+    End With
+
+    ' Width from the table alone: the title and the long header-block lines
+    ' would otherwise stretch column A across the whole page.
+    ws.Range(ws.Cells(tableHeaderRow, 1), ws.Cells(totalsRow, nCols)).Columns.AutoFit
+
+    FormatReportForPrint = ApplyReportPageSetup(ws, tableHeaderRow, lastRow, nCols)
+End Function
+
+Private Function ApplyReportPageSetup(ByVal ws As Worksheet, ByVal tableHeaderRow As Long, _
+                                      ByVal lastRow As Long, ByVal nCols As Long) As Boolean
+    On Error GoTo Failed
+    With ws.PageSetup
+        .PrintArea = ws.Range(ws.Cells(1, 1), ws.Cells(lastRow, nCols)).Address
+        .Orientation = xlLandscape
+        .PaperSize = xlPaperA4
+        .Zoom = False
+        .FitToPagesWide = 1
+        .FitToPagesTall = False
+        .LeftMargin = Application.CentimetersToPoints(1.2)
+        .RightMargin = Application.CentimetersToPoints(1.2)
+        .TopMargin = Application.CentimetersToPoints(1.5)
+        .BottomMargin = Application.CentimetersToPoints(1.5)
+        .PrintGridlines = False
+        .PrintTitleRows = "$" & tableHeaderRow & ":$" & tableHeaderRow
+        .LeftFooter = "&8&F"
+        .RightFooter = "&8Page &P of &N"
+    End With
+    ApplyReportPageSetup = True
+    Exit Function
+Failed:
+    ApplyReportPageSetup = False
+End Function
 
 Private Function ReportSnapshotPath() As String
     Dim folder As String, base As String

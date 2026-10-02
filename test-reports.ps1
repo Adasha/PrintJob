@@ -270,6 +270,9 @@ try {
         if ([string]$sp.Cells($r, $nameCol).Value2 -ne '') { $anyNameNo = $true }
     }
     Check $anyNameNo "the live results still show Student names in the live view"
+    $zeroNo = 0
+    for ($r = 1; $r -le $sp.Rows.Count; $r++) { if ([string]$sp.Cells($r, $noCol).Text -eq '0') { $zeroNo++ } }
+    Check ($zeroNo -eq 0) "a job with no student number shows blank, not '0' ($zeroNo rows show 0)"
 
     # ------------------------------------------------------- 2a: toggled on
     Write-Host ''
@@ -405,6 +408,7 @@ try {
         Check ($info.Lines -contains 'Rows') "Rows line present"
         Check ($info.Lines -contains 'Total chargeable') "Total chargeable line present"
         Check ($info.Lines -contains 'Still owed') "Still owed line present"
+        Check ($info.Lines -contains 'Paid') "Paid line present in the summary"
         Check (-not ($info.Lines -contains 'Schema version')) "Schema version NOT in the header block (moved below the table)"
         Check (-not ($info.Lines -contains 'Generated')) "Generated NOT in the header block (moved below the table)"
         $printerLine = $info.Lines | Where-Object { $_ -like 'Printer:*' }
@@ -438,7 +442,25 @@ try {
         Write-Host ("  table columns: " + ($tableHeaders -join ', '))
         Check (-not ($tableHeaders -contains 'Printer')) "Printer column dropped from the table"
         Check ($tableHeaders -contains 'Technician') "Technician column still present (was being silently dropped by the old .Hidden-bounded LastVisibleColumn)"
-        Check ($tableHeaders -contains 'Notes') "Notes column still present (same old bug)"
+        Check (-not ($tableHeaders -contains 'Notes')) "Notes column excluded from the printed report (2026-10-02)"
+
+        # Printable layout (2026-10-02): A4 landscape, one page wide, header
+        # row repeating, page numbers; the Paid summary sits between Total
+        # chargeable and Still owed.
+        $ps = $info.Sheet.PageSetup
+        Check ($ps.Orientation -eq 2) "page is landscape (got $($ps.Orientation))"
+        Check ($ps.PaperSize -eq 9) "paper is A4 (got $($ps.PaperSize))"
+        Check (($ps.Zoom -eq $false) -and ($ps.FitToPagesWide -eq 1)) 'fits one page wide'
+        Check ($ps.PrintTitleRows -eq ('$' + $tableRow + ':$' + $tableRow)) "table header row repeats on every page (got '$($ps.PrintTitleRows)')"
+        Check ($ps.RightFooter -like '*Page &P of &N*') 'page numbers in the footer'
+        Check ([string]$info.Sheet.Cells($totalRow + 1, 1).Value2 -eq 'Paid') 'Paid row follows Total chargeable'
+        Check ([string]$info.Sheet.Cells($totalRow + 2, 1).Value2 -eq 'Still owed') 'Still owed row follows Paid'
+        $hdrFill = [int]$info.Sheet.Cells($tableRow, 1).Interior.Color
+        Check ($hdrFill -ne 16777215) 'table header row is tinted'
+        # Greyscale safety: the darkest tint must stay pale (luma >= 200/255).
+        $rr = $hdrFill -band 255; $gg = ($hdrFill -shr 8) -band 255; $bb = ($hdrFill -shr 16) -band 255
+        $luma = 0.299 * $rr + 0.587 * $gg + 0.114 * $bb
+        Check ($luma -ge 200) "header tint stays light enough to photocopy (luma $([int]$luma))"
         Check ($tableHeaders -contains 'Chargeable') "Chargeable column still present"
         Check (-not ($tableHeaders -contains 'Area m2')) "Area m2 excluded from the export by default"
 
@@ -516,7 +538,7 @@ try {
         # and the paper's own dimensions, not something read directly off an
         # export. Still present on the live Reports sheet itself.
         Check (-not ($tableHeaders2 -contains 'Area m2')) "Area m2 excluded from the export by default"
-        Check ($tableHeaders2.Count -eq 16) "all 16 exported result columns present (got $($tableHeaders2.Count))"
+        Check ($tableHeaders2.Count -eq 15) "all 15 exported result columns present - Area m2 and Notes excluded (got $($tableHeaders2.Count))"
 
         # Export prompt (2026-10-02): answered No for this export (SetExportNames),
         # so Student name VALUES are redacted to a line of 10 hyphens - not blank,
@@ -544,6 +566,9 @@ try {
     Write-Host '=== Export prompt answered Yes: the export includes names ==='
     Remove-Item $xlsx2.FullName -Force -ErrorAction SilentlyContinue
     $xl.Run('SetExportNames', $true)
+    $hSet = $wb.Names.Item('SET_REPORT_HEADING').RefersToRange
+    Check ([string]$hSet.Value2 -eq 'Print job report') "Report heading setting exists with the default (got '$($hSet.Value2)')"
+    $hSet.Value2 = 'Dept of Design - Print charges'
     $xl.CalculateFullRebuild()
     $rep.Activate()
     $xl.Run('btnExportReport')
@@ -574,6 +599,7 @@ try {
         # A single shared name is promoted to a header line instead of a column.
         $promotedName3 = @($info3.Lines | Where-Object { $_ -like 'Student name:*' }).Count -gt 0
         Check ($anyName3 -or $promotedName3) "exported file contains student names when the prompt is answered Yes"
+        Check ($info3.Lines[0] -eq 'Dept of Design - Print charges') "the heading comes from the Report heading setting (got '$($info3.Lines[0])')"
     }
     finally {
         $wbCheck3.Close($false)

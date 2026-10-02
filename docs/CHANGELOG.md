@@ -17,6 +17,14 @@ Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module
     of 10 hyphens (kept visible on every row, not promoted to the header);
     student numbers are never redacted. A names-redacted report is not stamped
     as exported. Cancel exports nothing. Same model as the room export.
+  - Exported report is now printable: A4 landscape, one page wide, header row
+    repeating, "Page x of y" footer; pale tints and rules that survive a
+    greyscale photocopy. Heading comes from the new "Report heading" setting
+    (default "Print job report"). Paid added to the summary (Total chargeable,
+    Paid, Still owed). Notes is no longer exported. PDF export is logged as a
+    future enhancement (ARCHITECTURE O11).
+  - Fix: a job with no student name/number showed "0" in the live Reports results
+    and in exports; now blank.
   - Reports-related tests re-pointed at the new rows; new layout and Paid/Paper
     type checks in test-reports.ps1.
 

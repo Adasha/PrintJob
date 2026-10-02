@@ -516,9 +516,12 @@ Public Sub BuildReports()
     ' and is kept as-is; do not reintroduce a scalar-conditioned IF here.
     Dim q As String, rowShape As String, sName As String, sNo As String
     q = Chr(34)
+    ' A job with no student name/number reads back from INDEX as the number 0, not
+    ' an empty string (same as Paid, below) - shown as a literal "0" in the results
+    ' and in an exported report. Student text is never a real 0, so test for it.
     rowShape = C("Job ID") & "<>" & q & q
-    sName = "IF(" & rowShape & "," & C("Student Name") & "," & q & q & ")"
-    sNo = "IF(" & rowShape & "," & C("Student No") & "," & q & q & ")"
+    sName = "IF(" & rowShape & ",IF(" & C("Student Name") & "=0," & q & q & "," & C("Student Name") & ")," & q & q & ")"
+    sNo = "IF(" & rowShape & ",IF(" & C("Student No") & "=0," & q & q & "," & C("Student No") & ")," & q & q & ")"
 
     ' A row that predates the Paid column (§5, blank Paid counts as unpaid)
     ' reads back from INDEX as the NUMBER 0, not an empty string - the
