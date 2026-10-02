@@ -1056,9 +1056,8 @@ Several acceptance tests are about what happens as a person types, which is wort
 
 Sections 16.2–16.5 (phase 8 scope, other loose ends, the phase 9 snag list, the printer/paper compatibility rework) were completed-work logs and now live in `docs/HISTORY.md`, numbering preserved. Still open from them:
 
-**Punch list (updated 2026-10-01).** Carried forward:
+**Punch list (updated 2026-10-02).** Carried forward:
 
-- **`LOC_RollUnit` is per-sheet, not per-row.** Since 0.10.11 it is a deliberate display setting (Qty is held in the chosen unit and converted back to metres for `_Data`), but a location still cannot mix centimetre and metre entry job-by-job. A genuine per-row unit would be a schema bump touching `AddPrintJob`, `RepeatJob`, Export and Import. Only if it turns out to matter in practice.
 - **Button arrangement** has had no overall pass across every sheet's buttons. 0.10.12 to 0.10.14 moved the column-view and cost-detail controls to row 2 and shrank the side panel to six, so this is partly eased, but the Settings page is still untouched (HISTORY §16.3).
 - **Phase 10 manual run.** The acceptance tests in §15 marked "Phase 10" (AT-01 to AT-09, AT-15) have never been exercised by a person typing; AT-15 needs a Mac.
 - **O7**, aggregation granularity for an automated master (§14). Still deferred.
@@ -1070,6 +1069,7 @@ Added in this pass:
 - **Clean up `src\*.bak.xlsm`.** Five backups from 2026-10-01 are sitting beside `PrintJob.xlsm`; run `prune-backups.ps1` and consider having `build.ps1` prune on success.
 - ~~**Column-view edge cases**~~ **Closed 2026-10-02**, no code change needed. The view is workbook-wide (one `SET_LOC_REDUCED_VIEW`), so the original wording was off: a new room starts in the *current* mode, not always All, and follows later changes with every other room. `test-viewedge.ps1` pins down: Refresh Locations and a full `InitialiseWorkbook` keep Minimal; Add print room in Minimal and in All; Import into a sheet with hidden columns fills them and leaves them hidden; a Settings list naming a nonexistent header, empty entries or a blank list fails soft (bad entries skipped, blank falls back to the defaults).
 - **Reports date filters** have no calendar picker (platform limit, HISTORY §16.3). Revisit if a future Excel adds one.
+- ~~**`LOC_RollUnit` is per-sheet, not per-row**~~ **Closed 2026-10-02, working as intended.** The roll length unit is a deliberate per-sheet display setting (0.10.11): Qty is held in the sheet's unit and converted to metres for `_Data`. A location is not meant to mix centimetre and metre entry job-by-job, so no per-row unit (and no schema bump) is planned.
 - ~~**Mixed-unit import**~~ **Closed 2026-10-02**, no code change needed. `test-importunits.ps1` (Example Print Room on Metres, the Annexe fixture on Centimetres) covers a metres export into a cm room (roll Qty x100, Unit "cm"), a cm export into a metres room (/100, Unit "metres"), Area m2 and Paper Cost unchanged both ways, sheet stock never converted, a cm round trip landing back on the original metres, and a same-unit control.
 
 
