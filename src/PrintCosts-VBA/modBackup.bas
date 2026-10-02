@@ -73,7 +73,7 @@ Public Sub BackupAll()
     ' its own summary dialog covers those. Catalogue tables get a second,
     ' separate summary below rather than trying to suppress and re-merge
     ' ExportAllLocations' own Say() call.
-    ExportAllLocations
+    ExportAllLocations False
 
     ts = Format$(Now, "yyyymmdd-hhnn")
     names = CatalogTableNames()
