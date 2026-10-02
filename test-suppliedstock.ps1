@@ -42,8 +42,13 @@ try {
     $lo = $main.ListObjects('tblJobs_MAIN')
 
     function Col($lo, $name) {
-        for ($i = 1; $i -le $lo.ListColumns.Count; $i++) {
-            if ($lo.ListColumns($i).Name -eq $name) { return $i }
+        for ($try = 1; $try -le 5; $try++) {
+            try {
+                for ($i = 1; $i -le $lo.ListColumns.Count; $i++) {
+                    if ($lo.ListColumns($i).Name -eq $name) { return $i }
+                }
+            } catch {}
+            Start-Sleep -Milliseconds 500
         }
         $have = @(); for ($k = 1; $k -le $lo.ListColumns.Count; $k++) { $have += $lo.ListColumns($k).Name }; throw "column '$name' not found in table '$($lo.Name)' (columns: $($have -join ', '))"
     }
@@ -60,17 +65,22 @@ try {
     function New-Row {
         [void]$main.Activate()
         [void]$xl.Run('btnAddPrintJob')
-        return $lo.ListRows($lo.ListRows.Count).Range.Row
+        # Right after the VBA add-row Excel can hand back $null for ListRows(n); retry until a real row number comes back.
+        return Invoke-ComRetry -Attempts 5 {
+            $row = [int]$lo.ListRows($lo.ListRows.Count).Range.Row
+            if ($row -lt 1) { throw 'new row not readable yet' }
+            $row
+        }
     }
 
     # ---------------------------------------------------- roll, zero paper cost
     Write-Host '=== Supplied (Roll): zero paper cost, normal consumable cost ==='
     $r1 = New-Row
-    $main.Cells($r1, $prnCol).Value2 = 'Epson SureColor P9500'
-    $main.Cells($r1, $stkCol).Value2 = 'Supplied (Roll)'
+    Invoke-ComRetry -Attempts 5 { $main.Cells($r1, $prnCol).Value2 = 'Epson SureColor P9500' }
+    Invoke-ComRetry -Attempts 5 { $main.Cells($r1, $stkCol).Value2 = 'Supplied (Roll)' }
     Start-Sleep -Milliseconds 300
-    $main.Cells($r1, $widthCol).Value2 = 900
-    $main.Cells($r1, $qtyCol).Value2 = 5
+    Invoke-ComRetry -Attempts 5 { $main.Cells($r1, $widthCol).Value2 = 900 }
+    Invoke-ComRetry -Attempts 5 { $main.Cells($r1, $qtyCol).Value2 = 5 }
     Start-Sleep -Milliseconds 300
 
     $paperCost = [double]$main.Cells($r1, $paperCostCol).Value2
@@ -84,9 +94,9 @@ try {
     Write-Host ''
     Write-Host '=== Supplied (Roll): Print Width mm required ==='
     $r2 = New-Row
-    $main.Cells($r2, $prnCol).Value2 = 'Epson SureColor P9500'
-    $main.Cells($r2, $stkCol).Value2 = 'Supplied (Roll)'
-    $main.Cells($r2, $qtyCol).Value2 = 3
+    Invoke-ComRetry -Attempts 5 { $main.Cells($r2, $prnCol).Value2 = 'Epson SureColor P9500' }
+    Invoke-ComRetry -Attempts 5 { $main.Cells($r2, $stkCol).Value2 = 'Supplied (Roll)' }
+    Invoke-ComRetry -Attempts 5 { $main.Cells($r2, $qtyCol).Value2 = 3 }
     Start-Sleep -Milliseconds 300
     $status = [string]$main.Cells($r2, $statusCol).Value2
     Check ($status -like '*Print width required for student-supplied roll stock*') "Status flags the missing width (got '$status')"
@@ -95,10 +105,10 @@ try {
     Write-Host ''
     Write-Host '=== Supplied (Roll): width exceeding the printer max is rejected ==='
     $r3 = New-Row
-    $main.Cells($r3, $prnCol).Value2 = 'HP DesignJet Z9+'   # Max roll width 610mm
-    $main.Cells($r3, $stkCol).Value2 = 'Supplied (Roll)'
+    Invoke-ComRetry -Attempts 5 { $main.Cells($r3, $prnCol).Value2 = 'HP DesignJet Z9+' }   # Max roll width 610mm
+    Invoke-ComRetry -Attempts 5 { $main.Cells($r3, $stkCol).Value2 = 'Supplied (Roll)' }
     Start-Sleep -Milliseconds 300
-    $main.Cells($r3, $widthCol).Value2 = 900
+    Invoke-ComRetry -Attempts 5 { $main.Cells($r3, $widthCol).Value2 = 900 }
     Start-Sleep -Milliseconds 300
     $widthAfter = [string]$main.Cells($r3, $widthCol).Value2
     Check ([string]::IsNullOrEmpty($widthAfter)) "900mm on a 610mm-max printer is cleared, not accepted (got '$widthAfter')"
@@ -109,11 +119,11 @@ try {
     Write-Host ''
     Write-Host '=== Supplied (Sheet): zero paper cost, normal consumable cost ==='
     $r4 = New-Row
-    $main.Cells($r4, $prnCol).Value2 = 'Xerox Versant 180'   # Max sheet size A1
-    $main.Cells($r4, $stkCol).Value2 = 'Supplied (Sheet)'
+    Invoke-ComRetry -Attempts 5 { $main.Cells($r4, $prnCol).Value2 = 'Xerox Versant 180' }   # Max sheet size A1
+    Invoke-ComRetry -Attempts 5 { $main.Cells($r4, $stkCol).Value2 = 'Supplied (Sheet)' }
     Start-Sleep -Milliseconds 300
-    $main.Cells($r4, $sizeCol).Value2 = 'A3'
-    $main.Cells($r4, $qtyCol).Value2 = 10
+    Invoke-ComRetry -Attempts 5 { $main.Cells($r4, $sizeCol).Value2 = 'A3' }
+    Invoke-ComRetry -Attempts 5 { $main.Cells($r4, $qtyCol).Value2 = 10 }
     Start-Sleep -Milliseconds 300
 
     $paperCost4 = [double]$main.Cells($r4, $paperCostCol).Value2
@@ -125,9 +135,9 @@ try {
     Write-Host ''
     Write-Host '=== Supplied (Sheet): Sheet size required ==='
     $r5 = New-Row
-    $main.Cells($r5, $prnCol).Value2 = 'Xerox Versant 180'
-    $main.Cells($r5, $stkCol).Value2 = 'Supplied (Sheet)'
-    $main.Cells($r5, $qtyCol).Value2 = 4
+    Invoke-ComRetry -Attempts 5 { $main.Cells($r5, $prnCol).Value2 = 'Xerox Versant 180' }
+    Invoke-ComRetry -Attempts 5 { $main.Cells($r5, $stkCol).Value2 = 'Supplied (Sheet)' }
+    Invoke-ComRetry -Attempts 5 { $main.Cells($r5, $qtyCol).Value2 = 4 }
     Start-Sleep -Milliseconds 300
     $status5 = [string]$main.Cells($r5, $statusCol).Value2
     Check ($status5 -like '*Sheet size required for student-supplied sheet stock*') "Status flags the missing size (got '$status5')"
@@ -150,10 +160,10 @@ try {
     $xl.Run('Invalidate') | Out-Null
 
     $r6 = New-Row
-    $main.Cells($r6, $prnCol).Value2 = 'Xerox Versant 180'
-    $main.Cells($r6, $stkCol).Value2 = 'Supplied (Sheet)'
+    Invoke-ComRetry -Attempts 5 { $main.Cells($r6, $prnCol).Value2 = 'Xerox Versant 180' }
+    Invoke-ComRetry -Attempts 5 { $main.Cells($r6, $stkCol).Value2 = 'Supplied (Sheet)' }
     Start-Sleep -Milliseconds 300
-    $main.Cells($r6, $sizeCol).Value2 = 'A1'   # bigger than the now-reduced SRA3 max
+    Invoke-ComRetry -Attempts 5 { $main.Cells($r6, $sizeCol).Value2 = 'A1' }   # bigger than the now-reduced SRA3 max
     Start-Sleep -Milliseconds 300
     $sizeAfter = [string]$main.Cells($r6, $sizeCol).Value2
     Check ([string]::IsNullOrEmpty($sizeAfter)) "A1 on an SRA3-max printer is cleared, not accepted (got '$sizeAfter')"
@@ -165,7 +175,7 @@ try {
     Write-Host '=== Disregard Consumable still waives ink cost on a supplied-stock row ==='
     $disregardCol = Col $lo 'Disregard Consumable'
     $chargeableCol = Col $lo 'Chargeable Cost'
-    $main.Cells($r1, $disregardCol).Value2 = 'Yes'
+    Invoke-ComRetry -Attempts 5 { $main.Cells($r1, $disregardCol).Value2 = 'Yes' }
     Start-Sleep -Milliseconds 300
     $chargeable1 = [double]$main.Cells($r1, $chargeableCol).Value2
     Check ($chargeable1 -eq 0) "Chargeable Cost drops to 0 once Disregard Consumable is set (got $chargeable1, Paper Cost was already 0)"
@@ -199,7 +209,7 @@ try {
     $papWs.Unprotect()
     $xl.EnableEvents = $false
     [void]$pap.ListRows.Add()
-    $ln = $pap.ListRows.Count
+    $ln = Invoke-ComRetry -Attempts 5 { $c = [int]$pap.ListRows.Count; if ($c -lt 1) { throw "row count not readable yet" }; $c }
     SetPap $ln 'StockID' 'STK-SUP-ROLL'
     SetPap $ln 'Description' 'Supplied (Roll)'
     SetPap $ln 'Measure' 'Roll'
@@ -215,7 +225,7 @@ try {
     Write-Host '=== Typing a reserved name into the Papers table is rejected ==='
     $papWs.Activate()
     $xl.Run('AddCatalogRow', 'tblPapers')
-    $n = $pap.ListRows.Count
+    $n = Invoke-ComRetry -Attempts 5 { $c = [int]$pap.ListRows.Count; if ($c -lt 1) { throw "row count not readable yet" }; $c }
     Check ([string](GetPap $n 'Active') -eq 'Yes') 'new row defaults Active to Yes'
     Check ([string](GetPap $n 'Supplied by student') -eq 'No') "Add Row defaults Supplied by student to No (got '$([string](GetPap $n 'Supplied by student'))')"
     $papWs.Unprotect()
@@ -241,9 +251,9 @@ try {
     Write-Host ''
     Write-Host '=== Supplied by student = No: paper is charged ==='
     $r7 = New-Row
-    $main.Cells($r7, $prnCol).Value2 = 'Epson SureColor P9500'
-    $main.Cells($r7, $stkCol).Value2 = 'Bulk test roll'
-    $main.Cells($r7, $qtyCol).Value2 = 4
+    Invoke-ComRetry -Attempts 5 { $main.Cells($r7, $prnCol).Value2 = 'Epson SureColor P9500' }
+    Invoke-ComRetry -Attempts 5 { $main.Cells($r7, $stkCol).Value2 = 'Bulk test roll' }
+    Invoke-ComRetry -Attempts 5 { $main.Cells($r7, $qtyCol).Value2 = 4 }
     Start-Sleep -Milliseconds 300
     $paper7 = [double]$main.Cells($r7, $paperCostCol).Value2
     Check ($paper7 -gt 0) "Paper Cost is charged for an ordinary stock (got $paper7)"
@@ -256,9 +266,9 @@ try {
     Check ([double](GetPap $n 'Cost') -eq 0) "the Cost cell is reset to 0 (got $([string](GetPap $n 'Cost')))"
     Check (([string]$xl.Run('QuietLog')) -like '*not charged for*') 'a warning explained why'
     $r8 = New-Row
-    $main.Cells($r8, $prnCol).Value2 = 'Epson SureColor P9500'
-    $main.Cells($r8, $stkCol).Value2 = 'Bulk test roll'
-    $main.Cells($r8, $qtyCol).Value2 = 4
+    Invoke-ComRetry -Attempts 5 { $main.Cells($r8, $prnCol).Value2 = 'Epson SureColor P9500' }
+    Invoke-ComRetry -Attempts 5 { $main.Cells($r8, $stkCol).Value2 = 'Bulk test roll' }
+    Invoke-ComRetry -Attempts 5 { $main.Cells($r8, $qtyCol).Value2 = 4 }
     Start-Sleep -Milliseconds 300
     $paper8 = [double]$main.Cells($r8, $paperCostCol).Value2
     $cons8 = [double]$main.Cells($r8, $consCostCol).Value2
@@ -273,9 +283,9 @@ try {
     $xl.EnableEvents = $true
     $xl.Run('Invalidate')
     $r9 = New-Row
-    $main.Cells($r9, $prnCol).Value2 = 'Epson SureColor P9500'
-    $main.Cells($r9, $stkCol).Value2 = 'Bulk test roll'
-    $main.Cells($r9, $qtyCol).Value2 = 4
+    Invoke-ComRetry -Attempts 5 { $main.Cells($r9, $prnCol).Value2 = 'Epson SureColor P9500' }
+    Invoke-ComRetry -Attempts 5 { $main.Cells($r9, $stkCol).Value2 = 'Bulk test roll' }
+    Invoke-ComRetry -Attempts 5 { $main.Cells($r9, $qtyCol).Value2 = 4 }
     Start-Sleep -Milliseconds 300
     $paper9 = [double]$main.Cells($r9, $paperCostCol).Value2
     Check ($paper9 -eq 0) "Paper Cost is still 0 with Cost = 7 and Supplied by student = Yes (got $paper9)"
@@ -283,8 +293,8 @@ try {
     Write-Host ''
     Write-Host '=== Such a stock keeps its catalogue size (no per-job size) ==='
     $r10 = New-Row
-    $main.Cells($r10, $prnCol).Value2 = 'HP DesignJet Z9+'   # Max roll width 610mm - fits exactly
-    $main.Cells($r10, $stkCol).Value2 = 'Bulk test roll'
+    Invoke-ComRetry -Attempts 5 { $main.Cells($r10, $prnCol).Value2 = 'HP DesignJet Z9+' }   # Max roll width 610mm - fits exactly
+    Invoke-ComRetry -Attempts 5 { $main.Cells($r10, $stkCol).Value2 = 'Bulk test roll' }
     Start-Sleep -Milliseconds 300
     Check ([string]$main.Cells($r10, $stkCol).Value2 -eq 'Bulk test roll') 'a 610mm bulk roll is accepted on a 610mm-max printer'
     $status10 = [string]$main.Cells($r10, $statusCol).Value2
