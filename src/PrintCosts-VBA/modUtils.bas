@@ -364,6 +364,37 @@ No:
     FolderExists = False
 End Function
 
+' Shared CSV file picker. Excel for Mac raises 1004 from GetOpenFilename in
+' some setups (the Windows-style filter/title, or the sandbox), so try the
+' ordinary call, then a bare one, then the FileDialog picker, and finally
+' ask for a typed path. Returns "" on Cancel. Cancel from GetOpenFilename is
+' False, not an error, so it is never retried.
+Public Function PickCsvFile(ByVal Title As String) As String
+    Dim f As Variant
+    On Error Resume Next
+    f = Application.GetOpenFilename("CSV files (*.csv),*.csv", , Title)
+    If Err.Number = 0 Then GoTo Done
+    Err.Clear
+    f = Application.GetOpenFilename
+    If Err.Number = 0 Then GoTo Done
+    Err.Clear
+    With Application.FileDialog(3)   ' msoFileDialogFilePicker
+        .Title = Title
+        .AllowMultiSelect = False
+        If Err.Number = 0 Then
+            If .Show = -1 Then f = .SelectedItems(1) Else f = False
+        End If
+    End With
+    If Err.Number = 0 Then GoTo Done
+    Err.Clear
+    On Error GoTo 0
+    f = InputBox("The file picker is not available. Enter the full path of the CSV file:", Title)
+Done:
+    On Error GoTo 0
+    If VarType(f) = vbBoolean Then Exit Function
+    PickCsvFile = CStr(f)
+End Function
+
 Public Function FileExists(ByVal p As String) As Boolean
     Dim a As Long
     On Error GoTo No

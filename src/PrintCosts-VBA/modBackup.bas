@@ -473,10 +473,7 @@ End Sub
 
 ' ============================================================== file set ===
 Private Function PickBackupFile() As String
-    Dim f As Variant
-    f = Application.GetOpenFilename("CSV files (*.csv),*.csv", , "Restore workbook - choose any one file from the backup")
-    If VarType(f) = vbBoolean Then Exit Function   ' Cancel
-    PickBackupFile = CStr(f)
+    PickBackupFile = PickCsvFile("Restore workbook - choose any one file from the backup")
 End Function
 
 Private Function MatchingBackupFiles(ByVal folder As String, ByVal ts As String) As Collection
