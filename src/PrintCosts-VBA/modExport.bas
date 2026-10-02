@@ -889,20 +889,26 @@ Public Function ExportFolder() As String
         ExportFolder = p
     Else
         ExportFolder = LocalRootOf(p)
-        If Len(ExportFolder) = 0 Then ExportFolder = SandboxDocuments()
+        If Len(ExportFolder) = 0 Then ExportFolder = FallbackFolder()
     End If
 End Function
 
-' Last resort on Mac when the OneDrive URL cannot be mapped to a folder Excel
-' can see: the sandbox's own Documents folder, which Excel can always write.
-' The success message names the full path, so the file is never lost, just
-' not beside the workbook. "" off Mac (HOME is not a sandbox container).
-Private Function SandboxDocuments() As String
+' Last resort when the OneDrive URL cannot be mapped to a folder this machine
+' can see (e.g. a SharePoint library opened online rather than synced).
+' Mac: the sandbox's own Documents folder, which Excel can always write.
+' Windows: the user's Documents folder. The success message names the full
+' path, so the file is never lost, just not beside the workbook.
+Private Function FallbackFolder() As String
     Dim h As String, d As String
     h = Environ$("HOME")
-    If InStr(1, h, "/Library/Containers/", vbTextCompare) = 0 Then Exit Function
-    d = h & "/Documents"
-    If FolderExists(d) Then SandboxDocuments = d
+    If Len(h) > 0 Then
+        d = h & "/Documents"
+    Else
+        h = Environ$("USERPROFILE")
+        If Len(h) = 0 Then Exit Function
+        d = h & "\Documents"
+    End If
+    If FolderExists(d) Then FallbackFolder = d
 End Function
 
 Private Function IsUrl(ByVal p As String) As Boolean
