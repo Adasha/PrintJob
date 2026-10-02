@@ -8,7 +8,7 @@ Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module
     scan for the local folder used the sandbox HOME (the Excel container), so it
     never found ~/Library/CloudStorage. Now derives the real home, also tries
     ~/OneDrive, and falls back to the Documents folder - sandbox's on Mac, user's on Windows
-    (path shown in the success message). Mac untested on a real Mac.
+    (path shown in the success message). Confirmed on a real Mac.
 
 0.10.18 - File picker works on Excel for Mac; versioned build filename.
   - Restore workbook and Import (incl. add print room) raised 1004 "method
