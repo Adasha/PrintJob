@@ -41,6 +41,10 @@ Private Const EXPORT_CELL As String = "$AM$6"
 ' always have, unless a test says otherwise through SetExportNames.
 Private mQuietNames As Long
 
+' What replaces a student name in an export that leaves names out: a line of 10
+' hyphens, so a withheld name is visibly different from a missing one.
+Private Const NAME_PLACEHOLDER As String = "----------"
+
 ' The canonical export order. Fixed here rather than mirroring the sheet, so
 ' files stay comparable across versions even after the table is reordered.
 '
@@ -155,6 +159,20 @@ Private Function AskIncludeNames() As VbMsgBoxResult
         vbQuestion + vbYesNoCancel + vbDefaultButton2, "Export")
 End Function
 
+' Yes / No / Cancel for the Reports export. Default is No, the choice that
+' sends less personal data out. A quiet run answers as SetExportNames says.
+Private Function AskIncludeNamesReport() As VbMsgBoxResult
+    If gQuiet Then
+        AskIncludeNamesReport = IIf(mQuietNames = vbNo, vbNo, vbYes)
+        Exit Function
+    End If
+    AskIncludeNamesReport = MsgBox("Include student and department names in this report?" & vbCrLf & vbCrLf & _
+        "Yes - names are shown." & vbCrLf & _
+        "No - names are replaced with " & NAME_PLACEHOLDER & "; student numbers are kept." & vbCrLf & vbCrLf & _
+        "Any names typed into the Notes column are not removed.", _
+        vbQuestion + vbYesNoCancel + vbDefaultButton2, "Export report")
+End Function
+
 Private Function NamesOmittedNote() As String
     NamesOmittedNote = "Student names were left out, so this is not a complete record of the print room. " & _
         "It has not been marked as exported, and a later import keeps the names already on the sheet."
@@ -256,6 +274,7 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
     Dim promoted As Collection, header As Variant, full As Variant, tableHeaderRow As Long
     Dim totalChargeable As Double, stillOwed As Double
     Dim footer As Variant, footerStartRow As Long
+    Dim names As VbMsgBoxResult
 
     On Error GoTo Fail
     lastCol = LastHeaderColumn(repWs, HDR_ROW)
@@ -280,12 +299,13 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
     End If
     n = rng.Rows.Count
 
+    ' Ask only once there is something to export. Yes / No / Cancel; the live
+    ' results always show names, so this only governs the exported file.
+    names = AskIncludeNamesReport()
+    If names = vbCancel Then Exit Sub
+
     block = SnapshotBlock(repWs, rng, HDR_ROW, lastCol, n)
-    ' "Export names" (Reports!O12): the live results always show student
-    ' name/no; only the exported file honours the toggle, so blank them here
-    ' unless it is Yes. Before PromoteUniformColumns, which leaves an
-    ' all-blank column alone.
-    block = BlankNameColumns(block, repWs)
+    If names <> vbYes Then block = RedactNameColumn(block)
     block = RemoveExcludedColumns(block)
     ' Snag list items 2b/2c: a field that holds the SAME value on every
     ' exported row is a fact about the whole report, not a per-row detail -
@@ -293,7 +313,7 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
     ' reads as "this report is about X" rather than repeating X down a whole
     ' column. Live-sheet-only per the user's own answer on review: this
     ' happens here, at export time, never to the Reports sheet itself.
-    block = PromoteUniformColumns(block, promoted)
+    block = PromoteUniformColumns(block, promoted, (names <> vbYes))
 
     ' Total chargeable / Still owed reuse the Reports sheet's own "Matching"
     ' totals (F15/O15, modReports.BuildReports) rather than re-summing here -
@@ -363,7 +383,9 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
         Exit Sub
     End If
 
-    StampReportsExport repWs
+    ' A report with names redacted is not a complete record, so it is not stamped
+    ' as exported (the delete-visible-records warning stays on), as for rooms.
+    If names = vbYes Then StampReportsExport repWs
 
     Say n & " record" & IIf(n = 1, "", "s") & " exported.", _
         "Written to:" & vbCrLf & path, _
@@ -410,28 +432,27 @@ Private Function ExcludedExportColumns() As Variant
     ExcludedExportColumns = Array("Area m2")
 End Function
 
-' Blanks the Student name / Student no VALUES (not the columns) of BLOCK
-' (header row 1, data rows 2..) unless the Reports sheet's Export names
-' toggle (O12) is exactly "Yes" - so anything else, including an empty cell,
-' is treated as No (data protection: opt in to reveal, not opt out).
-' Matches by header text, like the rest of this module, so it does not care
-' where the columns sit.
-Private Function BlankNameColumns(ByVal block As Variant, ByVal repWs As Worksheet) As Variant
-    Dim c As Long, r As Long, hdr As String
+' Redacts the Student name VALUES (not the column) of BLOCK (header row 1,
+' data rows 2..) unless the user chose to include names at the export prompt
+' (AskIncludeNamesReport). A name is replaced with a line of hyphens rather
+' than blanked, so the file shows there IS a name on that row, withheld,
+' instead of reading like missing data; a row with no name stays empty.
+' Student no is deliberately left as it is - only names are redacted. Matches
+' by header text, like the rest of this module, so it does not care where the
+' column sits. Runs before PromoteUniformColumns, which is told to leave the
+' name column in the table when names are redacted (an all-hyphen column is
+' uniform, but promoting it would misread as one shared name).
+Private Function RedactNameColumn(ByVal block As Variant) As Variant
+    Dim c As Long, r As Long
 
-    If StrComp(Trim$(CStr(repWs.Range("O12").Value)), "Yes", vbTextCompare) = 0 Then
-        BlankNameColumns = block
-        Exit Function
-    End If
     For c = 1 To UBound(block, 2)
-        hdr = CStr(block(1, c))
-        If StrComp(hdr, "Student name", vbTextCompare) = 0 Or StrComp(hdr, "Student no", vbTextCompare) = 0 Then
+        If StrComp(CStr(block(1, c)), "Student name", vbTextCompare) = 0 Then
             For r = 2 To UBound(block, 1)
-                block(r, c) = ""
+                If Len(Trim$(CStr(block(r, c)))) > 0 Then block(r, c) = NAME_PLACEHOLDER
             Next r
         End If
     Next c
-    BlankNameColumns = block
+    RedactNameColumn = block
 End Function
 
 Private Function IsExcludedColumn(ByVal Header As String, ByVal excluded As Variant) As Boolean
@@ -564,7 +585,8 @@ End Function
 ' A candidate column with no non-blank values at all is left exactly where
 ' it is - there is nothing true to state about it, and removing an
 ' all-blank column would look like data loss rather than tidying.
-Private Function PromoteUniformColumns(ByVal block As Variant, ByRef promoted As Collection) As Variant
+Private Function PromoteUniformColumns(ByVal block As Variant, ByRef promoted As Collection, _
+                                       Optional ByVal KeepNameColumn As Boolean = False) As Variant
     Dim candidates As Variant, c As Long, r As Long
     Dim hdr As String, v As String, uniform As String
     Dim rows As Long, cols As Long, keep() As Boolean, nKeep As Long, outCol As Long
@@ -582,7 +604,10 @@ Private Function PromoteUniformColumns(ByVal block As Variant, ByRef promoted As
 
     For c = 1 To cols
         hdr = CStr(block(1, c))
-        If IsPromotionCandidate(hdr, candidates) Then
+        If KeepNameColumn And StrComp(hdr, "Student name", vbTextCompare) = 0 Then
+            ' Redacted names are all the same placeholder; promoting that to the header
+            ' would read as "every row has this one name", so leave it in the table.
+        ElseIf IsPromotionCandidate(hdr, candidates) Then
             hasValue = False
             mismatch = False
             uniform = ""

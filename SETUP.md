@@ -216,7 +216,7 @@ job IDs already carry it.
 | `probe.ps1` | Structure of a workbook, read-only. No arguments: every sheet, table, column and defined name. `-Sheet Settings`: that sheet cell by cell, with its tables and buttons — use before placing anything new. `-File` to point it at the `.xlsm` |
 | `verify.ps1` | Opens the built `.xlsm` **read-only** and reports version, document properties, tables, registry, the consolidated range and button bindings |
 | `test-duplicate.ps1` | AT-13. Duplicates a print room in VBA, refreshes, reports, and closes without saving |
-| `test-reports.ps1` | Summary and Reports end to end: every AT-12 criteria case, the Technician/Printer/Paper Stock filters and sort-by-column, Export names toggle, minimum-columns view, Paid column, Summary buttons, and Export report (header block, single-value promotion, name blanking). Adds the Annexe fixture as a second location. Closes without saving |
+| `test-reports.ps1` | Summary and Reports end to end: every AT-12 criteria case, the Technician/Printer/Paper Stock filters and sort-by-column, export-names prompt, minimum-columns view, Paid column, Summary buttons, and Export report (header block, single-value promotion, name blanking). Adds the Annexe fixture as a second location. Closes without saving |
 | `test-layout.ps1` | Shipped column order, no outline groups, Notes visible, H_Issues/snapshot hidden, header block survives a reduced-view toggle, Summary/Reports still reconcile |
 | `test-manualhide.ps1` | Columns hidden by hand (not via the toggle): table-anchored buttons leave a hidden column and side-panel buttons follow column 36 on the next click |
 | `TestCommon.ps1` | Not a test: shared `Invoke-ComRetry`, `Check` (assertion line) and `Col` (column lookup), dot-sourced by the tests |
