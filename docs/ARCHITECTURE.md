@@ -649,6 +649,7 @@ Settings keeps its own copies deliberately: it is where someone lands when confi
 | `Scripting.FileSystemObject` | Not used |
 | `ADODB.Stream` | Not used — CSV/xlsx written via Excel's own `SaveAs` |
 | ActiveX controls | Form Controls only |
+| `Application.GetOpenFilename` (open side) | Raised 1004 on Mac in some setups. `modUtils.PickCsvFile` tries it filtered, then bare, then `Application.FileDialog`, then an `InputBox` for a typed path; Restore and Import both use it |
 | `Application.FileDialog` (save side) | Export writes to a resolved folder path (§10.4), not a chooser |
 | UserForm rendering differences | The picker is a **worksheet** pretending to be a dialog (`_Picker`) |
 | COM automation | The build script is Windows-only; Mac uses the manual import route (SETUP.md) |
@@ -825,7 +826,7 @@ The ad-hoc "get me back to where I was" path, distinct from the two artefacts ab
 
 **Deliberate reuse over a second CSV format.** A catalogue CSV's header block is padded to the same eight rows `modExport.BuildBlock` uses for a per-location job export (title/schema/site/generated/rows, then a deliberately blank row 8), so the table header always lands on row 9 and data on row 10 — exactly where `modImport.ReadImportRows`'s own hardcoded row numbers already look. Restore therefore reads catalogue rows with the **same, unmodified, already-tested function** that reads job rows; no second CSV parser exists in this workbook.
 
-**Restore Workbook** (`modBackup.RestoreWorkbook`): the user picks **any one file** from a backup via `Application.GetOpenFilename` (the same Mac-safe picker `modImport.PickImportFile` already uses — never `Application.FileDialog`, §9.3). Every sibling file sharing the same trailing `-yyyymmdd-hhmm.csv` in the same folder is found and classified by filename — safe here specifically because this module wrote every filename it will ever read back, unlike an arbitrary file. A preview (row counts per table, per location) is shown before confirming; **"This cannot be undone."**
+**Restore Workbook** (`modBackup.RestoreWorkbook`): the user picks **any one file** from a backup via `modUtils.PickCsvFile` (the shared picker with Mac fallbacks, §9.3, which `modImport.PickImportFile` also uses — never `Application.FileDialog`, §9.3). Every sibling file sharing the same trailing `-yyyymmdd-hhmm.csv` in the same folder is found and classified by filename — safe here specifically because this module wrote every filename it will ever read back, unlike an arbitrary file. A preview (row counts per table, per location) is shown before confirming; **"This cannot be undone."**
 
 **Conflict handling — the same rule as Import, generalised.** Each catalogue table has a stable key column used for overwrite-vs-append matching, exactly mirroring Job ID's role for job rows:
 
@@ -967,7 +968,7 @@ A `.xlsm` cannot be assembled outside Excel: the VBA project is a binary structu
 
 - `src\PrintCosts.xlsx` — everything a file can carry.
 - `src\PrintCosts-VBA\*.bas`, `*.cls` — the complete VBA source, the authoritative copy.
-- `build.ps1` — validates the source, backs up the existing `.xlsm`, copies the source to `%TEMP%`, imports every module into the copy, pastes `ThisWorkbook.cls` into the existing document module, runs `InitialiseWorkbook` then `StampBuild` in quiet mode, saves to a temp `.xlsm`, and copies that into `src\`. It does not prune backups; `run-tests.ps1` does that after a green full run.
+- `build.ps1` — validates the source, backs up the existing `.xlsm`, copies the source to `%TEMP%`, imports every module into the copy, pastes `ThisWorkbook.cls` into the existing document module, runs `InitialiseWorkbook` then `StampBuild` in quiet mode, saves to a temp `.xlsm`, and copies that into `src\`. It does not prune backups; `run-tests.ps1` does that after a green full run. It also writes a versioned copy, `src\PrintJob-v<version>-<yyyymmdd-HHmm>[-g<sha>[+]].xlsm` (0.10.18; newest five kept, git-ignored) — the one to move between machines, since its name says which build it is.
 
 Requires **Trust access to the VBA project object model**, once. Windows only. The manual import route in `src\PrintCosts-VBA\SETUP.md` is the only route on Mac and must list all eighteen files — it was missing four (`modRegistry`, `modReports`, `modExport`, `modVersion`) until 0.7.1, which produced a project that would not compile on Mac. **`modImport.bas` makes the current total nineteen** — re-check SETUP.md's list stays complete whenever a module is added.
 

@@ -3,6 +3,17 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.10.18 - File picker works on Excel for Mac; versioned build filename.
+  - Restore workbook and Import (incl. add print room) raised 1004 "method
+    'GetOpenFilename' of object '_Application' failed" on Mac. Both now call
+    modUtils.PickCsvFile: GetOpenFilename with the CSV filter, then bare
+    GetOpenFilename, then Application.FileDialog, then an InputBox for a
+    typed path. Cancel returns "" and is never retried. User confirmed fixed
+    on Mac.
+  - build.ps1 also writes src\PrintJob-v<version>-<yyyymmdd-HHmm>[-g<sha>[+]].xlsm
+    beside PrintJob.xlsm (newest five kept, git-ignored), so a file copied to
+    another machine says which build it is. "+" = uncommitted changes.
+
 0.10.17 - Export asks whether to include student names.
   - Direct user request, from the O7 aggregation discussion. Export and
     Export All Locations open a Yes / No / Cancel prompt (default No). No
