@@ -96,6 +96,18 @@ try {
     Check ($main.Cells($r2, $unitCol).Value2 -eq 'sheets') 'Sheet Unit still "sheets"'
     Check (Near $main.Cells($r2, $costCol).Value2 $costSheet) 'Sheet Paper Cost unchanged'
 
+    # Reports' Paper type filter on a Centimetres room: _Data converts roll
+    # rows back to "metres", so Roll must still find the roll job and Sheet the
+    # sheet job.
+    $rep = $wb.Worksheets('Reports')
+    $xl.CalculateFullRebuild()
+    $rep.Range('F9').Value2 = 'Roll';  $xl.CalculateFullRebuild(); $rollJobs = [int]$rep.Range('B15').Text
+    $rep.Range('F9').Value2 = 'Sheet'; $xl.CalculateFullRebuild(); $sheetJobs = [int]$rep.Range('B15').Text
+    $rep.Range('F9').ClearContents() | Out-Null; $xl.CalculateFullRebuild()
+    Check ($rollJobs -ge 1) "Reports Paper type = Roll finds the roll job on a cm room (got $rollJobs)"
+    Check ($sheetJobs -ge 1) "Reports Paper type = Sheet finds the sheet job on a cm room (got $sheetJobs)"
+    Check (($rollJobs + $sheetJobs) -eq [int]$rep.Range('B15').Text) 'Roll + Sheet account for every job on a cm room'
+
     # ---------------------------------------------- same unit re-picked
     Write-Host ''
     Write-Host '=== Re-picking the same unit does not rescale again ==='

@@ -262,7 +262,7 @@ Private Function Criteria() As String
     ' modRegistry.MetresBlock). A job with no Unit yet (no stock chosen)
     ' matches neither choice. (A Quantity filter that used to sit below
     ' Paper stock was removed the same day, direct user request.)
-    s = s & "*IF($F$9="""",TRUE,IF($F$9=""Sheet""," & C("Unit") & "=""sheets""," & C("Unit") & "=""metres""))"
+    s = s & "*IF($F$9="""",TRUE,IF($F$9=""Sheet""," & C("Unit") & "=""sheets"",ISNUMBER(MATCH(" & C("Unit") & ",{""metres"",""cm""},0))))"
 
     ' Paid (Yes/No, 2026-10-02): No means "not marked Yes", so a blank Paid
     ' (a job that predates the column, or never marked) counts as unpaid,

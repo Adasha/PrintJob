@@ -5,7 +5,7 @@ Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module
 ```
 0.10.20 - Reports filter block (Quantity out, Paid and Paper type in, re-laid out).
   - Quantity filter removed. New Paid (Yes/No; No includes blank) and Paper type
-    (Roll/Sheet, from the consolidated Unit column) filters.
+    (Roll/Sheet, from the consolidated Unit column; "cm" accepted as well as "metres") filters.
   - Filters are two columns with gap rows: left Student/dept. name, Student
     number, From date, To date, Paid; right Location, Technician, Printer,
     Paper stock, Paper type. Labels renamed ("Student/dept. name", "Student
