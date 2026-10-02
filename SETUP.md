@@ -229,6 +229,7 @@ job IDs already carry it.
 | `test-reducedview.ps1`, `test-costcolumns.ps1` | The All / Reduced / Minimal column views and the Hide/Show cost detail toggle |
 | `test-viewedge.ps1` | Column views meeting Refresh Locations, setup, Add print room, Import and bad Settings lists |
 | `test-rollunit.ps1` | The per-room roll length unit (cm or metres) |
+| `test-importunits.ps1` | Import converting roll Qty between a cm file and a metres room, and the reverse |
 | `test-jobvalidation.ps1` | Job-table validation is bound to the right columns by name, nothing is left below the table, and a column move is repaired |
 | `test-paidedit.ps1`, `test-markpaid.ps1` | Editing Paid on the Reports sheet, and Mark all as Paid / Unpaid with its filter safeguard |
 | `test-backup.ps1`, `test-clearcatalog.ps1`, `test-newpaperrow.ps1` | Backup/Restore workbook, Clear table on the catalogue sheets, and Add row on Papers |

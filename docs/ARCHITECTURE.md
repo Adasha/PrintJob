@@ -1070,7 +1070,7 @@ Added in this pass:
 - **Clean up `src\*.bak.xlsm`.** Five backups from 2026-10-01 are sitting beside `PrintJob.xlsm`; run `prune-backups.ps1` and consider having `build.ps1` prune on success.
 - ~~**Column-view edge cases**~~ **Closed 2026-10-02**, no code change needed. The view is workbook-wide (one `SET_LOC_REDUCED_VIEW`), so the original wording was off: a new room starts in the *current* mode, not always All, and follows later changes with every other room. `test-viewedge.ps1` pins down: Refresh Locations and a full `InitialiseWorkbook` keep Minimal; Add print room in Minimal and in All; Import into a sheet with hidden columns fills them and leaves them hidden; a Settings list naming a nonexistent header, empty entries or a blank list fails soft (bad entries skipped, blank falls back to the defaults).
 - **Reports date filters** have no calendar picker (platform limit, HISTORY §16.3). Revisit if a future Excel adds one.
-- **Mixed-unit import.** Import converts roll Qty between the file's unit and the room's (0.10.11); add a test with a cm export imported into a metres room, and the reverse, if `test-rollunit.ps1` does not already cover both.
+- ~~**Mixed-unit import**~~ **Closed 2026-10-02**, no code change needed. `test-importunits.ps1` (Example Print Room on Metres, the Annexe fixture on Centimetres) covers a metres export into a cm room (roll Qty x100, Unit "cm"), a cm export into a metres room (/100, Unit "metres"), Area m2 and Paper Cost unchanged both ways, sheet stock never converted, a cm round trip landing back on the original metres, and a same-unit control.
 
 
 ---
