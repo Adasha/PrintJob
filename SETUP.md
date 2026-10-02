@@ -45,7 +45,7 @@ Open `PrintCosts.xlsx`, then open the VBA editor:
 - Windows: **Alt + F11**
 - Mac: **Tools → Macro → Visual Basic Editor**
 
-In the editor, **File → Import File…**, and import these eighteen files. Order
+In the editor, **File → Import File…**, and import these twenty files. Order
 does not matter.
 
 | File | What it is |
@@ -68,12 +68,12 @@ does not matter.
 | `modReports.bas` | Builds the Summary and Reports sheets; Reports-page delete |
 | `modExport.bas` | Per-location CSV and Export All Locations; the Export report snapshot; what has not been exported |
 | `modImport.bas` | Restores or merges an exported file into a print room's job table |
+| `modBackup.bas` | Backup workbook / Restore workbook (the catalogue and settings CSVs) |
 | `modVersion.bas` | Version identity, the About popup, file properties |
 
-The last four were added in build phases 4 to 7 and were missing from this
-list until 0.7.1. If you are on a Mac this list is the whole build, so a
-missing module is not a documentation slip - it is a project that will not
-compile at step 3. Check you imported eighteen.
+If you are on a Mac this list is the whole build, so a missing module is not a
+documentation slip - it is a project that will not compile at step 3. Check you
+imported twenty.
 
 `ThisWorkbook.cls` is the exception: it **cannot be imported**, because every
 workbook already has a `ThisWorkbook` object. Open `ThisWorkbook.cls` in a text
@@ -108,10 +108,31 @@ as `.xlsx` silently discards all the code.
 
 ## Afterwards
 
-**Run `InitialiseWorkbook` again whenever you add a print room.** Duplicating a
-sheet copies its buttons but not always their macro links, and the new sheet
-needs protecting. Re-running is safe at any time — it removes the buttons it
-created before redrawing them.
+**Use the Settings sheet's Add print room... and Remove print room... buttons
+to change the set of rooms** (see "Adding a print room" below). If you add a
+room by hand instead, click **Refresh Locations** afterwards. **Run
+`InitialiseWorkbook` again after upgrading to a new build.** It re-draws
+the buttons, re-applies protection and brings older sheets up to the current
+layout. Re-running is safe at any time — it removes the buttons it created
+before redrawing them.
+
+**Each print room has a column view and a cost-detail toggle on row 2**, above
+the job table. The drop-down offers All, Reduced and Minimal; Reduced hides the
+columns listed in `SET_LOC_REDUCED_COLUMNS` and Minimal hides those plus
+`SET_LOC_MINIMAL_COLUMNS` (both editable on Settings). Changing it changes
+every room together. The **Hide/Show cost detail** button beside it toggles the
+Paper Cost to Disregarded columns, again for every room.
+
+**Roll length unit is a per-room setting** (`Roll length unit` in the room's
+header block, Metres or Centimetres). Qty is typed in that unit and the Unit
+column says which; costs, reports and the Summary always run in metres.
+Changing the setting converts the roll lengths already entered. One room cannot
+mix the two units job by job.
+
+**The Paid column on the Reports sheet can be edited directly**, one cell at a
+time. **Mark all as Paid / Unpaid** changes every record the filters currently
+show, and it, like Delete visible records, refuses to run until at least one
+filter is set.
 
 **Clear the sample data** before live use. Each print room has a **Clear All**
 button. Row `UNI-MAIN-00012` is deliberately invalid, to show the Status column
@@ -156,9 +177,25 @@ oversized job.
 
 ## Adding a print room
 
+Click **Add print room...** at the bottom of the Settings sheet. It asks for a
+room name, an optional department and a short code for the room's job IDs
+(for example `PHOTO` gives `UNI-PHOTO-00001`), then makes a clean copy of an
+existing room and refreshes the registry. The new room starts empty, in
+Metres, with no printers selected, so pick its printers with **Select
+printers...** afterwards.
+
+**Remove print room...**, next to it, deletes a room on purpose. It refuses to
+remove the last room, tells you how many records and which dates would be lost
+and whether they have been exported, and only goes ahead once you type the
+room's name back exactly. Export the room first if you may want the records.
+
+The manual route still works and is the only one that does not depend on the
+Settings buttons:
+
 1. Right-click a print room tab, **Move or Copy**, tick **Create a copy**.
 2. Rename the new tab.
-3. Click **Clear All** on it to discard the copied records.
+3. Click **Clear All** on it to discard the copied records, and **Clear
+   defaults** to discard the copied batch defaults.
 4. Enter the room name, department and defaults; click **Select printers...**.
 5. Click **Refresh Locations** on the Settings sheet.
 
@@ -187,6 +224,13 @@ job IDs already carry it.
 | `test-import.ps1` | Export All Locations, and Import restoring into origin and into a different room |
 | `test-deletereports.ps1` | Export report (a static-value `.xlsx` snapshot) and the Reports-page bulk delete, including the audit log entry |
 | `test-suppliedstock.ps1` | Printer/paper compatibility rework: "Supplied by student" paper stock — zero Paper Cost with normal Consumable Cost, Print Width mm/Sheet size required-field enforcement, and rejection when an entered width/size exceeds the chosen printer's capacity |
+| `run-tests.ps1` | Runs every `test-*.ps1` in turn and prints one line per script; `-Only` takes name fragments. Logs land in `%TEMP%\testrun-<Label>` |
+| `test-addroom.ps1`, `test-removeroom.ps1` | The Add print room and Remove print room commands |
+| `test-reducedview.ps1`, `test-costcolumns.ps1` | The All / Reduced / Minimal column views and the Hide/Show cost detail toggle |
+| `test-rollunit.ps1` | The per-room roll length unit (cm or metres) |
+| `test-jobvalidation.ps1` | Job-table validation is bound to the right columns by name, nothing is left below the table, and a column move is repaired |
+| `test-paidedit.ps1`, `test-markpaid.ps1` | Editing Paid on the Reports sheet, and Mark all as Paid / Unpaid with its filter safeguard |
+| `test-backup.ps1`, `test-clearcatalog.ps1`, `test-newpaperrow.ps1` | Backup/Restore workbook, Clear table on the catalogue sheets, and Add row on Papers |
 | `prune-backups.ps1` | Keeps the N most recent `*.bak.xlsm` and removes the rest. `build.ps1` calls it with `-Keep 5` |
 
 **The tests are non-destructive by construction, not by care.** `test-validation.ps1`
@@ -219,7 +263,7 @@ cloud-backed — as its own comment notes, there it is usually a no-op.
 **None of this is the sync client.** It happens with syncing paused and all
 sync operations settled. It is Excel-side only, and `verify.ps1` has documented
 the first half of it since phase 5, which is why that script and `probe.ps1`
-open the workbook **read-only** — the other way to be safe. The four `test-*`
+open the workbook **read-only** — the other way to be safe. The `test-*`
 scripts need read-write to drive mutating macros, so a throwaway copy is what
 is left.
 
@@ -317,10 +361,13 @@ is how you find that, and killing the orphaned process is how you clear it.
 
 ## What is not built yet
 
-Phase 9 of the design document: the full acceptance test run on Windows and
-Mac with its report. Phase 8 (visual polish — the Summary legend,
+The phase 10 manual run: the acceptance tests that depend on a person typing
+(AT-01 to AT-09), and AT-15, which needs a Mac, have never been run by hand.
+The scripted ones pass. Phase 8 (visual polish — the Summary legend,
 conditional formatting for warning/error states, and currency wired to the
-global setting) is built; see `docs/HISTORY.md` §16.2.
+global setting) is built; see `docs/HISTORY.md` §16.2. Also not built:
+aggregation for an automated master workbook (`docs/ARCHITECTURE.md` §12.2).
+Export All Locations plus Import covers the manual route.
 
 The validation sweep (phase 7) is done. AT-11, AT-14 and AT-16 pass, and
 nothing in the workbook needed changing to make them — the mechanisms were
