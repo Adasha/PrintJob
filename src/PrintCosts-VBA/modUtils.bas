@@ -369,10 +369,10 @@ End Function
 ' ordinary call, then a bare one, then the FileDialog picker, and finally
 ' ask for a typed path. Returns "" on Cancel. Cancel from GetOpenFilename is
 ' False, not an error, so it is never retried.
-Public Function PickCsvFile(ByVal Title As String) As String
+Public Function PickCsvFile(ByVal Title As String, Optional ByVal Filter As String = "CSV files (*.csv),*.csv") As String
     Dim f As Variant
     On Error Resume Next
-    f = Application.GetOpenFilename("CSV files (*.csv),*.csv", , Title)
+    f = Application.GetOpenFilename(Filter, , Title)
     If Err.Number = 0 Then GoTo Done
     Err.Clear
     f = Application.GetOpenFilename

@@ -20,5 +20,6 @@ Public Code As String            ' LOC_Code; empty when the source does not say
 Public RoomName As String        ' LOC_Name
 Public Dept As String            ' LOC_Dept
 Public JobRows As Collection     ' clsDict per job record, keyed by header (modImport's shape)
+Public Settings As clsDict       ' the room's LOC_* settings by name; Nothing when the source has none (a CSV backup)
 Public Sheet As Worksheet        ' the room in THIS workbook; Nothing until found/created
 Public Created As Boolean        ' True when the restore had to create it
