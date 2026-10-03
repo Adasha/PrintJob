@@ -13,8 +13,8 @@
 # group is on its own row, in order, with the right label; buttons in a row are
 # close together (small gap, no overlap) and inside the width of columns A:D;
 # the +/- buttons sit just above the lookup tables; the stale "Commands" note is
-# gone; and running setup again changes nothing (idempotent - rows are inserted
-# once, not once per run).
+# gone; and running setup again changes nothing (the rows ship in the template, so
+# setup never inserts any).
 #
 # Drives a COPY in %TEMP%, never src\PrintJob.xlsm itself. Closes WITHOUT saving.
 
@@ -105,7 +105,7 @@ try {
 
     CheckLayout $wb 'built'
 
-    # Idempotence: a second setup run must not insert another band.
+    # A second setup run must not change the layout.
     $xl.Run('InitialiseWorkbook')
     Start-Sleep -Milliseconds 500
     CheckLayout $wb 'after second setup'

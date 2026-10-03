@@ -31,12 +31,6 @@ Public Sub AddPrintJob(ByVal ws As Worksheet)
     CellIn(lo, n, "Job ID").Value = NewJobId(ws, lo)
     CellIn(lo, n, "Date/Time").Value = Now
 
-    ' Same reason RepeatJob clears it (modValidation.MarkQtyRewritten's own
-    ' comment): a freshly appended ListRow copies whatever formatting the
-    ' table's previous last row had, Qty included - a blank new row starting
-    ' shaded, before anything has even been typed into it, is never correct.
-    MarkQtyRewritten CellIn(lo, n, "Qty"), False
-
     ' Spec 9.2 and 10.10: the location defaults seed the row, and from this
     ' moment the row's own values are independent of them. Copying rather than
     ' referencing is the whole of AT-07 and AT-08.
@@ -114,15 +108,8 @@ Public Sub RepeatJob(ByVal ws As Worksheet)
     CellIn(lo, n, "Printer").Value = CellIn(lo, srcRow, "Printer").Value
     CellIn(lo, n, "Paper Stock").Value = CellIn(lo, srcRow, "Paper Stock").Value
     CellIn(lo, n, "Qty").Value = CellIn(lo, srcRow, "Qty").Value
-    ' The new row's Qty otherwise keeps whatever shading the table's
-    ' previous last row happened to have (see modValidation.MarkQtyRewritten's
-    ' own comment) - clear it here so a repeated row's shading reflects only
-    ' this copy, never a neighbour's.
-    MarkQtyRewritten CellIn(lo, n, "Qty"), False
     CellIn(lo, n, "Print Width mm").Value = CellIn(lo, srcRow, "Print Width mm").Value
-    If ColumnExists(lo, "Sheet size") Then
-        CellIn(lo, n, "Sheet size").Value = CellIn(lo, srcRow, "Sheet size").Value
-    End If
+    CellIn(lo, n, "Sheet size").Value = CellIn(lo, srcRow, "Sheet size").Value
     CellIn(lo, n, "Disregard Paper").Value = CellIn(lo, srcRow, "Disregard Paper").Value
     CellIn(lo, n, "Disregard Consumable").Value = CellIn(lo, srcRow, "Disregard Consumable").Value
 
@@ -265,10 +252,6 @@ Public Sub ClearAll(ByVal ws As Worksheet)
         lo.ListRows(i).Delete
     Next i
     ClearTypedCells lo.ListRows(1).Range
-    ' ClearContents empties values, not formatting - if row 1 itself was
-    ' shaded (a real cm-derived value cleared along with everything else),
-    ' it would otherwise stay shaded forever with nothing left in it.
-    MarkQtyRewritten CellIn(lo, 1, "Qty"), False
     RelockSheet ws
     AppOn
 

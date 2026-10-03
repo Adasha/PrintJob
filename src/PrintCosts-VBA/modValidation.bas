@@ -46,7 +46,6 @@ Public Function OnCellChanged(ByVal ws As Worksheet, ByVal Target As Range) As B
         Case "Paper Stock"
             OnStockChanged ws, lo, n
         Case "Qty"
-            OnQtyChanged ws, lo, n
         Case "Print Width mm"
             OnWidthChanged ws, lo, n
         Case "Sheet size"
@@ -193,14 +192,12 @@ Private Sub RevalidateSuppliedSize(ByVal ws As Worksheet, ByVal lo As ListObject
             End If
         End If
     ElseIf s.Measure = "Sheet" Then
-        If ColumnExists(lo, "Sheet size") Then
-            sizeName = Trim$(CStr(CellIn(lo, n, "Sheet size").Value))
-            If Len(sizeName) > 0 And Len(p.MaxSheetSize) > 0 Then
-                If StdSizeDims(sizeName, w, h) Then
-                    If Not FitsWithinMaxSheet(w, h, p.MaxSheetWidthMM, p.MaxSheetHeightMM) Then
-                        CellIn(lo, n, "Sheet size").ClearContents
-                        Say "'" & sizeName & "' is bigger than " & Model & " can take.", Model & "'s maximum sheet size is " & p.MaxSheetSize & ".", "Choose a smaller size."
-                    End If
+        sizeName = Trim$(CStr(CellIn(lo, n, "Sheet size").Value))
+        If Len(sizeName) > 0 And Len(p.MaxSheetSize) > 0 Then
+            If StdSizeDims(sizeName, w, h) Then
+                If Not FitsWithinMaxSheet(w, h, p.MaxSheetWidthMM, p.MaxSheetHeightMM) Then
+                    CellIn(lo, n, "Sheet size").ClearContents
+                    Say "'" & sizeName & "' is bigger than " & Model & " can take.", Model & "'s maximum sheet size is " & p.MaxSheetSize & ".", "Choose a smaller size."
                 End If
             End If
         End If
@@ -246,26 +243,12 @@ Private Sub OnStockChanged(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal 
 
     ' Sheet size is meaningless for anything except 'Supplied (Sheet)' - the
     ' same tidy-up as Print Width mm just above, mirrored for the sheet case.
-    If ColumnExists(lo, "Sheet size") Then
-        If s.Measure <> "Sheet" Or Not s.PerJobSize Then
-            If Len(CellIn(lo, n, "Sheet size").Value) > 0 Then
-                CellIn(lo, n, "Sheet size").ClearContents
-                Say "Sheet size only applies to 'Supplied (Sheet)'.", "This row's paper stock is now '" & stk & "'.", "The value has been cleared."
-            End If
+    If s.Measure <> "Sheet" Or Not s.PerJobSize Then
+        If Len(CellIn(lo, n, "Sheet size").Value) > 0 Then
+            CellIn(lo, n, "Sheet size").ClearContents
+            Say "Sheet size only applies to 'Supplied (Sheet)'.", "This row's paper stock is now '" & stk & "'.", "The value has been cleared."
         End If
     End If
-End Sub
-
-' modInit.EnsureRollUnitSetting's LOC_RollUnit (per-location) is a DISPLAY unit
-' for roll lengths on this sheet (2026-10-01, replacing the old type-in-cm,
-' store-as-metres rewrite): Qty holds whatever unit the setting names, and
-' the Unit, Area m2 and Paper Cost formulas (modInit.EnsureRollUnitFormulas)
-' and the consolidated _Data range (modRegistry.WriteConsolidated) convert
-' back to metres, so nothing outside this sheet ever sees centimetres.
-' Qty's own edit therefore needs no conversion - it only clears the grey
-' "rewritten" shading older builds left behind.
-Private Sub OnQtyChanged(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal n As Long)
-    MarkQtyRewritten CellIn(lo, n, "Qty"), False
 End Sub
 
 ' Called when LOC_RollUnit itself is edited. Rescales every existing roll
@@ -304,27 +287,6 @@ Public Sub ScaleRollQty(ByVal lo As ListObject, ByVal Factor As Double)
             End If
         End If
     Next i
-End Sub
-
-' RGB(242,242,242)/RGB(128,128,128): the same grey-fill/grey-text look this
-' workbook already uses for a calculated cell (e.g. Unit, Area m2) - Qty
-' isn't calculated, but "shown value isn't what you typed" is close enough
-' in spirit that reusing the existing visual language beats inventing a new
-' colour nobody has a legend entry for.
-'
-' Public: modJobs.RepeatJob also calls this (always with False) - a freshly
-' appended ListRow copies whatever formatting the table's PREVIOUS last row
-' happened to have, not the row being repeated, so a shaded row anywhere
-' else in the table would otherwise bleed its shading onto every new row
-' regardless of whether the one actually being repeated was shaded itself.
-Public Sub MarkQtyRewritten(ByVal c As Range, ByVal Rewritten As Boolean)
-    If Rewritten Then
-        c.Interior.Color = RGB(242, 242, 242)
-        c.Font.Color = RGB(128, 128, 128)
-    Else
-        c.Interior.ColorIndex = xlNone
-        c.Font.ColorIndex = xlAutomatic
-    End If
 End Sub
 
 Private Sub OnWidthChanged(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal n As Long)

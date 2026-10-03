@@ -76,9 +76,7 @@ Public Sub LoadCatalog(Optional ByVal Force As Boolean = False)
             s.HeightMM = NumOf(CellIn(lo, i, "Height mm"))
             s.Cost = NumOf(CellIn(lo, i, "Cost"))
             s.Active = (StrComp(CStr(CellIn(lo, i, "Active").Value), "Yes", vbTextCompare) = 0)
-            If ColumnExists(lo, "Supplied by student") Then
-                s.SuppliedByStudent = (StrComp(CStr(CellIn(lo, i, "Supplied by student").Value), "Yes", vbTextCompare) = 0)
-            End If
+            s.SuppliedByStudent = (StrComp(CStr(CellIn(lo, i, "Supplied by student").Value), "Yes", vbTextCompare) = 0)
             ' Paper the student supplies is never charged for, whatever the
             ' Cost cell says - the flag decides, not the number.
             If s.SuppliedByStudent Then s.Cost = 0
@@ -97,22 +95,18 @@ Public Sub LoadCatalog(Optional ByVal Force As Boolean = False)
             p.Model = CStr(CellIn(lo, i, "Model").Value)
             p.Consumable = CStr(CellIn(lo, i, "Consumable type").Value)
             p.RatePerM2 = NumOf(CellIn(lo, i, "Cost per m2"))
-            If ColumnExists(lo, "Max roll width mm") Then
-                p.MaxRollWidthMM = NumOf(CellIn(lo, i, "Max roll width mm"))
-            End If
-            If ColumnExists(lo, "Max sheet size") Then
-                p.MaxSheetSize = Trim$(CStr(CellIn(lo, i, "Max sheet size").Value))
-                If Len(p.MaxSheetSize) > 0 Then
-                    ' Via local scratch variables, not p.MaxSheetWidthMM/
-                    ' HeightMM directly - an object's public field passed as
-                    ' a ByRef argument doesn't reliably write back over COM,
-                    ' confirmed directly: StdSizeDims returned True with the
-                    ' correct values, but p.MaxSheetWidthMM/HeightMM stayed 0
-                    ' every time until routed through plain local Doubles.
-                    If StdSizeDims(p.MaxSheetSize, szW, szH) Then
-                        p.MaxSheetWidthMM = szW
-                        p.MaxSheetHeightMM = szH
-                    End If
+            p.MaxRollWidthMM = NumOf(CellIn(lo, i, "Max roll width mm"))
+            p.MaxSheetSize = Trim$(CStr(CellIn(lo, i, "Max sheet size").Value))
+            If Len(p.MaxSheetSize) > 0 Then
+                ' Via local scratch variables, not p.MaxSheetWidthMM/
+                ' HeightMM directly - an object's public field passed as
+                ' a ByRef argument doesn't reliably write back over COM,
+                ' confirmed directly: StdSizeDims returned True with the
+                ' correct values, but p.MaxSheetWidthMM/HeightMM stayed 0
+                ' every time until routed through plain local Doubles.
+                If StdSizeDims(p.MaxSheetSize, szW, szH) Then
+                    p.MaxSheetWidthMM = szW
+                    p.MaxSheetHeightMM = szH
                 End If
             End If
             p.Active = (StrComp(CStr(CellIn(lo, i, "Active").Value), "Yes", vbTextCompare) = 0)
@@ -547,7 +541,6 @@ Public Sub FillCatalogId(ByVal lo As ListObject, ByVal TableName As String, ByVa
     Dim idHdr As String, code As String, nameHdr As String, hwmKey As String
 
     If Not CatalogIdSpec(TableName, idHdr, code, nameHdr, hwmKey) Then Exit Sub
-    If Not ColumnExists(lo, idHdr) Then Exit Sub
     If Len(Trim$(CStr(CellIn(lo, RowNo, idHdr).Value))) > 0 Then Exit Sub
     CellIn(lo, RowNo, idHdr).Value = NextCatalogId(lo, TableName)
 End Sub
@@ -561,37 +554,9 @@ Public Sub SyncCatalogHwm(ByVal lo As ListObject, ByVal TableName As String)
     Dim cur As Long, seen As Long
 
     If Not CatalogIdSpec(TableName, idHdr, code, nameHdr, hwmKey) Then Exit Sub
-    If Not ColumnExists(lo, idHdr) Then Exit Sub
     cur = CLng(SettingNum(hwmKey, 0))
     seen = ScanMaxSuffix(lo, idHdr, SettingText("SITE_ID", "SITE") & "-" & code & "-")
     If seen > cur Then SetCatalogHwm hwmKey, seen
-End Sub
-
-' Setup: gives every named row that has no ID one. Covers the sample rows the
-' template ships with and any row added while events were off. Rows that
-' already have an ID are left exactly as they are.
-Public Sub EnsureCatalogIds()
-    Dim tables As Variant, t As Variant, lo As ListObject, ws As Worksheet, i As Long
-    Dim idHdr As String, code As String, nameHdr As String, hwmKey As String
-
-    tables = Array("tblTechnicians", "tblPrinters", "tblPapers")
-    For Each t In tables
-        Set lo = Tbl(CStr(t))
-        If Not lo Is Nothing Then
-            If Not lo.DataBodyRange Is Nothing Then
-                If CatalogIdSpec(CStr(t), idHdr, code, nameHdr, hwmKey) Then
-                    If ColumnExists(lo, idHdr) Then
-                        Set ws = lo.Parent
-                        UnlockSheet ws
-                        For i = 1 To lo.ListRows.Count
-                            If Len(Trim$(CStr(CellIn(lo, i, nameHdr).Value))) > 0 Then FillCatalogId lo, CStr(t), i
-                        Next i
-                        RelockSheet ws
-                    End If
-                End If
-            End If
-        End If
-    Next t
 End Sub
 
 ' Called from ThisWorkbook.Workbook_SheetChange for an edit on the Printers or
@@ -785,23 +750,6 @@ Public Sub DoClearCatalogTable(ByVal TableName As String)
     AppOn
 End Sub
 
-' ---------------------------------------------------- standard sizes name ---
-' A workbook-scoped name for tblStandardSizes[Size name], re-created (delete
-' then re-add, same idiom modInit.EnsureLocName uses) rather than referenced
-' directly as a structured reference in a cross-sheet Data Validation list:
-' Validation.Add's Formula1 rejects a bare cross-sheet structured reference
-' with a plain 1004 over COM automation, even though the same text works
-' fine typed into the dialog by hand - a defined name is what makes a
-' cross-sheet list source reliable here, same reasoning modLists.bas gives
-' for why every OTHER dropdown in this project stages its list first rather
-' than pointing straight at a table range.
-Public Sub EnsureStdSizesName()
-    On Error Resume Next
-    ThisWorkbook.Names("RNG_STD_SIZES").Delete
-    On Error GoTo 0
-    ThisWorkbook.Names.Add Name:="RNG_STD_SIZES", RefersTo:="=tblStandardSizes[Size name]"
-End Sub
-
 ' -------------------------------------------------- student-supplied stock -
 ' Two kinds of "supplied by the student" paper:
 '
@@ -841,62 +789,6 @@ Private Sub AddBuiltInStock(ByVal StockID As String, ByVal Description As String
     mStocks.Add s.Description, s
 End Sub
 
-' One-off migration, run by Setup (and harmless to repeat): earlier builds
-' shipped the two Supplied stocks as ordinary tblPapers rows. They are built
-' in now, so any such row is deleted. Jobs already recorded against them are
-' unaffected - each carries its own frozen S_* snapshot.
-Public Sub RemoveLegacySuppliedRows()
-    Dim lo As ListObject, ws As Worksheet, i As Long, n As Long, id As String
-    Set lo = Tbl("tblPapers")
-    If lo Is Nothing Then Exit Sub
-    If lo.DataBodyRange Is Nothing Then Exit Sub
-    Set ws = lo.Parent
-
-    For i = lo.ListRows.Count To 1 Step -1
-        id = Trim$(CStr(CellIn(lo, i, "StockID").Value))
-        If IsBuiltInStock(CStr(CellIn(lo, i, "Description").Value)) _
-            Or StrComp(id, "STK-SUP-ROLL", vbTextCompare) = 0 _
-            Or StrComp(id, "STK-SUP-SHEET", vbTextCompare) = 0 Then
-            If n = 0 Then UnlockSheet ws
-            lo.ListRows(i).Delete
-            n = n + 1
-        End If
-    Next i
-
-    If n > 0 Then
-        RelockSheet ws
-        Invalidate
-        LogAudit "Migration", "Papers", n & " built-in 'Supplied' paper row" & IIf(n = 1, "", "s") & " removed from tblPapers (now built in)"
-    End If
-End Sub
-
-' Setup: every stock defaults to "Supplied by student = No", and a stock that
-' is Yes has a Cost of 0. Only fills blanks / zeroes a stray cost; never
-' flips a Yes or No the user chose.
-Public Sub NormaliseSuppliedFlags()
-    Dim lo As ListObject, ws As Worksheet, i As Long, n As Long
-    Set lo = Tbl("tblPapers")
-    If lo Is Nothing Then Exit Sub
-    If lo.DataBodyRange Is Nothing Then Exit Sub
-    If Not ColumnExists(lo, "Supplied by student") Then Exit Sub
-    Set ws = lo.Parent
-
-    UnlockSheet ws
-    For i = 1 To lo.ListRows.Count
-        If Len(Trim$(CStr(CellIn(lo, i, "Description").Value))) > 0 Then
-            If Len(Trim$(CStr(CellIn(lo, i, "Supplied by student").Value))) = 0 Then
-                CellIn(lo, i, "Supplied by student").Value = "No"
-                n = n + 1
-            End If
-            If StrComp(Trim$(CStr(CellIn(lo, i, "Supplied by student").Value)), "Yes", vbTextCompare) = 0 Then
-                If NumOf(CellIn(lo, i, "Cost")) <> 0 Then CellIn(lo, i, "Cost").Value = 0
-            End If
-        End If
-    Next i
-    RelockSheet ws
-    If n > 0 Then Invalidate
-End Sub
-
 ' The Yes/No dropdown and its help text on tblPapers[Supplied by student].
 ' Re-applied here so the wording matches the behaviour above rather than
 ' whatever the .xlsx template happens to carry.
@@ -905,7 +797,6 @@ Public Sub EnsureSuppliedColumnValidation()
     Set lo = Tbl("tblPapers")
     If lo Is Nothing Then Exit Sub
     If lo.DataBodyRange Is Nothing Then Exit Sub
-    If Not ColumnExists(lo, "Supplied by student") Then Exit Sub
     Set ws = lo.Parent
 
     UnlockSheet ws
