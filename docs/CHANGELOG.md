@@ -3,6 +3,17 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.10.21 - Settings sheet: row order and editable/locked styling.
+  - Minimal view - extra hidden columns (LOC_MINIMAL_COLUMNS) now sits directly
+    below Reduced view - hidden columns. EnsureSetting takes an optional
+    AfterKey and inserts a new row there; an existing row is never moved
+    (upgrading means a fresh workbook plus an import).
+  - Value cells are styled by lock state, from the same "Read-only" Notes test
+    that sets .Locked (UnlockSettingsValues): editable = white, blue box
+    border, dark-blue text; locked = grey, italic, no border.
+  - New test-settingsrows.ps1. ARCHITECTURE section 11 records the treatment;
+    section 16.2 logs shipping the Settings rows in the .xlsx as a todo.
+
 0.10.20 - Reports sheet: new filter block, export-names prompt.
   - Quantity filter removed. New Paid (Yes/No; No includes blank) and Paper type
     (Roll/Sheet, from the consolidated Unit column; "cm" accepted as well as "metres") filters.

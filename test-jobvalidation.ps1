@@ -42,11 +42,35 @@ function VType($cell) {
 }
 function VF1($cell)   { try { return [string]$cell.Validation.Formula1 } catch { return '' } }
 
+# Excel can still be settling after a heavy VBA call (add row, BindColumns, a
+# Cut + Insert) and reject the next COM call with RPC_E_CALL_REJECTED, so every
+# read of the workbook goes through Invoke-ComRetry. Only reads and idempotent
+# calls are retried: re-running btnAddPrintJob would add a second row.
+function RowCount($lo) { Invoke-ComRetry -Attempts 5 { $lo.ListRows.Count } }
+
+# A column's Range, retried until Excel actually hands one back: while it is
+# still busy it can throw or return $null (see TestCommon.ps1). Not routed
+# through Invoke-ComRetry, which would unroll a multi-cell Range into an array
+# of its cells; the leading comma keeps this one as a single Range.
+function ColRange($lo, [string]$name) {
+    for ($attempt = 1; $attempt -le 5; $attempt++) {
+        try {
+            $r = $lo.ListColumns($name).Range
+            if ($null -ne $r) { return ,$r }
+        } catch {
+            if ($attempt -eq 5) { throw }
+        }
+        Start-Sleep -Seconds $attempt
+    }
+    throw "ListColumns('$name') returned null"
+}
+
 # Checks one row of the table against $rules, looking every column up by name.
 function Check-Row($lo, [int]$rowNo, [string]$label) {
-    foreach ($ci in 1..$lo.ListColumns.Count) {
-        $name = $lo.ListColumns($ci).Name
-        $cell = $lo.ListRows($rowNo).Range.Cells(1, $ci)
+    $nCols = Invoke-ComRetry -Attempts 5 { $lo.ListColumns.Count }
+    foreach ($ci in 1..$nCols) {
+        $name = Invoke-ComRetry -Attempts 5 { $lo.ListColumns($ci).Name }
+        $cell = Invoke-ComRetry -Attempts 5 { $lo.ListRows($rowNo).Range.Cells(1, $ci) }
         $t = VType $cell
         if ($rules.Contains($name)) {
             $want = $rules[$name]
@@ -60,11 +84,13 @@ function Check-Row($lo, [int]$rowNo, [string]$label) {
 }
 
 function Check-Below($ws, $lo, [string]$label) {
-    $first = $lo.Range.Row + $lo.Range.Rows.Count
+    $first = Invoke-ComRetry -Attempts 5 { $lo.Range.Row + $lo.Range.Rows.Count }
+    $nCols = Invoke-ComRetry -Attempts 5 { $lo.ListColumns.Count }
+    $left = Invoke-ComRetry -Attempts 5 { $lo.Range.Column }
     $bad = @()
     foreach ($r in @($first, ($first + 4), 2010)) {
-        foreach ($ci in 1..$lo.ListColumns.Count) {
-            $c = $ws.Cells($r, $lo.Range.Column + $ci - 1)
+        foreach ($ci in 1..$nCols) {
+            $c = Invoke-ComRetry -Attempts 5 { $ws.Cells($r, $left + $ci - 1) }
             if ((VType $c) -ne -1) { $bad += $c.Address($false, $false) }
         }
     }
@@ -82,22 +108,24 @@ $xl.Visible = $false
 $xl.DisplayAlerts = $false
 $wb = $null
 try {
-    $wb = $xl.Workbooks.Open($f)
-    $ws = Invoke-ComRetry { $wb.Worksheets('Example Print Room') }
+    $wb = Invoke-ComRetry -Attempts 5 { $xl.Workbooks.Open($f) }
+    $ws = Invoke-ComRetry -Attempts 5 { $wb.Worksheets('Example Print Room') }
     $lo = $ws.ListObjects('tblJobs_MAIN')
 
     Write-Host '=== as shipped, after setup ==='
     Check-Row $lo 1 'first row'
-    Check-Row $lo $lo.ListRows.Count 'last row'
+    Check-Row $lo (RowCount $lo) 'last row'
     Check-Below $ws $lo 'shipped'
 
     Write-Host '=== a row added to the table ==='
     $xl.Run('SetQuiet', $true)
     $ws.Activate()
-    $before = $lo.ListRows.Count
+    $before = RowCount $lo
     [void]$xl.Run('btnAddPrintJob')
-    Check ($lo.ListRows.Count -eq $before + 1) ("row added ({0} -> {1})" -f $before, $lo.ListRows.Count)
-    Check-Row $lo $lo.ListRows.Count 'added row'
+    Start-Sleep -Milliseconds 500
+    $after = RowCount $lo
+    Check ($after -eq $before + 1) ("row added ({0} -> {1})" -f $before, $after)
+    Check-Row $lo $after 'added row'
     Check-Below $ws $lo 'after add'
 
     Write-Host '=== columns moved with Cut + Insert, then one BindColumns ==='
@@ -106,13 +134,17 @@ try {
     # Paid in front of Qty, Disregard Paper in front of Student Name - one move
     # past rule columns, one across plain ones, both the old reorder's pattern.
     foreach ($mv in @(@('Paid', 'Qty'), @('Disregard Paper', 'Student Name'))) {
-        [void]$lo.ListColumns($mv[0]).Range.Cut()
-        [void]$lo.ListColumns($mv[1]).Range.Insert($xlShiftToRight)
+        $src = ColRange $lo $mv[0]
+        $dst = ColRange $lo $mv[1]
+        [void]$src.Cut()
+        [void]$dst.Insert($xlShiftToRight)
     }
-    Check ((Col $lo 'Paid') -lt (Col $lo 'Qty')) 'Paid now sits before Qty'
-    $xl.Run('BindColumns', $ws)
+    Start-Sleep -Milliseconds 500
+    Check ((Invoke-ComRetry -Attempts 5 { Col $lo 'Paid' }) -lt (Invoke-ComRetry -Attempts 5 { Col $lo 'Qty' })) 'Paid now sits before Qty'
+    Invoke-ComRetry -Attempts 5 { $xl.Run('BindColumns', $ws) }
+    Start-Sleep -Milliseconds 500
     Check-Row $lo 1 'reordered, first row'
-    Check-Row $lo $lo.ListRows.Count 'reordered, last row'
+    Check-Row $lo (RowCount $lo) 'reordered, last row'
     Check-Below $ws $lo 'reordered'
 
     $xl.Run('SetQuiet', $false)
