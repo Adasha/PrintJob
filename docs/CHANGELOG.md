@@ -20,6 +20,7 @@ Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module
     Workbook_Open does not run. The copy is deleted afterwards.
   - modUtils.PickCsvFile takes an optional filter. clsRestoreRoom gains
     Settings. New test-restoreworkbook.ps1. Data schema unchanged (1.3).
+  Docs: Data-Backup-and-Restore, Admin-Upgrading, Setup-Print-Rooms.
 
 0.10.23 - Restore workbook creates the print rooms it is missing.
   - Restoring a backup into a workbook that lacked one of the backup's print
@@ -38,6 +39,7 @@ Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module
     one clsRestoreRoom per room) before previewing and applying it, so every
     source goes through the same code. New clsRestoreRoom class (21 files now).
   - New test-restorerooms.ps1. Data schema unchanged (1.3).
+  Docs: Data-Backup-and-Restore, Setup-Print-Rooms.
 
 0.10.22 - In-place upgraders removed; the template ships the final layout.
   - Upgrading means a fresh workbook plus an import, so nothing upgrades a
