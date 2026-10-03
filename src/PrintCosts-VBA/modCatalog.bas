@@ -507,14 +507,6 @@ Public Function CatalogIdSpec(ByVal TableName As String, ByRef IdHeader As Strin
     CatalogIdSpec = True
 End Function
 
-' The three counter rows in tblSettings. Called by Setup, and again by
-' SetCatalogHwm if a counter is ever found missing.
-Public Sub EnsureCatalogIdSettings()
-    EnsureSetting "TECH_ID_HWM", "Last technician ID number", "Read-only. The highest TechID number issued at this site. Only ever rises, so an ID is never reused."
-    EnsureSetting "PRINTER_ID_HWM", "Last printer ID number", "Read-only. The highest PrinterID number issued at this site. Only ever rises, so an ID is never reused."
-    EnsureSetting "STOCK_ID_HWM", "Last paper ID number", "Read-only. The highest StockID number issued at this site. Only ever rises, so an ID is never reused."
-End Sub
-
 ' Sets a counter. Events are switched off around the write: it lands on the
 ' Settings sheet, whose Workbook_SheetChange would otherwise mark the whole
 ' catalogue dirty and rebind every dropdown for a change nobody made.
@@ -524,12 +516,6 @@ Private Sub SetCatalogHwm(ByVal HwmKey As String, ByVal Value As Long)
     On Error Resume Next
     Set c = ThisWorkbook.Names("SET_" & HwmKey).RefersToRange
     On Error GoTo 0
-    If c Is Nothing Then
-        EnsureCatalogIdSettings
-        On Error Resume Next
-        Set c = ThisWorkbook.Names("SET_" & HwmKey).RefersToRange
-        On Error GoTo 0
-    End If
     If c Is Nothing Then Exit Sub
 
     ev = Application.EnableEvents
