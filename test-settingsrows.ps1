@@ -4,9 +4,8 @@
 # Settings table row order and editable/locked styling.
 #
 #   - LOC_MINIMAL_COLUMNS sits directly below LOC_REDUCED_COLUMNS, in a fresh
-#     build, after a second setup run (idempotent), and in a workbook where an
-#     older version had appended it at the bottom (it is moved once, and a value
-#     the user had typed travels with it).
+#     build and after a second setup run (idempotent). An existing row is never
+#     moved: upgrading means a fresh workbook plus an import.
 #   - SET_LOC_MINIMAL_COLUMNS still resolves to the Value cell of that row.
 #   - Every Value cell is styled to match its lock state: locked ("Read-only"
 #     notes) are grey/italic with no border, editable are white with a border.
@@ -70,33 +69,13 @@ $wb = $null
 try {
     $wb = Invoke-ComRetry -Attempts 5 { $xl.Workbooks.Open($f) }
     $xl.Run('SetQuiet', $true)
-    $ws = $wb.Worksheets('Settings')
-
     CheckOrder $wb 'built'
     CheckStyle $wb 'built'
 
     $xl.Run('InitialiseWorkbook')
     Start-Sleep -Milliseconds 500
     CheckOrder $wb 'second setup'
-
-    # An older workbook: the row appended at the bottom, holding a user edit.
-    $ws.Unprotect()
-    $lo = $ws.ListObjects('tblSettings')
-    $old = RowOf $lo 'LOC_MINIMAL_COLUMNS'
-    $vals = $lo.ListRows($old).Range.Cells(1, 1).Resize(1, 4).Value2
-    $new = $lo.ListRows.Add()
-    $new.Range.Cells(1, 1).Resize(1, 4).Value2 = $vals
-    $new.Range.Cells(1, 3).Value2 = 'Printer;Sheet size'
-    $lo.ListRows($old).Delete()
-    Check ((RowOf $lo 'LOC_MINIMAL_COLUMNS') -eq $lo.ListRows.Count) 'legacy: minimal row is at the bottom before setup'
-
-    $xl.Run('InitialiseWorkbook')
-    Start-Sleep -Milliseconds 500
-    CheckOrder $wb 'legacy migrated'
-    $lo = $wb.Worksheets('Settings').ListObjects('tblSettings')
-    $m = RowOf $lo 'LOC_MINIMAL_COLUMNS'
-    Check ([string]$lo.DataBodyRange.Cells($m, 3).Value2 -eq 'Printer;Sheet size') 'legacy migrated: the user-edited value travelled with the row'
-    CheckStyle $wb 'legacy migrated'
+    CheckStyle $wb 'second setup'
 }
 finally {
     if ($wb) { $wb.Close($false) }

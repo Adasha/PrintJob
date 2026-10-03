@@ -91,32 +91,22 @@ End Sub
 '
 ' AfterKey (optional) pins the row directly below another setting's row, so
 ' related settings stay together. A new row is inserted there rather than
-' appended, and a row that already exists elsewhere (appended by an earlier
-' version) is moved there once - its Key/Label/Value/Notes travel with it, so a
-' user's edited value survives. Blank, or an AfterKey that is not in the
-' table, leaves the row where it is (appended when new).
+' appended. A row that already exists is never moved (upgrading means a fresh
+' workbook plus an import, so there is no older layout to migrate). Blank, or
+' an AfterKey that is not in the table, appends.
 Public Function EnsureSetting(ByVal Key As String, ByVal Label As String, ByVal Notes As String, Optional ByVal AfterKey As String = "") As Range
     Dim lo As ListObject, i As Long, r As ListRow, c As Range
-    Dim at As Long, oldIdx As Long, vals As Variant
+    Dim at As Long
 
     Set lo = Tbl("tblSettings")
     If lo Is Nothing Then Exit Function
 
     i = SettingRowIndex(lo, Key)
-    If Len(AfterKey) > 0 Then at = SettingRowIndex(lo, AfterKey)
-
-    If i > 0 And at > 0 And i <> at + 1 Then
-        UnlockSheet lo.Parent
-        vals = lo.ListRows(i).Range.Cells(1, 1).Resize(1, 4).Value2
-        Set r = lo.ListRows.Add(at + 1)
-        r.Range.Cells(1, 1).Resize(1, 4).Value2 = vals
-        oldIdx = IIf(i > at, i + 1, i)
-        lo.ListRows(oldIdx).Delete
-        RelockSheet lo.Parent
-        i = SettingRowIndex(lo, Key)
+    If i > 0 Then
+        Set c = CellIn(lo, i, "Value")
+    ElseIf Len(AfterKey) > 0 Then
+        at = SettingRowIndex(lo, AfterKey)
     End If
-
-    If i > 0 Then Set c = CellIn(lo, i, "Value")
 
     If c Is Nothing Then
         UnlockSheet lo.Parent
