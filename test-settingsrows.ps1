@@ -4,8 +4,8 @@
 # Settings table row order and editable/locked styling.
 #
 #   - LOC_MINIMAL_COLUMNS sits directly below LOC_REDUCED_COLUMNS, in a fresh
-#     build and after a second setup run (idempotent). An existing row is never
-#     moved: upgrading means a fresh workbook plus an import.
+#     build and after a second setup run. The rows ship in PrintCosts.xlsx in
+#     display order; setup adds and moves nothing.
 #   - SET_LOC_MINIMAL_COLUMNS still resolves to the Value cell of that row.
 #   - Every Value cell is styled to match its lock state: locked ("Read-only"
 #     notes) are grey/italic with no border, editable are white with a border.

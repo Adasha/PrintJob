@@ -194,32 +194,11 @@ try {
     function SetPap($row, $name, $val) { $c = Col $pap $name; if ($val -is [int]) { $val = [double]$val }; try { $cell = $pap.ListRows($row).Range.Cells(1, $c); if ($val -is [double]) { $cell.Formula = $val.ToString([Globalization.CultureInfo]::InvariantCulture) } else { $cell.Value2 = $val } } catch { Write-Host "SetPap FAILED row=$row col=$name($c) val=$val type=$($val.GetType().Name): $($_.Exception.Message)"; throw } }
     function GetPap($row, $name) { $c = Col $pap $name; return $pap.ListRows($row).Range.Cells(1, $c).Value2 }
 
-    # A workbook built before this change still carries the two rows until
-    # Setup runs; the migration is what Setup calls.
-    $xl.Run('RemoveLegacySuppliedRows')
+    # The shipped template has no such rows (PrintCosts.xlsx), so a build has none.
     Check ((DescCount $pap 'Supplied (Roll)') -eq 0) 'no Supplied (Roll) row in tblPapers'
     Check ((DescCount $pap 'Supplied (Sheet)') -eq 0) 'no Supplied (Sheet) row in tblPapers'
-    $xl.Run('RemoveLegacySuppliedRows')
-    Check ((DescCount $pap 'Supplied (Roll)') -eq 0) 'running the migration again is harmless'
     Check ([bool]$xl.Run('Compatible', 'Epson SureColor P9500', 'Supplied (Roll)')) 'Supplied (Roll) is still usable on a roll printer'
     Check (-not [bool]$xl.Run('Compatible', 'HP DesignJet Z9+', 'Supplied (Sheet)')) 'Supplied (Sheet) is refused by a printer with no sheet capacity'
-
-    Write-Host ''
-    Write-Host '=== A legacy Supplied row is removed by the migration ==='
-    $papWs.Unprotect()
-    $xl.EnableEvents = $false
-    [void]$pap.ListRows.Add()
-    $ln = Invoke-ComRetry -Attempts 5 { $c = [int]$pap.ListRows.Count; if ($c -lt 1) { throw "row count not readable yet" }; $c }
-    SetPap $ln 'StockID' 'STK-SUP-ROLL'
-    SetPap $ln 'Description' 'Supplied (Roll)'
-    SetPap $ln 'Measure' 'Roll'
-    SetPap $ln 'Cost' 0
-    SetPap $ln 'Active' 'Yes'
-    SetPap $ln 'Supplied by student' 'Yes'
-    $xl.EnableEvents = $true
-    Check ((DescCount $pap 'Supplied (Roll)') -eq 1) 'legacy row planted for the test'
-    $xl.Run('RemoveLegacySuppliedRows')
-    Check ((DescCount $pap 'Supplied (Roll)') -eq 0) 'the migration removes it'
 
     Write-Host ''
     Write-Host '=== Typing a reserved name into the Papers table is rejected ==='

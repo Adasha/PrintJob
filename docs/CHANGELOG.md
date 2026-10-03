@@ -3,6 +3,23 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.10.22 - In-place upgraders removed; the template ships the final layout.
+  - Upgrading means a fresh workbook plus an import, so nothing upgrades a
+    workbook in place any more. PrintCosts.xlsx now ships what setup used to
+    build on every run: the Settings rows (in display order, with SET_ names),
+    the location header gap rows, the Settings button-band rows, roll-unit-aware
+    Unit/Area m2/Paper Cost formulas, no stray validation under the job table,
+    no built-in Supplied rows in tblPapers, and catalogue IDs and counters on
+    the sample rows.
+  - Removed: EnsureSetting, EnsureViewSettings, EnsureReportHeadingSetting,
+    EnsureCatalogIds, RemoveLegacySuppliedRows, NormaliseSuppliedFlags,
+    EnsureStdSizesName, EnsureHeaderGaps, EnsureRollUnitFormulas (and its
+    centimetre x100 migration), ClearBelowTableValidation, MarkQtyRewritten,
+    the Settings band insert, and the ColumnExists guards for columns the
+    template always has. EnsureVersionSettings and EnsureSchemaSetting are one
+    routine, StampVersionSettings, which only stamps APP_VER and SCHEMA.
+  - Data schema unchanged (1.3). ARCHITECTURE section 16.2 records the closed item.
+
 0.10.21 - Settings sheet: row order and editable/locked styling.
   - Minimal view - extra hidden columns (LOC_MINIMAL_COLUMNS) now sits directly
     below Reduced view - hidden columns. EnsureSetting takes an optional

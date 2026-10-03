@@ -27,7 +27,7 @@ Option Explicit
 
 Public Const APP_NAME As String = "Print Cost Management"
 ' Release history lives in docs/CHANGELOG.md (and git), not in this module.
-Public Const APP_VERSION As String = "0.10.21"
+Public Const APP_VERSION As String = "0.10.22"
 Public Const APP_AUTHOR As String = "Adam Shailer"
 
 Public Function VersionString() As String
@@ -43,7 +43,7 @@ End Function
 Public Sub StampBuild()
     On Error GoTo Fail
     AppOff
-    EnsureVersionSettings
+    StampVersionSettings
     SetSetting "BUILT", Now
     SetSetting "BUILT_BY", CurrentUser
     StampProperties
@@ -54,91 +54,6 @@ Fail:
     AppReset
     ReportError "StampBuild"
 End Sub
-
-' Adds the version rows to tblSettings if they are not there, and gives each a
-' workbook-scoped SET_ name so modSettings can reach it like any other setting.
-'
-' APP_VER is written from the constant every time, because the code in the
-' workbook IS its version - importing a newer module set makes it a newer
-' workbook, and the cell should say so without waiting for a rebuild. BUILT
-' and BUILT_BY are left to StampBuild.
-Public Sub EnsureVersionSettings()
-    EnsureSetting "APP_VER", "Workbook version", "Read-only. Matches the code in this workbook."
-    EnsureSetting "BUILT", "Built", "Read-only. When this file was produced."
-    EnsureSetting "BUILT_BY", "Built by", "Read-only."
-    SetSetting "APP_VER", APP_VERSION
-End Sub
-
-' Stamps SET_SCHEMA from modUtils.SCHEMA_VER on every setup run, the same
-' reasoning as APP_VER above: the code in the workbook IS its schema, so a
-' value that only ever shipped statically in PrintCosts.xlsx has no way to
-' stay in sync with it otherwise - exactly the drift that caught out
-' APP_VERSION for thirteen commits before this file's own §16.1. SCHEMA had
-' never needed this before 2026-09-22 (design 3.3): no job-row column had
-' ever changed since inception, so the shipped static value was never wrong.
-' The Paid column (snag list item 1c) is the first real bump, and is what
-' surfaced the gap - fixed here rather than hand-editing the .xlsx, for the
-' same reproducibility reason every other self-provisioned setting exists.
-Public Sub EnsureSchemaSetting()
-    EnsureSetting "SCHEMA", "Data schema version", "Read-only. The shape of the stored job-row columns; changes only when one is added, removed or renamed."
-    SetSetting "SCHEMA", SCHEMA_VER
-End Sub
-
-' Public: modInit's view and report-heading settings go through it as well as
-' the version rows above - a setting is not real to modSettings.SettingText until
-' it has a SET_<KEY> name, and this is the one place that adds a row to
-' tblSettings and names it in the same step.
-'
-' AfterKey (optional) pins the row directly below another setting's row, so
-' related settings stay together. A new row is inserted there rather than
-' appended. A row that already exists is never moved (upgrading means a fresh
-' workbook plus an import, so there is no older layout to migrate). Blank, or
-' an AfterKey that is not in the table, appends.
-Public Function EnsureSetting(ByVal Key As String, ByVal Label As String, ByVal Notes As String, Optional ByVal AfterKey As String = "") As Range
-    Dim lo As ListObject, i As Long, r As ListRow, c As Range
-    Dim at As Long
-
-    Set lo = Tbl("tblSettings")
-    If lo Is Nothing Then Exit Function
-
-    i = SettingRowIndex(lo, Key)
-    If i > 0 Then
-        Set c = CellIn(lo, i, "Value")
-    ElseIf Len(AfterKey) > 0 Then
-        at = SettingRowIndex(lo, AfterKey)
-    End If
-
-    If c Is Nothing Then
-        UnlockSheet lo.Parent
-        If at > 0 Then Set r = lo.ListRows.Add(at + 1) Else Set r = lo.ListRows.Add
-        r.Range.Cells(1, 1).Value = Key
-        r.Range.Cells(1, 2).Value = Label
-        r.Range.Cells(1, 4).Value = Notes
-        Set c = r.Range.Cells(1, 3)
-        RelockSheet lo.Parent
-    End If
-
-    ' modSettings addresses every setting as SET_<KEY>, so the name is what
-    ' makes a new row a real setting rather than just a row of text.
-    On Error Resume Next
-    ThisWorkbook.Names("SET_" & Key).Delete
-    On Error GoTo 0
-    ThisWorkbook.Names.Add Name:="SET_" & Key, _
-        RefersTo:="='" & c.Parent.Name & "'!" & c.Address(True, True, xlA1)
-
-    Set EnsureSetting = c
-End Function
-
-' 1-based ListRows index of the settings row with this Key, 0 if none.
-Private Function SettingRowIndex(ByVal lo As ListObject, ByVal Key As String) As Long
-    Dim i As Long
-    For i = 1 To lo.ListRows.Count
-        If StrComp(Trim$(CStr(CellIn(lo, i, "Key").Value)), Key, vbTextCompare) = 0 Then
-            SettingRowIndex = i
-            Exit Function
-        End If
-    Next i
-End Function
 
 ' --------------------------------------------------- file-level identity ---
 ' So the version is visible without opening the file: Explorer's details pane,
@@ -166,6 +81,16 @@ Private Function SetProp(ByVal Nm As String, ByVal Value As String) As String
 Fail:
     SetProp = "- " & Nm & ": " & Err.Number & " " & Err.Description & vbCrLf
 End Function
+
+' Stamps the two cells that must always match the code in the workbook: APP_VER
+' and SCHEMA. Importing a newer module set makes a newer workbook, and the cells
+' should say so without waiting for a rebuild. BUILT and BUILT_BY are left to
+' StampBuild. The rows (and their SET_ names) ship in PrintCosts.xlsx; upgrading
+' means a fresh workbook plus an import, so nothing here adds or migrates a row.
+Public Sub StampVersionSettings()
+    SetSetting "APP_VER", APP_VERSION
+    SetSetting "SCHEMA", SCHEMA_VER
+End Sub
 
 ' ------------------------------------------------------------------ about ---
 ' Bound to the About button on the Settings sheet. The only place any of this

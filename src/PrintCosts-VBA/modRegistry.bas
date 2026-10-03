@@ -86,14 +86,11 @@ Public Sub RefreshLocations()
         UnlockSheet ws
         problems = problems & AssignCode(ws, codes)
         NameJobTable ws, CStr(codes.Item("#" & ws.Name))
-        EnsureHeaderGaps ws
         FixButtons ws
         EnsureJobDefaults ws
         EnsureRollUnitSetting ws
-        EnsureRollUnitFormulas ws
         EnsurePrintersDisplay ws
         EnsureJobCountDisplay ws
-        ClearBelowTableValidation ws
         BindColumns ws
         ApplyReducedView ws
         ApplyCostColumnsVisibility ws
@@ -844,7 +841,6 @@ Private Sub ResetPrintRoom(ByVal ws As Worksheet, ByVal RoomName As String, ByVa
         Next i
         If lo.ListRows.Count = 1 Then
             ClearTypedCells lo.ListRows(1).Range
-            MarkQtyRewritten CellIn(lo, 1, "Qty"), False
         End If
     End If
 

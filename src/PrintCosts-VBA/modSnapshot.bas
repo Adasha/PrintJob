@@ -35,9 +35,7 @@ Public Sub StampRow(ByVal ws As Worksheet, ByVal RowNo As Long)
     ' (modValidation), and the Area formula always uses it in preference to
     ' S_StockWidth_mm once it's set, so a stamped 0 there is never read.
     If s.Found And s.PerJobSize And s.Measure = "Sheet" Then
-        If ColumnExists(lo, "Sheet size") Then
-            StdSizeDims CStr(CellIn(lo, RowNo, "Sheet size").Value), stockW, stockH
-        End If
+        StdSizeDims CStr(CellIn(lo, RowNo, "Sheet size").Value), stockW, stockH
     End If
 
     CellIn(lo, RowNo, "S_StockWidth_mm").Value = IIf(s.Found, stockW, Empty)

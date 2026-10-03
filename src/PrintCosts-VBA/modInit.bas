@@ -36,8 +36,7 @@ Private Const SIDE_PANEL_COL As Long = 36
 ' config block in A1:B11, a blank row 12, this toolbar on row 13 and the job
 ' table's header on row 15.
 Private Const TOOLBAR_ROW As Long = 15
-Private Const GAP_ROW_HEIGHT As Double = 6
-' Header block rows on a location sheet (see EnsureHeaderGaps for the gap rows).
+' Header block rows on a location sheet (short blank gap rows sit between the groups).
 Private Const ROW_NAME As Long = 1
 Private Const ROW_DEPT As Long = 2
 Private Const ROW_DEF_TECH As Long = 4
@@ -49,9 +48,6 @@ Private Const ROW_ROLL_UNIT As Long = 11
 Private Const ROW_PRINTERS As Long = 12
 Private Const ROW_JOB_COUNT As Long = 13
 Private Const REDUCED_COLUMNS_DEFAULT As String = "Status;Job ID;Area m2;S_SchemaVer"
-' What shipped before the Reduced/Minimal split (2026-10-01): the old single list.
-' EnsureViewSettings swaps it for the new default if it finds it untouched.
-Private Const REDUCED_COLUMNS_LEGACY As String = "Status;Job ID;Printer;Area m2;Disregard Paper;Disregard Consumable;S_SchemaVer"
 ' Minimal view hides these IN ADDITION to the Reduced list (so Minimal always
 ' includes Reduced - the setting holds only the extras).
 Private Const MINIMAL_EXTRA_DEFAULT As String = "Printer;Disregard Paper;Disregard Consumable;Print Width mm;Sheet size"
@@ -78,12 +74,11 @@ Private Const SIDE_PANEL_BTN_COUNT As Long = 6
 
 ' Settings sheet's button band (2026-10-02): the three rows between the sheet's
 ' description (row 2) and the tables' subtitle row, one per button group. The
-' shipped .xlsx has tblSettings' header on row 5; EnsureSettingsButtonBand
-' inserts the rows so it ends up on SETTINGS_TABLE_HEADER_ROW. Declared here
-' with the other module-level constants - see REDUCED_COLUMNS_DEFAULT's note.
+' shipped .xlsx has the rows, with tblSettings' header on row 8;
+' EnsureSettingsButtonBand labels and sizes them. Declared here with the other
+' module-level constants - see REDUCED_COLUMNS_DEFAULT's note.
 Private Const SETTINGS_BAND_FIRST_ROW As Long = 3
 Private Const SETTINGS_BAND_ROWS As Long = 3
-Private Const SETTINGS_TABLE_HEADER_ROW As Long = 8
 Private Const SETTINGS_BAND_ROW_H As Double = 26
 Private Const SETTINGS_BTN_W As Double = 130
 Private Const SETTINGS_BTN_GAP As Double = 4
@@ -104,16 +99,9 @@ Public Sub InitialiseWorkbook()
     ' .xlsx, so the workbook file stays something VBA can reconstruct.
     EnsureSystemSheets
 
-    ' The version rows likewise. Setup does not stamp the build date - that
-    ' is build.ps1's job, via StampBuild.
-    EnsureVersionSettings
-    EnsureSchemaSetting
-    EnsureViewSettings
-    EnsureReportHeadingSetting
-    EnsureStdSizesName
-    RemoveLegacySuppliedRows
-    NormaliseSuppliedFlags
-    EnsureCatalogIds
+    ' The version and schema cells are stamped from the code. Setup does not
+    ' stamp the build date - that is build.ps1's job, via StampBuild.
+    StampVersionSettings
     EnsureSuppliedColumnValidation
 
     ' Runs before the per-sheet loop, not after it (2026-09-27). Row heights
@@ -132,7 +120,6 @@ Public Sub InitialiseWorkbook()
         UnlockSheet ws
         ClearButtons ws
         If IsLocation(ws) Then
-            EnsureHeaderGaps ws
             DrawLocationButtons ws
             ConfigValidation ws
             ApplyStatusFormat ws
@@ -185,9 +172,8 @@ Public Sub InitialiseWorkbook()
             '   Print rooms - Add / Remove print room, Refresh Locations
             '   Data        - Export All, Import, Backup, Restore
             '   Workbook    - Check workbook, Re-stamp prices, About
-            ' EnsureSettingsButtonBand makes the room and writes the labels;
-            ' it also clears the old below-the-table band, so an older
-            ' workbook migrates on its next setup run.
+            ' EnsureSettingsButtonBand writes the labels and row heights; the
+            ' rows themselves ship in the .xlsx.
             EnsureSettingsButtonBand ws
             Dim bandRow As Long, bandLeft As Double
             bandRow = SETTINGS_BAND_FIRST_ROW
@@ -279,7 +265,7 @@ End Sub
 
 Private Sub DrawLocationButtons(ByVal ws As Worksheet)
     ' The toolbar's row is TOOLBAR_ROW (15). The config block (A1:B13, with two
-    ' short gap rows added by EnsureHeaderGaps) sits above it. Two columns
+    ' short gap rows) sits above it. Two columns
     ' apart; buttons are drawn over the placeholders and the labels cleared.
     '
     ' Layout fix (2026-09-25, user-reported): a button anchored over a column
@@ -487,9 +473,6 @@ End Sub
 ' LOC_Export.
 Public Sub EnsureJobDefaults(ByVal ws As Worksheet)
     UnlockSheet ws
-    ' D1:D2 used to hold a heading and explanatory prose; cleared, styles
-    ' included, so nothing of them lingers on sheets built before this.
-    ws.Range("D1:D2").Clear
 
     ' Room name and department are fixed once set (Add print room asks for
     ' both up front); a blank one stays editable so it can still be filled in.
@@ -565,39 +548,6 @@ Private Sub StyleDefaultCell(ByVal target As Range)
     Next e
 End Sub
 
-' Opens a short blank gap row between the department and the defaults, and
-' between the defaults and the disregard options. Idempotent: detected from
-' where the named default cells sit, so it migrates older sheets once and then
-' does nothing. Insert is entire-row, so named cells, the job table and the
-' side-panel cells all shift together; buttons are free-floating, so any at or
-' below the first gap are moved down by hand.
-Public Sub EnsureHeaderGaps(ByVal ws As Worksheet)
-    Dim tech As Range, paper As Range, dis As Range
-    Set tech = LocRange(ws, "LOC_DefTech")
-    Set paper = LocRange(ws, "LOC_DefPaper")
-    Set dis = LocRange(ws, "LOC_DefDisPaper")
-    If tech Is Nothing Or paper Is Nothing Or dis Is Nothing Then Exit Sub
-
-    UnlockSheet ws
-    If tech.Row = ROW_DEF_TECH - 1 Then InsertGapRow ws, ROW_DEF_TECH - 1
-    If dis.Row = paper.Row + 1 Then InsertGapRow ws, paper.Row + 1
-    RelockSheet ws
-End Sub
-
-Private Sub InsertGapRow(ByVal ws As Worksheet, ByVal Row As Long)
-    Dim cutoff As Double, i As Long
-    cutoff = ws.Rows(Row).Top
-    ws.Rows(Row).Insert Shift:=xlDown
-    With ws.Rows(Row)
-        .ClearFormats
-        .Validation.Delete
-        .RowHeight = GAP_ROW_HEIGHT
-    End With
-    For i = 1 To ws.Buttons.Count
-        If ws.Buttons(i).Top >= cutoff Then ws.Buttons(i).Top = ws.Buttons(i).Top + GAP_ROW_HEIGHT
-    Next i
-End Sub
-
 ' Per-location roll-stock entry unit: some print rooms prefer to type a roll
 ' job's length in centimetres rather than metres. Conceptually part of the
 ' same "regularly used, must stay visible" group as the three selectors
@@ -611,8 +561,8 @@ End Sub
 ' done) is not an option.
 '
 ' Display unit only (2026-10-01): Qty and the Unit column show roll lengths
-' in this unit on THIS sheet, and EnsureRollUnitFormulas makes Unit/Area m2/
-' Paper Cost convert back to metres, as does the consolidated _Data range
+' in this unit on THIS sheet, and the Unit/Area m2/Paper Cost formulas (which
+' ship in the .xlsx) convert back to metres, as does the consolidated _Data range
 ' (modRegistry.WriteConsolidated) - so reports, Summary and every other
 ' location are untouched. Changing the setting rescales the existing roll
 ' rows (modValidation.ApplyRollUnitChange).
@@ -692,45 +642,6 @@ Public Sub SetAppliedRollUnit(ByVal ws As Worksheet, ByVal Unit As String)
     ws.Names("LOC_RollUnitApplied").Delete
     On Error GoTo 0
     ws.Names.Add Name:="LOC_RollUnitApplied", RefersTo:="=""" & Unit & """", Visible:=False
-End Sub
-
-' Unit/Area m2/Paper Cost, restated so a Centimetres room's Qty is read as
-' centimetres: Unit says "cm", and the two calculations divide a "cm" row's
-' Qty by 100 so they still work in metres - Area m2 and money are the same
-' whatever the sheet shows. Called from InitialiseWorkbook and Refresh
-' Locations, after EnsureRollUnitSetting (the formulas name LOC_RollUnit).
-'
-' One-time migration: a sheet whose Unit formula predates this (no mention of
-' LOC_RollUnit) and is set to Centimetres holds metres in Qty, since the old
-' build converted on entry - so its roll rows are scaled x100 here, once. The
-' formula rewrite below is what makes it once.
-Public Sub EnsureRollUnitFormulas(ByVal ws As Worksheet)
-    Dim lo As ListObject, legacy As Boolean, m As String
-    Set lo = JobsTable(ws)
-    If lo Is Nothing Then Exit Sub
-    If lo.DataBodyRange Is Nothing Then Exit Sub
-    If Not ColumnExists(lo, "Unit") Or Not ColumnExists(lo, "Qty") Then Exit Sub
-
-    UnlockSheet ws
-    legacy = (InStr(1, lo.ListColumns("Unit").DataBodyRange.Cells(1, 1).Formula2, "LOC_RollUnit", vbTextCompare) = 0)
-    If legacy Then
-        If StrComp(RollUnitOf(ws), "Centimetres", vbTextCompare) = 0 Then ScaleRollQty lo, 100
-        SetAppliedRollUnit ws, RollUnitOf(ws)
-    End If
-
-    m = "IF([@Unit]=""cm"",100,1)"
-    lo.ListColumns("Unit").DataBodyRange.Formula2 = _
-        "=IF([@[S_Measure]]="""","""",IF([@[S_Measure]]=""Sheet"",""sheets"",IF(LOC_RollUnit=""Centimetres"",""cm"",""metres"")))"
-    If ColumnExists(lo, "Area m2") Then
-        lo.ListColumns("Area m2").DataBodyRange.Formula2 = _
-            "=IF([@Qty]="""","""",IF([@[S_Measure]]=""Sheet"",([@[S_StockWidth_mm]]/1000)*([@[S_SheetHeight_mm]]/1000)*[@Qty]," & _
-            "(IF([@[Print Width mm]]="""",[@[S_StockWidth_mm]],[@[Print Width mm]])/1000)*[@Qty]/" & m & "))"
-    End If
-    If ColumnExists(lo, "Paper Cost") Then
-        lo.ListColumns("Paper Cost").DataBodyRange.Formula2 = _
-            "=IF([@Qty]="""","""",ROUND([@Qty]/" & m & "*[@[S_UnitCost]],SET_ROUND_DP))"
-    End If
-    RelockSheet ws
 End Sub
 
 ' Friendly display of the permitted-printers list (2026-09-25, user
@@ -829,9 +740,8 @@ End Sub
 ' table body is cleared before they go on - so reordering, inserting or removing a job-table
 ' column cannot leave a rule on the wrong column (Excel's Cut+Insert spreads a rule onto the
 ' cells it shifts, and a positional rule goes stale the moment a column moves). Validation on
-' cells BELOW the table is a separate matter - see ClearBelowTableValidation, run once per
-' sheet by setup and Refresh Locations, not here (this runs on every row added). Rows the
-' table grows into take their validation from the row above, i.e. from here.
+' cells BELOW the table is a separate matter: the shipped template has none, and nothing here
+' adds any. Rows the table grows into take their validation from the row above, i.e. from here.
 Public Sub EnsureJobColumnValidation(ByVal ws As Worksheet, ByVal lo As ListObject)
     Dim dateMsg As String
     If lo.DataBodyRange Is Nothing Then Exit Sub
@@ -850,56 +760,25 @@ Public Sub EnsureJobColumnValidation(ByVal ws As Worksheet, ByVal lo As ListObje
 
     AddRule lo, "Sheet size", xlValidateList, "=RNG_STD_SIZES", True, "Sheet size", _
         "Required only for 'Supplied (Sheet)' - the nearest standard size to the sheet the student brought. Ignored for every other paper stock.", _
-        "Choose one of the standard sizes listed on Settings.", , True
+        "Choose one of the standard sizes listed on Settings."
 
     AddRule lo, "Disregard Paper", xlValidateList, "Yes,No", True
     AddRule lo, "Disregard Consumable", xlValidateList, "Yes,No", True
 
     AddRule lo, "Paid", xlValidateList, "Yes,No", True, "Paid", _
         "Whether this chargeable cost has been paid. Blank means not recorded either way and counts as unpaid in totals.", _
-        "Choose Yes or No.", , True
+        "Choose Yes or No."
 
-    RelockSheet ws
-End Sub
-
-' Strips validation from the cells under the job table, across the table's own columns, down
-' to the end of the sheet. Validation there is not part of the table: the shipped template
-' once carried hand-placed rules on rows 28-2010 (a Yes/No list on what had become Sheet
-' size) that EnsureJobColumnValidation never saw and rows added to the table could inherit.
-'
-' Called once per sheet from setup and Refresh Locations - NOT from BindColumns. Run on every
-' row added (every BindColumns), it left Excel rejecting the very next COM call and
-' test-suppliedstock failed 6 of 6. Finds the validated cells first (SpecialCells covers the
-' used range only) so a clean sheet is left untouched.
-Public Sub ClearBelowTableValidation(ByVal ws As Worksheet)
-    Dim lo As ListObject, firstRow As Long, firstCol As Long, lastCol As Long, stray As Range
-    Set lo = JobsTable(ws)
-    If lo Is Nothing Then Exit Sub
-    firstRow = lo.Range.Row + lo.Range.Rows.Count
-    If firstRow > ws.Rows.Count Then Exit Sub
-    firstCol = lo.Range.Column
-    lastCol = firstCol + lo.Range.Columns.Count - 1
-
-    On Error Resume Next    ' SpecialCells raises when nothing matches
-    Set stray = ws.Range(ws.Cells(firstRow, firstCol), ws.Cells(ws.Rows.Count, lastCol)).SpecialCells(xlCellTypeAllValidation)
-    On Error GoTo 0
-    If stray Is Nothing Then Exit Sub
-
-    UnlockSheet ws
-    stray.Validation.Delete
     RelockSheet ws
 End Sub
 
 ' One validation rule on one job-table column. Title is used for both the input and
 ' error dialogs; Title, Prompt (the input message) and ErrText (the error message) are
-' left unset when blank. SkipIfMissing is for columns an older sheet may not have.
+' left unset when blank.
 Private Sub AddRule(ByVal lo As ListObject, ByVal ColName As String, ByVal RuleType As Long, _
         ByVal Formula1 As String, ByVal IgnoreBlank As Boolean, Optional ByVal Title As String, _
         Optional ByVal Prompt As String, Optional ByVal ErrText As String, _
-        Optional ByVal Op As Long = xlBetween, Optional ByVal SkipIfMissing As Boolean)
-    If SkipIfMissing Then
-        If Not ColumnExists(lo, ColName) Then Exit Sub
-    End If
+        Optional ByVal Op As Long = xlBetween)
     With lo.ListColumns(ColName).DataBodyRange.Validation
         .Add Type:=RuleType, AlertStyle:=xlValidAlertStop, Operator:=Op, Formula1:=Formula1
         .IgnoreBlank = IgnoreBlank
@@ -930,8 +809,6 @@ End Sub
 ' text is past the 255 characters Range.Formula accepts (1004).
 Public Sub EnsureJobIssuesFormula(ByVal ws As Worksheet, ByVal lo As ListObject)
     If lo.DataBodyRange Is Nothing Then Exit Sub
-    If Not ColumnExists(lo, "H_Issues") Then Exit Sub
-    If Not ColumnExists(lo, "Sheet size") Then Exit Sub
 
     UnlockSheet ws
     lo.ListColumns("H_Issues").DataBodyRange.Formula2 = BuildJobIssuesFormula()
@@ -1046,29 +923,12 @@ Public Sub DrawOneAtTop(ByVal ws As Worksheet, ByVal ColNo As Long, ByVal Top As
     b.Characters.Font.Size = 10
 End Sub
 
-' Makes room for, and labels, the Settings button band. Idempotent, detected
-' from where tblSettings' header sits (same approach as EnsureHeaderGaps): the
-' shipped file has it on row 5, so the rows are inserted once and later runs
-' find it already on SETTINGS_TABLE_HEADER_ROW and only rewrite the labels.
-' Insert is entire-row, so the tables, their defined names and validation all
-' shift together; buttons are free-floating, but ClearButtons has already
-' removed this sheet's and the caller redraws them.
+' Labels and sizes the Settings button band. The rows themselves ship in the
+' .xlsx (tblSettings' header is on row 8); ClearButtons has already removed this
+' sheet's buttons and the caller redraws them.
 Private Sub EnsureSettingsButtonBand(ByVal ws As Worksheet)
-    Dim lo As ListObject, need As Long, r As Long, labels As Variant, i As Long
-    Set lo = Tbl("tblSettings")
-    If lo Is Nothing Then Exit Sub
+    Dim r As Long, labels As Variant, i As Long
     UnlockSheet ws
-    need = SETTINGS_TABLE_HEADER_ROW - lo.Range.Row
-    If need > 0 Then
-        ' Pre-band layouts: a "Commands" heading and its placeholder note sat
-        ' at P2:P3 from before the buttons moved; both are stale.
-        If CStr(ws.Range("P2").Value) = "Commands" Then ws.Range("P2").ClearContents
-        If Left$(CStr(ws.Range("P3").Value), 18) = "Buttons appear her" Then ws.Range("P3").ClearContents
-        ' Older layouts also had the buttons (and, before them, the About
-        ' text) in the space under the tables.
-        ws.Range(ws.Cells(lo.Range.Row + lo.Range.Rows.Count, 1), ws.Cells(lo.Range.Row + lo.Range.Rows.Count + 20, 4)).Clear
-        ws.Rows(SETTINGS_BAND_FIRST_ROW & ":" & (SETTINGS_BAND_FIRST_ROW + need - 1)).Insert Shift:=xlDown
-    End If
     labels = Array("Print rooms", "Data", "Workbook")
     For i = 0 To SETTINGS_BAND_ROWS - 1
         r = SETTINGS_BAND_FIRST_ROW + i
@@ -1306,14 +1166,14 @@ Private Sub UnlockTableBody(ByVal TableName As String)
     ' while the rest of the row is open. A row added later inherits this
     ' from the row above it, and Setup re-applies it on every run.
     If CatalogIdSpec(TableName, idHdr, idCode, nameHdr, hwmKey) Then
-        If ColumnExists(lo, idHdr) Then lo.ListColumns(idHdr).DataBodyRange.Locked = True
+        lo.ListColumns(idHdr).DataBodyRange.Locked = True
     End If
     RelockSheet lo.Parent
 End Sub
 
 ' tblSettings mixes user-editable settings with system-derived rows (schema
 ' version, last-refresh stamp, build stamp) whose Notes column is written as
-' "Read-only. ..." (modVersion.EnsureSetting) - that text is the one place
+' "Read-only. ..." (in PrintCosts.xlsx) - that text is the one place
 ' the two kinds are already told apart, so it drives which Value cells unlock
 ' rather than a second hard-coded list of keys that could drift from it.
 ' The same loop styles the Value cell so the two kinds look different at a
@@ -1460,13 +1320,13 @@ End Sub
 ' constants at the top), so it can be edited without a rebuild if the
 ' shortlist changes later - the snag list's own "keep it flexible".
 ' View mode (2026-10-01, replaces the single Reduce clutter toggle): "All",
-' "Reduced" or "Minimal", held in SET_LOC_REDUCED_VIEW (a legacy "Yes" reads as
-' Reduced, anything else as All). Reduced hides SET_LOC_REDUCED_COLUMNS;
+' "Reduced" or "Minimal", held in SET_LOC_REDUCED_VIEW (anything
+' unrecognised reads as All). Reduced hides SET_LOC_REDUCED_COLUMNS;
 ' Minimal hides those AND SET_LOC_MINIMAL_COLUMNS, so it always includes the
 ' Reduced list.
 Private Function ViewMode() As String
     Select Case LCase$(SettingText("LOC_REDUCED_VIEW", "All"))
-        Case "reduced", "yes": ViewMode = "Reduced"
+        Case "reduced": ViewMode = "Reduced"
         Case "minimal": ViewMode = "Minimal"
         Case Else: ViewMode = "All"
     End Select
@@ -1479,55 +1339,6 @@ End Function
 Private Function MinimalExtraText() As String
     MinimalExtraText = SettingText("LOC_MINIMAL_COLUMNS", MINIMAL_EXTRA_DEFAULT)
 End Function
-
-' Self-provisions the view settings. The two shipped in PrintCosts.xlsx
-' (LOC_REDUCED_VIEW, LOC_REDUCED_COLUMNS) are kept and re-labelled; the old
-' Yes/No value and the old seven-column default are migrated once.
-Public Sub EnsureViewSettings()
-    Dim c As Range
-
-    Set c = EnsureSetting("LOC_REDUCED_VIEW", "Location column view", "")
-    SetSettingText c, "Location column view", "Which columns location sheets show: All, Reduced or Minimal. Set by the Show columns drop-down on each location sheet; applies to every location."
-    Select Case LCase$(Trim$(CStr(c.Value)))
-        Case "all", "reduced", "minimal"
-        Case "yes": SetSettingValue c, "Reduced"
-        Case Else: SetSettingValue c, "All"
-    End Select
-
-    Set c = EnsureSetting("LOC_REDUCED_COLUMNS", "Reduced view - hidden columns", "")
-    SetSettingText c, "Reduced view - hidden columns", "Semicolon-separated column headers hidden by the Reduced view. Edit to change what it hides - no rebuild needed. Minimal hides these as well."
-    If Len(Trim$(CStr(c.Value))) = 0 Or StrComp(Trim$(CStr(c.Value)), REDUCED_COLUMNS_LEGACY, vbTextCompare) = 0 Then
-        SetSettingValue c, REDUCED_COLUMNS_DEFAULT
-    End If
-
-    Set c = EnsureSetting("LOC_MINIMAL_COLUMNS", "Minimal view - extra hidden columns", "", "LOC_REDUCED_COLUMNS")
-    SetSettingText c, "Minimal view - extra hidden columns", "Semicolon-separated column headers the Minimal view hides IN ADDITION to the Reduced list above (Minimal always includes Reduced). Edit to change - no rebuild needed."
-    If Len(Trim$(CStr(c.Value))) = 0 Then SetSettingValue c, MINIMAL_EXTRA_DEFAULT
-End Sub
-
-' The heading printed at the top of an exported Reports report (Settings >
-' Report heading). Self-provisioned like the view settings above, so no
-' hand edit of the shipped .xlsx; blank falls back to the default title.
-Public Sub EnsureReportHeadingSetting()
-    Dim c As Range
-    Set c = EnsureSetting("REPORT_HEADING", "Report heading", "")
-    SetSettingText c, "Report heading", "The heading printed at the top of an exported Reports report. Leave blank for 'Print job report'."
-    If Len(Trim$(CStr(c.Value))) = 0 Then SetSettingValue c, DEFAULT_REPORT_HEADING
-End Sub
-
-' Label (column B) and notes (column D) of a settings row, from its Value cell.
-Private Sub SetSettingText(ByVal ValueCell As Range, ByVal Label As String, ByVal Notes As String)
-    UnlockSheet ValueCell.Parent
-    ValueCell.Offset(0, -1).Value = Label
-    ValueCell.Offset(0, 1).Value = Notes
-    RelockSheet ValueCell.Parent
-End Sub
-
-Private Sub SetSettingValue(ByVal ValueCell As Range, ByVal Value As String)
-    UnlockSheet ValueCell.Parent
-    ValueCell.Value = Value
-    RelockSheet ValueCell.Parent
-End Sub
 
 ' Applies the CURRENT view mode to one location sheet's table - called on
 ' every InitialiseWorkbook/RefreshLocations run (so a freshly duplicated
@@ -1739,17 +1550,6 @@ Private Sub RelocateButton(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal 
     col = NearestVisibleColumn(lo, PreferredHeader)
     If col = 0 Then Exit Sub
     b.Left = ws.Cells(1, col).Left
-    ' Self-heal (2026-09-26, user-reported): restores Width/Height/Placement
-    ' too, not just Left, for any button built before DrawOne started setting
-    ' Placement:=xlFreeFloating. Those older buttons still have
-    ' Placement:=xlMoveAndSize (Excel's own default), so a reduced-view
-    ' hide/reveal cycle shrinks their Width along with moving them - fixing
-    ' only .Left left them stuck narrow (the reported Now button showing just
-    ' its "N" at the D/E border). All four buttons this Sub relocates are
-    ' drawn 110pt/22pt by DrawLocationButtons.
-    b.Width = 110
-    b.Height = 22
-    b.Placement = xlFreeFloating
 End Sub
 
 ' Re-settles a location sheet's buttons once column widths and visibility are

@@ -156,9 +156,9 @@ Public Function CellIn(ByVal lo As ListObject, ByVal RowNo As Long, ByVal Header
 End Function
 
 ' Whether a column exists, without ColIdx's raise-if-missing behaviour -
-' for code that reads an optional/newly-added column (the printer capacity
-' columns, "Supplied by student", "Sheet size") and must not fail against a
-' workbook that hasn't had the matching Ensure* migration run yet.
+' for code that is happy to do nothing when a table has lost a column. Columns
+' the shipped template always has are read directly: upgrading means a fresh
+' workbook plus an import, so no older layout is expected.
 Public Function ColumnExists(ByVal lo As ListObject, ByVal Header As String) As Boolean
     Dim i As Long
     For i = 1 To lo.ListColumns.Count
