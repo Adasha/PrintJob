@@ -1316,16 +1316,47 @@ End Sub
 ' "Read-only. ..." (modVersion.EnsureSetting) - that text is the one place
 ' the two kinds are already told apart, so it drives which Value cells unlock
 ' rather than a second hard-coded list of keys that could drift from it.
+' The same loop styles the Value cell so the two kinds look different at a
+' glance: an editable value is a white, bordered, blue-text input box; a locked
+' one is flat grey italic with no border. Styling it here, from the same test
+' that sets .Locked, means the look can never disagree with what is actually
+' editable.
 Private Sub UnlockSettingsValues()
-    Dim lo As ListObject, i As Long, notes As String
+    Dim lo As ListObject, i As Long, notes As String, v As Range, isLocked As Boolean
     Set lo = Tbl("tblSettings")
     If lo Is Nothing Then Exit Sub
     UnlockSheet lo.Parent
     For i = 1 To lo.ListRows.Count
         notes = Trim$(CStr(CellIn(lo, i, "Notes").Value))
-        CellIn(lo, i, "Value").Locked = (Left$(notes, 9) = "Read-only")
+        isLocked = (Left$(notes, 9) = "Read-only")
+        Set v = CellIn(lo, i, "Value")
+        v.Locked = isLocked
+        StyleSettingValue v, isLocked
     Next i
     RelockSheet lo.Parent
+End Sub
+
+Private Sub StyleSettingValue(ByVal v As Range, ByVal IsLocked As Boolean)
+    Dim e As Variant
+    If IsLocked Then
+        v.Interior.Color = RGB(222, 222, 222)
+        v.Font.Color = RGB(110, 110, 110)
+        v.Font.Italic = True
+        For Each e In Array(xlEdgeLeft, xlEdgeTop, xlEdgeBottom, xlEdgeRight)
+            v.Borders(e).LineStyle = xlNone
+        Next e
+    Else
+        v.Interior.Color = RGB(255, 255, 255)
+        v.Font.Color = RGB(0, 51, 153)
+        v.Font.Italic = False
+        For Each e In Array(xlEdgeLeft, xlEdgeTop, xlEdgeBottom, xlEdgeRight)
+            With v.Borders(e)
+                .LineStyle = xlContinuous
+                .Weight = xlThin
+                .Color = RGB(91, 155, 213)
+            End With
+        Next e
+    End If
 End Sub
 
 ' Snag list item 16: long notes were clipped to one line. WrapText plus a row
@@ -1469,7 +1500,7 @@ Public Sub EnsureViewSettings()
         SetSettingValue c, REDUCED_COLUMNS_DEFAULT
     End If
 
-    Set c = EnsureSetting("LOC_MINIMAL_COLUMNS", "Minimal view - extra hidden columns", "")
+    Set c = EnsureSetting("LOC_MINIMAL_COLUMNS", "Minimal view - extra hidden columns", "", "LOC_REDUCED_COLUMNS")
     SetSettingText c, "Minimal view - extra hidden columns", "Semicolon-separated column headers the Minimal view hides IN ADDITION to the Reduced list above (Minimal always includes Reduced). Edit to change - no rebuild needed."
     If Len(Trim$(CStr(c.Value))) = 0 Then SetSettingValue c, MINIMAL_EXTRA_DEFAULT
 End Sub

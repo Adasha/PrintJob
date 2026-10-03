@@ -88,22 +88,39 @@ End Sub
 ' the version rows above - a setting is not real to modSettings.SettingText until
 ' it has a SET_<KEY> name, and this is the one place that adds a row to
 ' tblSettings and names it in the same step.
-Public Function EnsureSetting(ByVal Key As String, ByVal Label As String, ByVal Notes As String) As Range
+'
+' AfterKey (optional) pins the row directly below another setting's row, so
+' related settings stay together. A new row is inserted there rather than
+' appended, and a row that already exists elsewhere (appended by an earlier
+' version) is moved there once - its Key/Label/Value/Notes travel with it, so a
+' user's edited value survives. Blank, or an AfterKey that is not in the
+' table, leaves the row where it is (appended when new).
+Public Function EnsureSetting(ByVal Key As String, ByVal Label As String, ByVal Notes As String, Optional ByVal AfterKey As String = "") As Range
     Dim lo As ListObject, i As Long, r As ListRow, c As Range
+    Dim at As Long, oldIdx As Long, vals As Variant
 
     Set lo = Tbl("tblSettings")
     If lo Is Nothing Then Exit Function
 
-    For i = 1 To lo.ListRows.Count
-        If StrComp(Trim$(CStr(CellIn(lo, i, "Key").Value)), Key, vbTextCompare) = 0 Then
-            Set c = CellIn(lo, i, "Value")
-            Exit For
-        End If
-    Next i
+    i = SettingRowIndex(lo, Key)
+    If Len(AfterKey) > 0 Then at = SettingRowIndex(lo, AfterKey)
+
+    If i > 0 And at > 0 And i <> at + 1 Then
+        UnlockSheet lo.Parent
+        vals = lo.ListRows(i).Range.Cells(1, 1).Resize(1, 4).Value2
+        Set r = lo.ListRows.Add(at + 1)
+        r.Range.Cells(1, 1).Resize(1, 4).Value2 = vals
+        oldIdx = IIf(i > at, i + 1, i)
+        lo.ListRows(oldIdx).Delete
+        RelockSheet lo.Parent
+        i = SettingRowIndex(lo, Key)
+    End If
+
+    If i > 0 Then Set c = CellIn(lo, i, "Value")
 
     If c Is Nothing Then
         UnlockSheet lo.Parent
-        Set r = lo.ListRows.Add
+        If at > 0 Then Set r = lo.ListRows.Add(at + 1) Else Set r = lo.ListRows.Add
         r.Range.Cells(1, 1).Value = Key
         r.Range.Cells(1, 2).Value = Label
         r.Range.Cells(1, 4).Value = Notes
@@ -120,6 +137,17 @@ Public Function EnsureSetting(ByVal Key As String, ByVal Label As String, ByVal 
         RefersTo:="='" & c.Parent.Name & "'!" & c.Address(True, True, xlA1)
 
     Set EnsureSetting = c
+End Function
+
+' 1-based ListRows index of the settings row with this Key, 0 if none.
+Private Function SettingRowIndex(ByVal lo As ListObject, ByVal Key As String) As Long
+    Dim i As Long
+    For i = 1 To lo.ListRows.Count
+        If StrComp(Trim$(CStr(CellIn(lo, i, "Key").Value)), Key, vbTextCompare) = 0 Then
+            SettingRowIndex = i
+            Exit Function
+        End If
+    Next i
 End Function
 
 ' --------------------------------------------------- file-level identity ---

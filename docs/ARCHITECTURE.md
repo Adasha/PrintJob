@@ -912,6 +912,7 @@ The **Paid** cells of the results table take the same Yes/No dropdown as the roo
 | Calculated | Light grey fill, italic, locked |
 | Configuration | Pale blue fill, unlocked |
 | Read-only reference | Light grey fill, grey text, locked |
+| Settings Value cells | Editable: white fill, thin blue box border, dark-blue text. Locked ("Read-only" Notes): grey fill, grey italic text, no border. Applied by `modInit.UnlockSettingsValues` from the same test that sets `.Locked`, so the look always matches what is editable (`test-settingsrows.ps1`). Related rows are kept together with `EnsureSetting`'s `AfterKey` (e.g. `LOC_MINIMAL_COLUMNS` sits under `LOC_REDUCED_COLUMNS`) |
 | Snapshot / historical | Darker grey, collapsed group, locked |
 | Warning state | Amber fill via conditional formatting, on every location sheet's Status column (`modInit.ApplyStatusFormat`) whenever a row reads anything other than `OK` |
 | Error state | Red bold text via conditional formatting, on Summary's Type column (`modReports.FormatSummaryErrors`) whenever a job references a paper stock no longer in `tblPapers` (`"(not in Papers)"`) |
