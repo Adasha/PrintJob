@@ -941,6 +941,9 @@ Private Function BuildBlock(ByVal ws As Worksheet, ByVal lo As ListObject, _
     a(4, 1) = "Site name":       a(4, 2) = SettingText("SITE_NAME")
     a(5, 1) = "Location code":   a(5, 2) = LocValue(ws, "LOC_Code")
     a(6, 1) = "Location name":   a(6, 2) = LocValue(ws, "LOC_Name")
+    ' Beside the name, not a new line, for the same reason as the Rows line below:
+    ' the header row stays on row 9. Restore workbook reads it to recreate a room.
+    a(6, 3) = "Location department": a(6, 4) = LocValue(ws, "LOC_Dept")
     a(7, 1) = "Generated":       a(7, 2) = Format$(Now, "yyyy-mm-dd hh:nn:ss")
     a(8, 1) = "Rows":            a(8, 2) = n
     ' Beside Rows, not a new line: the header row stays on row 9, where every

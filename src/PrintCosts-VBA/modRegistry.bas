@@ -776,7 +776,10 @@ End Function
 ' Left blank, the new sheet's LOC_Code is blanked too and AssignCode falls
 ' back to its usual derive-from-sheet-name behaviour (unchanged, and still
 ' what a manually-copied-and-renamed sheet gets).
-Public Function CreatePrintRoom(ByVal RoomName As String, Optional ByVal Dept As String = "", Optional ByVal Code As String = "") As Worksheet
+' KeepFullCode is for Restore workbook, which recreates a room from a backup
+' under the code it already had: that code may be a CODE_MAX one AssignCode
+' derived, longer than the SHORT_CODE_MAX a typed code is capped at.
+Public Function CreatePrintRoom(ByVal RoomName As String, Optional ByVal Dept As String = "", Optional ByVal Code As String = "", Optional ByVal KeepFullCode As Boolean = False) As Worksheet
     Dim src As Worksheet, ws As Worksheet
 
     On Error GoTo Fail
@@ -795,7 +798,7 @@ Public Function CreatePrintRoom(ByVal RoomName As String, Optional ByVal Dept As
     ws.Name = UniqueSheetName(SanitiseSheetName(RoomName))
 
     UnlockSheet ws
-    ResetPrintRoom ws, RoomName, Dept, CleanCode(Code, SHORT_CODE_MAX)
+    ResetPrintRoom ws, RoomName, Dept, CleanCode(Code, IIf(KeepFullCode, CODE_MAX, SHORT_CODE_MAX))
     RelockSheet ws
     AppOn
 

@@ -3,6 +3,24 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.10.23 - Restore workbook creates the print rooms it is missing.
+  - Restoring a backup into a workbook that lacked one of the backup's print
+    rooms used to skip that room's job records ("no matching print room sheet
+    found"). It now creates the room first (modRegistry.CreatePrintRoom, the
+    same duplicate-the-template path as Add print room), then imports the
+    records into it. The preview dialog marks each room it will create.
+  - The room is recreated from the job export's header block: location code
+    and name as before, and now the department too (row 6, columns 3-4 -
+    "Location department", beside the name so the header row stays on row 9).
+    A backup taken before this release has no department; the room is created
+    with a blank one. The code is kept in full (CreatePrintRoom's new
+    KeepFullCode argument), so restoring the same backup again finds the room
+    rather than making a second.
+  - modBackup reads the chosen source into a restore plan (catalogue rows plus
+    one clsRestoreRoom per room) before previewing and applying it, so every
+    source goes through the same code. New clsRestoreRoom class (21 files now).
+  - New test-restorerooms.ps1. Data schema unchanged (1.3).
+
 0.10.22 - In-place upgraders removed; the template ships the final layout.
   - Upgrading means a fresh workbook plus an import, so nothing upgrades a
     workbook in place any more. PrintCosts.xlsx now ships what setup used to
