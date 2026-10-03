@@ -108,7 +108,6 @@ Public Sub InitialiseWorkbook()
     ' is build.ps1's job, via StampBuild.
     EnsureVersionSettings
     EnsureSchemaSetting
-    EnsureCatalogIdSettings
     EnsureViewSettings
     EnsureReportHeadingSetting
     EnsureStdSizesName
@@ -136,20 +135,13 @@ Public Sub InitialiseWorkbook()
             EnsureHeaderGaps ws
             DrawLocationButtons ws
             ConfigValidation ws
-            EnsureJobDefaults ws
-            EnsureRollUnitSetting ws
-            EnsureRollUnitFormulas ws
-            EnsurePrintersDisplay ws
-            EnsureJobCountDisplay ws
-            ClearBelowTableValidation ws
-            BindColumns ws
             ApplyStatusFormat ws
-            ApplyReducedView ws
-            ApplyCostColumnsVisibility ws
+            ' Widths are set here, before RefreshLocations (which ends this run)
+            ' applies the view and cost-column visibility. That pass also
+            ' re-settles the buttons once visibility is final, as do the other
+            ' per-sheet steps it repeats (defaults, roll unit, dropdowns), so
+            ' none of them is duplicated in this loop.
             ApplyJobColumnWidths ws
-            ' Must run after every call above that can change column widths -
-            ' see RepositionLocationButtons' own comment.
-            RepositionLocationButtons ws
             n = n + 1
         ElseIf StrComp(ws.Name, "Summary", vbTextCompare) = 0 Then
             ' Column O onwards, clear of the A:M report table.
