@@ -48,7 +48,7 @@ Open `PrintCosts.xlsx`, then open the VBA editor:
 - Windows: **Alt + F11**
 - Mac: **Tools → Macro → Visual Basic Editor**
 
-In the editor, **File → Import File…**, and import these twenty files. Order
+In the editor, **File → Import File…**, and import these twenty-one files. Order
 does not matter.
 
 | File | What it is |
@@ -56,6 +56,7 @@ does not matter.
 | `clsDict.cls` | Keyed store — replaces `Scripting.Dictionary`, which does not exist on Mac |
 | `clsStock.cls` | One paper stock |
 | `clsPrinterDef.cls` | One printer |
+| `clsRestoreRoom.cls` | One print room's share of a restore |
 | `modUtils.bas` | Application state, messaging, table and name access |
 | `modSettings.bas` | Typed access to the global settings |
 | `modProtect.bas` | Sheet protection |
@@ -71,12 +72,12 @@ does not matter.
 | `modReports.bas` | Builds the Summary and Reports sheets; Reports-page delete |
 | `modExport.bas` | Per-location CSV and Export All Locations; the Export report snapshot; what has not been exported |
 | `modImport.bas` | Restores or merges an exported file into a print room's job table |
-| `modBackup.bas` | Backup workbook / Restore workbook (the catalogue and settings CSVs) |
+| `modBackup.bas` | Backup workbook / Restore workbook (the catalogue and settings CSVs); Restore creates any print room the backup has and this workbook lacks, and can read an older copy of the workbook instead of the CSVs |
 | `modVersion.bas` | Version identity, the About popup, file properties |
 
 If you are on a Mac this list is the whole build, so a missing module is not a
 documentation slip - it is a project that will not compile at step 3. Check you
-imported twenty.
+imported twenty-one.
 
 `ThisWorkbook.cls` is the exception: it **cannot be imported**, because every
 workbook already has a `ThisWorkbook` object. Open `ThisWorkbook.cls` in a text
@@ -113,11 +114,18 @@ as `.xlsx` silently discards all the code.
 
 **Use the Settings sheet's Add print room... and Remove print room... buttons
 to change the set of rooms** (see "Adding a print room" below). If you add a
-room by hand instead, click **Refresh Locations** afterwards. **Run
-`InitialiseWorkbook` again after upgrading to a new build.** It re-draws
-the buttons, re-applies protection and brings older sheets up to the current
-layout. Re-running is safe at any time — it removes the buttons it created
-before redrawing them.
+room by hand instead, click **Refresh Locations** afterwards.
+
+**To upgrade to a new version, open the new workbook, click Restore
+workbook... on the Settings sheet and choose your old workbook.** It brings
+across the catalogue tables and Settings values, creates each of your print
+rooms with its settings (default technician, printer and paper, permitted
+printers, roll length unit) and imports their job records. Nothing needs
+backing up first and the old file is not changed. Any one file from a CSV
+backup works too. The new workbook's sample print
+room is left as it is; remove it with Remove print room... when you no longer
+want it. Running `InitialiseWorkbook` again is safe at any time: it re-draws
+the buttons and re-applies protection.
 
 **Each print room has a column view and a cost-detail toggle on row 2**, above
 the job table. The drop-down offers All, Reduced and Minimal; Reduced hides the
@@ -236,6 +244,8 @@ job IDs already carry it.
 | `test-jobvalidation.ps1` | Job-table validation is bound to the right columns by name, nothing is left below the table, and a column move is repaired |
 | `test-paidedit.ps1`, `test-markpaid.ps1` | Editing Paid on the Reports sheet, and Mark all as Paid / Unpaid with its filter safeguard |
 | `test-backup.ps1`, `test-clearcatalog.ps1`, `test-newpaperrow.ps1` | Backup/Restore workbook, Clear table on the catalogue sheets, and Add row on Papers |
+| `test-restorerooms.ps1` | Restore creating a print room the backup has and the workbook lacks (code, name, department, job records), and a second restore not creating another |
+| `test-restoreworkbook.ps1` | Restore workbook from an older copy of the workbook: room, settings and records carried over, the older file read without its macros running, left untouched, no temporary copy left behind, a non-Print-Cost workbook refused |
 | `prune-backups.ps1` | Keeps the N most recent `*.bak.xlsm` and removes the rest. `run-tests.ps1` calls it with `-Keep 1` after a full, all-green run (`build.ps1` no longer prunes) |
 
 **The tests are non-destructive by construction, not by care.** `test-validation.ps1`

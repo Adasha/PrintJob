@@ -3,6 +3,42 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.10.24 - Restore workbook can read an older copy of the workbook.
+  - The file picker now takes an .xlsm/.xlsx/.xlsb as well as a CSV. Picking an
+    older copy of the workbook restores straight from it: the seven catalogue
+    tables, and for every print room its settings and job records. Upgrading
+    is a fresh workbook plus one restore, with nothing to back up first.
+  - Print rooms the older workbook has and this one lacks are created (as in
+    0.10.23), and a created room also gets its default technician, printer
+    and paper, the two disregard defaults, permitted printers and roll length
+    unit from the older workbook, applied before its job records so a
+    centimetre room is not converted twice. Rooms that already exist keep
+    their own settings.
+  - The older file is read-only and untouched: opened from a temporary copy
+    (Excel cannot open two files with one name, and the older copy usually
+    has the new one's), with macros off and events off so its own
+    Workbook_Open does not run. The copy is deleted afterwards.
+  - modUtils.PickCsvFile takes an optional filter. clsRestoreRoom gains
+    Settings. New test-restoreworkbook.ps1. Data schema unchanged (1.3).
+
+0.10.23 - Restore workbook creates the print rooms it is missing.
+  - Restoring a backup into a workbook that lacked one of the backup's print
+    rooms used to skip that room's job records ("no matching print room sheet
+    found"). It now creates the room first (modRegistry.CreatePrintRoom, the
+    same duplicate-the-template path as Add print room), then imports the
+    records into it. The preview dialog marks each room it will create.
+  - The room is recreated from the job export's header block: location code
+    and name as before, and now the department too (row 6, columns 3-4 -
+    "Location department", beside the name so the header row stays on row 9).
+    A backup taken before this release has no department; the room is created
+    with a blank one. The code is kept in full (CreatePrintRoom's new
+    KeepFullCode argument), so restoring the same backup again finds the room
+    rather than making a second.
+  - modBackup reads the chosen source into a restore plan (catalogue rows plus
+    one clsRestoreRoom per room) before previewing and applying it, so every
+    source goes through the same code. New clsRestoreRoom class (21 files now).
+  - New test-restorerooms.ps1. Data schema unchanged (1.3).
+
 0.10.22 - In-place upgraders removed; the template ships the final layout.
   - Upgrading means a fresh workbook plus an import, so nothing upgrades a
     workbook in place any more. PrintCosts.xlsx now ships what setup used to

@@ -13,7 +13,8 @@ Option Explicit
 ' the four Settings-page lookup tables, and Settings itself - alongside the
 ' job CSVs Export All Locations already produces, all sharing one timestamp.
 ' Restore reads any ONE of those files back, finds every sibling sharing the
-' same timestamp in the same folder, and reads the whole set back in:
+' same timestamp in the same folder, creates any print room the backup has
+' and this workbook lacks, and reads the whole set back in:
 ' overwrite-by-stable-ID for the catalogue tables (the same "existing key:
 ' overwrite, new key: append" rule modImport already uses for job rows by
 ' Job ID), and the EXISTING modImport machinery, unmodified, for the job
@@ -183,6 +184,19 @@ End Function
 ' one by its filename (this module wrote every filename it will ever read,
 ' so parsing them back is safe here in a way it would not be for an
 ' arbitrary file), and previews row counts before asking to confirm.
+'
+' The one file can also be an OLDER COPY OF THE WORKBOOK (.xlsm/.xlsx/.xlsb):
+' the upgrade path is a fresh workbook plus a restore, and the old workbook
+' already holds everything a restore needs - every catalogue table, each
+' print room's settings and every room's job records - so nothing has to be
+' backed up first.
+'
+' Whatever the source, it is first read into one "restore plan" - the
+' catalogue rows per table, plus one clsRestoreRoom per print room - and the
+' plan is then previewed and applied by the same code, so every source gets
+' the same behaviour: a print room the backup mentions that does not exist
+' here yet is CREATED (modRegistry.CreatePrintRoom) before its job records
+' go in, rather than being skipped.
 Public Sub RestoreWorkbook()
     Dim path As String
     On Error GoTo Fail
@@ -200,49 +214,362 @@ End Sub
 ' opens (GetOpenFilename cannot run unattended, same reason modImport's own
 ' PickImportFile is never called directly by a test either).
 Public Sub RestoreFromFile(ByVal AnyFilePath As String)
+    Dim catalogRows As clsDict, rooms As Collection, srcDesc As String
+
+    If Not LoadRestorePlan(AnyFilePath, catalogRows, rooms, srcDesc) Then Exit Sub
+
+    If Not Ask("Restore the workbook from " & srcDesc & "?" & vbCrLf & vbCrLf & _
+        PlanPreview(catalogRows, rooms) & vbCrLf & _
+        "Matching catalogue rows and settings will be OVERWRITTEN with the backup's version; rows not in the backup are left alone. " & _
+        "A print room listed above that does not exist here yet will be CREATED" & _
+        IIf(PlanHasRoomSettings(rooms), ", with its default technician, printer and paper, permitted printers and roll length unit from the workbook. ", ". ") & _
+        "Job records will be imported into each print room listed above, following the same rule as Import (existing Job ID: overwritten; new Job ID: added). " & _
+        "This cannot be undone.", "Restore workbook") Then Exit Sub
+
+    ApplyRestorePlan catalogRows, rooms
+End Sub
+
+' Load-then-write with no preview and no confirm - what a test calls to
+' exercise the real restore-application code (ApplyRestorePlan) without
+' needing the Ask() gate, which always declines under SetQuiet, the same
+' reason every other destructive command in this workbook (modJobs.RemoveRow,
+' modImport.ApplyImportConfirmed, modReports.DeleteVisibleReportsConfirmed)
+' is split into a confirm half and a do-it half.
+Public Sub RestoreFromFileConfirmed(ByVal AnyFilePath As String)
+    Dim catalogRows As clsDict, rooms As Collection, srcDesc As String
+
+    If Not LoadRestorePlan(AnyFilePath, catalogRows, rooms, srcDesc) Then Exit Sub
+    ApplyRestorePlan catalogRows, rooms
+End Sub
+
+' ============================================================ restore plan ===
+' Reads the chosen file (and, for a CSV backup, its siblings) into memory:
+'   CatalogRows  table name -> Collection of clsDict rows keyed by header
+'   Rooms        Collection of clsRestoreRoom, one per print room
+'   SrcDesc      how the preview dialog names the source
+' False (after telling the user why) when there is nothing usable to restore.
+Private Function LoadRestorePlan(ByVal AnyFilePath As String, ByRef CatalogRows As clsDict, _
+                                 ByRef Rooms As Collection, ByRef SrcDesc As String) As Boolean
+    Set CatalogRows = New clsDict
+    Set Rooms = New Collection
+    If IsWorkbookFile(AnyFilePath) Then
+        LoadRestorePlan = LoadFromWorkbook(AnyFilePath, CatalogRows, Rooms, SrcDesc)
+    Else
+        LoadRestorePlan = LoadFromCsvSet(AnyFilePath, CatalogRows, Rooms, SrcDesc)
+    End If
+End Function
+
+Private Function LoadFromCsvSet(ByVal AnyFilePath As String, ByVal CatalogRows As clsDict, _
+                                ByVal Rooms As Collection, ByRef SrcDesc As String) As Boolean
     Dim ts As String, folder As String
     Dim catalogPaths As clsDict, locationPaths As Collection
-    Dim preview As String, k As Variant, n As Long, f As Variant, locCode As String
+    Dim k As Variant, f As Variant, room As clsRestoreRoom
 
     ts = ExtractTimestamp(AnyFilePath)
     folder = LeftFolder(AnyFilePath)
     If Len(ts) = 0 Then
         Say "That does not look like a Print Cost Management backup file.", AnyFilePath, _
             "Choose a file named like PrintCosts-<site>-...-yyyymmdd-hhmm.csv, as Backup workbook writes them."
-        Exit Sub
+        Exit Function
     End If
 
     ClassifyBackupSet folder, ts, catalogPaths, locationPaths
 
     If catalogPaths.Count = 0 And locationPaths.Count = 0 Then
         Say "No backup files were found alongside that one.", "Looked in:" & vbCrLf & folder
-        Exit Sub
+        Exit Function
     End If
 
     For Each k In catalogPaths.Keys
-        n = ReadImportRows(CStr(catalogPaths.Item(CStr(k)))).Count
-        preview = preview & "- " & CStr(k) & ": " & n & " row" & IIf(n = 1, "", "s") & vbCrLf
+        CatalogRows.Add CStr(k), ReadImportRows(CStr(catalogPaths.Item(CStr(k))))
     Next k
+
+    ' A job export's header block names its room (rows 5 and 6) and, from
+    ' 0.10.23, its department beside the name (row 6, column 4) - enough to
+    ' create the room if it is missing. Older files simply have no department.
     For Each f In locationPaths
-        locCode = PeekCell(CStr(f), 5, 2)
-        n = ReadImportRows(CStr(f)).Count
-        preview = preview & "- " & IIf(Len(locCode) > 0, locCode, "(unknown location)") & ": " & n & " job record" & IIf(n = 1, "", "s") & vbCrLf
+        Set room = New clsRestoreRoom
+        room.Code = PeekCell(CStr(f), 5, 2)
+        room.RoomName = PeekCell(CStr(f), 6, 2)
+        room.Dept = PeekCell(CStr(f), 6, 4)
+        Set room.JobRows = ReadImportRows(CStr(f))
+        Rooms.Add room
     Next f
 
-    If Not Ask("Restore the workbook from the backup taken " & FriendlyTimestamp(ts) & "?" & vbCrLf & vbCrLf & _
-        preview & vbCrLf & _
-        "Matching catalogue rows and settings will be OVERWRITTEN with the backup's version; rows not in the backup are left alone. " & _
-        "Job records will be imported into each location listed above, following the same rule as Import (existing Job ID: overwritten; new Job ID: added). " & _
-        "This cannot be undone.", "Restore workbook") Then Exit Sub
+    SrcDesc = "the backup taken " & FriendlyTimestamp(ts)
+    LoadFromCsvSet = True
+End Function
 
-    RestoreWorkbookConfirmed catalogPaths, locationPaths
+' ---------------------------------------------------------- older workbook ---
+' Reads an older copy of the workbook straight into the same plan a CSV
+' backup gives: the seven catalogue tables, then for each print room its
+' LOC_* settings and job records. Nothing is written to the older file - it is
+' opened read-only, from a temporary copy, with its macros off.
+Private Function LoadFromWorkbook(ByVal Path As String, ByVal CatalogRows As clsDict, _
+                                  ByVal Rooms As Collection, ByRef SrcDesc As String) As Boolean
+    Dim wb As Workbook, tmp As String, ws As Worksheet, lo As ListObject
+    Dim names As Variant, locs As Variant, i As Long, room As clsRestoreRoom
+    Dim errNo As Long, errMsg As String
+
+    If Not FileExists(Path) Then
+        Say "That file could not be found.", Path
+        Exit Function
+    End If
+    If StrComp(Path, ThisWorkbook.FullName, vbTextCompare) = 0 Then
+        Say "That is this workbook.", Path, "Choose an older copy of the workbook, or one of the CSV files from a backup."
+        Exit Function
+    End If
+
+    On Error GoTo Fail
+    Set wb = OpenSourceWorkbook(Path, tmp)
+
+    names = CatalogTableNames()
+    For i = LBound(names) To UBound(names)
+        Set lo = TableIn(wb, CStr(names(i)))
+        If Not lo Is Nothing Then
+            CatalogRows.Add CStr(names(i)), TableRows(lo, CatalogKeyHeader(CStr(names(i))))
+        End If
+    Next i
+
+    locs = RoomSettingNames()
+    For Each ws In wb.Worksheets
+        If IsLocation(ws) Then
+            Set lo = JobsTable(ws)
+            If Not lo Is Nothing Then
+                Set room = New clsRestoreRoom
+                room.Code = Trim$(LocValue(ws, "LOC_Code"))
+                room.RoomName = Trim$(LocValue(ws, "LOC_Name"))
+                room.Dept = Trim$(LocValue(ws, "LOC_Dept"))
+                Set room.Settings = New clsDict
+                For i = LBound(locs) To UBound(locs)
+                    room.Settings.Add CStr(locs(i)), LocValue(ws, CStr(locs(i)))
+                Next i
+                Set room.JobRows = TableRows(lo, "Job ID")
+                Rooms.Add room
+            End If
+        End If
+    Next ws
+
+    CloseSource wb, tmp
+    On Error GoTo 0
+
+    If CatalogRows.Count = 0 And Rooms.Count = 0 Then
+        Say "That workbook does not look like a Print Cost Management workbook.", Path, _
+            "Choose a copy of this workbook from an earlier version, or one of the CSV files from a backup."
+        Exit Function
+    End If
+
+    SrcDesc = "the workbook '" & FileNameOnly(Path) & "'"
+    LoadFromWorkbook = True
+    Exit Function
+Fail:
+    errNo = Err.Number: errMsg = Err.Description
+    CloseSource wb, tmp
+    Err.Raise errNo, "LoadFromWorkbook", errMsg
+End Function
+
+' The per-room settings that live on a room's sheet rather than in a table.
+' LOC_Code, LOC_Name and LOC_Dept are read separately (they identify the room);
+' these are what a new room is given beyond that.
+Private Function RoomSettingNames() As Variant
+    RoomSettingNames = Array("LOC_DefTech", "LOC_DefPrinter", "LOC_DefPaper", _
+        "LOC_DefDisPaper", "LOC_DefDisCons", "LOC_Printers", "LOC_RollUnit")
+End Function
+
+Private Function PlanHasRoomSettings(ByVal Rooms As Collection) As Boolean
+    Dim v As Variant, room As clsRestoreRoom
+    For Each v In Rooms
+        Set room = v
+        If Not room.Settings Is Nothing Then
+            PlanHasRoomSettings = True
+            Exit Function
+        End If
+    Next v
+End Function
+
+Private Function IsWorkbookFile(ByVal Path As String) As Boolean
+    Select Case LCase$(Mid$(Path, InStrRev(Path, ".") + 1))
+        Case "xlsm", "xlsx", "xlsb"
+            IsWorkbookFile = True
+    End Select
+End Function
+
+' Opens the older workbook for reading only, without anything in it running.
+'   - From a temporary COPY. Excel will not open two workbooks with the same
+'     file name, and the older copy usually has the new one's name (PrintJob.xlsm,
+'     in another folder); a copy also copes with the older one being open or
+'     syncing. If the copy cannot be made the original is opened read-only -
+'     unless that name clashes, which is then reported.
+'   - Macros disabled (AutomationSecurity) and events off, so the older
+'     workbook's own Workbook_Open does not run: it would re-protect, re-bind
+'     and recalculate a workbook that is only being read.
+' The caller closes it with CloseSource.
+Private Function OpenSourceWorkbook(ByVal Path As String, ByRef TempPath As String) As Workbook
+    Dim openPath As String, prevSec As Long, prevEvents As Boolean, wb As Workbook
+    Dim errNo As Long, errMsg As String
+
+    TempPath = CopyToTemp(Path)
+    If Len(TempPath) > 0 Then
+        openPath = TempPath
+    Else
+        If StrComp(FileNameOnly(Path), ThisWorkbook.Name, vbTextCompare) = 0 Then
+            Err.Raise vbObjectError + 516, "OpenSourceWorkbook", _
+                "The older workbook has the same file name as this one ('" & ThisWorkbook.Name & "') and a temporary copy of it could not be made, " & _
+                "so Excel cannot open both. Rename the older file (for example add 'old' to its name) and try again."
+        End If
+        openPath = Path
+    End If
+
+    prevEvents = Application.EnableEvents
+    On Error Resume Next
+    prevSec = Application.AutomationSecurity
+    Application.AutomationSecurity = 3          ' msoAutomationSecurityForceDisable
+    On Error GoTo Failed
+    Application.EnableEvents = False
+    Set wb = Workbooks.Open(Filename:=openPath, UpdateLinks:=0, ReadOnly:=True, AddToMru:=False)
+    Application.EnableEvents = prevEvents
+    On Error Resume Next
+    Application.AutomationSecurity = prevSec
+    On Error GoTo 0
+    ThisWorkbook.Activate
+    Set OpenSourceWorkbook = wb
+    Exit Function
+Failed:
+    errNo = Err.Number: errMsg = Err.Description
+    Application.EnableEvents = prevEvents
+    On Error Resume Next
+    Application.AutomationSecurity = prevSec
+    If Len(TempPath) > 0 Then Kill TempPath
+    TempPath = ""
+    On Error GoTo 0
+    Err.Raise errNo, "OpenSourceWorkbook", errMsg
+End Function
+
+Private Sub CloseSource(ByRef Wb As Workbook, ByVal TempPath As String)
+    On Error Resume Next
+    If Not Wb Is Nothing Then Wb.Close False
+    Set Wb = Nothing
+    If Len(TempPath) > 0 Then Kill TempPath
+    ThisWorkbook.Activate
+    On Error GoTo 0
 End Sub
 
-' The actual write, given an already-classified file set. Public so a test
-' can bypass BOTH the OS file picker and the Ask() confirm gate and drive
-' the write directly - same reason modImport.ApplyImportConfirmed and
-' modReports.DeleteVisibleReportsConfirmed are split this way. See
-' RestoreFromFileConfirmed below for the version a test actually calls.
+' A uniquely named copy in the temp folder, or "" when there is no usable temp
+' folder or the copy fails (a file Excel has locked, a read-only temp folder).
+Private Function CopyToTemp(ByVal Src As String) As String
+    Dim tmpDir As String, dst As String, ext As String
+    tmpDir = Environ$("TEMP")
+    If Len(tmpDir) = 0 Then tmpDir = Environ$("TMPDIR")
+    If Len(tmpDir) = 0 Then tmpDir = Environ$("TMP")
+    If Len(tmpDir) = 0 Then Exit Function
+    If Right$(tmpDir, 1) = Application.PathSeparator Then tmpDir = Left$(tmpDir, Len(tmpDir) - 1)
+
+    ext = Mid$(Src, InStrRev(Src, "."))
+    dst = tmpDir & Application.PathSeparator & "PrintCosts-restore-" & Format$(Now, "yyyymmdd-hhnnss") & ext
+
+    On Error GoTo Failed
+    FileCopy Src, dst
+    If FileExists(dst) Then CopyToTemp = dst
+    Exit Function
+Failed:
+    CopyToTemp = ""
+End Function
+
+' modUtils.Tbl, but for another workbook.
+Private Function TableIn(ByVal Wb As Workbook, ByVal TableName As String) As ListObject
+    Dim ws As Worksheet, lo As ListObject
+    For Each ws In Wb.Worksheets
+        For Each lo In ws.ListObjects
+            If StrComp(lo.Name, TableName, vbTextCompare) = 0 Then
+                Set TableIn = lo
+                Exit Function
+            End If
+        Next lo
+    Next ws
+End Function
+
+' A table's data rows as the same clsDict-per-row (keyed by header text) that
+' modImport.ReadImportRows gives for a CSV, so everything downstream is
+' shared. Rows with no key are left out, as ReadImportRows stops at one. Read
+' in a single array fetch: a job table can be thousands of rows by dozens of
+' columns, and a COM call per cell would take minutes.
+Private Function TableRows(ByVal lo As ListObject, ByVal KeyHeader As String) As Collection
+    Dim out As Collection, d As clsDict, a As Variant, hdr() As String
+    Dim r As Long, c As Long, keyCol As Long, nCols As Long
+
+    Set out = New Collection
+    Set TableRows = out
+    If Not ColumnExists(lo, KeyHeader) Then Exit Function
+    If lo.DataBodyRange Is Nothing Then Exit Function
+
+    keyCol = ColIdx(lo, KeyHeader)
+    nCols = lo.ListColumns.Count
+    ReDim hdr(1 To nCols)
+    For c = 1 To nCols
+        hdr(c) = lo.ListColumns(c).Name
+    Next c
+
+    a = lo.DataBodyRange.Value2
+    If Not IsArray(a) Then Exit Function
+    For r = 1 To UBound(a, 1)
+        If Len(Trim$(SourceText(a(r, keyCol), KeyHeader))) > 0 Then
+            Set d = New clsDict
+            For c = 1 To nCols
+                d.Add hdr(c), SourceText(a(r, c), hdr(c))
+            Next c
+            out.Add d
+        End If
+    Next r
+End Function
+
+' One cell as the text a CSV backup would hold for it: blank for an empty or
+' error cell, and the two timestamp columns as yyyy-mm-dd hh:nn:ss exactly as
+' modExport.CellOut writes them (modImport.ParseIsoDateTime reads that back;
+' a serial number or a locale-formatted date would not survive).
+Private Function SourceText(ByVal V As Variant, ByVal Header As String) As String
+    If IsError(V) Then Exit Function
+    If IsEmpty(V) Then Exit Function
+    If StrComp(Header, "Date/Time", vbTextCompare) = 0 Or StrComp(Header, "S_StampedAt", vbTextCompare) = 0 Then
+        If VarType(V) = vbDouble Then
+            If CDbl(V) > 0 Then SourceText = Format$(CDate(CDbl(V)), "yyyy-mm-dd hh:nn:ss")
+            Exit Function
+        End If
+    End If
+    SourceText = CStr(V)
+End Function
+
+Private Function PlanPreview(ByVal CatalogRows As clsDict, ByVal Rooms As Collection) As String
+    Dim k As Variant, v As Variant, n As Long, room As clsRestoreRoom, s As String
+    Dim tableRows As Collection, label As String
+
+    For Each k In CatalogRows.Keys
+        Set tableRows = CatalogRows.Obj(CStr(k))
+        n = tableRows.Count
+        s = s & "- " & CStr(k) & ": " & n & " row" & IIf(n = 1, "", "s") & vbCrLf
+    Next k
+
+    For Each v In Rooms
+        Set room = v
+        n = room.JobRows.Count
+        If Len(room.Code) = 0 Then
+            label = "(unknown location)"
+        Else
+            label = room.Code
+        End If
+        s = s & "- " & label & ": " & n & " job record" & IIf(n = 1, "", "s")
+        If Len(room.Code) = 0 Then
+            s = s & " (no location code - will be skipped)"
+        ElseIf SheetForCode(room.Code) Is Nothing Then
+            s = s & " (print room will be created)"
+        End If
+        s = s & vbCrLf
+    Next v
+    PlanPreview = s
+End Function
+
+' Private: it takes a clsDict/Collection built by the loaders above, which COM
+' automation cannot construct for this project's own class modules - a test
+' drives RestoreFromFileConfirmed instead.
 Private Sub ClassifyBackupSet(ByVal folder As String, ByVal ts As String, _
                               ByRef catalogPaths As clsDict, ByRef locationPaths As Collection)
     Dim files As Collection, f As Variant, fname As String, tableName As String
@@ -261,41 +588,26 @@ Private Sub ClassifyBackupSet(ByVal folder As String, ByVal ts As String, _
     Next f
 End Sub
 
-' Classify-then-write with no preview and no confirm - what a test calls to
-' exercise the real restore-application code (RestoreWorkbookConfirmed)
-' without needing to construct a clsDict/Collection from outside VBA, which
-' COM automation cannot do for this project's own class modules.
-Public Sub RestoreFromFileConfirmed(ByVal AnyFilePath As String)
-    Dim ts As String, folder As String
-    Dim catalogPaths As clsDict, locationPaths As Collection
-
-    ts = ExtractTimestamp(AnyFilePath)
-    folder = LeftFolder(AnyFilePath)
-    If Len(ts) = 0 Then Exit Sub
-
-    ClassifyBackupSet folder, ts, catalogPaths, locationPaths
-    RestoreWorkbookConfirmed catalogPaths, locationPaths
-End Sub
-
-' The actual write. Public so a test can call it directly, bypassing the
-' Ask() gate above - Ask() always declines under SetQuiet, the same reason
-' every other destructive command in this workbook (modJobs.RemoveRow,
-' modImport.ApplyImportConfirmed, modReports.DeleteVisibleReportsConfirmed)
-' is split into a confirm half and a do-it half.
-Public Sub RestoreWorkbookConfirmed(ByVal catalogPaths As clsDict, ByVal locationPaths As Collection)
-    Dim k As Variant, tableName As String, path As String, lo As ListObject
+' ================================================================== apply ===
+' The actual write, in three passes so each depends only on the one before:
+'   1. catalogue tables (so the printers a room's jobs name exist),
+'   2. print rooms - looked up by code, created if missing,
+'   3. job records, into each room, by the existing modImport machinery.
+Private Sub ApplyRestorePlan(ByVal CatalogRows As clsDict, ByVal Rooms As Collection)
+    Dim k As Variant, v As Variant, tableName As String, lo As ListObject
     Dim rows As Collection, appended As Long, overwrite As Long, skipped As Long, renamed As Long
-    Dim summary As String, f As Variant, ws As Worksheet, locCode As String
+    Dim summary As String, room As clsRestoreRoom, made As Long, ran As Long
+    Dim back As Object
 
     On Error GoTo Fail
-    AppOff
+    Set back = ActiveSheet
 
-    For Each k In catalogPaths.Keys
+    AppOff
+    For Each k In CatalogRows.Keys
         tableName = CStr(k)
-        path = CStr(catalogPaths.Item(tableName))
         Set lo = Tbl(tableName)
         If Not lo Is Nothing Then
-            Set rows = ReadImportRows(path)
+            Set rows = CatalogRows.Obj(tableName)
             appended = 0: overwrite = 0: skipped = 0: renamed = 0
             UnlockSheet lo.Parent
             ApplyCatalogRows tableName, lo, rows, appended, overwrite, skipped, renamed
@@ -305,22 +617,35 @@ Public Sub RestoreWorkbookConfirmed(ByVal catalogPaths As clsDict, ByVal locatio
                 IIf(skipped > 0, ", " & skipped & " skipped (read-only)", "") & vbCrLf
         End If
     Next k
-
-    For Each f In locationPaths
-        locCode = PeekCell(CStr(f), 5, 2)
-        Set ws = SheetForCode(locCode)
-        If Not ws Is Nothing Then
-            Set rows = ReadImportRows(CStr(f))
-            ApplyImportConfirmed ws, rows
-            summary = summary & "- " & locCode & " (" & LocValue(ws, "LOC_Name") & "): " & rows.Count & " job record" & IIf(rows.Count = 1, "", "s") & " imported" & vbCrLf
-        Else
-            summary = summary & "- '" & locCode & "' - no matching print room sheet found, skipped." & vbCrLf
-        End If
-    Next f
-
     AppOn
 
-    LogAudit "Restore workbook", "(multiple)", catalogPaths.Count & " catalogue table(s), " & locationPaths.Count & " location file(s)"
+    ' Rooms are prepared outside the AppOff bracket above and below:
+    ' CreatePrintRoom brackets its own work.
+    For Each v In Rooms
+        Set room = v
+        PrepareRoom room, summary, made
+    Next v
+
+    AppOff
+    For Each v In Rooms
+        Set room = v
+        If Not room.Sheet Is Nothing Then
+            ApplyImportConfirmed room.Sheet, room.JobRows
+            ran = ran + 1
+            summary = summary & "- " & room.Code & " (" & LocValue(room.Sheet, "LOC_Name") & "): " & _
+                IIf(room.Created, "print room created, ", "") & _
+                room.JobRows.Count & " job record" & IIf(room.JobRows.Count = 1, "", "s") & " imported" & vbCrLf
+        End If
+    Next v
+    AppOn
+
+    ' CreatePrintRoom leaves the new room active; put the user back where they were.
+    On Error Resume Next
+    If Not back Is Nothing Then back.Activate
+    On Error GoTo Fail
+
+    LogAudit "Restore workbook", "(multiple)", CatalogRows.Count & " catalogue table(s), " & ran & " location(s)" & _
+        IIf(made > 0, ", " & made & " print room(s) created", "")
 
     Say "Workbook restore complete.", summary, _
         "Run Check workbook afterward to confirm everything looks right."
@@ -328,6 +653,92 @@ Public Sub RestoreWorkbookConfirmed(ByVal catalogPaths As clsDict, ByVal locatio
 Fail:
     AppReset
     ReportError "Restore workbook"
+End Sub
+
+' Finds the room by its code, creating it when the backup names a room this
+' workbook does not have - the same duplicate-the-template path Add print
+' room uses, so a restored room is built exactly like a hand-made one. Sets
+' Room.Sheet (Nothing when the room is skipped) and Room.Created.
+'
+' Refresh Locations, at the end of CreatePrintRoom, announces itself with its
+' own dialog; one per restored room would bury the restore's own summary, so
+' that announcement is muted here (and still collected by QuietLog when a
+' test is already running in quiet mode). The code is kept in full
+' (KeepFullCode): a code Refresh Locations itself assigned can be longer than
+' the 6 characters a typed one is capped at, and truncating it would stop the
+' next restore of the same backup from finding the room it created.
+Private Sub PrepareRoom(ByVal Room As clsRestoreRoom, ByRef Summary As String, ByRef Made As Long)
+    Dim wasQuiet As Boolean, nm As String
+
+    If Len(Room.Code) = 0 Then
+        Summary = Summary & "- (unknown location): skipped - the file does not say which print room it belongs to." & vbCrLf
+        Exit Sub
+    End If
+
+    Set Room.Sheet = SheetForCode(Room.Code)
+    If Not Room.Sheet Is Nothing Then Exit Sub
+
+    nm = Room.RoomName
+    If Len(nm) = 0 Then nm = Room.Code
+
+    wasQuiet = gQuiet
+    gQuiet = True
+    Set Room.Sheet = CreatePrintRoom(nm, Room.Dept, Room.Code, True)
+    gQuiet = wasQuiet
+
+    If Room.Sheet Is Nothing Then
+        Summary = Summary & "- " & Room.Code & ": skipped - the print room could not be created." & vbCrLf
+        Exit Sub
+    End If
+    Room.Created = True
+    Made = Made + 1
+    ApplyRoomSettings Room.Sheet, Room.Settings
+End Sub
+
+' A new room starts from the template's defaults; when the source is an older
+' workbook it carries the room's own, so the room comes back as it was set up.
+' Written only to a room this restore has just created - an existing room's
+' settings are left as they are, the way an existing room's job records are
+' only added to - and BEFORE the job records go in, so the roll length unit is
+' already the room's own when Import weighs a file's Qty unit against it (no
+' conversion if they match).
+'
+' Events are off for the writes (AppOff), so changing LOC_RollUnit does not run
+' the rescale of existing rows - there are none yet - and the hidden "unit the
+' stored Qty values are in" marker is set by hand, exactly as the change
+' handler would; the Qty validation message is reworded for the unit.
+Private Sub ApplyRoomSettings(ByVal Ws As Worksheet, ByVal Settings As clsDict)
+    Dim names As Variant, i As Long, c As Range, s As String, unit As String
+
+    If Settings Is Nothing Then Exit Sub
+
+    AppOff
+    UnlockSheet Ws
+    names = Array("LOC_DefTech", "LOC_DefPrinter", "LOC_DefPaper", "LOC_DefDisPaper", "LOC_DefDisCons", "LOC_Printers")
+    For i = LBound(names) To UBound(names)
+        If Settings.Exists(CStr(names(i))) Then
+            s = Trim$(CStr(Settings.Item(CStr(names(i)))))
+            Set c = LocRange(Ws, CStr(names(i)))
+            If Not c Is Nothing Then
+                If Len(s) > 0 Then c.Value = s
+            End If
+        End If
+    Next i
+
+    If Settings.Exists("LOC_RollUnit") Then
+        unit = Trim$(CStr(Settings.Item("LOC_RollUnit")))
+        If StrComp(unit, "Centimetres", vbTextCompare) = 0 Or StrComp(unit, "Metres", vbTextCompare) = 0 Then
+            Set c = LocRange(Ws, "LOC_RollUnit")
+            If Not c Is Nothing Then
+                c.Value = unit
+                SetAppliedRollUnit Ws, unit
+            End If
+        End If
+    End If
+    RelockSheet Ws
+    RefreshQtyValidation Ws
+    BindColumns Ws
+    AppOn
 End Sub
 
 ' Writes one catalogue/Settings row back by its stable key (CatalogKeyHeader):
@@ -473,7 +884,8 @@ End Sub
 
 ' ============================================================== file set ===
 Private Function PickBackupFile() As String
-    PickBackupFile = PickCsvFile("Restore workbook - choose any one file from the backup")
+    PickBackupFile = PickCsvFile("Restore workbook - choose any one file from the backup, or an older copy of the workbook", _
+        "Backup files (*.csv;*.xlsm;*.xlsx;*.xlsb),*.csv;*.xlsm;*.xlsx;*.xlsb")
 End Function
 
 Private Function MatchingBackupFiles(ByVal folder As String, ByVal ts As String) As Collection
