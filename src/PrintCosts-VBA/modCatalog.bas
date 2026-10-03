@@ -375,6 +375,7 @@ End Sub
 ' charged for unless it is explicitly marked as student-supplied. Caller has
 ' already unlocked the sheet.
 Private Sub DefaultSupplied(ByVal lo As ListObject, ByVal RowNo As Long)
+    If Not ColumnExists(lo, "Supplied by student") Then Exit Sub
     If Len(Trim$(CStr(CellIn(lo, RowNo, "Supplied by student").Value))) = 0 Then
         CellIn(lo, RowNo, "Supplied by student").Value = "No"
     End If
@@ -384,6 +385,7 @@ End Sub
 ' enforces it); this keeps the visible Cost cell honest as well. Caller has
 ' already unlocked the sheet.
 Private Sub ZeroSuppliedCost(ByVal lo As ListObject, ByVal RowNo As Long)
+    If Not ColumnExists(lo, "Supplied by student") Then Exit Sub
     If StrComp(Trim$(CStr(CellIn(lo, RowNo, "Supplied by student").Value)), "Yes", vbTextCompare) <> 0 Then Exit Sub
     If NumOf(CellIn(lo, RowNo, "Cost")) = 0 Then Exit Sub
     CellIn(lo, RowNo, "Cost").Value = 0
