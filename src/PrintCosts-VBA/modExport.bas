@@ -276,7 +276,7 @@ End Function
 ' what the filters showed at the moment of export, same as modExport's own
 ' CSVs are a snapshot rather than a link back into the workbook.
 Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
-    Const HDR_ROW As Long = 17
+    Const HDR_ROW As Long = REP_HDR_ROW
     Dim lastCol As Long, rng As Range, block As Variant, n As Long
     Dim path As String, wbOut As Workbook
     Dim promoted As Collection, header As Variant, full As Variant, tableHeaderRow As Long
@@ -292,7 +292,7 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
     End If
 
     On Error Resume Next
-    Set rng = repWs.Range("A18").SpillingToRange
+    Set rng = repWs.Range("A" & REP_FIRST_ROW).SpillingToRange
     On Error GoTo 0
     If rng Is Nothing Then
         Say "There is nothing to export.", "The Reports sheet has no results yet."
@@ -328,9 +328,9 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
     ' those are already computed over the exact same filter criteria the
     ' export is a snapshot of, so there is exactly one place that knows how
     ' "still owed" reconciles to "total chargeable minus paid".
-    totalChargeable = SafeNum(repWs.Range("F15").Value)
-    stillOwed = SafeNum(repWs.Range("O15").Value)
-    paidTotal = SafeNum(repWs.Range("N15").Value)
+    totalChargeable = SafeNum(repWs.Range("F" & REP_MATCH_VAL_ROW).Value)
+    stillOwed = SafeNum(repWs.Range("O" & REP_MATCH_VAL_ROW).Value)
+    paidTotal = SafeNum(repWs.Range("N" & REP_MATCH_VAL_ROW).Value)
 
     block = AppendTotalsRow(block)
     header = SnapshotHeaderBlock(repWs, rng, n, promoted, totalChargeable, paidTotal, stillOwed)

@@ -128,7 +128,6 @@ Public Sub InitialiseWorkbook()
             ' re-settles the buttons once visibility is final, as do the other
             ' per-sheet steps it repeats (defaults, roll unit, dropdowns), so
             ' none of them is duplicated in this loop.
-            ApplyJobColumnWidths ws
             n = n + 1
         ElseIf StrComp(ws.Name, "Summary", vbTextCompare) = 0 Then
             ' Column O onwards, clear of the A:M report table.
@@ -221,27 +220,16 @@ Public Sub InitialiseWorkbook()
             ' already the column the breakdowns themselves use, so the
             ' buttons now sit in the same right-hand strip as that content
             ' instead of overlapping the table.
-            ' "DelVis" tag: "btnDeleteVisibleReports" (23 chars) + "_3_20"
-            ' (5, now two-digit) would put the shape's own Name at exactly
-            ' 32 characters - silently truncated by Excel/COM, per DrawOne's
-            ' own comment - without shortening what actually runs on click.
-            DrawOne ws, 1, 20, "Export report...", "btnExportReport", 140
-            DrawOne ws, 3, 20, "Delete visible records...", "btnDeleteVisibleReports", 140, "DelVis"
-            ' "Mark all as..." cluster (2026-09-29, direct user request): O1
-            ' holds the label (modReports.BuildReports - see there for why
-            ' column O), then one button per row - Paid in row 2, Unpaid in
-            ' row 3. Sized to the ROW (a shade under its height) rather than
-            ' DrawOne's 22pt, which would spill each button into the row
-            ' below and overlap its neighbour. Row heights are read here, not
-            ' assumed: BuildReportSheets has already run, so A1's 16pt title
-            ' has already settled row 1. Width 78pt sits inside column O's
-            ' ~80pt, clear of the T buttons (848pt) beyond S.
-            DrawOneAtTop ws, 15, ws.Cells(2, 15).Top + 0.5, "Paid", "btnMarkPaid", 78, ws.Cells(2, 15).Height - 1
-            DrawOneAtTop ws, 15, ws.Cells(3, 15).Top + 0.5, "Unpaid", "btnMarkUnpaid", 78, ws.Cells(3, 15).Height - 1
-            ' Freezes above the print-job results table (row 17) so its
+            ' 0.10.25: all Reports header buttons are drawn and re-placed by
+            ' modReports.DrawReportsButtons / RepositionReportsButtons (they
+            ' follow column visibility/width changes like the location
+            ' sheets' buttons). The delete macro is now btnDeleteVisible, so
+            ' the shape name needs no truncating tag.
+            DrawReportsButtons ws
+            ' Freezes above the print-job results table (row 20) so its
             ' header row and the filter/totals area above stay visible while
             ' scrolling through matches - snag list item 9.
-            SetFreeze ws, "A17"
+            SetFreeze ws, "A" & REP_HDR_ROW
         End If
     Next ws
 
@@ -1644,59 +1632,7 @@ Private Function IsSafeAnchorColumn(ByVal lo As ListObject, ByVal col As Long) A
     IsSafeAnchorColumn = Not CBool(lo.ListColumns(col).Range.EntireColumn.Hidden)
 End Function
 
-' Narrower default widths for the columns that need the least room to show
-' their actual content, freeing screen space for Student Name/Notes/etc.
-' Job ID gets a fixed 100px rather than a cap - it holds a multi-digit
-' correlation ID that genuinely needs it, so there is no narrower "good
-' enough" to allow. Date/Time (180px), Print Width mm (120px) and the two
-' Disregard columns (130px each) are likewise fixed widths, not caps - a full
-' "dd/mm/yyyy hh:mm" stamp and the Yes/No dropdown labels were both getting
-' clipped at their old, narrower widths.
-' modUtils.ColWidthForPx does the character-unit conversion; a header not
-' present (e.g. a much older sheet mid-migration) is skipped via ColIdx's own
-' error rather than aborting the rest.
-Public Sub ApplyJobColumnWidths(ByVal ws As Worksheet)
-    Dim lo As ListObject
-    Set lo = JobsTable(ws)
-    If lo Is Nothing Then Exit Sub
 
-    UnlockSheet ws
-    SetJobColWidth lo, "Unit", ColWidthForPx(50)
-    SetJobColWidth lo, "Qty", ColWidthForPx(50)
-    SetJobColWidth lo, "Area m2", ColWidthForPx(60)
-    SetJobColWidth lo, "Paid", ColWidthForPx(40)
-    SetJobColWidth lo, "Job ID", ColWidthForPx(100)
-    SetJobColWidth lo, "Date/Time", ColWidthForPx(180)
-    SetJobColWidth lo, "Print Width mm", ColWidthForPx(120)
-    SetJobColWidth lo, "Disregard Paper", ColWidthForPx(130)
-    SetJobColWidth lo, "Disregard Consumable", ColWidthForPx(130)
-    ' 2026-09-29 (user-reported: several columns excessively wide). Every
-    ' remaining sized column now gets an explicit width too, rather than
-    ' keeping whatever PrintCosts.xlsx shipped (Chargeable Cost and Paper
-    ' Stock were 220px, Paper Cost/Disregarded/Sheet size 115px). Headers
-    ' wrap (row 13 is two lines tall), so a column only needs its longest
-    ' word plus the filter button; the widths below are that or the widest
-    ' typical content, whichever is larger. Notes is left alone (free text).
-    ' Status is short (120px) because RefreshStatusNotes puts the full
-    ' message in a hover note on every row that has a problem.
-    SetJobColWidth lo, "Status", ColWidthForPx(120)
-    SetJobColWidth lo, "Technician", ColWidthForPx(120)
-    SetJobColWidth lo, "Printer", ColWidthForPx(160)
-    SetJobColWidth lo, "Paper Stock", ColWidthForPx(170)
-    SetJobColWidth lo, "Sheet size", ColWidthForPx(90)
-    SetJobColWidth lo, "Paper Cost", ColWidthForPx(90)
-    SetJobColWidth lo, "Consumable Cost", ColWidthForPx(100)
-    SetJobColWidth lo, "Gross Cost", ColWidthForPx(90)
-    SetJobColWidth lo, "Disregarded", ColWidthForPx(100)
-    SetJobColWidth lo, "Chargeable Cost", ColWidthForPx(100)
-    RelockSheet ws
-End Sub
-
-Private Sub SetJobColWidth(ByVal lo As ListObject, ByVal Header As String, ByVal Width As Double)
-    On Error Resume Next
-    lo.ListColumns(Header).Range.EntireColumn.ColumnWidth = Width
-    On Error GoTo 0
-End Sub
 
 ' Hides or shows exactly the named columns, by header, and touches nothing
 ' else - some columns (H_Issues) are hidden permanently, shipped that way in

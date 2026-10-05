@@ -223,8 +223,11 @@ Private Sub FixButtons(ByVal ws As Worksheet)
     For i = 1 To ws.Buttons.Count
         Set b = ws.Buttons(i)
         If Left$(b.Name, 4) = "pcb_" Then
-            want = MacroFromName(b.Name)
-            If Len(want) = 0 Then want = StripBook(CStr(b.OnAction))
+            ' OnAction is authoritative; the name is only a fallback, because
+            ' a name can be truncated at 31/32 characters (0.10.25: that broke
+            ' Delete visible records on Reports).
+            want = StripBook(CStr(b.OnAction))
+            If Len(want) = 0 Then want = MacroFromName(b.Name)
             If Len(want) > 0 Then
                 If StrComp(CStr(b.OnAction), want, vbBinaryCompare) <> 0 Then b.OnAction = want
             End If
@@ -253,8 +256,8 @@ Public Sub HealButtons()
                 cur = CStr(b.OnAction)
                 If InStr(cur, "!") > 0 Then
                     If InStr(1, cur, mine, vbTextCompare) <> 1 Then
-                        want = MacroFromName(b.Name)
-                        If Len(want) = 0 Then want = StripBook(cur)
+                        want = StripBook(cur)
+                        If Len(want) = 0 Then want = MacroFromName(b.Name)
                         If Len(want) > 0 Then b.OnAction = want
                     End If
                 End If

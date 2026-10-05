@@ -31,21 +31,35 @@ Private Const EXPORT_WHEN_CELL As String = "AN2"
 
 ' The results table's data rows, for the editable Paid column (see "edit Paid
 ' on Reports" below). 2000 matches the number formats FormatReports applies.
-Private Const RESULTS_FIRST_ROW As Long = 18
+' Row map of the Reports sheet (0.10.25). The filter block grew by three rows
+' (Min/Max cost, Has notes), which moved everything under it down by three:
+'   rows 4-13   the filters (see BuildReports)
+'   row 14      gap, and the name/number warning
+'   row 15      Sort by / Sort direction
+'   row 17/18   "Matching" labels / values
+'   row 20      results header
+'   row 21      first results row (A21 holds the spilled formula)
+' Public, because modInit (freeze panes) and modExport (Export report) read
+' the same rows and must never carry their own copy of these numbers.
+Public Const REP_SORT_ROW As Long = 15
+Public Const REP_MATCH_ROW As Long = 17
+Public Const REP_MATCH_VAL_ROW As Long = 18
+Public Const REP_HDR_ROW As Long = 20
+Public Const REP_FIRST_ROW As Long = 21
+Private Const RESULTS_FIRST_ROW As Long = REP_FIRST_ROW
 Private Const RESULTS_LAST_ROW As Long = 2000
 
-' Which job a results-table Paid cell showed when it was selected - see "edit
-' Paid on Reports". Declared here, with the module's other declarations, not
-' beside the code that uses it (a module-level declaration after the first
-' Sub has failed to compile in this project before - see modInit's comment).
-Private Type PaidSnap
-    Addr As String
-    Job As String
-    Loc As String
-    Paid As String
-End Type
-Private mCur As PaidSnap
-Private mPrev As PaidSnap
+' Reports header button layout (see DrawReportsButtons). Declared up here
+' because VBA allows module-level constants only before the first procedure.
+Private Const REP_BTN_TAG As String = "pcb_"
+Private Const REP_BTN_GAP As Double = 4
+Private Const REP_FILTER_COL As Long = 14   ' N
+Private Const REP_MARK_COL As Long = 15     ' O
+Private Const REP_EXPORT_COL As Long = 20   ' T
+Private Const REP_FILTER_W As Double = 100
+Private Const REP_MARK_W As Double = 78
+Private Const REP_EXPORT_W As Double = 140
+Private Const REP_MARK_LABEL As String = "Mark all as..."
 
 ' A column of the consolidated range, found by its header text.
 Private Function C(ByVal Header As String) As String
@@ -269,7 +283,21 @@ Private Function Criteria() As String
     ' the same reconciliation Matching's Paid/Unpaid totals use. INDEX over a
     ' genuinely blank cell reads back as 0, so compare against "Yes" rather
     ' than against "No".
-    s = s & "*IF($B$10="""",TRUE,IF($B$10=""Yes""," & C("Paid") & "=""Yes""," & C("Paid") & "<>""Yes""))"
+    s = s & "*IF($B$13="""",TRUE,IF($B$13=""Yes""," & C("Paid") & "=""Yes""," & C("Paid") & "<>""Yes""))"
+
+    ' Chargeable cost range (0.10.25): Min cost $B$10, Max cost $B$11. Chargeable
+    ' is what the student/department is billed (Gross less Disregarded), the
+    ' money column Matching and the default view already use. A box that is
+    ' blank, or holds something that is not a number, is ignored - the same
+    ' tolerance the date boxes have. ROUND to 4 places so a value held as
+    ' 12.349999999 still meets a minimum of 12.35. Both limits are inclusive.
+    s = s & "*IF(ISNUMBER($B$10),ROUND(IFERROR(" & C("Chargeable Cost") & "*1,0),4)>=$B$10,TRUE)"
+    s = s & "*IF(ISNUMBER($B$11),ROUND(IFERROR(" & C("Chargeable Cost") & "*1,0),4)<=$B$11,TRUE)"
+
+    ' Has notes (0.10.25): Yes = the job has a note, No = it has none. A note
+    ' counts when it holds something other than spaces. See NotesText for why
+    ' a never-filled Notes cell has to be tested as 0 as well as "".
+    s = s & "*IF($F$11=""Yes"",LEN(TRIM(" & NotesText() & "))>0,IF($F$11=""No"",LEN(TRIM(" & NotesText() & "))=0,TRUE))"
 
     ' Location (print room), added 2026-09-25 - a dropdown of registered print
     ' rooms (RefreshReportFilterLists, AllLocationCodes), same exact-match
@@ -279,6 +307,14 @@ Private Function Criteria() As String
     s = s & "*IF($F$4="""",TRUE," & C("Location") & "=$F$4)"
 
     Criteria = s
+End Function
+
+' The Notes column of the consolidated range as text. INDEX over a Notes cell
+' that was never filled reads back as the NUMBER 0, not "" (the same phantom
+' zero Paid and Student name have), so it would show as a literal "0" and
+' count as a note. Notes is free text and is never a real 0, so 0 means blank.
+Private Function NotesText() As String
+    NotesText = "IF(" & C("Notes") & "=0,""""," & C("Notes") & "&"""")"
 End Function
 
 ' The sortable columns, in results-table order (Job ID excluded - it is a
@@ -353,16 +389,20 @@ Public Sub BuildReports()
     ' capability gained), but the on-screen wording someone actually reads
     ' here reads sensibly either way.
     '
-    ' Filter block layout (2026-10-02, direct user request) - two columns,
-    ' with a blank row between each group:
+    ' Filter block layout (2026-10-02, direct user request; extended 0.10.25) -
+    ' two columns, with a blank row between each group:
     '   rows 4-5   A:B  Student/dept. name, Student number
-    '                   D:F  Location, Technician
+    '              D:F  Location, Technician
     '   row 6      gap
     '   rows 7-8   A:B  From date, To date
     '   rows 7-9   D:F  Printer, Paper stock, Paper type
     '   row 9      gap (left)
-    '   row 10     A:B  Paid
-    '   row 11     gap, then Sort by at row 12
+    '   rows 10-11 A:B  Min cost, Max cost (chargeable)
+    '   row 10     gap (right), then
+    '   row 11     D:F  Has notes
+    '   row 12     gap (left)
+    '   row 13     A:B  Paid
+    '   row 14     gap, and the name/number warning; Sort by at row 15
     CritCell ws, "A4", "B4", "Student/dept. name"
     CritCell ws, "A5", "B5", "Student number"
     CritCell ws, "A7", "B7", "From date"
@@ -371,10 +411,18 @@ Public Sub BuildReports()
     AddDateValidation ws.Range("B7"), "From date", "Leave blank for no start date."
     AddDateValidation ws.Range("B8"), "To date", "Jobs logged at any time on this date are included."
 
+    ' Min/Max cost (0.10.25, direct user request): the chargeable cost range,
+    ' inclusive at both ends, above Paid. Either box can be left blank.
+    CritCell ws, "A10", "B10", "Min cost"
+    CritCell ws, "A11", "B11", "Max cost"
+    ws.Range("B10:B11").NumberFormat = CurrencyFormatCode()
+    AddCostValidation ws.Range("B10"), "Min cost", "Show only jobs whose chargeable cost is at least this amount. Leave blank for no lower limit."
+    AddCostValidation ws.Range("B11"), "Max cost", "Show only jobs whose chargeable cost is no more than this amount. Leave blank for no upper limit."
+
     ' Paid (Yes/No): Yes = only jobs marked Paid; No = everything not marked
     ' Paid, blank included. Left empty to ignore it.
-    CritCell ws, "A10", "B10", "Paid"
-    AddList ws.Range("B10"), """Yes"",""No""", "Paid", "Yes shows only paid jobs, No only unpaid ones (including jobs never marked). Leave blank to include both."
+    CritCell ws, "A13", "B13", "Paid"
+    AddList ws.Range("B13"), """Yes"",""No""", "Paid", "Yes shows only paid jobs, No only unpaid ones (including jobs never marked). Leave blank to include both."
 
     ' Labels at D, not E (2026-09-26 fix): E is "Printer" in the results
     ' table, one of the columns ApplyReportsMinimumColumns hides by header
@@ -399,6 +447,11 @@ Public Sub BuildReports()
     CritCell ws, "D9", "F9", "Paper type"
     AddList ws.Range("F9"), """Roll"",""Sheet""", "Paper type", "Roll shows only roll jobs, Sheet only sheet jobs. Leave blank to include both."
 
+    ' Has notes (0.10.25, direct user request): after Paper type, with a gap
+    ' row (10) between them.
+    CritCell ws, "D11", "F11", "Has notes"
+    AddList ws.Range("F11"), """Yes"",""No""", "Has notes", "Yes shows only jobs that have a note, No only jobs with none. Leave blank to include both."
+
     ' Location (print room) filter. Originally parked at N4/O4 (2026-09-25) to
     ' dodge E/G/H/I:M, the columns ApplyReportsMinimumColumns hides entirely
     ' by results-header name (the same trap O10's own 2026-09-22 comment
@@ -411,27 +464,28 @@ Public Sub BuildReports()
     CritCell ws, "D4", "F4", "Location (print room)"
 
     ' Sort by/direction sit below the filters, above the totals row (snag list
-    ' item 3) rather than beside the filters - row 11 is the "name and number
-    ' don't match" warning below, the gap between the filters and the sort
-    ' settings, and row 13 is the gap before Matching. Moved from row 10 to
-    ' row 12 (2026-10-02) when the filter block grew to row 10.
-    CritCell ws, "A12", "B12", "Sort by"
-    CritCell ws, "D12", "F12", "Sort direction"
-    AddList ws.Range("B12"), QuotedList(hdrs), "Sort by", "Which column to sort the results by."
-    AddList ws.Range("F12"), """Ascending"",""Descending""", "Sort direction", "Which way to sort."
+    ' item 3) rather than beside the filters - row 14 is the "name and number
+    ' don't match" warning, the gap between the filters and the sort
+    ' settings, and row 16 is the gap before Matching. Row 15 since 0.10.25
+    ' (row 12 before the cost range and Has notes were added).
+    CritCell ws, "A15", "B15", "Sort by"
+    CritCell ws, "D15", "F15", "Sort direction"
+    AddList ws.Range("B15"), QuotedList(hdrs), "Sort by", "Which column to sort the results by."
+    AddList ws.Range("F15"), """Ascending"",""Descending""", "Sort direction", "Which way to sort."
 
     ' Export names (a Yes/No toggle that lived at N12/O12) was removed
     ' 2026-10-02, direct user request: Export report now asks Yes / No /
     ' Cancel at export time instead (modExport.AskIncludeNamesReport), the
     ' same as the room exports. The live results always show names.
 
-    ' Spec 14.1: both criteria given, neither matching the other. Row 11
-    ' (was row 9 before 2026-10-02): the gap row under the filters.
-    ws.Range("A11").Formula2 = "=IF(OR($B$4="""",$B$5=""""),""""," & _
+    ' Spec 14.1: both criteria given, neither matching the other. Row 14
+    ' (row 11 before 0.10.25, row 9 before 2026-10-02): the gap row under
+    ' the filters.
+    ws.Range("A14").Formula2 = "=IF(OR($B$4="""",$B$5=""""),""""," & _
         "IF(IFERROR(ROWS(FILTER(" & C("Job ID") & "," & ok & ")),0)=0," & _
         """That name and that number do not appear together on any record - check both."",""""))"
-    ws.Range("A11").Font.Color = RGB(176, 0, 32)
-    ws.Range("A11").Font.Bold = True
+    ws.Range("A14").Font.Color = RGB(176, 0, 32)
+    ws.Range("A14").Font.Bold = True
 
     ' --- totals for the current selection ---------------------------------
     ' Row 11 is left blank (snag list item 1) - a gap between the sort
@@ -452,8 +506,8 @@ Public Sub BuildReports()
     ' column further down the sheet. When the hidden columns between them
     ' collapse (the default state), B/C/D/F/N/O end up rendering adjacent
     ' anyway, so nothing looks gapped in the common case.
-    ws.Range("A14").Value = "Matching"
-    ws.Range("A14").Font.Bold = True
+    ws.Range("A" & REP_MATCH_ROW).Value = "Matching"
+    ws.Range("A" & REP_MATCH_ROW).Font.Bold = True
     MatchTotal ws, "B", "Jobs", "=IFERROR(ROWS(FILTER(" & C("Job ID") & "," & ok & ")),0)"
     MatchTotal ws, "C", "Gross", "=IFERROR(SUM(FILTER(" & C("Gross Cost") & "," & ok & ")),0)"
     MatchTotal ws, "D", "Disregarded", "=IFERROR(SUM(FILTER(" & C("Disregarded") & "," & ok & ")),0)"
@@ -473,19 +527,19 @@ Public Sub BuildReports()
     paidOk = ok & "*(" & C("Paid") & "=""Yes"")"
     MatchTotal ws, "N", "Paid", "=IFERROR(SUM(FILTER(" & C("Chargeable Cost") & "," & paidOk & ",0)),0)"
     MatchTotal ws, "O", "Unpaid", "=IFERROR(SUM(FILTER(" & C("Chargeable Cost") & "," & ok & ",0))-SUM(FILTER(" & C("Chargeable Cost") & "," & paidOk & ",0)),0)"
-    ws.Range("C15").NumberFormat = CurrencyFormatCode()
-    ws.Range("D15").NumberFormat = CurrencyFormatCode()
-    ws.Range("F15").NumberFormat = CurrencyFormatCode()
-    ws.Range("N15").NumberFormat = CurrencyFormatCode()
-    ws.Range("O15").NumberFormat = CurrencyFormatCode()
+    ws.Range("C" & REP_MATCH_VAL_ROW).NumberFormat = CurrencyFormatCode()
+    ws.Range("D" & REP_MATCH_VAL_ROW).NumberFormat = CurrencyFormatCode()
+    ws.Range("F" & REP_MATCH_VAL_ROW).NumberFormat = CurrencyFormatCode()
+    ws.Range("N" & REP_MATCH_VAL_ROW).NumberFormat = CurrencyFormatCode()
+    ws.Range("O" & REP_MATCH_VAL_ROW).NumberFormat = CurrencyFormatCode()
 
     ' --- the records ------------------------------------------------------
     ' Job ID is appended after Notes and hidden - the correlation key that
     ' maps a visible row back to its source location sheet and table row for
     ' the Reports-page delete. Nothing else moves, so existing column
     ' positions are untouched.
-    WriteHeaderRow ws, 17, hdrs
-    ws.Cells(17, UBound(hdrs) - LBound(hdrs) + 2).Value = "Job ID"
+    WriteHeaderRow ws, REP_HDR_ROW, hdrs
+    ws.Cells(REP_HDR_ROW, UBound(hdrs) - LBound(hdrs) + 2).Value = "Job ID"
 
     ' Sorting: the whole FILTER result is bound to res once via LET, then
     ' re-ordered by whichever column K5 names, found by matching its header
@@ -539,13 +593,13 @@ Public Sub BuildReports()
         "," & C("Printer") & "," & C("Paper Stock") & "," & C("Qty") & "," & C("Unit") & "," & C("Area m2") & _
         "," & C("Paper Cost") & "," & C("Consumable Cost") & "," & C("Gross Cost") & _
         "," & C("Disregarded") & "," & C("Chargeable Cost") & "," & paidText & "," & C("Technician") & _
-        "," & C("Notes") & "," & C("Job ID") & ")," & ok & ",""No print jobs match those criteria.""),"
+        "," & NotesText() & "," & C("Job ID") & ")," & ok & ",""No print jobs match those criteria.""),"
     f = f & "hdrs,{" & QuotedList(hdrs) & "},"
-    f = f & "sortIdx,IFERROR(MATCH($B$12,hdrs,0),0),"
-    f = f & "dir,IF($F$12=""Descending"",-1,1),"
+    f = f & "sortIdx,IFERROR(MATCH($B$15,hdrs,0),0),"
+    f = f & "dir,IF($F$15=""Descending"",-1,1),"
     f = f & "IF(sortIdx=0,res,IFERROR(SORTBY(res,INDEX(res,,sortIdx),dir),res))"
     f = f & "),""No print jobs have been recorded yet."")"
-    ws.Range("A18").Formula2 = f
+    ws.Range("A" & REP_FIRST_ROW).Formula2 = f
     ws.Columns(UBound(hdrs) - LBound(hdrs) + 2).Hidden = True
 
     ws.Range(EXPORT_SIG_CELL).Value = savedSig
@@ -557,7 +611,7 @@ Public Sub BuildReports()
 
     BuildBreakdowns ws, ok
     FormatReports ws
-    MakePaidEditable ws
+    LockPaidColumn ws
 
     ' The filter labels/hints (CritCell, above) were written and wrapped
     ' before this point, while columns A/C/D/N still sat at Excel's
@@ -566,7 +620,7 @@ Public Sub BuildReports()
     ' in place, is what keeps rows 4:10 sized for the text that actually
     ' fits per line rather than for the cramped default - see CritCell's own
     ' comment for how this was found.
-    ws.Rows("4:12").AutoFit
+    ws.Rows("4:15").AutoFit
 
     ' Snag list item 2d: the results table keeps every column, but only the
     ' documented minimum stays visible by default - the rest are hidden
@@ -590,7 +644,7 @@ Public Sub BuildReports()
     ' without losing them. Grouping needs the sheet unprotected, same reason
     ' RefreshReportFilterLists' own ApplyTo calls do their own Unlock/Relock.
     UnlockSheet ws
-    ws.Rows("4:12").Group
+    ws.Rows("4:15").Group
     RelockSheet ws
 End Sub
 
@@ -604,21 +658,21 @@ End Sub
 ' preserves the exact same relative gaps this had before (one blank column
 ' after the hidden Job ID column, then straight into "By print room").
 Private Sub BuildBreakdowns(ByVal ws As Worksheet, ByVal ok As String)
-    ws.Range("T17").Value = "By print room"
-    ws.Range("T17").Font.Bold = True
-    ws.Range("T18").Formula2 = GroupFormula(ok, "Location")
+    ws.Range("T" & REP_HDR_ROW).Value = "By print room"
+    ws.Range("T" & REP_HDR_ROW).Font.Bold = True
+    ws.Range("T" & REP_FIRST_ROW).Formula2 = GroupFormula(ok, "Location")
 
-    ws.Range("X17").Value = "By paper stock"
-    ws.Range("X17").Font.Bold = True
-    ws.Range("X18").Formula2 = GroupFormula(ok, "Paper Stock")
+    ws.Range("X" & REP_HDR_ROW).Value = "By paper stock"
+    ws.Range("X" & REP_HDR_ROW).Font.Bold = True
+    ws.Range("X" & REP_FIRST_ROW).Formula2 = GroupFormula(ok, "Paper Stock")
 
     ' Each block spills as key | Jobs | Gross | Chargeable, so the money
     ' columns are the third and fourth - Jobs is a count and must not be
     ' formatted as currency.
-    ws.Range("U19:U2000").NumberFormat = "#,##0"
-    ws.Range("V19:W2000").NumberFormat = CurrencyFormatCode()
-    ws.Range("Y19:Y2000").NumberFormat = "#,##0"
-    ws.Range("Z19:AA2000").NumberFormat = CurrencyFormatCode()
+    ws.Range("U" & REP_FIRST_ROW + 1 & ":U2000").NumberFormat = "#,##0"
+    ws.Range("V" & REP_FIRST_ROW + 1 & ":W2000").NumberFormat = CurrencyFormatCode()
+    ws.Range("Y" & REP_FIRST_ROW + 1 & ":Y2000").NumberFormat = "#,##0"
+    ws.Range("Z" & REP_FIRST_ROW + 1 & ":AA2000").NumberFormat = CurrencyFormatCode()
 End Sub
 
 ' Group the filtered records by one column. SUMIFS cannot be used here: its
@@ -654,18 +708,21 @@ Private Sub FormatReports(ByVal ws As Worksheet)
     ' the results header below, in a warmer tone so the two bands read as
     ' related but distinct - RGB(244, 232, 222) is RGB(222, 232, 244)'s own
     ' red/blue channels swapped, keeping the identical lightness/saturation.
-    ws.Range("A14:O14").Interior.Color = RGB(244, 232, 222)
-    ws.Range("A17:Q17").Interior.Color = RGB(222, 232, 244)
-    ws.Range("A18:A2000").NumberFormat = "dd/mm/yyyy hh:mm"
-    ws.Range("G18:I2000").NumberFormat = "#,##0.00"
-    ws.Range("J18:N2000").NumberFormat = CurrencyFormatCode()
+    ws.Range("A" & REP_MATCH_ROW & ":O" & REP_MATCH_ROW).Interior.Color = RGB(244, 232, 222)
+    ws.Range("A" & REP_HDR_ROW & ":Q" & REP_HDR_ROW).Interior.Color = RGB(222, 232, 244)
+    ws.Range("A" & REP_FIRST_ROW & ":A2000").NumberFormat = "dd/mm/yyyy hh:mm"
+    ws.Range("G" & REP_FIRST_ROW & ":I2000").NumberFormat = "#,##0.00"
+    ws.Range("J" & REP_FIRST_ROW & ":N2000").NumberFormat = CurrencyFormatCode()
     ws.Columns("A:Q").ColumnWidth = 14
     ws.Columns("B:F").ColumnWidth = 22
     ws.Columns("Q").ColumnWidth = 30
     ws.Columns("A").ColumnWidth = ColWidthForPx(180)  ' Date/Time, 180px
+    ' N (Chargeable) is wide enough to hold the Go to record / Clear all
+    ' filters buttons drawn above it (0.10.25, DrawReportsButtons).
+    ws.Columns("N").ColumnWidth = ColWidthForPx(140)
     ws.Columns("T").ColumnWidth = 22
     ws.Columns("X").ColumnWidth = 22
-    ws.Rows(17).Font.Bold = True
+    ws.Rows(REP_HDR_ROW).Font.Bold = True
 End Sub
 
 ' ======================================================== delete visible ===
@@ -693,7 +750,7 @@ Public Sub DeleteVisibleReports()
     If Not RequireActiveFilter(ws, "delete records") Then Exit Sub
 
     On Error Resume Next
-    Set rng = ws.Range("A18").SpillingToRange
+    Set rng = ws.Range("A" & REP_FIRST_ROW).SpillingToRange
     On Error GoTo 0
     If rng Is Nothing Then
         Say "There is nothing to delete.", "The Reports sheet has no results under the current filters."
@@ -707,8 +764,8 @@ Public Sub DeleteVisibleReports()
     End If
     n = rng.Rows.Count
 
-    locCol = ColByHeader(ws, 17, "Location")
-    jobCol = ColByHeader(ws, 17, "Job ID")
+    locCol = ColByHeader(ws, REP_HDR_ROW, "Location")
+    jobCol = ColByHeader(ws, REP_HDR_ROW, "Job ID")
     If locCol = 0 Or jobCol = 0 Then
         Say "The Reports sheet layout looks wrong.", "The Location or Job ID column could not be found.", "Rebuild the report sheets (Refresh Locations), then try again."
         Exit Sub
@@ -796,7 +853,6 @@ Public Sub DeleteVisibleReportsConfirmed(ByVal ws As Worksheet, ByVal rng As Ran
         End If
     Next i
     AppOn
-    ResnapReportsSelection   ' see "edit Paid here"
 
     detail = deleted & " record" & IIf(deleted = 1, "", "s") & " deleted from the Reports page."
     If missing > 0 Then detail = detail & " " & missing & " could not be found (already removed?)."
@@ -809,213 +865,184 @@ Fail:
     ReportError "Delete visible records"
 End Sub
 
-' ======================================================= edit Paid here ===
-' (2026-09-29, direct user request) The Paid cells of the results table take
-' the same Yes/No dropdown as the room sheets, and a choice is written back to
-' the job record the row belongs to.
+' ============================================================ Paid column ===
+' 0.10.25: the Paid cells of the results table are READ-ONLY again, and Paid is
+' changed with the "Toggle Paid" button (column N, row 2), which acts on the
+' selected row or rows. 0.10.7 had made the cells directly editable with a
+' Yes/No dropdown; that is gone, because it cannot be made reliable on Excel
+' for Mac.
 '
-' The catch is that the results are ONE spilled formula. Typing into a cell of
-' a spill range puts a constant there, turns the anchor (A18) into #SPILL!,
-' and so blanks every cell of the table - including the row's Job ID and
-' Location, which are exactly what identify the record. By the time the Change
-' event fires they can no longer be read from the sheet. So:
+' Why: the results are ONE spilled formula, and anything typed into a cell of
+' a spill range puts a constant there and turns the whole table into #SPILL!
+' until VBA removes it again from the Change event. A trace taken on a Mac
+' (Excel 16.113) showed that after a dropdown pick Excel runs NO VBA at all -
+' not Change, not SelectionChange, not Calculate, not an Application.OnTime
+' timer - until the user's next click, minutes later in the trace. So the
+' table stayed blank until then, and no handler could prevent that. A button
+' click does run its macro at once on both platforms, and nothing is ever
+' typed into the spill, so it cannot be blocked.
 '
-'   - RememberReportsPaidCell runs whenever a cell is selected and notes which
-'     job the selected Paid cell shows (and keeps the PREVIOUS selection's
-'     note too, because Excel can move the selection after Enter either
-'     before or after it raises Change - both orders are handled).
-'   - OnReportsPaidEdited, from Workbook_SheetChange, applies the edit to that
-'     job, then clears the typed constant so the spill comes back.
-'
-' Anything it cannot attribute to a real record - a cell below the results, a
-' pasted block, a value that is not Yes/No, a record that changed since it was
-' drawn - is cleared and refused, never left behind: an orphan constant in the
-' results area would block the spill the next time the results grew that far.
-'
-' Two costs, both inherent: the sheet's Undo history is cleared by the write
-' (Ctrl+Z will not undo a Paid change - change it back instead), and only one
-' cell can be edited at a time (Mark all as... is the bulk route).
-'
-' The Paid cells are unlocked and given the dropdown by MakePaidEditable; the
-' rest of the results table stays locked.
-Private Sub MakePaidEditable(ByVal ws As Worksheet)
+' The row is read from the sheet at the moment of the click (the hidden
+' Location and Job ID columns of each selected results row name the room and
+' the record), so there is no selection bookkeeping to go stale.
+Private Sub LockPaidColumn(ByVal ws As Worksheet)
     Dim c As Long, rng As Range
-    c = ColByHeader(ws, 17, "Paid")
+    c = ColByHeader(ws, REP_HDR_ROW, "Paid")
     If c = 0 Then Exit Sub
     Set rng = ws.Range(ws.Cells(RESULTS_FIRST_ROW, c), ws.Cells(RESULTS_LAST_ROW, c))
-    rng.Locked = False
-    With rng.Validation
-        .Delete
-        .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Formula1:="Yes,No"
-        .IgnoreBlank = True
-        .InCellDropdown = True
-        .ShowInput = True
-        .ShowError = True
-        .InputTitle = "Paid"
-        .InputMessage = "Choose Yes or No. This updates the job record itself, in its print room, straight away. Blank means not recorded and counts as unpaid."
-        .ErrorTitle = "Paid"
-        .ErrorMessage = "Choose Yes or No."
-    End With
+    rng.Validation.Delete
+    rng.Locked = True
 End Sub
 
-' Notes which job a selected Paid cell shows. Called on every selection change
-' on Reports, so the early exits come first and cost almost nothing.
-Public Sub RememberReportsPaidCell(ByVal ws As Worksheet, ByVal Target As Range)
-    mPrev = mCur
-    TakeSnapshot ws, Target
-End Sub
+' Sets Paid on the record behind each selected results row to the OPPOSITE of
+' what the row the user is on shows: Yes becomes No, anything else (No or
+' blank) becomes Yes. With several rows selected they all get that one value,
+' after a confirmation. Confirmed = True skips the confirmation (for tests).
+Public Sub TogglePaidSelected(Optional ByVal Confirmed As Boolean = False)
+    Dim ws As Worksheet, rng As Range, ar As Range, sel As Range
+    Dim locCol As Long, jobCol As Long, paidCol As Long
+    Dim firstRow As Long, lastRow As Long, r As Long, i As Long, n As Long
+    Dim seen As clsDict, locs() As String, jobs() As String, shown() As String
+    Dim a As Variant, baseRow As Long, baseShown As String, haveBase As Boolean
+    Dim newPaid As String, label As String
+    Dim los As clsDict, targetWs As Worksheet, lo As ListObject, rowIdx As Long, cel As Range
+    Dim changed As Long, same As Long, missing As Long, detail As String
+    Dim loc As String, only As String, multi As Boolean
 
-' Re-reads the note for the active cell without demoting the current one - for
-' after something changed the results underneath a selection that has not
-' moved (an edit, Mark all as..., Delete visible). The previous note is
-' dropped: it described the results as they were.
-Public Sub ResnapReportsSelection()
-    Dim ws As Worksheet
-    Dim blank As PaidSnap
-    On Error Resume Next
     Set ws = ReportsSheet()
-    If ws Is Nothing Then Exit Sub
-    mPrev = blank
-    If ActiveSheet Is ws Then TakeSnapshot ws, ActiveCell
+    If ws Is Nothing Then
+        Say "The Reports sheet could not be found.", "Run Refresh Locations first."
+        Exit Sub
+    End If
+
+    On Error Resume Next
+    Set rng = ws.Range("A" & REP_FIRST_ROW).SpillingToRange
     On Error GoTo 0
-End Sub
-
-Private Sub TakeSnapshot(ByVal ws As Worksheet, ByVal Target As Range)
-    Dim blank As PaidSnap, a As Variant, locCol As Long, jobCol As Long
-    mCur = blank
-    If Target Is Nothing Then Exit Sub
-    If Target.Cells.Count <> 1 Then Exit Sub
-    If Target.Row < RESULTS_FIRST_ROW Or Target.Row > RESULTS_LAST_ROW Then Exit Sub
-    If StrComp(CStr(ws.Cells(17, Target.Column).Value), "Paid", vbTextCompare) <> 0 Then Exit Sub
-
-    ' A real record on this row: Date/Time, column A, is a number. (Empty when
-    ' the row is past the results, text for FILTER's "no jobs match" message,
-    ' an error while a typed constant is blocking the spill.)
-    a = ws.Cells(Target.Row, 1).Value2
-    If IsError(a) Then Exit Sub
-    If IsEmpty(a) Then Exit Sub
-    If Not IsNumeric(a) Then Exit Sub
-
-    locCol = ColByHeader(ws, 17, "Location")
-    jobCol = ColByHeader(ws, 17, "Job ID")
-    If locCol = 0 Or jobCol = 0 Then Exit Sub
-    If IsError(ws.Cells(Target.Row, jobCol).Value2) Then Exit Sub
-
-    mCur.Job = Trim$(CStr(ws.Cells(Target.Row, jobCol).Value2))
-    If Len(mCur.Job) = 0 Then Exit Sub
-    mCur.Loc = CStr(ws.Cells(Target.Row, locCol).Value2)
-    If IsError(Target.Value2) Then
-        mCur.Paid = ""
-    Else
-        mCur.Paid = Trim$(CStr(Target.Value2))
+    If rng Is Nothing Then
+        Say "Select a record first.", "The Reports sheet has no results under the current filters."
+        Exit Sub
     End If
-    mCur.Addr = Target.Address
-End Sub
+    If IsError(rng.Cells(1, 1).Value2) Then
+        Say "Select a record first.", "The Reports sheet has no results under the current filters."
+        Exit Sub
+    End If
+    If Not IsNumeric(rng.Cells(1, 1).Value2) Then
+        Say "There is nothing to change.", CStr(rng.Cells(1, 1).Value)
+        Exit Sub
+    End If
 
-' Workbook_SheetChange calls this for EVERY edit on Reports, so it returns at
-' once unless the edit touches the Paid column of the results table.
-Public Sub OnReportsPaidEdited(ByVal ws As Worksheet, ByVal Target As Range)
-    Dim c As Long, area As Range, hit As Range, v As Variant
-    Dim snap As PaidSnap, found As Boolean
-    Dim newV As String, oldV As String
-    Dim targetWs As Worksheet, lo As ListObject, rowIdx As Long, cel As Range
+    locCol = ColByHeader(ws, REP_HDR_ROW, "Location")
+    jobCol = ColByHeader(ws, REP_HDR_ROW, "Job ID")
+    paidCol = ColByHeader(ws, REP_HDR_ROW, "Paid")
+    If locCol = 0 Or jobCol = 0 Or paidCol = 0 Then
+        Say "The Reports sheet layout looks wrong.", "The Location, Paid or Job ID column could not be found.", "Rebuild the report sheets (Refresh Locations), then try again."
+        Exit Sub
+    End If
 
-    c = ColByHeader(ws, 17, "Paid")
-    If c = 0 Then Exit Sub
-    Set area = ws.Range(ws.Cells(RESULTS_FIRST_ROW, c), ws.Cells(RESULTS_LAST_ROW, c))
-    Set hit = Intersect(Target, area)
-    If hit Is Nothing Then Exit Sub
+    If TypeName(Selection) <> "Range" Then
+        Say "Select a record first.", "Click the Paid cell (or any cell) of the row you want to change, then press Toggle Paid."
+        Exit Sub
+    End If
+    Set sel = Selection
+    firstRow = rng.Row
+    lastRow = rng.Row + rng.Rows.Count - 1
 
-    ' From here the edit is ours, and however it ends the typed constant has
-    ' to go so the spill can come back.
+    ReDim locs(1 To 201)
+    ReDim jobs(1 To 201)
+    ReDim shown(1 To 201)
+    Set seen = New clsDict
+    For Each ar In sel.Areas
+        For r = ar.Row To ar.Row + ar.Rows.Count - 1
+            If r >= firstRow And r <= lastRow Then
+                If Not seen.Exists(CStr(r)) Then
+                    seen.Add CStr(r), 1
+                    If Not IsError(ws.Cells(r, jobCol).Value2) And Not IsError(ws.Cells(r, locCol).Value2) Then
+                        If Len(Trim$(CStr(ws.Cells(r, jobCol).Value2))) > 0 Then
+                            n = n + 1
+                            If n > 200 Then
+                                Say "Too many rows selected.", "Select up to 200 records at a time.", "To mark everything a filter shows, use Mark all as..."
+                                Exit Sub
+                            End If
+                            locs(n) = CStr(ws.Cells(r, locCol).Value2)
+                            jobs(n) = Trim$(CStr(ws.Cells(r, jobCol).Value2))
+                            If IsError(ws.Cells(r, paidCol).Value2) Then
+                                shown(n) = ""
+                            Else
+                                shown(n) = Trim$(CStr(ws.Cells(r, paidCol).Value2))
+                            End If
+                            ' The row the cursor is on decides the new value.
+                            If r = ActiveCell.Row Then
+                                baseShown = shown(n)
+                                haveBase = True
+                            End If
+                        End If
+                    End If
+                End If
+            End If
+        Next r
+    Next ar
+
+    If n = 0 Then
+        Say "Select a record first.", "Click the Paid cell (or any cell) of a row that shows a print job, then press Toggle Paid."
+        Exit Sub
+    End If
+    If Not haveBase Then baseShown = shown(1)
+
+    If StrComp(baseShown, "Yes", vbTextCompare) = 0 Then newPaid = "No" Else newPaid = "Yes"
+    label = IIf(newPaid = "Yes", "Paid", "Unpaid")
+    multi = (n > 1)
+
+    If multi And Not Confirmed Then
+        If Not Ask("Mark " & n & " selected records as " & label & "?", "Toggle Paid") Then Exit Sub
+    End If
+
     On Error GoTo Fail
-
-    If Target.Cells.Count > 1 Then
-        RestoreResults ws, hit
-        Say "Change one Paid cell at a time.", "Pasting or filling several cells is not supported here.", "To mark many records at once, set a filter and use Mark all as..."
-        Exit Sub
-    End If
-
-    If StrComp(mCur.Addr, hit.Address, vbBinaryCompare) = 0 And Len(mCur.Job) > 0 Then
-        snap = mCur
-        found = True
-    ElseIf StrComp(mPrev.Addr, hit.Address, vbBinaryCompare) = 0 And Len(mPrev.Job) > 0 Then
-        snap = mPrev
-        found = True
-    End If
-    If Not found Then
-        RestoreResults ws, hit
-        Say "That cell is not a job record, so nothing was changed.", "Only the Paid cell of a row that shows a record can be edited."
-        Exit Sub
-    End If
-
-    v = hit.Value2
-    If IsError(v) Then newV = "" Else newV = Trim$(CStr(v))
-    If StrComp(newV, "Yes", vbTextCompare) = 0 Then
-        newV = "Yes"
-    ElseIf StrComp(newV, "No", vbTextCompare) = 0 Then
-        newV = "No"
-    Else
-        RestoreResults ws, hit
-        Say "Paid must be Yes or No.", "Nothing was changed.", "Pick Yes or No from the dropdown."
-        Exit Sub
-    End If
-
-    ' Same as the row already showed: nothing to write, just put the spill back.
-    oldV = snap.Paid
-    If StrComp(newV, oldV, vbTextCompare) = 0 Then
-        RestoreResults ws, hit
-        Exit Sub
-    End If
-
-    Set targetWs = SheetForCode(snap.Loc)
-    If Not targetWs Is Nothing Then Set lo = JobsTable(targetWs)
-    If Not lo Is Nothing Then rowIdx = FindReportRow(lo, snap.Job)
-    If rowIdx = 0 Then
-        RestoreResults ws, hit
-        Say "That record could not be found.", "It may have been removed or moved since the report was drawn. Nothing was changed."
-        Exit Sub
-    End If
-
-    ' The guard against a stale note: the record's own Paid value must still be
-    ' what this row showed when it was selected.
-    Set cel = CellIn(lo, rowIdx, "Paid")
-    If StrComp(Trim$(CStr(cel.Value)), oldV, vbTextCompare) <> 0 Then
-        RestoreResults ws, hit
-        Say "That record has changed since it was drawn.", "Its Paid value is no longer what this row showed, so nothing was changed.", "Look at the row again, then retry."
-        Exit Sub
-    End If
-
     AppOff
-    UnlockSheet targetWs
-    cel.Value = newV
-    RelockSheet targetWs
-    LogAudit "Paid edited (Reports)", snap.Loc, snap.Job & ": " & IIf(Len(oldV) = 0, "(blank)", oldV) & " -> " & newV
-    RestoreResults ws, hit
+    Set los = New clsDict
+    For i = 1 To n
+        loc = locs(i)
+        rowIdx = 0
+        Set lo = Nothing
+        Set targetWs = SheetForCode(loc)
+        If Not targetWs Is Nothing Then Set lo = JobsTable(targetWs)
+        If Not lo Is Nothing Then rowIdx = FindReportRow(lo, jobs(i))
+        If rowIdx = 0 Then
+            missing = missing + 1
+        Else
+            Set cel = CellIn(lo, rowIdx, "Paid")
+            If StrComp(Trim$(CStr(cel.Value)), newPaid, vbTextCompare) = 0 Then
+                same = same + 1
+            Else
+                If Not los.Exists(loc) Then
+                    UnlockSheet targetWs
+                    los.Add loc, lo
+                End If
+                cel.Value = newPaid
+                changed = changed + 1
+                only = loc & " " & jobs(i)
+            End If
+        End If
+    Next i
+    RelockRooms los
     AppOn
-    ResnapReportsSelection
+
+    If changed > 0 Then
+        If multi Then
+            LogAudit "Paid edited (Reports)", "(multiple rooms)", changed & " selected record(s) marked " & label
+        Else
+            LogAudit "Paid edited (Reports)", locs(1), jobs(1) & ": " & IIf(Len(baseShown) = 0, "(blank)", baseShown) & " -> " & newPaid
+        End If
+    End If
+    If missing > 0 Then
+        Say missing & " record" & IIf(missing = 1, "", "s") & " could not be found.", "They may have been removed or moved since the report was drawn. Nothing was changed for them."
+    End If
     Exit Sub
 Fail:
-    ' Best effort to leave no constant behind, then report.
     On Error Resume Next
-    If Not targetWs Is Nothing Then RelockSheet targetWs
-    UnlockSheet ws
-    hit.ClearContents
-    RelockSheet ws
+    RelockRooms los
     On Error GoTo 0
     AppReset
-    ReportError "Edit Paid"
-End Sub
-
-' Removes the constant a Paid edit left in the results area, so the spilled
-' formula can fill it again, and re-notes the selection afterwards.
-Private Sub RestoreResults(ByVal ws As Worksheet, ByVal rng As Range)
-    AppOff
-    UnlockSheet ws
-    rng.ClearContents
-    RelockSheet ws
-    AppOn
-    ResnapReportsSelection
+    ReportError "Toggle Paid"
 End Sub
 
 ' ====================================================== filter safeguard ===
@@ -1034,18 +1061,22 @@ End Sub
 ' fails, so text that will not coerce does not count here either. Sort by and
 ' Sort direction are not filters and are not looked at.
 '
-' Cell addresses match Criteria: B4 name, B5 number, B7/B8 dates, F4 room,
-' F5 technician, F7 printer, F8 paper stock, F9 paper type, B10 paid. If a filter box
-' moves, change it here AND there.
+' Cell addresses match Criteria: B4 name, B5 number, B7/B8 dates, B10/B11
+' min/max cost, B13 paid, F4 room, F5 technician, F7 printer, F8 paper stock,
+' F9 paper type, F11 has notes. If a filter box moves, change the lists
+' below AND Criteria - ClearReportFilters uses the same lists.
+'
+' The cost boxes count only when they hold a number (Criteria ignores anything
+' else), exactly as the date boxes count only when they coerce to a date.
 Public Function HasActiveFilter(ByVal ws As Worksheet) As Boolean
     Dim a As Variant
-    For Each a In Array("B4", "B5", "B10", "F4", "F5", "F7", "F8", "F9")
+    For Each a In TextFilterCells()
         If FilterBoxHasText(ws.Range(CStr(a))) Then
             HasActiveFilter = True
             Exit Function
         End If
     Next a
-    For Each a In Array("B7", "B8")
+    For Each a In DateFilterCells()
         If FilterBoxHasText(ws.Range(CStr(a))) Then
             If Not CBool(ws.Evaluate("ISERROR(" & CStr(a) & "*1)")) Then
                 HasActiveFilter = True
@@ -1053,6 +1084,26 @@ Public Function HasActiveFilter(ByVal ws As Worksheet) As Boolean
             End If
         End If
     Next a
+    For Each a In CostFilterCells()
+        If CBool(ws.Evaluate("ISNUMBER(" & CStr(a) & ")")) Then
+            HasActiveFilter = True
+            Exit Function
+        End If
+    Next a
+End Function
+
+' The filter boxes, by kind. Sort by and Sort direction are not filters and
+' are in none of them.
+Private Function TextFilterCells() As Variant
+    TextFilterCells = Array("B4", "B5", "B13", "F4", "F5", "F7", "F8", "F9", "F11")
+End Function
+
+Private Function DateFilterCells() As Variant
+    DateFilterCells = Array("B7", "B8")
+End Function
+
+Private Function CostFilterCells() As Variant
+    CostFilterCells = Array("B10", "B11")
 End Function
 
 Private Function FilterBoxHasText(ByVal r As Range) As Boolean
@@ -1107,7 +1158,7 @@ Public Sub MarkVisibleReports(ByVal NewPaid As String)
     If Not RequireActiveFilter(ws, "mark records as " & label) Then Exit Sub
 
     On Error Resume Next
-    Set rng = ws.Range("A18").SpillingToRange
+    Set rng = ws.Range("A" & REP_FIRST_ROW).SpillingToRange
     On Error GoTo 0
     If rng Is Nothing Then
         Say "There is nothing to mark.", "The Reports sheet has no results under the current filters."
@@ -1121,9 +1172,9 @@ Public Sub MarkVisibleReports(ByVal NewPaid As String)
     End If
     n = rng.Rows.Count
 
-    locCol = ColByHeader(ws, 17, "Location")
-    jobCol = ColByHeader(ws, 17, "Job ID")
-    paidCol = ColByHeader(ws, 17, "Paid")
+    locCol = ColByHeader(ws, REP_HDR_ROW, "Location")
+    jobCol = ColByHeader(ws, REP_HDR_ROW, "Job ID")
+    paidCol = ColByHeader(ws, REP_HDR_ROW, "Paid")
     If locCol = 0 Or jobCol = 0 Or paidCol = 0 Then
         Say "The Reports sheet layout looks wrong.", "The Location, Paid or Job ID column could not be found.", "Rebuild the report sheets (Refresh Locations), then try again."
         Exit Sub
@@ -1249,9 +1300,6 @@ Public Sub MarkVisibleReportsConfirmed(ByVal ws As Worksheet, ByVal rng As Range
 
     RelockRooms los
     AppOn
-    ' The results have just changed under whatever cell is selected - see
-    ' "edit Paid here".
-    ResnapReportsSelection
 
     detail = changed & " record" & IIf(changed = 1, "", "s") & " marked " & label & " from the Reports page."
     If unchanged > 0 Then detail = detail & " " & unchanged & " already " & IIf(unchanged = 1, "was", "were") & " " & label & "."
@@ -1313,7 +1361,7 @@ Private Sub ApplyReportsMinimumColumns(ByVal ws As Worksheet, ByVal hdrs As Vari
 
     UnlockSheet ws
     For i = LBound(hdrs) To UBound(hdrs)
-        c = ColByHeader(ws, 17, CStr(hdrs(i)))
+        c = ColByHeader(ws, REP_HDR_ROW, CStr(hdrs(i)))
         If c > 0 Then
             keepIt = False
             For j = LBound(keep) To UBound(keep)
@@ -1326,6 +1374,242 @@ Private Sub ApplyReportsMinimumColumns(ByVal ws As Worksheet, ByVal hdrs As Vari
         End If
     Next i
     RelockSheet ws
+End Sub
+
+' ====================================================== filters, go to ===
+' "Clear all filters" (0.10.25, direct user request): empties every filter box
+' and nothing else. Sort by and Sort direction are not filters and are left
+' as they are, as the Mark all / Delete visible safeguard already treats them.
+' ClearContents keeps each box's dropdown and formatting. Cleared with events
+' off: a change to a filter box needs no handling, and the results simply
+' recalculate when calculation comes back on.
+Public Sub ClearReportFilters(ByVal ws As Worksheet)
+    Dim a As Variant
+
+    On Error GoTo Fail
+    AppOff
+    For Each a In TextFilterCells()
+        ws.Range(CStr(a)).ClearContents
+    Next a
+    For Each a In DateFilterCells()
+        ws.Range(CStr(a)).ClearContents
+    Next a
+    For Each a In CostFilterCells()
+        ws.Range(CStr(a)).ClearContents
+    Next a
+    AppOn
+    Exit Sub
+Fail:
+    AppReset
+    ReportError "Clear all filters"
+End Sub
+
+' "Go to record" (0.10.25, direct user request): takes the selected row of the
+' results to the record itself - its print room's sheet, with the whole row of
+' the job table selected and scrolled into view if it is not already. The row
+' is found the way Delete visible and Mark all find theirs: the hidden
+' Location and Job ID columns of the results row name the sheet and the record.
+Public Sub GoToReportRecord()
+    Dim ws As Worksheet, r As Long, a As Variant
+    Dim locCol As Long, jobCol As Long, loc As String, job As String
+    Dim target As Worksheet, lo As ListObject, idx As Long, rowRng As Range
+
+    Set ws = ReportsSheet()
+    If ws Is Nothing Then
+        Say "The Reports sheet could not be found.", "Run Refresh Locations first."
+        Exit Sub
+    End If
+
+    r = ActiveCell.Row
+    If r < RESULTS_FIRST_ROW Or r > RESULTS_LAST_ROW Then
+        Say "Select a record first.", "Click any cell in the row of the record you want to see, then press Go to record."
+        Exit Sub
+    End If
+
+    ' A real record on this row: Date/Time, column A, is a number. (Empty past
+    ' the results, text for FILTER's "no jobs match" message, an error while a
+    ' typed constant is blocking the spill.)
+    a = ws.Cells(r, 1).Value2
+    If IsError(a) Or IsEmpty(a) Then
+        Say "That row is not a record.", "Select a row that shows a print job, then press Go to record."
+        Exit Sub
+    End If
+    If Not IsNumeric(a) Then
+        Say "That row is not a record.", CStr(a)
+        Exit Sub
+    End If
+
+    locCol = ColByHeader(ws, REP_HDR_ROW, "Location")
+    jobCol = ColByHeader(ws, REP_HDR_ROW, "Job ID")
+    If locCol = 0 Or jobCol = 0 Then
+        Say "The Reports sheet layout looks wrong.", "The Location or Job ID column could not be found.", "Rebuild the report sheets (Refresh Locations), then try again."
+        Exit Sub
+    End If
+    If IsError(ws.Cells(r, locCol).Value2) Or IsError(ws.Cells(r, jobCol).Value2) Then
+        Say "That row is not a record.", "Select a row that shows a print job, then press Go to record."
+        Exit Sub
+    End If
+    loc = CStr(ws.Cells(r, locCol).Value2)
+    job = Trim$(CStr(ws.Cells(r, jobCol).Value2))
+
+    Set target = SheetForCode(loc)
+    If target Is Nothing Then
+        Say "That print room could not be found.", "The room '" & loc & "' is not in this workbook any more.", "Run Refresh Locations, then try again."
+        Exit Sub
+    End If
+    Set lo = JobsTable(target)
+    If Not lo Is Nothing Then idx = FindReportRow(lo, job)
+    If idx = 0 Then
+        Say "That record could not be found.", "It may have been removed from " & LocValue(target, "LOC_Name") & " since the report was drawn.", "Look at the row again, then retry."
+        Exit Sub
+    End If
+
+    On Error GoTo Fail
+    If target.Visible <> xlSheetVisible Then target.Visible = xlSheetVisible
+    target.Activate
+    Set rowRng = lo.ListRows(idx).Range
+    ScrollRowIntoView rowRng.Cells(1, 1)
+    rowRng.Select
+    rowRng.Cells(1, 1).Activate
+    Exit Sub
+Fail:
+    ReportError "Go to record"
+End Sub
+
+' Scrolls the window only when the cell is not already on screen, putting it a
+' few rows down from the top so the rows above it are still partly in view.
+Private Sub ScrollRowIntoView(ByVal cel As Range)
+    Dim r As Long
+    On Error Resume Next
+    If Intersect(ActiveWindow.VisibleRange, cel) Is Nothing Then
+        r = cel.Row - 3
+        If r < 1 Then r = 1
+        ActiveWindow.ScrollColumn = 1
+        ActiveWindow.ScrollRow = r
+    End If
+    On Error GoTo 0
+End Sub
+
+' ===================================================== header buttons ===
+' The Reports header buttons (0.10.25: Go to record and Clear all filters
+' added, and all of them kept in place as columns change - the same job
+' modInit.RepositionLocationButtons does for a print room).
+'
+' Three stacks, left to right, each anchored on a preferred column:
+'   N  Go to record (row 1), Toggle Paid (row 2), Clear all filters (row 3)
+'   O  Mark all as... label (row 1), Paid (row 2), Unpaid (row 3)
+'   T  Export report (row 1), Delete visible records (row 3)
+' The buttons are free-floating, so they do not follow column changes by
+' themselves, and Excel raises no event for a hide or a width change. So
+' RepositionReportsButtons re-lays them out from the columns as they are now:
+' each stack goes on its preferred column or, if that is hidden, the next
+' visible one to its right, and never closer than a small gap to the stack
+' before it. It runs after the build, on every Reports activation and on
+' every selection change there (ThisWorkbook), and only touches a shape that
+' is actually out of place. The Mark label is cell text, so it is moved by
+' rewriting the cell.
+'
+' Every Reports button name must stay within 31 characters and hold its macro
+' ("pcb_<macro>_<row>_<col>"): modRegistry.HealButtons falls back on the name
+' to recover a macro. Keep the macro names short - that is what the shape
+' name tag "DelVis" used to paper over, and what broke the Delete button once
+' the file was renamed.
+
+Public Sub DrawReportsButtons(ByVal ws As Worksheet)
+    DrawOne ws, 1, REP_FILTER_COL, "Go to record", "btnGoToRecord", REP_FILTER_W
+    DrawOne ws, 2, REP_FILTER_COL, "Toggle Paid", "btnTogglePaid", REP_FILTER_W
+    DrawOne ws, 3, REP_FILTER_COL, "Clear all filters", "btnClearFilters", REP_FILTER_W
+    DrawOne ws, 2, REP_MARK_COL, "Paid", "btnMarkPaid", REP_MARK_W
+    DrawOne ws, 3, REP_MARK_COL, "Unpaid", "btnMarkUnpaid", REP_MARK_W
+    DrawOne ws, 1, REP_EXPORT_COL, "Export report...", "btnExportReport", REP_EXPORT_W
+    DrawOne ws, 3, REP_EXPORT_COL, "Delete visible records...", "btnDeleteVisible", REP_EXPORT_W
+    RepositionReportsButtons ws
+End Sub
+
+Public Sub RepositionReportsButtons(ByVal ws As Worksheet)
+    Dim stackLeft(0 To 2) As Double, prefCol As Variant, stackW As Variant
+    Dim i As Long, c As Long, minLeft As Double, markCol As Long
+
+    prefCol = Array(REP_FILTER_COL, REP_MARK_COL, REP_EXPORT_COL)
+    stackW = Array(REP_FILTER_W, REP_MARK_W, REP_EXPORT_W)
+    minLeft = 0
+    For i = 0 To 2
+        c = VisibleColumnFrom(ws, CLng(prefCol(i)), minLeft)
+        If c = 0 Then Exit Sub
+        stackLeft(i) = ws.Cells(1, c).Left
+        minLeft = stackLeft(i) + CDbl(stackW(i)) + REP_BTN_GAP
+        If i = 1 Then markCol = c
+    Next i
+
+    PlaceReportButton ws, "btnGoToRecord", stackLeft(0), ws.Rows(1).Top, REP_FILTER_W, 22
+    PlaceReportButton ws, "btnTogglePaid", stackLeft(0), ws.Rows(2).Top + 0.5, REP_FILTER_W, ws.Rows(2).Height - 1
+    PlaceReportButton ws, "btnClearFilters", stackLeft(0), ws.Rows(3).Top, REP_FILTER_W, 22
+    PlaceReportButton ws, "btnMarkPaid", stackLeft(1), ws.Rows(2).Top + 0.5, REP_MARK_W, ws.Rows(2).Height - 1
+    PlaceReportButton ws, "btnMarkUnpaid", stackLeft(1), ws.Rows(3).Top + 0.5, REP_MARK_W, ws.Rows(3).Height - 1
+    PlaceReportButton ws, "btnExportReport", stackLeft(2), ws.Rows(1).Top, REP_EXPORT_W, 22
+    PlaceReportButton ws, "btnDeleteVisible", stackLeft(2), ws.Rows(3).Top, REP_EXPORT_W, 22
+    SetMarkLabel ws, markCol
+End Sub
+
+' The first column from StartCol on that is not hidden and whose left edge is
+' at or past MinLeft. 0 if there is none within reach.
+Private Function VisibleColumnFrom(ByVal ws As Worksheet, ByVal StartCol As Long, ByVal MinLeft As Double) As Long
+    Dim c As Long
+    For c = StartCol To StartCol + 40
+        If Not ws.Columns(c).Hidden Then
+            If ws.Cells(1, c).Left >= MinLeft - 0.5 Then
+                VisibleColumnFrom = c
+                Exit Function
+            End If
+        End If
+    Next c
+End Function
+
+Private Function ReportButton(ByVal ws As Worksheet, ByVal Macro As String) As Button
+    Dim i As Long, prefix As String
+    prefix = REP_BTN_TAG & Macro & "_"
+    For i = 1 To ws.Buttons.Count
+        If Left$(ws.Buttons(i).Name, Len(prefix)) = prefix Then
+            Set ReportButton = ws.Buttons(i)
+            Exit Function
+        End If
+    Next i
+End Function
+
+Private Sub PlaceReportButton(ByVal ws As Worksheet, ByVal Macro As String, ByVal L As Double, _
+                              ByVal T As Double, ByVal W As Double, ByVal H As Double)
+    Dim b As Button
+    Set b = ReportButton(ws, Macro)
+    If b Is Nothing Then Exit Sub
+    If b.Placement <> xlFreeFloating Then b.Placement = xlFreeFloating
+    If Abs(b.Left - L) > 0.5 Then b.Left = L
+    If Abs(b.Top - T) > 0.5 Then b.Top = T
+    If Abs(b.Width - W) > 0.5 Then b.Width = W
+    If Abs(b.Height - H) > 0.5 Then b.Height = H
+End Sub
+
+' Keeps the "Mark all as..." label on the same column as its buttons. Rewrites
+' the cell only when it is not already there, with events off.
+Private Sub SetMarkLabel(ByVal ws As Worksheet, ByVal Col As Long)
+    Dim c As Long, found As Long, ev As Boolean
+    For c = REP_FILTER_COL To 40
+        If StrComp(CStr(ws.Cells(1, c).Value2), REP_MARK_LABEL, vbBinaryCompare) = 0 Then
+            found = c
+            Exit For
+        End If
+    Next c
+    If found = Col Then Exit Sub
+
+    ev = Application.EnableEvents
+    Application.EnableEvents = False
+    UnlockSheet ws
+    If found > 0 Then ws.Cells(1, found).ClearContents
+    With ws.Cells(1, Col)
+        .Value = REP_MARK_LABEL
+        .Font.Bold = True
+    End With
+    RelockSheet ws
+    Application.EnableEvents = ev
 End Sub
 
 ' ============================================================== helpers ===
@@ -1380,10 +1664,10 @@ End Sub
 ' call site's 2026-09-22 comment for why (a shared-column collision with
 ' the results table's hideable columns, §8.3).
 Private Sub MatchTotal(ByVal ws As Worksheet, ByVal ColLetter As String, ByVal Label As String, ByVal f As String)
-    ws.Range(ColLetter & "14").Value = Label
-    ws.Range(ColLetter & "14").Font.Bold = True
-    ws.Range(ColLetter & "15").Formula2 = f
-    ws.Range(ColLetter & "15").Font.Bold = True
+    ws.Range(ColLetter & REP_MATCH_ROW).Value = Label
+    ws.Range(ColLetter & REP_MATCH_ROW).Font.Bold = True
+    ws.Range(ColLetter & REP_MATCH_VAL_ROW).Formula2 = f
+    ws.Range(ColLetter & REP_MATCH_VAL_ROW).Font.Bold = True
 End Sub
 
 ' Label + input formatting for one filter box. Used to also write a static
@@ -1430,7 +1714,7 @@ Public Function FilteredSig(ByVal ws As Worksheet) As String
     Dim rng As Range, n As Long, cellCount As Double, chg As Double, last As Double, bad As String
 
     On Error Resume Next
-    Set rng = ws.Range("A18").SpillingToRange
+    Set rng = ws.Range("A" & REP_FIRST_ROW).SpillingToRange
     On Error GoTo 0
     If rng Is Nothing Then
         FilteredSig = "empty"
@@ -1536,6 +1820,23 @@ Private Sub AddDateValidation(ByVal target As Range, ByVal Title As String, ByVa
         .InputMessage = Msg
         .ErrorTitle = Title
         .ErrorMessage = "Enter a valid date on or after 1 January 2000, or leave blank."
+    End With
+End Sub
+
+' A cost box (0.10.25): a number of 0 or more, or blank. Like the date rule it
+' only fires on manual entry, and Criteria ignores anything that is not a
+' number, so a value pasted past it simply does not filter.
+Private Sub AddCostValidation(ByVal target As Range, ByVal Title As String, ByVal Msg As String)
+    With target.Validation
+        .Delete
+        .Add Type:=xlValidateDecimal, AlertStyle:=xlValidAlertStop, Operator:=xlGreaterEqual, Formula1:="0"
+        .IgnoreBlank = True
+        .ShowInput = True
+        .ShowError = True
+        .InputTitle = Title
+        .InputMessage = Msg
+        .ErrorTitle = Title
+        .ErrorMessage = "Enter an amount of 0 or more, or leave blank."
     End With
 End Sub
 
