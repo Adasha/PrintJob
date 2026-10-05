@@ -209,7 +209,7 @@ Fail:
     ReportError "Export report"
 End Sub
 
-Public Sub btnDeleteVisibleReports()
+Public Sub btnDeleteVisible()
     On Error GoTo Fail
     If Not RequireReports Then Exit Sub
     DeleteVisibleReports
@@ -221,6 +221,38 @@ End Sub
 ' "Mark all as..." Paid / Unpaid on the Reports sheet (2026-09-29). Both act
 ' on whatever is currently shown and refuse to run with no filter set -
 ' modReports.MarkVisibleReports.
+' Go to record (0.10.25): jumps from the selected Reports row to that job's
+' row on its location sheet - modReports.GoToReportRecord.
+Public Sub btnGoToRecord()
+    On Error GoTo Fail
+    If Not RequireReports Then Exit Sub
+    GoToReportRecord
+    Exit Sub
+Fail:
+    ReportError "Go to record"
+End Sub
+
+' Clear all filters (0.10.25) - modReports.ClearReportFilters.
+' Toggle Paid (0.10.25) - modReports.TogglePaidSelected: flips Paid on the
+' selected results row(s). Replaces editing the Paid cells directly.
+Public Sub btnTogglePaid()
+    On Error GoTo Fail
+    If Not RequireReports Then Exit Sub
+    TogglePaidSelected
+    Exit Sub
+Fail:
+    ReportError "Toggle Paid"
+End Sub
+
+Public Sub btnClearFilters()
+    On Error GoTo Fail
+    If Not RequireReports Then Exit Sub
+    ClearReportFilters ActiveSheet
+    Exit Sub
+Fail:
+    ReportError "Clear all filters"
+End Sub
+
 Public Sub btnMarkPaid()
     On Error GoTo Fail
     If Not RequireReports Then Exit Sub

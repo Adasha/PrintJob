@@ -40,14 +40,6 @@ Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)
     On Error GoTo Fail
     If Not TypeOf Sh Is Worksheet Then Exit Sub
 
-    ' Reports: an edit to a results row's Paid cell is written back to its job
-    ' record (2026-09-29) - modReports.OnReportsPaidEdited returns at once for
-    ' any other edit on the sheet (the filter boxes, say).
-    If StrComp(Sh.Name, "Reports", vbTextCompare) = 0 Then
-        OnReportsPaidEdited Sh, Target
-        Exit Sub
-    End If
-
     ' Any edit to configuration invalidates the cached catalogue.
     Select Case Sh.Name
         Case "Papers", "Printers", "Print Technicians", "Settings"
@@ -101,10 +93,7 @@ Private Sub Workbook_SheetActivate(ByVal Sh As Object)
     If TypeOf Sh Is Worksheet Then
         If Sh.Name = "Reports" Then
             RefreshReportFilterLists Sh
-            ' The results may have changed while this sheet was not showing;
-            ' re-note which job the selected Paid cell shows (modReports,
-            ' "edit Paid here").
-            RememberReportsPaidCell Sh, ActiveCell
+            RepositionReportsButtons Sh
         End If
         ' Catches a location sheet's buttons drifting from a manually
         ' collapsed/expanded cost-columns group left over from the last visit
@@ -141,10 +130,9 @@ End Sub
 Private Sub Workbook_SheetSelectionChange(ByVal Sh As Object, ByVal Target As Range)
     On Error GoTo Fail
     If Not TypeOf Sh Is Worksheet Then Exit Sub
-    ' Reports: note which job a selected Paid cell shows, before any edit
-    ' blanks the row (modReports, "edit Paid here").
+    ' Reports: keep the header buttons where their columns are now.
     If StrComp(Sh.Name, "Reports", vbTextCompare) = 0 Then
-        RememberReportsPaidCell Sh, Target
+        RepositionReportsButtons Sh
         Exit Sub
     End If
     If Not IsLocation(Sh) Then Exit Sub

@@ -3,6 +3,48 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.10.25 - Reports: Go to record, Clear all filters, Has notes and cost filters; fixes from the Mac test notes.
+  - Reports header gains Go to record (selected row to that record's own sheet
+    and row, both rooms) and Clear all filters (empties every filter box; Sort
+    by is left alone). All Reports header buttons are now drawn and kept in
+    place by modReports.DrawReportsButtons / RepositionReportsButtons, like the
+    location sheets' buttons: they move off a hidden column and the "Mark all
+    as..." label follows its buttons.
+  - New filters: Has notes (Yes/No, after Paper type) and Min/Max cost (on
+    Chargeable cost, inclusive, above Paid). The filter block grows by three
+    rows: Paid is B13, Sort by row 15, Matching rows 17-18, results header row
+    20 and first row 21 (modReports.REP_*; the freeze row follows). A blank
+    Notes cell no longer shows "0" in the results.
+  - Fix: Delete visible records failed with 'Cannot run the macro ...DelVis'.
+    The button's shape name used a truncated tag, and HealButtons rebuilt the
+    macro from that name after a file rename. The macro is now btnDeleteVisible
+    (no tag), and HealButtons/FixButtons trust the button's own OnAction first
+    and use the name only as a fallback.
+  - Change: the Reports Paid cells are read-only again (no dropdown, locked),
+    and Paid is changed with a new Toggle Paid button (column N, row 2) that
+    acts on the selected row(s): the record behind each selected row gets the
+    opposite of what the row you are on shows (Yes -> No, otherwise Yes).
+    Several rows selected: all take that value, after a confirmation (up to
+    200). Audited as "Paid edited (Reports)". Reason: editing in place put a
+    constant inside the spilled results (#SPILL!) and relied on the Change
+    event to remove it, and a trace from Excel for Mac 16.113 showed that
+    after a dropdown pick Mac Excel runs no VBA at all (Change,
+    SelectionChange, Calculate, Application.OnTime) until the user's next
+    click, so the table stayed blank for minutes and no handler could help.
+    Removed with it: RememberReportsPaidCell, HealReportsResults,
+    OnReportsPaidEdited, RestoreResults, ResnapReportsSelection and the
+    temporary modTrace diagnostic. Mark all as... is unchanged.  - Importing from an older workbook on a Mac now warns that Excel may ask about
+    macros and to choose Disable. Whether Mac Excel honours the automation
+    security setting is unverified, so the prompt may still appear.
+  - Column widths: PrintCosts.xlsx is the source of truth; ApplyJobColumnWidths
+    removed. Notes widened (300px); Print Width, Sheet size, both Disregard
+    columns, Status, Paper Cost, Disregarded and Chargeable Cost narrowed.
+  - Tests: test-phase8.ps1 renamed test-summaryformat.ps1 (Summary highlighting,
+    legend, currency), its Status warning checks moved to test-statusnotes.ps1,
+    and both now fail on a regression. New test-reportsnav.ps1. Reports tests
+    updated for the shifted rows. Data schema unchanged (1.3).
+  Docs: Reports-Filtering, Reports-Summary, Jobs-Views-and-Units, Data-Backup-and-Restore.
+
 0.10.24 - Restore workbook can read an older copy of the workbook.
   - The file picker now takes an .xlsm/.xlsx/.xlsb as well as a CSV. Picking an
     older copy of the workbook restores straight from it: the seven catalogue

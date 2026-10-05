@@ -40,6 +40,7 @@ try {
     $annexe = $wb.Worksheets('Annexe')
     $loMain = $main.ListObjects('tblJobs_MAIN')
     $loAnnexe = $annexe.ListObjects('tblJobs_ANNEX')
+    $rep.Activate()
 
 
     # Job ID -> Paid, across both rooms. Trimmed text; blank stays ''.
@@ -56,10 +57,10 @@ try {
     }
     # The visible set, as table|jobId keys, plus the columns the routine needs.
     function VisibleInfo {
-        $rng = $rep.Range('A18').SpillingToRange
+        $rng = $rep.Range('A21').SpillingToRange
         $locCol = 0; $jobCol = 0
         for ($c = 1; $c -le 20; $c++) {
-            $hd = [string]$rep.Cells(17, $c).Value2
+            $hd = [string]$rep.Cells(20, $c).Value2
             if ($hd -eq 'Location') { $locCol = $c }
             if ($hd -eq 'Job ID') { $jobCol = $c }
         }
@@ -71,9 +72,9 @@ try {
         }
         return @{ Rng = $rng; LocCol = $locCol; JobCol = $jobCol; N = $rng.Rows.Count; VKeys = $keys }
     }
-    $filterCells = @('B4','B5','B7','B8','B10','F4','F5','F7','F8','F9','B12','F12')
+    $filterCells = @('B4','B5','B7','B8','B10','B11','B13','F4','F5','F7','F8','F9','F11','B15','F15')
     function FilterState { ($filterCells | ForEach-Object { '{0}={1}' -f $_, [string]$rep.Range($_).Value2 }) -join ';' }
-    function ClearFilters { foreach ($a in @('B4','B5','B7','B8','B10','F4','F5','F7','F8','F9')) { $rep.Range($a).ClearContents() | Out-Null }; $xl.CalculateFullRebuild() }
+    function ClearFilters { foreach ($a in @('B4','B5','B7','B8','B10','B11','B13','F4','F5','F7','F8','F9','F11')) { $rep.Range($a).ClearContents() | Out-Null }; $xl.CalculateFullRebuild() }
 
     # ------------------------------------------------------------ the cluster
     Write-Host '=== The cluster on the Reports header ==='
@@ -109,14 +110,26 @@ try {
     $rep.Range('B7').Value2 = 'not a date'
     Check (-not [bool]$xl.Run('HasActiveFilter', $rep)) 'From date text that will not coerce (ignored by Criteria) -> false'
     $rep.Range('B7').ClearContents() | Out-Null
-    $rep.Range('B12').Value2 = 'Qty'
+    $rep.Range('B15').Value2 = 'Qty'
     Check (-not [bool]$xl.Run('HasActiveFilter', $rep)) 'Sort by set, no filter -> false (sort is not a filter)'
-    $rep.Range('B12').ClearContents() | Out-Null
+    $rep.Range('B15').ClearContents() | Out-Null
     $rep.Range('B7').Value2 = [double](Get-Date '2020-01-01').ToOADate()
     Check ([bool]$xl.Run('HasActiveFilter', $rep)) 'a real From date -> true'
     $rep.Range('B7').ClearContents() | Out-Null
     $rep.Range('F7').Value2 = 'Epson SureColor P9500'
     Check ([bool]$xl.Run('HasActiveFilter', $rep)) 'Printer set -> true'
+    ClearFilters
+    $rep.Range('B10').Value2 = 'abc'
+    Check (-not [bool]$xl.Run('HasActiveFilter', $rep)) 'Min cost text that is not a number -> false'
+    ClearFilters
+    $rep.Range('B10').Value2 = 1
+    Check ([bool]$xl.Run('HasActiveFilter', $rep)) 'a numeric Min cost -> true'
+    ClearFilters
+    $rep.Range('B11').Value2 = 100
+    Check ([bool]$xl.Run('HasActiveFilter', $rep)) 'a numeric Max cost -> true'
+    ClearFilters
+    $rep.Range('F11').Value2 = 'Yes'
+    Check ([bool]$xl.Run('HasActiveFilter', $rep)) 'Has notes set -> true'
     ClearFilters
 
     # ---------------------------------------------- refused with no filter

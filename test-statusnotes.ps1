@@ -6,10 +6,14 @@
 #
 # Checks: Status is narrow; a note exists exactly on the rows whose Status is
 # neither blank nor "OK", and its text matches; a note is removed when the row
-# becomes OK. Drives a COPY in %TEMP%, never src\PrintJob.xlsm itself.
+# becomes OK. Also (moved here from the old test-phase8.ps1, 0.10.25): the
+# amber warning fill on every non-"OK" Status cell, on every location sheet,
+# and that re-running InitialiseWorkbook does not stack a second rule.
+# Drives a COPY in %TEMP%, never src\PrintJob.xlsm itself.
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'TestCommon.ps1')
+. (Join-Path $PSScriptRoot 'test-fixture-annexe.ps1')
 $deliverable = Join-Path $PSScriptRoot 'src\PrintJob.xlsm'
 $workDir = Join-Path ([IO.Path]::GetTempPath()) ('PrintCostsTest-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $workDir | Out-Null
@@ -23,6 +27,7 @@ $wb = $null
 $failed = 0
 try {
     $wb = Invoke-ComRetry { $xl.Workbooks.Open($f) }
+    Add-AnnexeFixture $xl $wb | Out-Null
     $xl.Run('SetQuiet', $true)
     $ws = $wb.Worksheets('Example Print Room')
     $lo = $ws.ListObjects('tblJobs_MAIN')
@@ -30,7 +35,7 @@ try {
 
     $sc = $lo.ListColumns('Status')
     $px = $sc.Range.Cells(1, 1).ColumnWidth * 7 + 5
-    if ($px -gt 130) { Write-Host "FAIL: Status is $px px wide, expected about 120"; $failed++ }
+    if ($px -gt 110) { Write-Host "FAIL: Status is $px px wide, expected about 90"; $failed++ }
     else { Write-Host "OK: Status is about $([int]$px) px wide" }
 
     # A new row is incomplete, so its Status lists issues.
@@ -67,6 +72,32 @@ try {
     $xl.Run('btnRefreshLocations')
     $r = Check-Notes 'after refresh'
     $failed += $r[0]
+
+    # ---- warning fill: every non-"OK" Status cell, on every location sheet
+    Write-Host ''
+    Write-Host '=== Warning state: Status column conditional formatting ==='
+    foreach ($sheetTable in @(@('Example Print Room', 'tblJobs_MAIN'), @('Annexe', 'tblJobs_ANNEX'))) {
+        $wsx = $wb.Worksheets($sheetTable[0])
+        $rng = $wsx.ListObjects($sheetTable[1]).ListColumns('Status').DataBodyRange
+        $cnt = $rng.FormatConditions.Count
+        if ($cnt -lt 1) { Write-Host "FAIL: $($sheetTable[0]) Status has no conditional format"; $failed++; continue }
+        $fc = $rng.FormatConditions.Item(1)
+        if (-not ($fc.Formula1 -like '*<>*OK*')) { Write-Host "FAIL: $($sheetTable[0]) rule is not a <> OK test ($($fc.Formula1))"; $failed++ }
+        elseif ($fc.Interior.Color -ne 49407) { Write-Host "FAIL: $($sheetTable[0]) fill is $($fc.Interior.Color), expected amber 49407"; $failed++ }
+        else { Write-Host "OK: $($sheetTable[0]) Status warns in amber when not OK" }
+    }
+    # The incomplete row added above reads something other than OK, so the
+    # rule must actually fire on it, not just exist.
+    $lastStatus = $lo.ListRows($lo.ListRows.Count).Range.Cells(1, $sc.Index)
+    if ([string]$lastStatus.Text -eq 'OK') { Write-Host 'FAIL: the added incomplete row reads OK'; $failed++ }
+    elseif ($lastStatus.DisplayFormat.Interior.Color -ne 49407) { Write-Host "FAIL: incomplete row Status is not amber (fill $($lastStatus.DisplayFormat.Interior.Color))"; $failed++ }
+    else { Write-Host "OK: the incomplete row's Status ('$($lastStatus.Text)') is shown amber" }
+
+    # Re-running setup must not stack a second rule.
+    $xl.Run('InitialiseWorkbook')
+    $cnt2 = $wb.Worksheets('Example Print Room').ListObjects('tblJobs_MAIN').ListColumns('Status').DataBodyRange.FormatConditions.Count
+    if ($cnt2 -ne 1) { Write-Host "FAIL: Status has $cnt2 rules after a second InitialiseWorkbook (expected 1)"; $failed++ }
+    else { Write-Host 'OK: re-running InitialiseWorkbook leaves one Status rule' }
 }
 finally {
     if ($wb) { $wb.Close($false) }

@@ -242,7 +242,10 @@ job IDs already carry it.
 | `test-rollunit.ps1` | The per-room roll length unit (cm or metres) |
 | `test-importunits.ps1` | Import converting roll Qty between a cm file and a metres room, and the reverse |
 | `test-jobvalidation.ps1` | Job-table validation is bound to the right columns by name, nothing is left below the table, and a column move is repaired |
-| `test-paidedit.ps1`, `test-markpaid.ps1` | Editing Paid on the Reports sheet, and Mark all as Paid / Unpaid with its filter safeguard |
+| `test-reportsnav.ps1` | Reports filters added in 0.10.25 (Has notes, Min/Max cost), Clear all filters, Go to record into both rooms, header buttons staying in place when a column is hidden, button names agreeing with their macros (and HealButtons after a rename), healing a Paid edit whose Change event was lost, and editing Paid under a Paid = No view |
+| `test-summaryformat.ps1` | Summary sheet formatting: the red "(not in Papers)" rule, the colour legend, and the currency symbol following `SET_CURRENCY` (renamed from `test-phase8.ps1`) |
+| `test-statusnotes.ps1` | Status hover notes on problem rows, the narrow Status column, and the amber warning fill on every location sheet |
+| `test-togglepaid.ps1`, `test-markpaid.ps1` | The Toggle Paid button on the Reports sheet, and Mark all as Paid / Unpaid with its filter safeguard |
 | `test-backup.ps1`, `test-clearcatalog.ps1`, `test-newpaperrow.ps1` | Backup/Restore workbook, Clear table on the catalogue sheets, and Add row on Papers |
 | `test-restorerooms.ps1` | Restore creating a print room the backup has and the workbook lacks (code, name, department, job records), and a second restore not creating another |
 | `test-restoreworkbook.ps1` | Restore workbook from an older copy of the workbook: room, settings and records carried over, the older file read without its macros running, left untouched, no temporary copy left behind, a non-Print-Cost workbook refused |
