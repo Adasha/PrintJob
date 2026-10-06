@@ -8,7 +8,8 @@
 # "Paid column".)
 #
 #   - The results' Paid cells are locked and carry no dropdown.
-#   - The Toggle Paid button exists, sits in column N and runs btnTogglePaid.
+#   - The Toggle Paid button exists, sits in row 2 under the 'Selected record:'
+#     caption with Go to record below it, and runs btnTogglePaid.
 #   - It flips the selected row's record to the opposite of what the row shows
 #     (Yes -> No, anything else -> Yes), in either room, changing nothing else,
 #     leaving the spill intact and writing an audit entry.
@@ -69,7 +70,7 @@ try {
     }
     function SpillCount { Invoke-ComRetry -Attempts 5 { [int]$rep.Range('A21').SpillingToRange.Rows.Count } }
     function SpillIntact { ([string]$rep.Range('A21').Text -notlike '#SPILL*') -and ((SpillCount) -eq $n) }
-    $filterCells = @('B4','B5','B7','B8','B10','B11','B13','F4','F5','F7','F8','F9','F11','B15','F15')
+    $filterCells = @('B4','B5','B7','B8','B10','B11','B12','F4','F5','F7','F8','F9','F11','B15','F15')
     function FilterState { ($filterCells | ForEach-Object { '{0}={1}' -f $_, [string]$rep.Range($_).Value2 }) -join ';' }
     function AuditActions {
         $aud = $wb.Worksheets('_Audit').ListObjects('tblAudit')
@@ -110,7 +111,18 @@ try {
     if ($btn) {
         Check ([string]$btn.OnAction -like '*btnTogglePaid') "button runs btnTogglePaid (got '$($btn.OnAction)')"
         Check ($btn.Name.Length -le 31) "shape name within 31 characters ($($btn.Name))"
-        if ($goBtn) { Check ([math]::Abs([double]$btn.Left - [double]$goBtn.Left) -lt 1.5) 'sits in the same column as Go to record' }
+        if ($goBtn) {
+            Check ([math]::Abs([double]$btn.Left - [double]$goBtn.Left) -lt 1.5) 'sits in the same block as Go to record (same Left)'
+            Check ([double]$goBtn.Top -gt [double]$btn.Top) 'Go to record is below Toggle Paid'
+        }
+        $selLbl = $null
+        foreach ($s in $rep.Shapes) { if ($s.Name -eq 'pcb_lblSelected') { $selLbl = $s } }
+        Check ($null -ne $selLbl) "the 'Selected record:' caption exists"
+        if ($selLbl) {
+            Check ([string]$selLbl.TextFrame.Characters().Text -eq 'Selected record:') "caption reads 'Selected record:' (got '$($selLbl.TextFrame.Characters().Text)')"
+            Check ([math]::Abs([double]$selLbl.Left - [double]$btn.Left) -lt 1.5) 'the caption is left-aligned over Toggle Paid'
+            Check (([double]$selLbl.Top + [double]$selLbl.Height) -le ([double]$btn.Top + 1)) 'the caption sits above Toggle Paid'
+        }
         Check ([double]$btn.Top -ge [double]$rep.Rows(2).Top - 1 -and [double]$btn.Top + [double]$btn.Height -le [double]$rep.Rows(3).Top + 1) 'sits inside row 2'
     }
 

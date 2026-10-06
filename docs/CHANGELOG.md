@@ -3,6 +3,29 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.10.26 - Reports sheet layout: Paid controls grouped and labelled, captions no longer tied to a cell, no gap above Paid.
+  - Reports header strip re-laid out (modReports.DrawReportsButtons /
+    RepositionReportsButtons). Left to right: Clear all filters | "Selected
+    record:" over Toggle Paid and Go to record | "Mark all as..." over Paid and
+    Unpaid | Export report / Delete visible records. The Paid controls now sit
+    together, and the two captions say what each acts on (Toggle Paid and Go
+    to record: the selected record; Mark all as...: everything the filters
+    show). Row 2 stays empty at both ends, so nothing sits on A2's text.
+  - Fix: the "Mark all as..." caption was cell text at O1, so it stayed put when
+    its buttons moved off a hidden column. Both captions are now free-floating
+    Forms labels and the whole strip is laid out from one anchor (the first
+    visible column from N), so it moves as one piece. Labels rather than text
+    boxes: no macro to heal after a file rename, and a click does not select
+    them (so cannot disturb the cell selection Toggle Paid reads).
+  - Filters: the gap row between Max cost and Paid is gone, so Min cost, Max
+    cost and Paid (B10, B11, B12) read as one group. The name/number warning
+    moved from A14 to A13; row 14 is the blank row before Sort by. Sort by,
+    Matching, the results and every other row address are unchanged.
+  - Go to record moved from row 1 to row 3 of the second block, under Toggle
+    Paid; Clear all filters sits alone at the left of the strip on row 1.
+  - Tests updated for B12/A13 and the new strip: test-reports, test-markpaid,
+    test-reportsnav, test-togglepaid. NOT yet run against a build.
+
 0.10.25 - Reports: Go to record, Clear all filters, Has notes and cost filters; fixes from the Mac test notes.
   - Reports header gains Go to record (selected row to that record's own sheet
     and row, both rooms) and Clear all filters (empties every filter box; Sort

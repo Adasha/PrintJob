@@ -4,7 +4,8 @@
 # Reports page "Mark all as..." Paid / Unpaid cluster (2026-09-29), and the
 # at-least-one-filter safeguard it shares with Delete visible records.
 #
-#   - The cluster exists: label at O1, Paid and Unpaid buttons in rows 2 and 3.
+#   - The cluster exists: a 'Mark all as...' caption (a free-floating label) over
+#     Paid and Unpaid buttons in rows 2 and 3.
 #   - HasActiveFilter mirrors Criteria(): blank, spaces, and text that will not
 #     coerce to a date/number do NOT count; a real value does.
 #   - With no filter, MarkVisibleReportsConfirmed and DeleteVisibleReportsConfirmed
@@ -72,13 +73,17 @@ try {
         }
         return @{ Rng = $rng; LocCol = $locCol; JobCol = $jobCol; N = $rng.Rows.Count; VKeys = $keys }
     }
-    $filterCells = @('B4','B5','B7','B8','B10','B11','B13','F4','F5','F7','F8','F9','F11','B15','F15')
+    $filterCells = @('B4','B5','B7','B8','B10','B11','B12','F4','F5','F7','F8','F9','F11','B15','F15')
     function FilterState { ($filterCells | ForEach-Object { '{0}={1}' -f $_, [string]$rep.Range($_).Value2 }) -join ';' }
-    function ClearFilters { foreach ($a in @('B4','B5','B7','B8','B10','B11','B13','F4','F5','F7','F8','F9','F11')) { $rep.Range($a).ClearContents() | Out-Null }; $xl.CalculateFullRebuild() }
+    function ClearFilters { foreach ($a in @('B4','B5','B7','B8','B10','B11','B12','F4','F5','F7','F8','F9','F11')) { $rep.Range($a).ClearContents() | Out-Null }; $xl.CalculateFullRebuild() }
 
     # ------------------------------------------------------------ the cluster
     Write-Host '=== The cluster on the Reports header ==='
-    Check ([string]$rep.Range('O1').Text -eq 'Mark all as...') "O1 label reads 'Mark all as...' (got '$($rep.Range('O1').Text)')"
+    $lblMark = $null
+    foreach ($s in $rep.Shapes) { if ($s.Name -eq 'pcb_lblMarkAll') { $lblMark = $s } }
+    Check ($null -ne $lblMark) "the 'Mark all as...' caption exists"
+    if ($lblMark) { Check ([string]$lblMark.TextFrame.Characters().Text -eq 'Mark all as...') "caption reads 'Mark all as...' (got '$($lblMark.TextFrame.Characters().Text)')" }
+    Check ([string]$rep.Range('O1').Text -eq '') 'O1 holds no caption text (the caption is a label now)'
     $paidBtn = $null; $unpaidBtn = $null
     foreach ($s in $rep.Shapes) {
         if ($s.Name -like 'pcb_btnMarkPaid_*') { $paidBtn = $s }
@@ -91,10 +96,14 @@ try {
         Check ($unpaidBtn.TextFrame.Characters().Text -eq 'Unpaid') "Unpaid button caption is 'Unpaid'"
         Check ([string]$paidBtn.OnAction -like '*btnMarkPaid') "Paid button runs btnMarkPaid (got '$($paidBtn.OnAction)')"
         Check ([string]$unpaidBtn.OnAction -like '*btnMarkUnpaid') "Unpaid button runs btnMarkUnpaid (got '$($unpaidBtn.OnAction)')"
-        $r2 = $rep.Range('O2'); $r3 = $rep.Range('O3'); $r4 = $rep.Range('O4')
+        $r2 = $rep.Rows(2); $r3 = $rep.Rows(3); $r4 = $rep.Rows(4)
         Check (($paidBtn.Top -ge $r2.Top) -and (($paidBtn.Top + $paidBtn.Height) -le $r3.Top)) 'Paid button sits inside row 2'
         Check (($unpaidBtn.Top -ge $r3.Top) -and (($unpaidBtn.Top + $unpaidBtn.Height) -le $r4.Top)) 'Unpaid button sits inside row 3'
-        Check ([math]::Abs($paidBtn.Left - $rep.Range('O1').Left) -lt 1 -and [math]::Abs($unpaidBtn.Left - $rep.Range('O1').Left) -lt 1) 'both buttons are left-aligned under the O1 label'
+        Check ([math]::Abs($paidBtn.Left - $unpaidBtn.Left) -lt 1) 'Paid and Unpaid are left-aligned with each other'
+        if ($lblMark) {
+            Check ([math]::Abs($lblMark.Left - $paidBtn.Left) -lt 1.5) 'the caption is left-aligned over the buttons'
+            Check (($lblMark.Top + $lblMark.Height) -le ($paidBtn.Top + 1)) 'the caption sits above the Paid button'
+        }
         Check (($paidBtn.Left -le 900) -and ($unpaidBtn.Left -le 900)) "both buttons are within the first screenful (Left <= 900pt; Paid at $([int]$paidBtn.Left))"
         Check ($paidBtn.Top -lt $unpaidBtn.Top) 'Paid is the top button, Unpaid the bottom'
     }

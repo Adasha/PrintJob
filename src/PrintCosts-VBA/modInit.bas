@@ -225,6 +225,9 @@ Public Sub InitialiseWorkbook()
             ' follow column visibility/width changes like the location
             ' sheets' buttons). The delete macro is now btnDeleteVisible, so
             ' the shape name needs no truncating tag.
+            ' 0.10.26: the strip starts at column N (not T, as above) and runs
+            ' Clear all filters | Selected record: | Mark all as... | Export /
+            ' Delete; the two captions are free-floating labels drawn there too.
             DrawReportsButtons ws
             ' Freezes above the print-job results table (row 20) so its
             ' header row and the filter/totals area above stay visible while

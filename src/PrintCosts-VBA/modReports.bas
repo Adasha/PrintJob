@@ -33,8 +33,9 @@ Private Const EXPORT_WHEN_CELL As String = "AN2"
 ' on Reports" below). 2000 matches the number formats FormatReports applies.
 ' Row map of the Reports sheet (0.10.25). The filter block grew by three rows
 ' (Min/Max cost, Has notes), which moved everything under it down by three:
-'   rows 4-13   the filters (see BuildReports)
-'   row 14      gap, and the name/number warning
+'   rows 4-12   the filters (see BuildReports)
+'   row 13      the name/number warning
+'   row 14      gap
 '   row 15      Sort by / Sort direction
 '   row 17/18   "Matching" labels / values
 '   row 20      results header
@@ -52,13 +53,17 @@ Private Const RESULTS_LAST_ROW As Long = 2000
 ' Reports header button layout (see DrawReportsButtons). Declared up here
 ' because VBA allows module-level constants only before the first procedure.
 Private Const REP_BTN_TAG As String = "pcb_"
-Private Const REP_BTN_GAP As Double = 4
-Private Const REP_FILTER_COL As Long = 14   ' N
-Private Const REP_MARK_COL As Long = 15     ' O
-Private Const REP_EXPORT_COL As Long = 20   ' T
-Private Const REP_FILTER_W As Double = 100
-Private Const REP_MARK_W As Double = 78
-Private Const REP_EXPORT_W As Double = 140
+Private Const REP_BTN_GAP As Double = 4     ' between the two Paid stacks
+Private Const REP_GROUP_GAP As Double = 4   ' between groups
+Private Const REP_STRIP_COL As Long = 14    ' N: where the strip starts
+Private Const REP_CLEAR_W As Double = 90    ' Clear all filters
+Private Const REP_SEL_W As Double = 78      ' Selected record: Toggle Paid / Go to record
+Private Const REP_MARK_W As Double = 68     ' Mark all as...: Paid / Unpaid
+Private Const REP_EXPORT_W As Double = 140  ' Export report / Delete visible records
+Private Const REP_LBL_H As Double = 13
+Private Const REP_LBL_SEL As String = "lblSelected"
+Private Const REP_LBL_MARK As String = "lblMarkAll"
+Private Const REP_SEL_LABEL As String = "Selected record:"
 Private Const REP_MARK_LABEL As String = "Mark all as..."
 
 ' A column of the consolidated range, found by its header text.
@@ -283,7 +288,7 @@ Private Function Criteria() As String
     ' the same reconciliation Matching's Paid/Unpaid totals use. INDEX over a
     ' genuinely blank cell reads back as 0, so compare against "Yes" rather
     ' than against "No".
-    s = s & "*IF($B$13="""",TRUE,IF($B$13=""Yes""," & C("Paid") & "=""Yes""," & C("Paid") & "<>""Yes""))"
+    s = s & "*IF($B$12="""",TRUE,IF($B$12=""Yes""," & C("Paid") & "=""Yes""," & C("Paid") & "<>""Yes""))"
 
     ' Chargeable cost range (0.10.25): Min cost $B$10, Max cost $B$11. Chargeable
     ' is what the student/department is billed (Gross less Disregarded), the
@@ -361,23 +366,13 @@ Public Sub BuildReports()
     ws.Range("A2").Value = "Find and filter print jobs across every room in this workbook. Results update as you type - " & _
         "there is no search button. Leave a box empty to ignore it."
 
-    ' "Mark all as..." cluster (2026-09-29, direct user request): 1 column x 3
-    ' rows at O1:O3, in the header strip just left of Export report / Delete
-    ' visible records (T). The label is cell text here; the Paid and Unpaid
-    ' buttons for rows 2 and 3 are drawn by modInit.InitialiseWorkbook, which
-    ' runs after this so the row heights they are sized to are already
-    ' settled.
-    '
-    ' Why O, found the hard way (first tried V, beside the T buttons): (1)
-    ' test-reports.ps1 requires every Reports button to sit within the first
-    ' screenful (Left <= 900pt) and V is at ~1020pt. (2) A2's instruction text
-    ' runs to ~689pt, so anything at N or earlier would sit on top of its
-    ' tail; O starts at ~720pt, clear of it. (3) O is "Paid" in the results
-    ' table, one of the columns ApplyReportsMinimumColumns always keeps
-    ' visible, so the cluster cannot vanish with a hidden column - the same
-    ' reason the (since removed) Export names toggle lived at N:O.
-    ws.Range("O1").Value = "Mark all as..."
-    ws.Range("O1").Font.Bold = True
+    ' The header buttons and their two small captions ("Selected record:" and
+    ' "Mark all as...") are not written here. They are drawn by
+    ' DrawReportsButtons (from modInit.InitialiseWorkbook, which runs after
+    ' this so the row heights they are sized to are already settled) and kept
+    ' in place by RepositionReportsButtons. The captions used to be cell text
+    ' (O1), which stayed put when the buttons moved off a hidden column; they
+    ' are now free-floating labels that move with the buttons they describe.
 
     ' Label | input | hint | gap, in that order (snag list item 2) - the
     ' input sits immediately right of its label, and the unused column at the
@@ -397,12 +392,12 @@ Public Sub BuildReports()
     '   rows 7-8   A:B  From date, To date
     '   rows 7-9   D:F  Printer, Paper stock, Paper type
     '   row 9      gap (left)
-    '   rows 10-11 A:B  Min cost, Max cost (chargeable)
+    '   rows 10-12 A:B  Min cost, Max cost (chargeable), Paid - one group, no
+    '              gap row between them (0.10.26, direct user request)
     '   row 10     gap (right), then
     '   row 11     D:F  Has notes
-    '   row 12     gap (left)
-    '   row 13     A:B  Paid
-    '   row 14     gap, and the name/number warning; Sort by at row 15
+    '   row 13     the name/number warning (A13), directly under Paid
+    '   row 14     gap; Sort by at row 15
     CritCell ws, "A4", "B4", "Student/dept. name"
     CritCell ws, "A5", "B5", "Student number"
     CritCell ws, "A7", "B7", "From date"
@@ -421,8 +416,8 @@ Public Sub BuildReports()
 
     ' Paid (Yes/No): Yes = only jobs marked Paid; No = everything not marked
     ' Paid, blank included. Left empty to ignore it.
-    CritCell ws, "A13", "B13", "Paid"
-    AddList ws.Range("B13"), """Yes"",""No""", "Paid", "Yes shows only paid jobs, No only unpaid ones (including jobs never marked). Leave blank to include both."
+    CritCell ws, "A12", "B12", "Paid"
+    AddList ws.Range("B12"), """Yes"",""No""", "Paid", "Yes shows only paid jobs, No only unpaid ones (including jobs never marked). Leave blank to include both."
 
     ' Labels at D, not E (2026-09-26 fix): E is "Printer" in the results
     ' table, one of the columns ApplyReportsMinimumColumns hides by header
@@ -464,10 +459,12 @@ Public Sub BuildReports()
     CritCell ws, "D4", "F4", "Location (print room)"
 
     ' Sort by/direction sit below the filters, above the totals row (snag list
-    ' item 3) rather than beside the filters - row 14 is the "name and number
-    ' don't match" warning, the gap between the filters and the sort
+    ' item 3) rather than beside the filters - row 13 is the "name and number
+    ' don't match" warning, row 14 is the gap between the filters and the sort
     ' settings, and row 16 is the gap before Matching. Row 15 since 0.10.25
-    ' (row 12 before the cost range and Has notes were added).
+    ' (row 12 before the cost range and Has notes were added); the Paid filter
+    ' moving up a row in 0.10.26 did not move it, the freed row went to the
+    ' warning instead.
     CritCell ws, "A15", "B15", "Sort by"
     CritCell ws, "D15", "F15", "Sort direction"
     AddList ws.Range("B15"), QuotedList(hdrs), "Sort by", "Which column to sort the results by."
@@ -478,14 +475,14 @@ Public Sub BuildReports()
     ' Cancel at export time instead (modExport.AskIncludeNamesReport), the
     ' same as the room exports. The live results always show names.
 
-    ' Spec 14.1: both criteria given, neither matching the other. Row 14
-    ' (row 11 before 0.10.25, row 9 before 2026-10-02): the gap row under
-    ' the filters.
-    ws.Range("A14").Formula2 = "=IF(OR($B$4="""",$B$5=""""),""""," & _
+    ' Spec 14.1: both criteria given, neither matching the other. Row 13
+    ' (row 14 until 0.10.26, row 11 before 0.10.25, row 9 before 2026-10-02):
+    ' directly under the filters, with a blank row 14 before Sort by.
+    ws.Range("A13").Formula2 = "=IF(OR($B$4="""",$B$5=""""),""""," & _
         "IF(IFERROR(ROWS(FILTER(" & C("Job ID") & "," & ok & ")),0)=0," & _
         """That name and that number do not appear together on any record - check both."",""""))"
-    ws.Range("A14").Font.Color = RGB(176, 0, 32)
-    ws.Range("A14").Font.Bold = True
+    ws.Range("A13").Font.Color = RGB(176, 0, 32)
+    ws.Range("A13").Font.Bold = True
 
     ' --- totals for the current selection ---------------------------------
     ' Row 11 is left blank (snag list item 1) - a gap between the sort
@@ -1062,7 +1059,7 @@ End Sub
 ' Sort direction are not filters and are not looked at.
 '
 ' Cell addresses match Criteria: B4 name, B5 number, B7/B8 dates, B10/B11
-' min/max cost, B13 paid, F4 room, F5 technician, F7 printer, F8 paper stock,
+' min/max cost, B12 paid, F4 room, F5 technician, F7 printer, F8 paper stock,
 ' F9 paper type, F11 has notes. If a filter box moves, change the lists
 ' below AND Criteria - ClearReportFilters uses the same lists.
 '
@@ -1095,7 +1092,7 @@ End Function
 ' The filter boxes, by kind. Sort by and Sort direction are not filters and
 ' are in none of them.
 Private Function TextFilterCells() As Variant
-    TextFilterCells = Array("B4", "B5", "B13", "F4", "F5", "F7", "F8", "F9", "F11")
+    TextFilterCells = Array("B4", "B5", "B12", "F4", "F5", "F7", "F8", "F9", "F11")
 End Function
 
 Private Function DateFilterCells() As Variant
@@ -1491,64 +1488,85 @@ Private Sub ScrollRowIntoView(ByVal cel As Range)
 End Sub
 
 ' ===================================================== header buttons ===
-' The Reports header buttons (0.10.25: Go to record and Clear all filters
-' added, and all of them kept in place as columns change - the same job
-' modInit.RepositionLocationButtons does for a print room).
+' The Reports header strip (rows 1-3, from column N). Seven buttons and two
+' small captions in four blocks, left to right:
 '
-' Three stacks, left to right, each anchored on a preferred column:
-'   N  Go to record (row 1), Toggle Paid (row 2), Clear all filters (row 3)
-'   O  Mark all as... label (row 1), Paid (row 2), Unpaid (row 3)
-'   T  Export report (row 1), Delete visible records (row 3)
+'   row 1  [Clear all filters]  Selected record:   Mark all as...  [Export report...]
+'   row 2                       [Toggle Paid]      [Paid]
+'   row 3                       [Go to record]     [Unpaid]        [Delete visible records...]
+'
+' The Paid controls sit together, and the captions say what each acts on:
+' Toggle Paid works on the record(s) selected in the results (as does Go to
+' record, which is why they share a block); Mark all as... works on every
+' record the filters show. Row 2 is left empty at both ends so the strip stays
+' clear of A2's instruction text, which runs to ~689pt (the first block starts
+' at N, ~639pt on the test machine, and its only buttons are on rows 1 and
+' 3; the first row-2 button starts ~94pt further right, at ~733pt).
+'
+' Nothing here depends on cell contents. The buttons and both captions are
+' free-floating form controls, and RepositionReportsButtons lays the whole
+' strip out from one anchor - the first visible column from N - packing the
+' blocks one after another by fixed widths and gaps, so a column hide or width
+' change moves the strip as one piece and the captions can never be left
+' behind. (The "Mark all as..." caption used to be cell text at O1, which
+' stayed put when its buttons moved.) The captions are Forms labels rather
+' than text boxes: a label runs no macro and is not selected by a click, so it
+' needs no OnAction for HealButtons to repair after a file rename and cannot
+' replace the cell selection Toggle Paid reads.
+'
+' The strip fits the first screenful (every Left <= 900pt, test-reports.ps1):
+' with the default columns the blocks start at ~639, 733, 815 and 887pt (the
+' first run of 0.10.26 measured N at 639pt, not the 612pt first estimated, and
+' failed at 915pt). The widths are in the REP_*_W constants above; widening
+' one needs the others checked against that limit.
+'
 ' The buttons are free-floating, so they do not follow column changes by
 ' themselves, and Excel raises no event for a hide or a width change. So
-' RepositionReportsButtons re-lays them out from the columns as they are now:
-' each stack goes on its preferred column or, if that is hidden, the next
-' visible one to its right, and never closer than a small gap to the stack
-' before it. It runs after the build, on every Reports activation and on
-' every selection change there (ThisWorkbook), and only touches a shape that
-' is actually out of place. The Mark label is cell text, so it is moved by
-' rewriting the cell.
+' RepositionReportsButtons re-lays them out from the columns as they are now.
+' It runs after the build, on every Reports activation and on every selection
+' change there (ThisWorkbook), and only touches a shape that is actually out of
+' place.
 '
 ' Every Reports button name must stay within 31 characters and hold its macro
 ' ("pcb_<macro>_<row>_<col>"): modRegistry.HealButtons falls back on the name
 ' to recover a macro. Keep the macro names short - that is what the shape
 ' name tag "DelVis" used to paper over, and what broke the Delete button once
-' the file was renamed.
+' the file was renamed. (The row and column in the name are only a label; they
+' do not say where the button sits.)
 
 Public Sub DrawReportsButtons(ByVal ws As Worksheet)
-    DrawOne ws, 1, REP_FILTER_COL, "Go to record", "btnGoToRecord", REP_FILTER_W
-    DrawOne ws, 2, REP_FILTER_COL, "Toggle Paid", "btnTogglePaid", REP_FILTER_W
-    DrawOne ws, 3, REP_FILTER_COL, "Clear all filters", "btnClearFilters", REP_FILTER_W
-    DrawOne ws, 2, REP_MARK_COL, "Paid", "btnMarkPaid", REP_MARK_W
-    DrawOne ws, 3, REP_MARK_COL, "Unpaid", "btnMarkUnpaid", REP_MARK_W
-    DrawOne ws, 1, REP_EXPORT_COL, "Export report...", "btnExportReport", REP_EXPORT_W
-    DrawOne ws, 3, REP_EXPORT_COL, "Delete visible records...", "btnDeleteVisible", REP_EXPORT_W
+    DrawOne ws, 1, REP_STRIP_COL, "Clear all filters", "btnClearFilters", REP_CLEAR_W
+    DrawOne ws, 2, REP_STRIP_COL, "Toggle Paid", "btnTogglePaid", REP_SEL_W
+    DrawOne ws, 3, REP_STRIP_COL, "Go to record", "btnGoToRecord", REP_SEL_W
+    DrawOne ws, 2, REP_STRIP_COL + 1, "Paid", "btnMarkPaid", REP_MARK_W
+    DrawOne ws, 3, REP_STRIP_COL + 1, "Unpaid", "btnMarkUnpaid", REP_MARK_W
+    DrawOne ws, 1, REP_STRIP_COL + 6, "Export report...", "btnExportReport", REP_EXPORT_W
+    DrawOne ws, 3, REP_STRIP_COL + 6, "Delete visible records...", "btnDeleteVisible", REP_EXPORT_W
+    DrawReportLabel ws, REP_LBL_SEL, REP_SEL_LABEL, REP_SEL_W
+    DrawReportLabel ws, REP_LBL_MARK, REP_MARK_LABEL, REP_MARK_W
     RepositionReportsButtons ws
 End Sub
 
 Public Sub RepositionReportsButtons(ByVal ws As Worksheet)
-    Dim stackLeft(0 To 2) As Double, prefCol As Variant, stackW As Variant
-    Dim i As Long, c As Long, minLeft As Double, markCol As Long
+    Dim c As Long, clearLeft As Double, selLeft As Double
+    Dim markLeft As Double, expLeft As Double
 
-    prefCol = Array(REP_FILTER_COL, REP_MARK_COL, REP_EXPORT_COL)
-    stackW = Array(REP_FILTER_W, REP_MARK_W, REP_EXPORT_W)
-    minLeft = 0
-    For i = 0 To 2
-        c = VisibleColumnFrom(ws, CLng(prefCol(i)), minLeft)
-        If c = 0 Then Exit Sub
-        stackLeft(i) = ws.Cells(1, c).Left
-        minLeft = stackLeft(i) + CDbl(stackW(i)) + REP_BTN_GAP
-        If i = 1 Then markCol = c
-    Next i
+    c = VisibleColumnFrom(ws, REP_STRIP_COL, 0)
+    If c = 0 Then Exit Sub
+    clearLeft = ws.Cells(1, c).Left
+    selLeft = clearLeft + REP_CLEAR_W + REP_GROUP_GAP
+    markLeft = selLeft + REP_SEL_W + REP_BTN_GAP
+    expLeft = markLeft + REP_MARK_W + REP_GROUP_GAP
 
-    PlaceReportButton ws, "btnGoToRecord", stackLeft(0), ws.Rows(1).Top, REP_FILTER_W, 22
-    PlaceReportButton ws, "btnTogglePaid", stackLeft(0), ws.Rows(2).Top + 0.5, REP_FILTER_W, ws.Rows(2).Height - 1
-    PlaceReportButton ws, "btnClearFilters", stackLeft(0), ws.Rows(3).Top, REP_FILTER_W, 22
-    PlaceReportButton ws, "btnMarkPaid", stackLeft(1), ws.Rows(2).Top + 0.5, REP_MARK_W, ws.Rows(2).Height - 1
-    PlaceReportButton ws, "btnMarkUnpaid", stackLeft(1), ws.Rows(3).Top + 0.5, REP_MARK_W, ws.Rows(3).Height - 1
-    PlaceReportButton ws, "btnExportReport", stackLeft(2), ws.Rows(1).Top, REP_EXPORT_W, 22
-    PlaceReportButton ws, "btnDeleteVisible", stackLeft(2), ws.Rows(3).Top, REP_EXPORT_W, 22
-    SetMarkLabel ws, markCol
+    PlaceReportButton ws, "btnClearFilters", clearLeft, ws.Rows(1).Top, REP_CLEAR_W, 22
+    PlaceReportButton ws, "btnTogglePaid", selLeft, ws.Rows(2).Top + 0.5, REP_SEL_W, ws.Rows(2).Height - 1
+    PlaceReportButton ws, "btnGoToRecord", selLeft, ws.Rows(3).Top + 0.5, REP_SEL_W, ws.Rows(3).Height - 1
+    PlaceReportButton ws, "btnMarkPaid", markLeft, ws.Rows(2).Top + 0.5, REP_MARK_W, ws.Rows(2).Height - 1
+    PlaceReportButton ws, "btnMarkUnpaid", markLeft, ws.Rows(3).Top + 0.5, REP_MARK_W, ws.Rows(3).Height - 1
+    PlaceReportButton ws, "btnExportReport", expLeft, ws.Rows(1).Top, REP_EXPORT_W, 22
+    PlaceReportButton ws, "btnDeleteVisible", expLeft, ws.Rows(3).Top, REP_EXPORT_W, 22
+    PlaceReportLabel ws, REP_LBL_SEL, selLeft, REP_SEL_W
+    PlaceReportLabel ws, REP_LBL_MARK, markLeft, REP_MARK_W
 End Sub
 
 ' The first column from StartCol on that is not hidden and whose left edge is
@@ -1588,28 +1606,45 @@ Private Sub PlaceReportButton(ByVal ws As Worksheet, ByVal Macro As String, ByVa
     If Abs(b.Height - H) > 0.5 Then b.Height = H
 End Sub
 
-' Keeps the "Mark all as..." label on the same column as its buttons. Rewrites
-' the cell only when it is not already there, with events off.
-Private Sub SetMarkLabel(ByVal ws As Worksheet, ByVal Col As Long)
-    Dim c As Long, found As Long, ev As Boolean
-    For c = REP_FILTER_COL To 40
-        If StrComp(CStr(ws.Cells(1, c).Value2), REP_MARK_LABEL, vbBinaryCompare) = 0 Then
-            found = c
+' A caption above a block of buttons: a Forms label, free-floating like the
+' buttons, bottom-aligned in row 1 so it sits directly over the block's first
+' button (row 2). Any earlier label of the same name is deleted first, so a
+' rebuild never leaves two. 8pt bold, which fits both captions inside their
+' block's width on one line - a label wraps rather than overflows, and a
+' wrapped caption would lose its second line to the fixed height.
+Private Sub DrawReportLabel(ByVal ws As Worksheet, ByVal Nm As String, ByVal Caption As String, ByVal W As Double)
+    Dim lbl As Excel.Label, i As Long
+    For i = ws.Labels.Count To 1 Step -1
+        If StrComp(ws.Labels(i).Name, REP_BTN_TAG & Nm, vbBinaryCompare) = 0 Then ws.Labels(i).Delete
+    Next i
+    Set lbl = ws.Labels.Add(ws.Cells(1, REP_STRIP_COL).Left, ws.Rows(1).Top, W, REP_LBL_H)
+    lbl.Name = REP_BTN_TAG & Nm
+    lbl.Placement = xlFreeFloating ' see modInit.DrawOne's comment
+    lbl.Caption = Caption
+    ' Cosmetic only: a failure here must not stop the build.
+    On Error Resume Next
+    lbl.Characters.Font.Size = 8
+    lbl.Characters.Font.Bold = True
+    On Error GoTo 0
+End Sub
+
+' Moves a caption to L, at the bottom of row 1. Only touches a property that is
+' actually out of place, so the call is cheap on every selection change.
+Private Sub PlaceReportLabel(ByVal ws As Worksheet, ByVal Nm As String, ByVal L As Double, ByVal W As Double)
+    Dim lbl As Excel.Label, i As Long, T As Double
+    For i = 1 To ws.Labels.Count
+        If StrComp(ws.Labels(i).Name, REP_BTN_TAG & Nm, vbBinaryCompare) = 0 Then
+            Set lbl = ws.Labels(i)
             Exit For
         End If
-    Next c
-    If found = Col Then Exit Sub
-
-    ev = Application.EnableEvents
-    Application.EnableEvents = False
-    UnlockSheet ws
-    If found > 0 Then ws.Cells(1, found).ClearContents
-    With ws.Cells(1, Col)
-        .Value = REP_MARK_LABEL
-        .Font.Bold = True
-    End With
-    RelockSheet ws
-    Application.EnableEvents = ev
+    Next i
+    If lbl Is Nothing Then Exit Sub
+    T = ws.Rows(1).Top + ws.Rows(1).Height - REP_LBL_H - 0.5
+    If lbl.Placement <> xlFreeFloating Then lbl.Placement = xlFreeFloating
+    If Abs(lbl.Left - L) > 0.5 Then lbl.Left = L
+    If Abs(lbl.Top - T) > 0.5 Then lbl.Top = T
+    If Abs(lbl.Width - W) > 0.5 Then lbl.Width = W
+    If Abs(lbl.Height - REP_LBL_H) > 0.5 Then lbl.Height = REP_LBL_H
 End Sub
 
 ' ============================================================== helpers ===

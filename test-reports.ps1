@@ -122,7 +122,7 @@ try {
         # minimum-columns view (snag 2d) never hides, so Chargeable is F13
         # now, not H13.
         $charge = $c.Range('F18').Text
-        $warn = [string]$c.Range('A14').Text
+        $warn = [string]$c.Range('A13').Text
         $line = "  {0,-34} jobs={1,-4} chargeable={2,-10}" -f $label, $jobs, $charge
         if ($warn -ne '') { $line += " WARN: $warn" }
         Write-Host $line
@@ -169,24 +169,26 @@ try {
     Write-Host ''
     Write-Host '=== Reports: filter block layout (2026-10-02) ==='
     $expect = [ordered]@{
-        A4 = 'Student/dept. name'; A5 = 'Student number'; A7 = 'From date'; A8 = 'To date'; A10 = 'Min cost'; A11 = 'Max cost'; A13 = 'Paid'
+        A4 = 'Student/dept. name'; A5 = 'Student number'; A7 = 'From date'; A8 = 'To date'; A10 = 'Min cost'; A11 = 'Max cost'; A12 = 'Paid'
         D4 = 'Location (print room)'; D5 = 'Technician'; D7 = 'Printer'; D8 = 'Paper stock'; D9 = 'Paper type'; D11 = 'Has notes'
         A15 = 'Sort by'; D15 = 'Sort direction'
     }
     foreach ($k in $expect.Keys) {
         Check ([string]$c.Range($k).Text -eq $expect[$k]) "$k reads '$($expect[$k])' (got '$($c.Range($k).Text)')"
     }
-    foreach ($k in 'A6', 'D6', 'A9', 'B9', 'D10', 'A12', 'A16') {
+    foreach ($k in 'A6', 'D6', 'A9', 'B9', 'D10', 'A14', 'A16') {
         Check ([string]$c.Range($k).Text -eq '') "$k is a blank gap row (got '$($c.Range($k).Text)')"
     }
+
+    Check ([string]$c.Range('A12').Text -eq 'Paid' -and [string]$c.Range('A11').Text -eq 'Max cost') 'Min cost, Max cost and Paid are consecutive rows (no gap above Paid, 0.10.26)'
 
     Write-Host ''
     Write-Host '=== Reports: Paid and Paper type filters ==='
     $xl.CalculateFullRebuild()
     $all = [int]$c.Range('B18').Text
-    $c.Range('B13').Value2 = 'Yes'; $xl.CalculateFullRebuild(); $yes = [int]$c.Range('B18').Text
-    $c.Range('B13').Value2 = 'No';  $xl.CalculateFullRebuild(); $no = [int]$c.Range('B18').Text
-    $c.Range('B13').ClearContents() | Out-Null
+    $c.Range('B12').Value2 = 'Yes'; $xl.CalculateFullRebuild(); $yes = [int]$c.Range('B18').Text
+    $c.Range('B12').Value2 = 'No';  $xl.CalculateFullRebuild(); $no = [int]$c.Range('B18').Text
+    $c.Range('B12').ClearContents() | Out-Null
     Write-Host ("  all={0} paid=Yes: {1}  paid=No: {2}" -f $all, $yes, $no)
     Check (($yes + $no) -eq $all) 'Paid Yes + No should account for every job (blank counts as No)'
     $c.Range('F9').Value2 = 'Roll';  $xl.CalculateFullRebuild(); $roll = [int]$c.Range('B18').Text
@@ -200,7 +202,7 @@ try {
 
     Write-Host ''
     Write-Host '=== Reports: dropdown/date-picker UI controls ==='
-    foreach ($addr in 'F5', 'F7', 'F8', 'B15', 'F15', 'B13', 'F9') {
+    foreach ($addr in 'F5', 'F7', 'F8', 'B15', 'F15', 'B12', 'F9') {
         $t = $c.Range($addr).Validation.Type
         Write-Host ("  {0} validation type: {1} (3 = list/dropdown)" -f $addr, $t)
         Check (-not ($t -ne 3)) "$addr should be a list dropdown"

@@ -55,7 +55,7 @@ try {
     function Jobs { $xl.CalculateFullRebuild(); [int]$rep.Range('B18').Text }
     function SpillOk { [string]$rep.Cells($FIRST, 1).Text -notlike '#SPILL*' }
     function Clear-AllBoxes {
-        foreach ($a in 'B4','B5','B7','B8','B10','B11','B13','F4','F5','F7','F8','F9','F11','B15','F15') { $rep.Range($a).ClearContents() | Out-Null }
+        foreach ($a in 'B4','B5','B7','B8','B10','B11','B12','F4','F5','F7','F8','F9','F11','B15','F15') { $rep.Range($a).ClearContents() | Out-Null }
         $xl.CalculateFullRebuild()
     }
     function Shape([string]$macro) {
@@ -124,13 +124,13 @@ try {
     $rep.Range('B10').Value2 = 1
     $rep.Range('B11').Value2 = 9999
     $rep.Range('F11').Value2 = 'No'
-    $rep.Range('B13').Value2 = 'No'
+    $rep.Range('B12').Value2 = 'No'
     $rep.Range('B7').Value2 = [double](Get-Date '2020-01-01').ToOADate()
     $rep.Range('B15').Value2 = 'Qty'
     $rep.Range('F15').Value2 = 'Descending'
     $xl.Run('btnClearFilters')
     $left = @()
-    foreach ($a in 'B4','B5','B7','B8','B10','B11','B13','F4','F5','F7','F8','F9','F11') {
+    foreach ($a in 'B4','B5','B7','B8','B10','B11','B12','F4','F5','F7','F8','F9','F11') {
         if ([string]$rep.Range($a).Formula -ne '') { $left += $a }
     }
     Check ($left.Count -eq 0) "every filter box is empty afterwards (still set: $($left -join ', '))"
@@ -179,28 +179,44 @@ try {
     # ------------------------------------------------------- button placement
     Write-Host ''
     Write-Host '=== Reports buttons stay in place as columns change ==='
-    $names = 'btnGoToRecord','btnTogglePaid','btnClearFilters','btnMarkPaid','btnMarkUnpaid','btnExportReport','btnDeleteVisible'
-    foreach ($n in $names) { Check ($null -ne (Shape $n)) "button $n exists" }
-    $before = @{}; foreach ($n in $names) { $before[$n] = [double](Shape $n).Left }
-    function Overlaps {
-        $a = Shape 'btnGoToRecord'; $b = Shape 'btnMarkPaid'; $c = Shape 'btnExportReport'
-        return ((($a.Left + $a.Width) -gt ($b.Left + 0.5)) -or (($b.Left + $b.Width) -gt ($c.Left + 0.5)))
+    $names = 'btnClearFilters','btnTogglePaid','btnGoToRecord','btnMarkPaid','btnMarkUnpaid','btnExportReport','btnDeleteVisible'
+    function Lbl([string]$n) {
+        foreach ($s in $rep.Shapes) { if ($s.Name -eq $n) { return $s } }
+        return $null
     }
+    foreach ($n in $names) { Check ($null -ne (Shape $n)) "button $n exists" }
+    Check ($null -ne (Lbl 'pcb_lblSelected')) "the 'Selected record:' caption exists"
+    Check ($null -ne (Lbl 'pcb_lblMarkAll')) "the 'Mark all as...' caption exists"
+    $before = @{}; foreach ($n in $names) { $before[$n] = [double](Shape $n).Left }
+    $lblBefore = @{}; foreach ($n in 'pcb_lblSelected','pcb_lblMarkAll') { $lblBefore[$n] = [double](Lbl $n).Left }
+    function Overlaps {
+        $a = Shape 'btnClearFilters'; $b = Shape 'btnTogglePaid'; $m = Shape 'btnMarkPaid'; $e = Shape 'btnExportReport'
+        return ((($a.Left + $a.Width) -gt ($b.Left + 0.5)) -or (($b.Left + $b.Width) -gt ($m.Left + 0.5)) -or (($m.Left + $m.Width) -gt ($e.Left + 0.5)))
+    }
+    function CaptionsOk {
+        $d1 = [math]::Abs([double](Lbl 'pcb_lblSelected').Left - [double](Shape 'btnTogglePaid').Left)
+        $d2 = [math]::Abs([double](Lbl 'pcb_lblMarkAll').Left - [double](Shape 'btnMarkPaid').Left)
+        return (($d1 -lt 1.5) -and ($d2 -lt 1.5))
+    }
+    Check (-not (Overlaps)) 'default columns: the four blocks do not overlap'
+    Check (CaptionsOk) 'default columns: each caption sits over its buttons'
+    Check ([double](Shape 'btnGoToRecord').Left -eq [double](Shape 'btnTogglePaid').Left) 'Go to record is directly under Toggle Paid'
+    Check ([double](Shape 'btnMarkUnpaid').Left -eq [double](Shape 'btnMarkPaid').Left) 'Unpaid is directly under Paid'
     $rep.Activate()
     $rep.Columns('N').Hidden = $true
     Invoke-ComRetry { $rep.Range('A5').Select() | Out-Null }
     Invoke-ComRetry { $rep.Range('A6').Select() | Out-Null }
-    $gl = [double](Shape 'btnGoToRecord').Left
-    Check ($gl -ge ($rep.Columns('O').Left - 0.5)) "N hidden: Go to record moved off the hidden column (Left $([int]$gl))"
-    Check (-not (Overlaps)) 'N hidden: the stacks do not overlap'
-    $label = $null; for ($c = 14; $c -le 40; $c++) { if ([string]$rep.Cells(1, $c).Value2 -eq 'Mark all as...') { $label = $c } }
-    Check ($null -ne $label) "N hidden: the 'Mark all as...' label is still on row 1 (column $label)"
-    if ($label) { Check ([math]::Abs([double]$rep.Cells(1, $label).Left - [double](Shape 'btnMarkPaid').Left) -lt 1.5) 'N hidden: the label sits over its buttons' }
+    $cl = [double](Shape 'btnClearFilters').Left
+    Check ($cl -ge ($rep.Columns('O').Left - 0.5)) "N hidden: the strip moved off the hidden column (Left $([int]$cl))"
+    Check (-not (Overlaps)) 'N hidden: the blocks do not overlap'
+    Check (CaptionsOk) 'N hidden: each caption still sits over its buttons'
     $rep.Columns('N').Hidden = $false
     Invoke-ComRetry { $rep.Range('A5').Select() | Out-Null }
     Invoke-ComRetry { $rep.Range('A6').Select() | Out-Null }
-    $same = $true; foreach ($n in $names) { if ([math]::Abs([double](Shape $n).Left - $before[$n]) -gt 1) { $same = $false; Write-Host "    $n at $([int](Shape $n).Left), was $([int]$before[$n])" } }
-    Check $same 'N shown again: every button is back where it was'
+    $same = $true
+    foreach ($n in $names) { if ([math]::Abs([double](Shape $n).Left - $before[$n]) -gt 1) { $same = $false; Write-Host "    $n at $([int](Shape $n).Left), was $([int]$before[$n])" } }
+    foreach ($n in 'pcb_lblSelected','pcb_lblMarkAll') { if ([math]::Abs([double](Lbl $n).Left - $lblBefore[$n]) -gt 1) { $same = $false; Write-Host "    $n at $([int](Lbl $n).Left), was $([int]$lblBefore[$n])" } }
+    Check $same 'N shown again: every button and caption is back where it was'
 
     # ------------------------------------------------- button names / macros
     Write-Host ''
@@ -228,7 +244,7 @@ try {
     $paidCol = RepCol 'Paid'
     Clear-AllBoxes
     foreach ($lo in @($loMain, $loAnnexe)) { $lo.ListColumns('Paid').DataBodyRange.Value2 = 'No' }
-    $rep.Range('B13').Value2 = 'No'
+    $rep.Range('B12').Value2 = 'No'
     $unpaid = Jobs
     Check ($unpaid -ge 5) "filtered to Paid = No: $unpaid records"
     $rep.Activate()
