@@ -3,6 +3,39 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.10.27 - Reports: a closed "More filters" group, Student-supplied paper, Has a problem and Disregarded filters.
+  - New "More filters" group on Reports (rows 14-15, closed by default): a
+    nested row group under the main filters. Row 16 is its summary row,
+    carries the margin +/- control and reads "More filters (n set)" when
+    hidden filters are in use, so a hidden filter cannot silently shrink the
+    results.
+  - New Has a problem filter (B14): Yes = Status is not OK, No = Status is OK.
+  - New Disregarded filter (B15): Paper, Consumable or Both (both flags set).
+  - Has notes moved from F11 into the closed group (F14).
+  - New Student-supplied paper filter (F10, under Paper type): Yes = the paper
+    stock is Supplied (Roll), Supplied (Sheet) or a Papers row marked Supplied
+    by student (looked up by name, as the Summary's Type column is); No =
+    anything else. Blank = all.
+  - Sort by and everything under it moved down two rows: Sort by / Sort
+    direction row 17, Matching rows 19-20, results header row 22, first
+    results row 23, freeze panes and filter row group follow modReports.REP_*.
+    The filter boxes B4 to B12 and F4 to F9 keep their addresses.
+  - Clear all filters and the at-least-one-filter safeguard count the new
+    boxes, including those in the closed group.
+  - Tests: new test-reportsfilters (group layout and outline, the counter, Has a
+    problem, Disregarded, hidden filters still applying and counting, Student-supplied paper
+    including the built-in stocks); test-reports, test-reportsnav,
+    test-markpaid, test-togglepaid, test-deletereports and test-summaryformat
+    re-pointed at the new rows.
+  - Docs: Reports-Filtering.
+  - Tests: run 2026-10-06 on this build: full suite 34/37. test-reducedview
+    (in-table button widths on the job sheets) fails identically on master
+    6415fb1, so it predates this change. test-togglepaid passed on a rerun.
+    test-restoreworkbook aborted on RPC_E_CALL_REJECTED (Excel busy) in the run and
+    in two reruns, at different lines each time; it passed in an earlier run of
+    this build. test-summaryformat's currency read now retries an empty
+    NumberFormat (an intermittent empty read, seen with and without this change).
+
 0.10.26 - Reports sheet layout: Paid controls grouped and labelled, captions no longer tied to a cell, no gap above Paid.
   - Reports header strip re-laid out (modReports.DrawReportsButtons /
     RepositionReportsButtons). Left to right: Clear all filters | "Selected
@@ -24,7 +57,7 @@ Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module
   - Go to record moved from row 1 to row 3 of the second block, under Toggle
     Paid; Clear all filters sits alone at the left of the strip on row 1.
   - Tests updated for B12/A13 and the new strip: test-reports, test-markpaid,
-    test-reportsnav, test-togglepaid. NOT yet run against a build.
+    test-reportsnav, test-togglepaid. Run 2026-10-06 on the build from 6415fb1: full suite 36/36 (test-dropdowns and test-markpaid on retry).
 
 0.10.25 - Reports: Go to record, Clear all filters, Has notes and cost filters; fixes from the Mac test notes.
   - Reports header gains Go to record (selected row to that record's own sheet

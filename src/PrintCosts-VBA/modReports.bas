@@ -31,22 +31,26 @@ Private Const EXPORT_WHEN_CELL As String = "AN2"
 
 ' The results table's data rows, for the editable Paid column (see "edit Paid
 ' on Reports" below). 2000 matches the number formats FormatReports applies.
-' Row map of the Reports sheet (0.10.25). The filter block grew by three rows
-' (Min/Max cost, Has notes), which moved everything under it down by three:
-'   rows 4-12   the filters (see BuildReports)
+' Row map of the Reports sheet (0.10.27). 0.10.25 grew the filter block by
+' three rows; 0.10.27 added the "More filters" group (rows 14-16), which moved
+' everything under it down by two:
+'   rows 4-12   the main filters (see BuildReports)
 '   row 13      the name/number warning
-'   row 14      gap
-'   row 15      Sort by / Sort direction
-'   row 17/18   "Matching" labels / values
-'   row 20      results header
-'   row 21      first results row (A21 holds the spilled formula)
+'   rows 14-15  the less-used filters (Has a problem, Has notes, Disregarded):
+'               a nested row group, closed by default
+'   row 16      "More filters" - the group's summary row, carrying the margin
+'               +/- control and a count of the hidden filters that are set
+'   row 17      Sort by / Sort direction
+'   row 19/20   "Matching" labels / values
+'   row 22      results header
+'   row 23      first results row (A23 holds the spilled formula)
 ' Public, because modInit (freeze panes) and modExport (Export report) read
 ' the same rows and must never carry their own copy of these numbers.
-Public Const REP_SORT_ROW As Long = 15
-Public Const REP_MATCH_ROW As Long = 17
-Public Const REP_MATCH_VAL_ROW As Long = 18
-Public Const REP_HDR_ROW As Long = 20
-Public Const REP_FIRST_ROW As Long = 21
+Public Const REP_SORT_ROW As Long = 17
+Public Const REP_MATCH_ROW As Long = 19
+Public Const REP_MATCH_VAL_ROW As Long = 20
+Public Const REP_HDR_ROW As Long = 22
+Public Const REP_FIRST_ROW As Long = 23
 Private Const RESULTS_FIRST_ROW As Long = REP_FIRST_ROW
 Private Const RESULTS_LAST_ROW As Long = 2000
 
@@ -299,11 +303,34 @@ Private Function Criteria() As String
     s = s & "*IF(ISNUMBER($B$10),ROUND(IFERROR(" & C("Chargeable Cost") & "*1,0),4)>=$B$10,TRUE)"
     s = s & "*IF(ISNUMBER($B$11),ROUND(IFERROR(" & C("Chargeable Cost") & "*1,0),4)<=$B$11,TRUE)"
 
-    ' Has notes (0.10.25): Yes = the job has a note, No = it has none. A note
+    ' Has notes (0.10.25; in the More filters row, F14, since 0.10.27): Yes = the job has a note, No = it has none. A note
     ' counts when it holds something other than spaces. See NotesText for why
     ' a never-filled Notes cell has to be tested as 0 as well as "".
-    s = s & "*IF($F$11=""Yes"",LEN(TRIM(" & NotesText() & "))>0,IF($F$11=""No"",LEN(TRIM(" & NotesText() & "))=0,TRUE))"
+    s = s & "*IF($F$14=""Yes"",LEN(TRIM(" & NotesText() & "))>0,IF($F$14=""No"",LEN(TRIM(" & NotesText() & "))=0,TRUE))"
 
+    ' Student-supplied paper (0.10.27): Yes = the paper stock is one of the two
+    ' built-in Supplied stocks (not Papers rows, modCatalog.AddBuiltInStocks) or
+    ' a Papers row marked Supplied by student; No = anything else, including a
+    ' stock no longer in Papers. Looked up live by name in tblPapers, the same
+    ' way the Summary's Type column is, so a renamed stock is read as "No".
+    Dim isSup As String
+    isSup = "((XLOOKUP(" & C("Paper Stock") & ",tblPapers[Description],tblPapers[Supplied by student],""No"")=""Yes"")" & _
+        "+(" & C("Paper Stock") & "=""" & SUPPLIED_ROLL & """)+(" & C("Paper Stock") & "=""" & SUPPLIED_SHEET & """)>0)"
+    s = s & "*IF($F$10="""",TRUE,IF($F$10=""Yes""," & isSup & ",NOT(" & isSup & ")))"
+
+    ' Has a problem (0.10.27, More filters group): Yes = Status is text and not
+    ' OK (the Status column holds "OK" or a joined issue list); No = Status is
+    ' OK. A blank Status (never a text cell) is neither.
+    Dim stt As String, isProb As String
+    stt = C("Status")
+    isProb = "(ISTEXT(" & stt & ")*(" & stt & "<>""OK"")*(" & stt & "<>""""))"
+    s = s & "*IF($B$14="""",TRUE,IF($B$14=""Yes""," & isProb & ",ISTEXT(" & stt & ")*(" & stt & "=""OK"")))"
+    ' Disregarded (0.10.27, More filters group): Paper / Consumable = that
+    ' Disregard column is Yes; Both = both are.
+    Dim dP As String, dC As String
+    dP = "(" & C("Disregard Paper") & "=""Yes"")"
+    dC = "(" & C("Disregard Consumable") & "=""Yes"")"
+    s = s & "*IF($B$15="""",TRUE,IF($B$15=""Paper""," & dP & ",IF($B$15=""Consumable""," & dC & "," & dP & "*" & dC & ")))"
     ' Location (print room), added 2026-09-25 - a dropdown of registered print
     ' rooms (RefreshReportFilterLists, AllLocationCodes), same exact-match
     ' treatment as Technician/Printer/Paper Stock above. Moved from $O$4 to
@@ -364,7 +391,7 @@ Public Sub BuildReports()
     ws.Range("A1").Font.Size = 16
     ws.Range("A1").Font.Bold = True
     ws.Range("A2").Value = "Find and filter print jobs across every room in this workbook. Results update as you type - " & _
-        "there is no search button. Leave a box empty to ignore it."
+        "there is no search button. Leave a box empty to ignore it. Less-used filters are in the More filters row (click the + in the left margin)."
 
     ' The header buttons and their two small captions ("Selected record:" and
     ' "Mark all as...") are not written here. They are drawn by
@@ -390,14 +417,14 @@ Public Sub BuildReports()
     '              D:F  Location, Technician
     '   row 6      gap
     '   rows 7-8   A:B  From date, To date
-    '   rows 7-9   D:F  Printer, Paper stock, Paper type
+    '   rows 7-10  D:F  Printer, Paper stock, Paper type, Student-supplied paper
     '   row 9      gap (left)
     '   rows 10-12 A:B  Min cost, Max cost (chargeable), Paid - one group, no
     '              gap row between them (0.10.26, direct user request)
-    '   row 10     gap (right), then
-    '   row 11     D:F  Has notes
     '   row 13     the name/number warning (A13), directly under Paid
-    '   row 14     gap; Sort by at row 15
+    '   rows 14-15 More filters, a closed nested group: Has a problem (A:B) and
+    '              Has notes (D:F), then Disregarded (A:B); row 16 is its
+    '              summary row (0.10.27); Sort by at row 17
     CritCell ws, "A4", "B4", "Student/dept. name"
     CritCell ws, "A5", "B5", "Student number"
     CritCell ws, "A7", "B7", "From date"
@@ -442,11 +469,29 @@ Public Sub BuildReports()
     CritCell ws, "D9", "F9", "Paper type"
     AddList ws.Range("F9"), """Roll"",""Sheet""", "Paper type", "Roll shows only roll jobs, Sheet only sheet jobs. Leave blank to include both."
 
-    ' Has notes (0.10.25, direct user request): after Paper type, with a gap
-    ' row (10) between them.
-    CritCell ws, "D11", "F11", "Has notes"
-    AddList ws.Range("F11"), """Yes"",""No""", "Has notes", "Yes shows only jobs that have a note, No only jobs with none. Leave blank to include both."
+    ' Student-supplied paper (0.10.27, direct user request): directly under
+    ' Paper type. Yes = the job's paper stock is one of the two built-in
+    ' Supplied stocks or a Papers row marked Supplied by student; No = any
+    ' other stock. Row 11 on this side is now empty (Has notes moved to the
+    ' More filters row below).
+    CritCell ws, "D10", "F10", "Student-supplied paper"
+    AddList ws.Range("F10"), """Yes"",""No""", "Student-supplied paper", "Yes shows only jobs on paper the student supplied (Supplied (Roll), Supplied (Sheet) or a Papers row marked Supplied by student), No only jobs on stock the print room supplied. Leave blank to include both."
 
+    ' More filters (0.10.27, direct user request): the less-used filters live
+    ' in rows 14-15, a nested row group closed by default, so the main block
+    ' stays short. Row 16 (formerly the gap before Sort by) is the group's
+    ' summary row: Excel puts the +/- control on it (summary rows sit below
+    ' their group), and it says how many of the hidden filters are set so one
+    ' cannot go unnoticed.
+    CritCell ws, "A14", "B14", "Has a problem"
+    AddList ws.Range("B14"), """Yes"",""No""", "Has a problem", "Yes shows jobs whose Status is not OK, No only jobs whose Status is OK. Leave blank to include all."
+    CritCell ws, "D14", "F14", "Has notes"
+    AddList ws.Range("F14"), """Yes"",""No""", "Has notes", "Yes shows only jobs that have a note, No only jobs with none. Leave blank to include both."
+    CritCell ws, "A15", "B15", "Disregarded"
+    AddList ws.Range("B15"), """Paper"",""Consumable"",""Both""", "Disregarded", "Shows jobs where the paper cost, the consumable cost, or both are disregarded. Leave blank to include all."
+    ws.Range("A16").Formula = "=""More filters""&IF(COUNTA($B$14,$F$14,$B$15)>0,"" (""&COUNTA($B$14,$F$14,$B$15)&"" set)"","""")"
+    ws.Range("A16").Font.Italic = True
+    ws.Range("A16").Font.Color = RGB(90, 90, 90)
     ' Location (print room) filter. Originally parked at N4/O4 (2026-09-25) to
     ' dodge E/G/H/I:M, the columns ApplyReportsMinimumColumns hides entirely
     ' by results-header name (the same trap O10's own 2026-09-22 comment
@@ -465,10 +510,10 @@ Public Sub BuildReports()
     ' (row 12 before the cost range and Has notes were added); the Paid filter
     ' moving up a row in 0.10.26 did not move it, the freed row went to the
     ' warning instead.
-    CritCell ws, "A15", "B15", "Sort by"
-    CritCell ws, "D15", "F15", "Sort direction"
-    AddList ws.Range("B15"), QuotedList(hdrs), "Sort by", "Which column to sort the results by."
-    AddList ws.Range("F15"), """Ascending"",""Descending""", "Sort direction", "Which way to sort."
+    CritCell ws, "A" & REP_SORT_ROW, "B" & REP_SORT_ROW, "Sort by"
+    CritCell ws, "D" & REP_SORT_ROW, "F" & REP_SORT_ROW, "Sort direction"
+    AddList ws.Range("B" & REP_SORT_ROW), QuotedList(hdrs), "Sort by", "Which column to sort the results by."
+    AddList ws.Range("F" & REP_SORT_ROW), """Ascending"",""Descending""", "Sort direction", "Which way to sort."
 
     ' Export names (a Yes/No toggle that lived at N12/O12) was removed
     ' 2026-10-02, direct user request: Export report now asks Yes / No /
@@ -592,8 +637,8 @@ Public Sub BuildReports()
         "," & C("Disregarded") & "," & C("Chargeable Cost") & "," & paidText & "," & C("Technician") & _
         "," & NotesText() & "," & C("Job ID") & ")," & ok & ",""No print jobs match those criteria.""),"
     f = f & "hdrs,{" & QuotedList(hdrs) & "},"
-    f = f & "sortIdx,IFERROR(MATCH($B$15,hdrs,0),0),"
-    f = f & "dir,IF($F$15=""Descending"",-1,1),"
+    f = f & "sortIdx,IFERROR(MATCH($B$" & REP_SORT_ROW & ",hdrs,0),0),"
+    f = f & "dir,IF($F$" & REP_SORT_ROW & "=""Descending"",-1,1),"
     f = f & "IF(sortIdx=0,res,IFERROR(SORTBY(res,INDEX(res,,sortIdx),dir),res))"
     f = f & "),""No print jobs have been recorded yet."")"
     ws.Range("A" & REP_FIRST_ROW).Formula2 = f
@@ -617,7 +662,7 @@ Public Sub BuildReports()
     ' in place, is what keeps rows 4:10 sized for the text that actually
     ' fits per line rather than for the cramped default - see CritCell's own
     ' comment for how this was found.
-    ws.Rows("4:15").AutoFit
+    ws.Rows("4:" & (REP_SORT_ROW)).AutoFit
 
     ' Snag list item 2d: the results table keeps every column, but only the
     ' documented minimum stays visible by default - the rest are hidden
@@ -641,7 +686,18 @@ Public Sub BuildReports()
     ' without losing them. Grouping needs the sheet unprotected, same reason
     ' RefreshReportFilterLists' own ApplyTo calls do their own Unlock/Relock.
     UnlockSheet ws
-    ws.Rows("4:15").Group
+    ' Reset the outline first (0.10.27): Cells.Clear above does not clear row
+    ' outline levels, so every rebuild (Initialise, Refresh Locations) used to
+    ' stack one more level on the block; with the nested More filters group it
+    ' stacked two. Level 1 and visible, then group afresh: the filter block
+    ' comes back expanded and More filters closed after a rebuild.
+    ws.Rows("1:" & REP_HDR_ROW).Hidden = False
+    ws.Rows("1:" & REP_HDR_ROW).OutlineLevel = 1
+    ws.Rows("4:" & REP_SORT_ROW).Group
+    ' The nested group: rows 14-15 (the less-used filters), closed. Hiding the
+    ' rows leaves the +/- on row 16 showing [+].
+    ws.Rows("14:15").Group
+    ws.Rows("14:15").Hidden = True
     RelockSheet ws
 End Sub
 
@@ -1092,7 +1148,7 @@ End Function
 ' The filter boxes, by kind. Sort by and Sort direction are not filters and
 ' are in none of them.
 Private Function TextFilterCells() As Variant
-    TextFilterCells = Array("B4", "B5", "B12", "F4", "F5", "F7", "F8", "F9", "F11")
+    TextFilterCells = Array("B4", "B5", "B12", "B14", "B15", "F4", "F5", "F7", "F8", "F9", "F10", "F14")
 End Function
 
 Private Function DateFilterCells() As Variant

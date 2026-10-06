@@ -65,7 +65,7 @@ try {
     Write-Host ''
     Write-Host '=== Currency wiring: SET_CURRENCY -> NumberFormat ==='
     $rep = $wb.Worksheets('Reports')
-    $repAddr = 'F18'   # Matching: Chargeable total (modReports.REP_MATCH_VAL_ROW)
+    $repAddr = 'F20'   # Matching: Chargeable total (modReports.REP_MATCH_VAL_ROW)
     $wb.Names.Item('SET_CURRENCY').RefersToRange.Value = '$'
     # InitialiseWorkbook ends with a summary dialog (Say) - quiet mode avoids
     # hanging on it with the Excel window invisible.
@@ -74,8 +74,20 @@ try {
     $xl.Run('SetQuiet', $false)
     $sum = $wb.Worksheets('Summary')   # re-fetch: BuildSummary rebuilds the sheet's ranges
     $rep = $wb.Worksheets('Reports')
-    $sumFmt = $sum.Range('D6').NumberFormat
-    $repFmt = $rep.Range($repAddr).NumberFormat
+    # A NumberFormat read straight after InitialiseWorkbook intermittently comes
+    # back empty (seen on D6 and on the Reports cell alike, with and without
+    # the 0.10.27 changes in play); re-reading a moment later gives the real
+    # value, so retry a few times before treating '' as a failure.
+    function Read-Fmt($cell) {
+        for ($i = 0; $i -lt 6; $i++) {
+            $v = [string]$cell.NumberFormat
+            if ($v -ne '') { return $v }
+            Start-Sleep -Milliseconds 500
+        }
+        return ''
+    }
+    $sumFmt = Read-Fmt $sum.Range('D6')
+    $repFmt = Read-Fmt $rep.Range($repAddr)
     # Exact match, not a loose "-like '*$*'": Excel's NumberFormat setter
     # silently canonicalises a BARE or quoted currency symbol back to the OS's
     # own regional currency when set from VBA, so modSettings.CurrencyFormatCode
