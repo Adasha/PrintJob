@@ -258,7 +258,8 @@ try {
         [void]$xl.Run('SetViewMode', 'All'); Start-Sleep -Milliseconds 300
         foreach ($p in $atRisk) {
             $b = FindButton $main $p
-            Check ([double]$b.Width -eq 110) "$p is still 110pt wide after cycle $cycle"
+            # Excel snaps shape widths to the screen pixel grid, so 110pt reads back as 109.875 at some display scalings; allow a point of slack.
+        Check ([math]::Abs([double]$b.Width - 110) -lt 1) "$p is still 110pt wide after cycle $cycle (width $($b.Width))"
             Check ([int]$b.Placement -eq 3) "$p is xlFreeFloating after cycle $cycle"
         }
     }

@@ -28,13 +28,18 @@ Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module
     test-markpaid, test-togglepaid, test-deletereports and test-summaryformat
     re-pointed at the new rows.
   - Docs: Reports-Filtering.
-  - Tests: run 2026-10-06 on this build: full suite 34/37. test-reducedview
-    (in-table button widths on the job sheets) fails identically on master
-    6415fb1, so it predates this change. test-togglepaid passed on a rerun.
-    test-restoreworkbook aborted on RPC_E_CALL_REJECTED (Excel busy) in the run and
-    in two reruns, at different lines each time; it passed in an earlier run of
-    this build. test-summaryformat's currency read now retries an empty
-    NumberFormat (an intermittent empty read, seen with and without this change).
+  - Tests: run 2026-10-06 on this build: full suite 36/37 (test-rollunit on
+    retry). The 37th, test-importunits, aborted once on a transient bad-index
+    read after btnAddPrintJob and passed alone and after wrapping that read in
+    Invoke-ComRetry. Test-only fixes made while chasing earlier failures:
+    test-reducedview compares button widths with 1 pt of slack (Excel snaps
+    shapes to the pixel grid, so 110 pt reads back as 109.875 at this display
+    scaling; it failed identically on master 6415fb1); test-restoreworkbook waits
+    for the roll-rescale handler to finish before taking its baseline Qty (a
+    fixed 500 ms sleep read 6210 mid-rescale where the settled total is 7410) and
+    retries its rejected COM calls; test-summaryformat re-reads an empty
+    NumberFormat. test-togglepaid failed one check once (no other record
+    changed) and passed on every other run; cause not found.
 
 0.10.26 - Reports sheet layout: Paid controls grouped and labelled, captions no longer tied to a cell, no gap above Paid.
   - Reports header strip re-laid out (modReports.DrawReportsButtons /

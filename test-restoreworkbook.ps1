@@ -33,7 +33,7 @@ function Sum-Qty($wb, $sheet, $table) {
     $c = Col $lo 'Qty'
     $sum = 0.0
     for ($i = 1; $i -le $lo.ListRows.Count; $i++) {
-        $v = $lo.ListRows($i).Range.Cells(1, $c).Value2
+        $v = Invoke-ComRetry { $lo.ListRows($i).Range.Cells(1, $c).Value2 }
         if ($null -ne $v -and "$v" -ne '') { $sum += [double]$v }
     }
     return [math]::Round($sum, 6)
@@ -77,6 +77,16 @@ try {
     $annexeWs.Names.Item('LOC_RollUnit').RefersToRange.Value2 = 'Centimetres'
     $xlA.Run('RelockSheet', $annexeWs)
     Start-Sleep -Milliseconds 500
+    # The change handler rescales the roll rows after the cell is set; under load
+    # that can still be running after a fixed sleep, so wait until the Qty total
+    # reads the same twice in a row (up to ~15 s) before taking it as the baseline.
+    $prevQty = -1.0
+    for ($w = 0; $w -lt 30; $w++) {
+        $curQty = Sum-Qty $wbA 'Annexe' 'tblJobs_ANNEX'
+        if ($curQty -eq $prevQty) { break }
+        $prevQty = $curQty
+        Start-Sleep -Milliseconds 500
+    }
 
     $expect.Dept = 'Fine Art'; $expect.Tech = 'Test Tech'; $expect.Unit = 'Centimetres'
     $expect.Jobs = $wbA.Worksheets('Annexe').ListObjects('tblJobs_ANNEX').ListRows.Count
@@ -123,9 +133,9 @@ $xlB.Visible = $false
 $xlB.DisplayAlerts = $false
 $wbB = $null
 try {
-    $wbB = $xlB.Workbooks.Open($fB)
-    $xlB.Run('SetQuiet', $true)
-    $xlB.StatusBar = $false
+    $wbB = Invoke-ComRetry { $xlB.Workbooks.Open($fB) }
+    Invoke-ComRetry { $xlB.Run('SetQuiet', $true) } | Out-Null
+    Invoke-ComRetry { $xlB.StatusBar = $false } | Out-Null
 
     $names = @(); foreach ($ws in $wbB.Worksheets) { $names += $ws.Name }
     Check ($names -notcontains 'Annexe') 'fresh copy has no Annexe before the restore'
@@ -166,7 +176,7 @@ try {
     $wbO = $xlB.Workbooks.Add()
     $wbO.SaveAs($fOther, 51)
     $wbO.Close($false)
-    $xlB.Run('SetQuiet', $true)
+    Invoke-ComRetry { $xlB.Run('SetQuiet', $true) } | Out-Null
     $rowsBefore = $wbB.Worksheets('Annexe').ListObjects('tblJobs_ANNEX').ListRows.Count
     $xlB.Run('RestoreFromFileConfirmed', $fOther)
     $log = [string]$xlB.Run('QuietLog')
