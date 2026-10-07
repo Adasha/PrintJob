@@ -53,16 +53,16 @@ try {
     $rep = $c
 
     # Reports' results columns move whenever one is added - found by header
-    # (row 20) rather than hardcoded.
+    # (row 22) rather than hardcoded.
     function ReportsCol($header) {
         for ($col = 1; $col -le 30; $col++) {
-            if ([string]$c.Cells(20, $col).Text -eq $header) { return $col }
+            if ([string]$c.Cells(22, $col).Text -eq $header) { return $col }
         }
         return 0
     }
     Write-Host '=== Reports: hidden Job ID correlation column ==='
     $jobIdCol = ReportsCol 'Job ID'
-    Check (-not ($jobIdCol -eq 0)) 'no Job ID header found on row 20'
+    Check (-not ($jobIdCol -eq 0)) 'no Job ID header found on row 22'
     # [char] on its own is a .NET Char, and Excel's COM Columns(...) indexer
     # silently takes THAT as a numeric column index (its ordinal value, e.g.
     # 82 for 'R') rather than the single-letter column reference it looks
@@ -71,7 +71,7 @@ try {
     # side by side: same column, different (wrong) answer without this cast.
     $jobIdColLetter = ([char](64 + $jobIdCol)).ToString()
     Check (-not (-not $c.Columns($jobIdColLetter).Hidden)) "column $jobIdColLetter (Job ID) should be hidden"
-    $sp = $c.Range('A21').SpillingToRange
+    $sp = $c.Range('A23').SpillingToRange
     Write-Host ("  results spill: {0} rows x {1} cols" -f $sp.Rows.Count, $sp.Columns.Count)
     $jobIdSample = [string]$sp.Cells(1, $jobIdCol).Value2
     Write-Host ("  {0}16 (Job ID) sample value: '{1}'" -f $jobIdColLetter, $jobIdSample)
@@ -115,13 +115,13 @@ try {
         Set-Crit $c.Range('B7') $from
         Set-Crit $c.Range('B8') $to
         $xl.CalculateFullRebuild()
-        $jobs = $c.Range('B18').Text
+        $jobs = $c.Range('B20').Text
         # "Matching" totals moved from a label-left-of-value row (B/D/F/H/J/L)
         # to a label-above-value layout (row 14/15, same column) on
         # 2026-09-22 - the six metrics only ever sit on columns the
         # minimum-columns view (snag 2d) never hides, so Chargeable is F13
         # now, not H13.
-        $charge = $c.Range('F18').Text
+        $charge = $c.Range('F20').Text
         $warn = [string]$c.Range('A13').Text
         $line = "  {0,-34} jobs={1,-4} chargeable={2,-10}" -f $label, $jobs, $charge
         if ($warn -ne '') { $line += " WARN: $warn" }
@@ -156,27 +156,28 @@ try {
     Write-Host '  (2026-09-27: Technician/Printer/Paper Stock shifted down one row, F4:F6 -> F5:F7, to make room for Location at F4)'
     $c.Range('F5').Value2 = 'J. Okonkwo'
     $xl.CalculateFullRebuild()
-    Write-Host ("  Technician = 'J. Okonkwo': jobs={0}" -f $c.Range('B18').Text)
-    Check (-not ([int]$c.Range('B18').Text -eq 0)) 'expected at least one match on Technician filter'
+    Write-Host ("  Technician = 'J. Okonkwo': jobs={0}" -f $c.Range('B20').Text)
+    Check (-not ([int]$c.Range('B20').Text -eq 0)) 'expected at least one match on Technician filter'
     $c.Range('F5').ClearContents() | Out-Null
 
     $c.Range('F7').Value2 = 'Epson SureColor P9500'
     $xl.CalculateFullRebuild()
-    Write-Host ("  Printer = 'Epson SureColor P9500': jobs={0}" -f $c.Range('B18').Text)
-    Check (-not ([int]$c.Range('B18').Text -eq 0)) 'expected at least one match on Printer filter'
+    Write-Host ("  Printer = 'Epson SureColor P9500': jobs={0}" -f $c.Range('B20').Text)
+    Check (-not ([int]$c.Range('B20').Text -eq 0)) 'expected at least one match on Printer filter'
     $c.Range('F7').ClearContents() | Out-Null
 
     Write-Host ''
     Write-Host '=== Reports: filter block layout (2026-10-02) ==='
     $expect = [ordered]@{
         A4 = 'Student/dept. name'; A5 = 'Student number'; A7 = 'From date'; A8 = 'To date'; A10 = 'Min cost'; A11 = 'Max cost'; A12 = 'Paid'
-        D4 = 'Location (print room)'; D5 = 'Technician'; D7 = 'Printer'; D8 = 'Paper stock'; D9 = 'Paper type'; D11 = 'Has notes'
-        A15 = 'Sort by'; D15 = 'Sort direction'
+        D4 = 'Location (print room)'; D5 = 'Technician'; D7 = 'Printer'; D8 = 'Paper stock'; D9 = 'Paper type'; D10 = 'Student-supplied paper'
+        A14 = 'Has a problem'; D14 = 'Has notes'; A15 = 'Disregarded'; A16 = 'More filters'
+        A17 = 'Sort by'; D17 = 'Sort direction'
     }
     foreach ($k in $expect.Keys) {
         Check ([string]$c.Range($k).Text -eq $expect[$k]) "$k reads '$($expect[$k])' (got '$($c.Range($k).Text)')"
     }
-    foreach ($k in 'A6', 'D6', 'A9', 'B9', 'D10', 'A14', 'A16') {
+    foreach ($k in 'A6', 'D6', 'A9', 'B9', 'D11', 'D16') {
         Check ([string]$c.Range($k).Text -eq '') "$k is a blank gap row (got '$($c.Range($k).Text)')"
     }
 
@@ -185,14 +186,14 @@ try {
     Write-Host ''
     Write-Host '=== Reports: Paid and Paper type filters ==='
     $xl.CalculateFullRebuild()
-    $all = [int]$c.Range('B18').Text
-    $c.Range('B12').Value2 = 'Yes'; $xl.CalculateFullRebuild(); $yes = [int]$c.Range('B18').Text
-    $c.Range('B12').Value2 = 'No';  $xl.CalculateFullRebuild(); $no = [int]$c.Range('B18').Text
+    $all = [int]$c.Range('B20').Text
+    $c.Range('B12').Value2 = 'Yes'; $xl.CalculateFullRebuild(); $yes = [int]$c.Range('B20').Text
+    $c.Range('B12').Value2 = 'No';  $xl.CalculateFullRebuild(); $no = [int]$c.Range('B20').Text
     $c.Range('B12').ClearContents() | Out-Null
     Write-Host ("  all={0} paid=Yes: {1}  paid=No: {2}" -f $all, $yes, $no)
     Check (($yes + $no) -eq $all) 'Paid Yes + No should account for every job (blank counts as No)'
-    $c.Range('F9').Value2 = 'Roll';  $xl.CalculateFullRebuild(); $roll = [int]$c.Range('B18').Text
-    $c.Range('F9').Value2 = 'Sheet'; $xl.CalculateFullRebuild(); $sheet = [int]$c.Range('B18').Text
+    $c.Range('F9').Value2 = 'Roll';  $xl.CalculateFullRebuild(); $roll = [int]$c.Range('B20').Text
+    $c.Range('F9').Value2 = 'Sheet'; $xl.CalculateFullRebuild(); $sheet = [int]$c.Range('B20').Text
     $c.Range('F9').ClearContents() | Out-Null
     Write-Host ("  paper type Roll: {0}  Sheet: {1}" -f $roll, $sheet)
     Check (($roll + $sheet) -eq $all) 'Roll + Sheet should account for every job'
@@ -202,7 +203,7 @@ try {
 
     Write-Host ''
     Write-Host '=== Reports: dropdown/date-picker UI controls ==='
-    foreach ($addr in 'F5', 'F7', 'F8', 'B15', 'F15', 'B12', 'F9') {
+    foreach ($addr in 'F5', 'F7', 'F8', 'B17', 'F17', 'B12', 'F9') {
         $t = $c.Range($addr).Validation.Type
         Write-Host ("  {0} validation type: {1} (3 = list/dropdown)" -f $addr, $t)
         Check (-not ($t -ne 3)) "$addr should be a list dropdown"
@@ -223,10 +224,10 @@ try {
 
     Write-Host ''
     Write-Host '=== Reports: sort by column ==='
-    $c.Range('B15').Value2 = 'Qty'
-    $c.Range('F15').Value2 = 'Descending'
+    $c.Range('B17').Value2 = 'Qty'
+    $c.Range('F17').Value2 = 'Descending'
     $xl.CalculateFullRebuild()
-    $sp = $c.Range('A21').SpillingToRange
+    $sp = $c.Range('A23').SpillingToRange
     $qtyCol = ReportsCol 'Qty'
     $qtys = @()
     for ($r = 1; $r -le $sp.Rows.Count; $r++) { $qtys += [double]$sp.Cells($r, $qtyCol).Value2 }
@@ -236,8 +237,8 @@ try {
     for ($i = 0; $i -lt $qtys.Count; $i++) { if ($qtys[$i] -ne $sortedDesc[$i]) { $matches = $false } }
     Check (-not (-not $matches)) 'results were not sorted by Qty Descending'
     Write-Host '  OK: SORTBY reordered the results as requested'
-    $c.Range('B15').ClearContents() | Out-Null
-    $c.Range('F15').ClearContents() | Out-Null
+    $c.Range('B17').ClearContents() | Out-Null
+    $c.Range('F17').ClearContents() | Out-Null
     $xl.CalculateFullRebuild()
 
     Write-Host ''
@@ -266,7 +267,7 @@ try {
     $noCol = ReportsCol 'Student no'
     Check ($nameCol -gt 0) "Student name column exists in the results table (col $nameCol)"
     Check ($noCol -gt 0) "Student no column exists in the results table (col $noCol)"
-    $sp = $c.Range('A21').SpillingToRange
+    $sp = $c.Range('A23').SpillingToRange
     $anyNameNo = $false
     for ($r = 1; $r -le $sp.Rows.Count; $r++) {
         if ([string]$sp.Cells($r, $nameCol).Value2 -ne '') { $anyNameNo = $true }
@@ -280,7 +281,7 @@ try {
     Write-Host ''
     Write-Host '=== Live view shows names (again, after a rebuild) ==='
     $xl.CalculateFullRebuild()
-    $sp = $c.Range('A21').SpillingToRange
+    $sp = $c.Range('A23').SpillingToRange
     $anyName = $false
     for ($r = 1; $r -le $sp.Rows.Count; $r++) {
         if ([string]$sp.Cells($r, $nameCol).Value2 -ne '') { $anyName = $true }
@@ -312,7 +313,7 @@ try {
     Write-Host '=== Paid appears in the results table ==='
     $paidCol = ReportsCol 'Paid'
     Check ($paidCol -gt 0) "Paid column exists in the results table (col $paidCol)"
-    $sp = $c.Range('A21').SpillingToRange
+    $sp = $c.Range('A23').SpillingToRange
     $sample = [string]$sp.Cells(1, $paidCol).Value2
     Write-Host "  row 1 Paid = '$sample'"
     # This sample workbook's rows predate the Paid column (blank = unpaid,

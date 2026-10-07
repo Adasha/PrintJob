@@ -58,10 +58,10 @@ try {
     }
     # The visible set, as table|jobId keys, plus the columns the routine needs.
     function VisibleInfo {
-        $rng = $rep.Range('A21').SpillingToRange
+        $rng = $rep.Range('A23').SpillingToRange
         $locCol = 0; $jobCol = 0
         for ($c = 1; $c -le 20; $c++) {
-            $hd = [string]$rep.Cells(20, $c).Value2
+            $hd = [string]$rep.Cells(22, $c).Value2
             if ($hd -eq 'Location') { $locCol = $c }
             if ($hd -eq 'Job ID') { $jobCol = $c }
         }
@@ -73,9 +73,9 @@ try {
         }
         return @{ Rng = $rng; LocCol = $locCol; JobCol = $jobCol; N = $rng.Rows.Count; VKeys = $keys }
     }
-    $filterCells = @('B4','B5','B7','B8','B10','B11','B12','F4','F5','F7','F8','F9','F11','B15','F15')
+    $filterCells = @('B4','B5','B7','B8','B10','B11','B12','F4','F5','F7','F8','F9','F10','B14','F14','B17','F17')
     function FilterState { ($filterCells | ForEach-Object { '{0}={1}' -f $_, [string]$rep.Range($_).Value2 }) -join ';' }
-    function ClearFilters { foreach ($a in @('B4','B5','B7','B8','B10','B11','B12','F4','F5','F7','F8','F9','F11')) { $rep.Range($a).ClearContents() | Out-Null }; $xl.CalculateFullRebuild() }
+    function ClearFilters { foreach ($a in @('B4','B5','B7','B8','B10','B11','B12','F4','F5','F7','F8','F9','F10','B14','F14')) { $rep.Range($a).ClearContents() | Out-Null }; $xl.CalculateFullRebuild() }
 
     # ------------------------------------------------------------ the cluster
     Write-Host '=== The cluster on the Reports header ==='
@@ -119,9 +119,9 @@ try {
     $rep.Range('B7').Value2 = 'not a date'
     Check (-not [bool]$xl.Run('HasActiveFilter', $rep)) 'From date text that will not coerce (ignored by Criteria) -> false'
     $rep.Range('B7').ClearContents() | Out-Null
-    $rep.Range('B15').Value2 = 'Qty'
+    $rep.Range('B17').Value2 = 'Qty'
     Check (-not [bool]$xl.Run('HasActiveFilter', $rep)) 'Sort by set, no filter -> false (sort is not a filter)'
-    $rep.Range('B15').ClearContents() | Out-Null
+    $rep.Range('B17').ClearContents() | Out-Null
     $rep.Range('B7').Value2 = [double](Get-Date '2020-01-01').ToOADate()
     Check ([bool]$xl.Run('HasActiveFilter', $rep)) 'a real From date -> true'
     $rep.Range('B7').ClearContents() | Out-Null
@@ -137,7 +137,7 @@ try {
     $rep.Range('B11').Value2 = 100
     Check ([bool]$xl.Run('HasActiveFilter', $rep)) 'a numeric Max cost -> true'
     ClearFilters
-    $rep.Range('F11').Value2 = 'Yes'
+    $rep.Range('F14').Value2 = 'Yes'
     Check ([bool]$xl.Run('HasActiveFilter', $rep)) 'Has notes set -> true'
     ClearFilters
 

@@ -58,7 +58,7 @@ try {
     function Cols {
         $o = @{ Loc = 0; Job = 0; Paid = 0 }
         for ($c = 1; $c -le 20; $c++) {
-            $hd = [string]$rep.Cells(20, $c).Value2
+            $hd = [string]$rep.Cells(22, $c).Value2
             if ($hd -eq 'Location') { $o.Loc = $c }
             if ($hd -eq 'Job ID') { $o.Job = $c }
             if ($hd -eq 'Paid') { $o.Paid = $c }
@@ -68,9 +68,9 @@ try {
     function RecordAt([int]$row) {
         return ('tblJobs_' + [string]$rep.Cells($row, $cols.Loc).Value2) + '|' + [string]$rep.Cells($row, $cols.Job).Value2
     }
-    function SpillCount { Invoke-ComRetry -Attempts 5 { [int]$rep.Range('A21').SpillingToRange.Rows.Count } }
-    function SpillIntact { ([string]$rep.Range('A21').Text -notlike '#SPILL*') -and ((SpillCount) -eq $n) }
-    $filterCells = @('B4','B5','B7','B8','B10','B11','B12','F4','F5','F7','F8','F9','F11','B15','F15')
+    function SpillCount { Invoke-ComRetry -Attempts 5 { [int]$rep.Range('A23').SpillingToRange.Rows.Count } }
+    function SpillIntact { ([string]$rep.Range('A23').Text -notlike '#SPILL*') -and ((SpillCount) -eq $n) }
+    $filterCells = @('B4','B5','B7','B8','B10','B11','B12','F4','F5','F7','F8','F9','F10','B14','F14','B17','F17')
     function FilterState { ($filterCells | ForEach-Object { '{0}={1}' -f $_, [string]$rep.Range($_).Value2 }) -join ';' }
     function AuditActions {
         $aud = $wb.Worksheets('_Audit').ListObjects('tblAudit')
@@ -91,7 +91,7 @@ try {
 
     # --------------------------------------------------------- the column
     Write-Host '=== Paid cells are read-only: locked, no dropdown ==='
-    $pc = $rep.Cells(21, $cols.Paid)
+    $pc = $rep.Cells(23, $cols.Paid)
     $vt = ''
     try { $vt = [string]$pc.Validation.Type } catch { $vt = '' }
     Check ($vt -eq '') "no validation (no dropdown) on the Paid cells (type: '$vt')"
@@ -130,7 +130,7 @@ try {
     Write-Host ''
     Write-Host '=== Toggle Paid lands on the right record (both rooms) ==='
     $done = @{}
-    foreach ($row in 21..($n + 20)) {
+    foreach ($row in 23..($n + 22)) {
         $key = RecordAt $row
         $room = $key.Split('|')[0]
         if ($done.ContainsKey($room)) { continue }
@@ -157,7 +157,7 @@ try {
     # ------------------------------------------- any cell of the row works
     Write-Host ''
     Write-Host '=== Any cell of the row selects the record ==='
-    $row = 22
+    $row = 24
     $key = RecordAt $row
     $shown = Shown $row
     $before = Snapshot
@@ -170,7 +170,7 @@ try {
     # ----------------------------------------------------- several rows
     Write-Host ''
     Write-Host '=== Several rows: all take the value the active row flips to ==='
-    $r1 = 23; $r2 = 24; $r3 = 25
+    $r1 = 25; $r2 = 26; $r3 = 27
     # Make the rows differ so "all the same afterwards" proves something.
     Select-Cell $r1; $s1 = Shown $r1
     $keys = @((RecordAt $r1), (RecordAt $r2), (RecordAt $r3))
@@ -191,7 +191,7 @@ try {
     # ------------------------------------------------ nothing to change
     Write-Host ''
     Write-Host '=== A selection with no record is refused ==='
-    foreach ($case in @(@('header row', 20), @('below the results', (21 + $n + 3)))) {
+    foreach ($case in @(@('header row', 22), @('below the results', (23 + $n + 3)))) {
         $xl.Run('SetQuiet', $true)
         $before = Snapshot
         Invoke-ComRetry { $rep.Cells($case[1], $cols.Paid).Select() | Out-Null }
@@ -207,7 +207,7 @@ try {
     Write-Host '=== Mark all as... still works ==='
     $rep.Range('F7').Value2 = 'Epson SureColor P9500'
     $xl.CalculateFullRebuild()
-    $rng = $rep.Range('A21').SpillingToRange
+    $rng = $rep.Range('A23').SpillingToRange
     $nn = $rng.Rows.Count
     $xl.Run('SetQuiet', $true)
     $xl.Run('MarkVisibleReportsConfirmed', $rep, $rng, $cols.Loc, $cols.Job, $nn, 'Yes')

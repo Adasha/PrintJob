@@ -28,8 +28,8 @@ New-Item -ItemType Directory -Path $workDir | Out-Null
 $f = Join-Path $workDir 'PrintJob.xlsm'
 Copy-Item $deliverable $f
 
-$HDR = 20      # modReports.REP_HDR_ROW
-$FIRST = 21    # modReports.REP_FIRST_ROW
+$HDR = 22      # modReports.REP_HDR_ROW
+$FIRST = 23    # modReports.REP_FIRST_ROW
 $xl = New-Object -ComObject Excel.Application
 $xl.Visible = $false
 $xl.DisplayAlerts = $false
@@ -52,10 +52,10 @@ try {
         for ($c = 1; $c -le 40; $c++) { if ([string]$rep.Cells($HDR, $c).Value2 -like $header) { return $c } }
         return 0
     }
-    function Jobs { $xl.CalculateFullRebuild(); [int]$rep.Range('B18').Text }
+    function Jobs { $xl.CalculateFullRebuild(); [int]$rep.Range('B20').Text }
     function SpillOk { [string]$rep.Cells($FIRST, 1).Text -notlike '#SPILL*' }
     function Clear-AllBoxes {
-        foreach ($a in 'B4','B5','B7','B8','B10','B11','B12','F4','F5','F7','F8','F9','F11','B15','F15') { $rep.Range($a).ClearContents() | Out-Null }
+        foreach ($a in 'B4','B5','B7','B8','B10','B11','B12','F4','F5','F7','F8','F9','F10','B14','F14','B17','F17') { $rep.Range($a).ClearContents() | Out-Null }
         $xl.CalculateFullRebuild()
     }
     function Shape([string]$macro) {
@@ -76,11 +76,11 @@ try {
     $notesMain.Cells(1, 1).Value2 = 'check this one'
     $notesMain.Cells(2, 1).Value2 = '   '            # spaces only: counts as no notes
     $total = Jobs
-    $rep.Range('F11').Value2 = 'Yes'
+    $rep.Range('F14').Value2 = 'Yes'
     Check ((Jobs) -eq 1) 'Has notes = Yes shows only the record with real notes (spaces-only is not a note)'
-    $rep.Range('F11').Value2 = 'No'
+    $rep.Range('F14').Value2 = 'No'
     Check ((Jobs) -eq ($total - 1)) 'Has notes = No shows every other record'
-    $rep.Range('F11').ClearContents() | Out-Null
+    $rep.Range('F14').ClearContents() | Out-Null
     Check ((Jobs) -eq $total) 'Has notes blank shows everything'
     $notesCol = RepCol 'Notes'
     if ($notesCol -gt 0) {
@@ -123,18 +123,18 @@ try {
     $rep.Range('F7').Value2 = 'Epson SureColor P9500'
     $rep.Range('B10').Value2 = 1
     $rep.Range('B11').Value2 = 9999
-    $rep.Range('F11').Value2 = 'No'
+    $rep.Range('F14').Value2 = 'No'
     $rep.Range('B12').Value2 = 'No'
     $rep.Range('B7').Value2 = [double](Get-Date '2020-01-01').ToOADate()
-    $rep.Range('B15').Value2 = 'Qty'
-    $rep.Range('F15').Value2 = 'Descending'
+    $rep.Range('B17').Value2 = 'Qty'
+    $rep.Range('F17').Value2 = 'Descending'
     $xl.Run('btnClearFilters')
     $left = @()
-    foreach ($a in 'B4','B5','B7','B8','B10','B11','B12','F4','F5','F7','F8','F9','F11') {
+    foreach ($a in 'B4','B5','B7','B8','B10','B11','B12','F4','F5','F7','F8','F9','F10','B14','F14') {
         if ([string]$rep.Range($a).Formula -ne '') { $left += $a }
     }
     Check ($left.Count -eq 0) "every filter box is empty afterwards (still set: $($left -join ', '))"
-    Check (([string]$rep.Range('B15').Value2 -eq 'Qty') -and ([string]$rep.Range('F15').Value2 -eq 'Descending')) 'Sort by / Sort direction are left alone'
+    Check (([string]$rep.Range('B17').Value2 -eq 'Qty') -and ([string]$rep.Range('F17').Value2 -eq 'Descending')) 'Sort by / Sort direction are left alone'
     Check ((Jobs) -eq $total) 'all records are back'
     Check ($rep.Range('F7').Validation.Type -eq 3) 'a cleared box keeps its dropdown'
     Clear-AllBoxes

@@ -49,7 +49,8 @@ try {
     function New-Row($ws, $lo) {
         [void]$ws.Activate()
         [void]$xl.Run('btnAddPrintJob')
-        return $lo.ListRows($lo.ListRows.Count).Range.Row
+        # btnAddPrintJob can leave Excel busy for a moment; retry a rejected/bad-index read.
+        return (Invoke-ComRetry { $lo.ListRows($lo.ListRows.Count).Range.Row })
     }
     # Sheet row holding $jobId, or 0.
     function Find-Row($ws, $lo, $jobId) {
