@@ -67,7 +67,9 @@ Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module
     fixed 500 ms sleep read 6210 mid-rescale where the settled total is 7410) and
     retries its rejected COM calls; test-summaryformat re-reads an empty
     NumberFormat. test-togglepaid failed one check once (no other record
-    changed) and passed on every other run; cause not found.
+    changed) and passed on every other run; cause not found. Not reproduced
+    since: 20 consecutive runs and a runner pass on 2026-10-08, all green; the
+    check now names the differing record if it ever fails again.
 
 0.10.26 - Reports sheet layout: Paid controls grouped and labelled, captions no longer tied to a cell, no gap above Paid.
   - Reports header strip re-laid out (modReports.DrawReportsButtons /

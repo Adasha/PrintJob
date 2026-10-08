@@ -81,6 +81,13 @@ try {
     function Other([string]$shown) { if ($shown -eq 'Yes') { 'No' } else { 'Yes' } }
     function Select-Cell([int]$row) { Invoke-ComRetry -Attempts 5 { $rep.Cells($row, $cols.Paid).Select() | Out-Null } }
     function Changed($before, $after) { @($after.Keys | Where-Object { $after[$_] -ne $before[$_] }) }
+    # What differs (other than $skip), with before/after values and snapshot sizes, so a failure explains itself.
+    function ChangedDetail($before, $after, $skip) {
+        $d = @($after.Keys | Where-Object { $_ -ne $skip -and $after[$_] -ne $before[$_] } | ForEach-Object {
+            "{0}: {1} -> '{2}'" -f $_, $(if ($before.ContainsKey($_)) { "'" + $before[$_] + "'" } else { '(absent)' }), $after[$_] })
+        if ($d.Count -eq 0) { return '' }
+        return (' [' + ($d -join '; ') + "; keys before/after $($before.Count)/$($after.Count)]")
+    }
 
     $rep.Activate()
     $xl.CalculateFullRebuild()
@@ -142,7 +149,7 @@ try {
         $xl.Run('btnTogglePaid')
         $after = Snapshot
         Check ($after[$key] -eq $target) "$room : $key changed '$shown' -> '$target'"
-        Check ((Changed $before $after).Count -eq 1) "$room : no other record changed"
+        Check ((Changed $before $after).Count -eq 1) "$room : no other record changed$(ChangedDetail $before $after $key)"
         Check (SpillIntact) "$room : results spill is intact ($(SpillCount) rows)"
         Check ((Shown $row) -eq $target) "$room : the row now displays '$target'"
         Check ($rep.ProtectContents -and $main.ProtectContents -and $annexe.ProtectContents) "$room : sheets re-protected"
@@ -165,7 +172,7 @@ try {
     $xl.Run('btnTogglePaid')
     $after = Snapshot
     Check ($after[$key] -eq (Other $shown)) "record changed from a cell in column A ('$shown' -> '$(Other $shown)')"
-    Check ((Changed $before $after).Count -eq 1) 'only that record changed'
+    Check ((Changed $before $after).Count -eq 1) "only that record changed$(ChangedDetail $before $after $key)"
 
     # ----------------------------------------------------- several rows
     Write-Host ''
