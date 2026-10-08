@@ -58,22 +58,22 @@ try {
     }
     # The visible set, as table|jobId keys, plus the columns the routine needs.
     function VisibleInfo {
-        $rng = $rep.Range('A23').SpillingToRange
+        $rng = $rep.Range('H11').SpillingToRange
         $locCol = 0; $jobCol = 0
-        for ($c = 1; $c -le 20; $c++) {
-            $hd = [string]$rep.Cells(22, $c).Value2
+        for ($c = 8; $c -le 28; $c++) {
+            $hd = [string]$rep.Cells(10, $c).Value2
             if ($hd -eq 'Location') { $locCol = $c }
             if ($hd -eq 'Job ID') { $jobCol = $c }
         }
         $keys = @()
         for ($r = 1; $r -le $rng.Rows.Count; $r++) {
-            $code = [string]$rng.Cells($r, $locCol).Value2
+            $code = [string]$rng.Cells($r, $locCol - 7).Value2
             $tbl = 'tblJobs_' + $code
-            $keys += ($tbl + '|' + [string]$rng.Cells($r, $jobCol).Value2)
+            $keys += ($tbl + '|' + [string]$rng.Cells($r, $jobCol - 7).Value2)
         }
         return @{ Rng = $rng; LocCol = $locCol; JobCol = $jobCol; N = $rng.Rows.Count; VKeys = $keys }
     }
-    $filterCells = @('B4','B5','B7','B8','B10','B11','B12','F4','F5','F7','F8','F9','F10','B14','F14','B17','F17')
+    $filterCells = @('B4','B5','B7','B8','B10','B11','B12','F4','F5','F7','F8','F9','F10','B14','F14','I7','K7')
     function FilterState { ($filterCells | ForEach-Object { '{0}={1}' -f $_, [string]$rep.Range($_).Value2 }) -join ';' }
     function ClearFilters { foreach ($a in @('B4','B5','B7','B8','B10','B11','B12','F4','F5','F7','F8','F9','F10','B14','F14')) { $rep.Range($a).ClearContents() | Out-Null }; $xl.CalculateFullRebuild() }
 
@@ -96,9 +96,9 @@ try {
         Check ($unpaidBtn.TextFrame.Characters().Text -eq 'Unpaid') "Unpaid button caption is 'Unpaid'"
         Check ([string]$paidBtn.OnAction -like '*btnMarkPaid') "Paid button runs btnMarkPaid (got '$($paidBtn.OnAction)')"
         Check ([string]$unpaidBtn.OnAction -like '*btnMarkUnpaid') "Unpaid button runs btnMarkUnpaid (got '$($unpaidBtn.OnAction)')"
-        $r2 = $rep.Rows(2); $r3 = $rep.Rows(3); $r4 = $rep.Rows(4)
-        Check (($paidBtn.Top -ge $r2.Top) -and (($paidBtn.Top + $paidBtn.Height) -le $r3.Top)) 'Paid button sits inside row 2'
-        Check (($unpaidBtn.Top -ge $r3.Top) -and (($unpaidBtn.Top + $unpaidBtn.Height) -le $r4.Top)) 'Unpaid button sits inside row 3'
+        $r2 = $rep.Rows(4); $r3 = $rep.Rows(5); $r4 = $rep.Rows(6)
+        Check (($paidBtn.Top -ge $r2.Top) -and (($paidBtn.Top + $paidBtn.Height) -le $r3.Top)) 'Paid button sits inside row 4'
+        Check (($unpaidBtn.Top -ge $r3.Top) -and (($unpaidBtn.Top + $unpaidBtn.Height) -le $r4.Top)) 'Unpaid button sits inside row 5'
         Check ([math]::Abs($paidBtn.Left - $unpaidBtn.Left) -lt 1) 'Paid and Unpaid are left-aligned with each other'
         if ($lblMark) {
             Check ([math]::Abs($lblMark.Left - $paidBtn.Left) -lt 1.5) 'the caption is left-aligned over the buttons'
@@ -119,9 +119,9 @@ try {
     $rep.Range('B7').Value2 = 'not a date'
     Check (-not [bool]$xl.Run('HasActiveFilter', $rep)) 'From date text that will not coerce (ignored by Criteria) -> false'
     $rep.Range('B7').ClearContents() | Out-Null
-    $rep.Range('B17').Value2 = 'Qty'
+    $rep.Range('I7').Value2 = 'Qty'
     Check (-not [bool]$xl.Run('HasActiveFilter', $rep)) 'Sort by set, no filter -> false (sort is not a filter)'
-    $rep.Range('B17').ClearContents() | Out-Null
+    $rep.Range('I7').ClearContents() | Out-Null
     $rep.Range('B7').Value2 = [double](Get-Date '2020-01-01').ToOADate()
     Check ([bool]$xl.Run('HasActiveFilter', $rep)) 'a real From date -> true'
     $rep.Range('B7').ClearContents() | Out-Null

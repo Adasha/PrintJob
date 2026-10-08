@@ -292,7 +292,7 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
     End If
 
     On Error Resume Next
-    Set rng = repWs.Range("A" & REP_FIRST_ROW).SpillingToRange
+    Set rng = repWs.Cells(REP_FIRST_ROW, REP_COL0).SpillingToRange
     On Error GoTo 0
     If rng Is Nothing Then
         Say "There is nothing to export.", "The Reports sheet has no results yet."
@@ -328,9 +328,9 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
     ' those are already computed over the exact same filter criteria the
     ' export is a snapshot of, so there is exactly one place that knows how
     ' "still owed" reconciles to "total chargeable minus paid".
-    totalChargeable = SafeNum(repWs.Range("F" & REP_MATCH_VAL_ROW).Value)
-    stillOwed = SafeNum(repWs.Range("O" & REP_MATCH_VAL_ROW).Value)
-    paidTotal = SafeNum(repWs.Range("N" & REP_MATCH_VAL_ROW).Value)
+    totalChargeable = SafeNum(repWs.Range(RepCol(6) & REP_MATCH_VAL_ROW).Value)
+    stillOwed = SafeNum(repWs.Range(RepCol(15) & REP_MATCH_VAL_ROW).Value)
+    paidTotal = SafeNum(repWs.Range(RepCol(14) & REP_MATCH_VAL_ROW).Value)
 
     block = AppendTotalsRow(block)
     header = SnapshotHeaderBlock(repWs, rng, n, promoted, totalChargeable, paidTotal, stillOwed)
@@ -403,12 +403,14 @@ End Sub
 ' already know a column is missing.
 Private Function LastHeaderColumn(ByVal ws As Worksheet, ByVal HdrRow As Long) As Long
     Dim c As Long, last As Long, hdr As String
-    c = 1
+    ' Returns a position WITHIN the results block (1 = Date/Time), not a sheet
+    ' column: the block starts at REP_COL0 since the 0.10.28 layout.
+    c = REP_COL0
     Do While Len(Trim$(CStr(ws.Cells(HdrRow, c).Value))) > 0
         hdr = CStr(ws.Cells(HdrRow, c).Value)
-        If StrComp(hdr, "Job ID", vbTextCompare) <> 0 Then last = c
+        If StrComp(hdr, "Job ID", vbTextCompare) <> 0 Then last = c - REP_COL0 + 1
         c = c + 1
-        If c > 100 Then Exit Do
+        If c > REP_COL0 + 100 Then Exit Do
     Loop
     LastHeaderColumn = last
 End Function
@@ -762,7 +764,7 @@ Private Function SnapshotBlock(ByVal ws As Worksheet, ByVal rng As Range, _
     Dim a() As Variant, r As Long, c As Long
     ReDim a(1 To n + 1, 1 To LastCol)
     For c = 1 To LastCol
-        a(1, c) = ws.Cells(HdrRow, c).Value
+        a(1, c) = ws.Cells(HdrRow, REP_COL0 + c - 1).Value
     Next c
     For r = 1 To n
         For c = 1 To LastCol

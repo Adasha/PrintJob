@@ -95,9 +95,9 @@ try {
     Write-Host ''
     Write-Host '=== Reports "Matching" totals split by paid status and reconcile ==='
     $rep = $wb.Worksheets('Reports')
-    $rChargeable = [double]$rep.Range('H13').Value2
-    $rPaid = [double]$rep.Range('J13').Value2
-    $rUnpaid = [double]$rep.Range('L13').Value2
+    $rChargeable = [double]$rep.Range('M9').Value2
+    $rPaid = [double]$rep.Range('U9').Value2
+    $rUnpaid = [double]$rep.Range('V9').Value2
     Check ([Math]::Abs(($rPaid + $rUnpaid) - $rChargeable) -lt 0.01) "Paid + Unpaid reconciles to Chargeable on Reports ($rPaid + $rUnpaid = $($rPaid+$rUnpaid), Chargeable=$rChargeable)"
 
     # ------------------------------------------------------- cost visibility

@@ -65,7 +65,7 @@ try {
     Write-Host ''
     Write-Host '=== Currency wiring: SET_CURRENCY -> NumberFormat ==='
     $rep = $wb.Worksheets('Reports')
-    $repAddr = 'F20'   # Matching: Chargeable total (modReports.REP_MATCH_VAL_ROW)
+    $repAddr = 'M9'   # Matching: Chargeable total (modReports.REP_MATCH_VAL_ROW)
     $wb.Names.Item('SET_CURRENCY').RefersToRange.Value = '$'
     # InitialiseWorkbook ends with a summary dialog (Say) - quiet mode avoids
     # hanging on it with the Excel window invisible.
