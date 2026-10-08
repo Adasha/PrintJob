@@ -31,26 +31,31 @@ Private Const EXPORT_WHEN_CELL As String = "AN2"
 
 ' The results table's data rows, for the editable Paid column (see "edit Paid
 ' on Reports" below). 2000 matches the number formats FormatReports applies.
-' Row map of the Reports sheet (0.10.27). 0.10.25 grew the filter block by
-' three rows; 0.10.27 added the "More filters" group (rows 14-16), which moved
-' everything under it down by two:
-'   rows 4-12   the main filters (see BuildReports)
-'   row 13      the name/number warning
-'   rows 14-15  the less-used filters (Has a problem, Has notes, Disregarded):
-'               a nested row group, closed by default
-'   row 16      "More filters" - the group's summary row, carrying the margin
-'               +/- control and a count of the hidden filters that are set
-'   row 17      Sort by / Sort direction
-'   row 19/20   "Matching" labels / values
-'   row 22      results header
-'   row 23      first results row (A23 holds the spilled formula)
-' Public, because modInit (freeze panes) and modExport (Export report) read
-' the same rows and must never carry their own copy of these numbers.
-Public Const REP_SORT_ROW As Long = 17
-Public Const REP_MATCH_ROW As Long = 19
-Public Const REP_MATCH_VAL_ROW As Long = 20
-Public Const REP_HDR_ROW As Long = 22
-Public Const REP_FIRST_ROW As Long = 23
+' Row map and column map of the Reports sheet (0.10.28 layout). The FILTERS sit
+' on the left in columns A:F (a column group; G is the small gap and carries the
+' group's +/- control). Everything else - title, buttons, sort, Matching totals
+' and the results table - starts at column H (REP_COL0), so that the filter
+' boxes no longer share columns with the results table (and its hidden columns).
+'   A:F rows 4-15  the filters; the addresses of the boxes did not change
+'                  (B4.. and F4..), only the table moved
+'   row 1-2 (H)    title and instruction text
+'   row 3 (H..)    captions "Selected record:" / "Mark all as..."
+'   rows 4-5 (H..) the button strip
+'   row 7          Sort by / Sort direction (I7, K7)
+'   rows 8/9       "Matching" labels / values
+'   row 10         results header
+'   row 11         first results row (the spilled formula is at H11)
+' Public, because modInit and modExport read the same rows and columns and
+' must never carry their own copy of these numbers.
+Public Const REP_COL0 As Long = 8
+Public Const REP_SORT_ROW As Long = 7
+Public Const REP_MATCH_ROW As Long = 8
+Public Const REP_MATCH_VAL_ROW As Long = 9
+Public Const REP_HDR_ROW As Long = 10
+Public Const REP_FIRST_ROW As Long = 11
+Public Const REP_LBL_ROW As Long = 3
+Public Const REP_BTN_ROW1 As Long = 4
+Public Const REP_BTN_ROW2 As Long = 5
 Private Const RESULTS_FIRST_ROW As Long = REP_FIRST_ROW
 Private Const RESULTS_LAST_ROW As Long = 2000
 
@@ -59,7 +64,7 @@ Private Const RESULTS_LAST_ROW As Long = 2000
 Private Const REP_BTN_TAG As String = "pcb_"
 Private Const REP_BTN_GAP As Double = 4     ' between the two Paid stacks
 Private Const REP_GROUP_GAP As Double = 4   ' between groups
-Private Const REP_STRIP_COL As Long = 14    ' N: where the strip starts
+Private Const REP_STRIP_COL As Long = REP_COL0   ' H: where the strip starts
 Private Const REP_CLEAR_W As Double = 90    ' Clear all filters
 Private Const REP_SEL_W As Double = 78      ' Selected record: Toggle Paid / Go to record
 Private Const REP_MARK_W As Double = 68     ' Mark all as...: Paid / Unpaid
@@ -73,6 +78,11 @@ Private Const REP_MARK_LABEL As String = "Mark all as..."
 ' A column of the consolidated range, found by its header text.
 Private Function C(ByVal Header As String) As String
     C = "INDEX(" & DATA_SPILL & ",,MATCH(""" & Header & """," & DATA_HDR & ",0))"
+End Function
+
+' Column letter of the Nth column of the Reports table block (1 = first, Date/Time).
+Public Function RepCol(ByVal N As Long) As String
+    RepCol = Split(ThisWorkbook.Worksheets(SHEET_REPORTS).Cells(1, REP_COL0 + N - 1).Address(True, False), "$")(0)
 End Function
 
 ' SUMIFS of one column, grouped by the Location/Printer/Paper stock key. The
@@ -387,11 +397,11 @@ Public Sub BuildReports()
     ok = Criteria
     hdrs = ResultHeaders
 
-    ws.Range("A1").Value = "Reports"
-    ws.Range("A1").Font.Size = 16
-    ws.Range("A1").Font.Bold = True
-    ws.Range("A2").Value = "Find and filter print jobs across every room in this workbook. Results update as you type - " & _
-        "there is no search button. Leave a box empty to ignore it. Less-used filters are in the More filters row (click the + in the left margin)."
+    ws.Cells(1, REP_COL0).Value = "Reports"
+    ws.Cells(1, REP_COL0).Font.Size = 16
+    ws.Cells(1, REP_COL0).Font.Bold = True
+    ws.Cells(2, REP_COL0).Value = "Find and filter print jobs across every room in this workbook. Results update as you type - " & _
+        "there is no search button. Leave a box empty to ignore it. The filters can be collapsed with the - button above the column letters."
 
     ' The header buttons and their two small captions ("Selected record:" and
     ' "Mark all as...") are not written here. They are drawn by
@@ -489,9 +499,6 @@ Public Sub BuildReports()
     AddList ws.Range("F14"), """Yes"",""No""", "Has notes", "Yes shows only jobs that have a note, No only jobs with none. Leave blank to include both."
     CritCell ws, "A15", "B15", "Disregarded"
     AddList ws.Range("B15"), """Paper"",""Consumable"",""Both""", "Disregarded", "Shows jobs where the paper cost, the consumable cost, or both are disregarded. Leave blank to include all."
-    ws.Range("A16").Formula = "=""More filters""&IF(COUNTA($B$14,$F$14,$B$15)>0,"" (""&COUNTA($B$14,$F$14,$B$15)&"" set)"","""")"
-    ws.Range("A16").Font.Italic = True
-    ws.Range("A16").Font.Color = RGB(90, 90, 90)
     ' Location (print room) filter. Originally parked at N4/O4 (2026-09-25) to
     ' dodge E/G/H/I:M, the columns ApplyReportsMinimumColumns hides entirely
     ' by results-header name (the same trap O10's own 2026-09-22 comment
@@ -510,10 +517,10 @@ Public Sub BuildReports()
     ' (row 12 before the cost range and Has notes were added); the Paid filter
     ' moving up a row in 0.10.26 did not move it, the freed row went to the
     ' warning instead.
-    CritCell ws, "A" & REP_SORT_ROW, "B" & REP_SORT_ROW, "Sort by"
-    CritCell ws, "D" & REP_SORT_ROW, "F" & REP_SORT_ROW, "Sort direction"
-    AddList ws.Range("B" & REP_SORT_ROW), QuotedList(hdrs), "Sort by", "Which column to sort the results by."
-    AddList ws.Range("F" & REP_SORT_ROW), """Ascending"",""Descending""", "Sort direction", "Which way to sort."
+    CritCell ws, RepCol(1) & REP_SORT_ROW, RepCol(2) & REP_SORT_ROW, "Sort by"
+    CritCell ws, RepCol(3) & REP_SORT_ROW, RepCol(4) & REP_SORT_ROW, "Sort direction"
+    AddList ws.Range(RepCol(2) & REP_SORT_ROW), QuotedList(hdrs), "Sort by", "Which column to sort the results by."
+    AddList ws.Range(RepCol(4) & REP_SORT_ROW), """Ascending"",""Descending""", "Sort direction", "Which way to sort."
 
     ' Export names (a Yes/No toggle that lived at N12/O12) was removed
     ' 2026-10-02, direct user request: Export report now asks Yes / No /
@@ -548,12 +555,12 @@ Public Sub BuildReports()
     ' column further down the sheet. When the hidden columns between them
     ' collapse (the default state), B/C/D/F/N/O end up rendering adjacent
     ' anyway, so nothing looks gapped in the common case.
-    ws.Range("A" & REP_MATCH_ROW).Value = "Matching"
-    ws.Range("A" & REP_MATCH_ROW).Font.Bold = True
-    MatchTotal ws, "B", "Jobs", "=IFERROR(ROWS(FILTER(" & C("Job ID") & "," & ok & ")),0)"
-    MatchTotal ws, "C", "Gross", "=IFERROR(SUM(FILTER(" & C("Gross Cost") & "," & ok & ")),0)"
-    MatchTotal ws, "D", "Disregarded", "=IFERROR(SUM(FILTER(" & C("Disregarded") & "," & ok & ")),0)"
-    MatchTotal ws, "F", "Chargeable", "=IFERROR(SUM(FILTER(" & C("Chargeable Cost") & "," & ok & ")),0)"
+    ws.Range(RepCol(1) & REP_MATCH_ROW).Value = "Matching"
+    ws.Range(RepCol(1) & REP_MATCH_ROW).Font.Bold = True
+    MatchTotal ws, RepCol(2), "Jobs", "=IFERROR(ROWS(FILTER(" & C("Job ID") & "," & ok & ")),0)"
+    MatchTotal ws, RepCol(3), "Gross", "=IFERROR(SUM(FILTER(" & C("Gross Cost") & "," & ok & ")),0)"
+    MatchTotal ws, RepCol(4), "Disregarded", "=IFERROR(SUM(FILTER(" & C("Disregarded") & "," & ok & ")),0)"
+    MatchTotal ws, RepCol(6), "Chargeable", "=IFERROR(SUM(FILTER(" & C("Chargeable Cost") & "," & ok & ")),0)"
     ' Snag list item 1c: the matching chargeable total split by paid status,
     ' same "total minus paid" reconciliation as Summary's J6/L6 - a blank
     ' Paid (a job that predates the column) falls into Unpaid either way.
@@ -567,21 +574,21 @@ Public Sub BuildReports()
     ' "one row marked Yes" case test-paid.ps1 already covered.
     Dim paidOk As String
     paidOk = ok & "*(" & C("Paid") & "=""Yes"")"
-    MatchTotal ws, "N", "Paid", "=IFERROR(SUM(FILTER(" & C("Chargeable Cost") & "," & paidOk & ",0)),0)"
-    MatchTotal ws, "O", "Unpaid", "=IFERROR(SUM(FILTER(" & C("Chargeable Cost") & "," & ok & ",0))-SUM(FILTER(" & C("Chargeable Cost") & "," & paidOk & ",0)),0)"
-    ws.Range("C" & REP_MATCH_VAL_ROW).NumberFormat = CurrencyFormatCode()
-    ws.Range("D" & REP_MATCH_VAL_ROW).NumberFormat = CurrencyFormatCode()
-    ws.Range("F" & REP_MATCH_VAL_ROW).NumberFormat = CurrencyFormatCode()
-    ws.Range("N" & REP_MATCH_VAL_ROW).NumberFormat = CurrencyFormatCode()
-    ws.Range("O" & REP_MATCH_VAL_ROW).NumberFormat = CurrencyFormatCode()
+    MatchTotal ws, RepCol(14), "Paid", "=IFERROR(SUM(FILTER(" & C("Chargeable Cost") & "," & paidOk & ",0)),0)"
+    MatchTotal ws, RepCol(15), "Unpaid", "=IFERROR(SUM(FILTER(" & C("Chargeable Cost") & "," & ok & ",0))-SUM(FILTER(" & C("Chargeable Cost") & "," & paidOk & ",0)),0)"
+    ws.Range(RepCol(3) & REP_MATCH_VAL_ROW).NumberFormat = CurrencyFormatCode()
+    ws.Range(RepCol(4) & REP_MATCH_VAL_ROW).NumberFormat = CurrencyFormatCode()
+    ws.Range(RepCol(6) & REP_MATCH_VAL_ROW).NumberFormat = CurrencyFormatCode()
+    ws.Range(RepCol(14) & REP_MATCH_VAL_ROW).NumberFormat = CurrencyFormatCode()
+    ws.Range(RepCol(15) & REP_MATCH_VAL_ROW).NumberFormat = CurrencyFormatCode()
 
     ' --- the records ------------------------------------------------------
     ' Job ID is appended after Notes and hidden - the correlation key that
     ' maps a visible row back to its source location sheet and table row for
     ' the Reports-page delete. Nothing else moves, so existing column
     ' positions are untouched.
-    WriteHeaderRow ws, REP_HDR_ROW, hdrs
-    ws.Cells(REP_HDR_ROW, UBound(hdrs) - LBound(hdrs) + 2).Value = "Job ID"
+    WriteHeaderRow ws, REP_HDR_ROW, hdrs, REP_COL0
+    ws.Cells(REP_HDR_ROW, REP_COL0 + UBound(hdrs) - LBound(hdrs) + 1).Value = "Job ID"
 
     ' Sorting: the whole FILTER result is bound to res once via LET, then
     ' re-ordered by whichever column K5 names, found by matching its header
@@ -637,12 +644,12 @@ Public Sub BuildReports()
         "," & C("Disregarded") & "," & C("Chargeable Cost") & "," & paidText & "," & C("Technician") & _
         "," & NotesText() & "," & C("Job ID") & ")," & ok & ",""No print jobs match those criteria.""),"
     f = f & "hdrs,{" & QuotedList(hdrs) & "},"
-    f = f & "sortIdx,IFERROR(MATCH($B$" & REP_SORT_ROW & ",hdrs,0),0),"
-    f = f & "dir,IF($F$" & REP_SORT_ROW & "=""Descending"",-1,1),"
+    f = f & "sortIdx,IFERROR(MATCH($" & RepCol(2) & "$" & REP_SORT_ROW & ",hdrs,0),0),"
+    f = f & "dir,IF($" & RepCol(4) & "$" & REP_SORT_ROW & "=""Descending"",-1,1),"
     f = f & "IF(sortIdx=0,res,IFERROR(SORTBY(res,INDEX(res,,sortIdx),dir),res))"
     f = f & "),""No print jobs have been recorded yet."")"
-    ws.Range("A" & REP_FIRST_ROW).Formula2 = f
-    ws.Columns(UBound(hdrs) - LBound(hdrs) + 2).Hidden = True
+    ws.Cells(REP_FIRST_ROW, REP_COL0).Formula2 = f
+    ws.Columns(REP_COL0 + UBound(hdrs) - LBound(hdrs) + 1).Hidden = True
 
     ws.Range(EXPORT_SIG_CELL).Value = savedSig
     If IsDate(savedWhen) Then
@@ -662,7 +669,16 @@ Public Sub BuildReports()
     ' in place, is what keeps rows 4:10 sized for the text that actually
     ' fits per line rather than for the cramped default - see CritCell's own
     ' comment for how this was found.
-    ws.Rows("4:" & (REP_SORT_ROW)).AutoFit
+    ' 0.10.28: the filters now sit beside the results table, so these rows are
+    ' shared with it. Fixed, uniform heights (no wrapping, no AutoFit): rows 4-5
+    ' are button rows (22pt), the caption row above them is short, and the rest
+    ' match the filter rows so the first table rows do not look uneven.
+    ws.Range("A4:F15").WrapText = False
+    ws.Range("A4:F15").VerticalAlignment = xlCenter
+    ws.Rows("1:2").RowHeight = 21
+    ws.Rows(REP_LBL_ROW).RowHeight = 15
+    ws.Rows(REP_BTN_ROW1 & ":" & REP_BTN_ROW2).RowHeight = 22
+    ws.Rows("6:15").RowHeight = 18
 
     ' Snag list item 2d: the results table keeps every column, but only the
     ' documented minimum stays visible by default - the rest are hidden
@@ -680,24 +696,20 @@ Public Sub BuildReports()
     ' with a bare 1004 on the now-protected cells.
     RefreshReportFilterLists ws
 
-    ' Row group (snag list item 15): the whole filter block - both criteria
-    ' groups, the name/number warning and the sort controls - collapses
-    ' together, so a user who has already set filters can hide the controls
-    ' without losing them. Grouping needs the sheet unprotected, same reason
-    ' RefreshReportFilterLists' own ApplyTo calls do their own Unlock/Relock.
+    ' Column group (0.10.28): the filter columns A:F collapse together, so a user
+    ' who has already set filters can hide the controls without losing them. The
+    ' +/- control lands on column G, the small gap between filters and results
+    ' (summary column on the right). Grouping needs the sheet unprotected. The
+    ' outline is reset first: Cells.Clear does not clear outline levels, so every
+    ' rebuild would otherwise stack another level on. The row groups of earlier
+    ' builds (filter block and More filters) are gone: every filter is visible.
     UnlockSheet ws
-    ' Reset the outline first (0.10.27): Cells.Clear above does not clear row
-    ' outline levels, so every rebuild (Initialise, Refresh Locations) used to
-    ' stack one more level on the block; with the nested More filters group it
-    ' stacked two. Level 1 and visible, then group afresh: the filter block
-    ' comes back expanded and More filters closed after a rebuild.
     ws.Rows("1:" & REP_HDR_ROW).Hidden = False
-    ws.Rows("1:" & REP_HDR_ROW).OutlineLevel = 1
-    ws.Rows("4:" & REP_SORT_ROW).Group
-    ' The nested group: rows 14-15 (the less-used filters), closed. Hiding the
-    ' rows leaves the +/- on row 16 showing [+].
-    ws.Rows("14:15").Group
-    ws.Rows("14:15").Hidden = True
+    ws.Rows.ClearOutline
+    ws.Columns.ClearOutline
+    ws.Columns("A:G").Hidden = False
+    ws.Outline.SummaryColumn = xlSummaryOnRight
+    ws.Columns("A:F").Group
     RelockSheet ws
 End Sub
 
@@ -711,21 +723,23 @@ End Sub
 ' preserves the exact same relative gaps this had before (one blank column
 ' after the hidden Job ID column, then straight into "By print room").
 Private Sub BuildBreakdowns(ByVal ws As Worksheet, ByVal ok As String)
-    ws.Range("T" & REP_HDR_ROW).Value = "By print room"
-    ws.Range("T" & REP_HDR_ROW).Font.Bold = True
-    ws.Range("T" & REP_FIRST_ROW).Formula2 = GroupFormula(ok, "Location")
+    Dim c1 As String, c2 As String
+    c1 = RepCol(20): c2 = RepCol(24)
+    ws.Range(c1 & REP_HDR_ROW).Value = "By print room"
+    ws.Range(c1 & REP_HDR_ROW).Font.Bold = True
+    ws.Range(c1 & REP_FIRST_ROW).Formula2 = GroupFormula(ok, "Location")
 
-    ws.Range("X" & REP_HDR_ROW).Value = "By paper stock"
-    ws.Range("X" & REP_HDR_ROW).Font.Bold = True
-    ws.Range("X" & REP_FIRST_ROW).Formula2 = GroupFormula(ok, "Paper Stock")
+    ws.Range(c2 & REP_HDR_ROW).Value = "By paper stock"
+    ws.Range(c2 & REP_HDR_ROW).Font.Bold = True
+    ws.Range(c2 & REP_FIRST_ROW).Formula2 = GroupFormula(ok, "Paper Stock")
 
     ' Each block spills as key | Jobs | Gross | Chargeable, so the money
     ' columns are the third and fourth - Jobs is a count and must not be
     ' formatted as currency.
-    ws.Range("U" & REP_FIRST_ROW + 1 & ":U2000").NumberFormat = "#,##0"
-    ws.Range("V" & REP_FIRST_ROW + 1 & ":W2000").NumberFormat = CurrencyFormatCode()
-    ws.Range("Y" & REP_FIRST_ROW + 1 & ":Y2000").NumberFormat = "#,##0"
-    ws.Range("Z" & REP_FIRST_ROW + 1 & ":AA2000").NumberFormat = CurrencyFormatCode()
+    ws.Range(RepCol(21) & REP_FIRST_ROW + 1 & ":" & RepCol(21) & "2000").NumberFormat = "#,##0"
+    ws.Range(RepCol(22) & REP_FIRST_ROW + 1 & ":" & RepCol(23) & "2000").NumberFormat = CurrencyFormatCode()
+    ws.Range(RepCol(25) & REP_FIRST_ROW + 1 & ":" & RepCol(25) & "2000").NumberFormat = "#,##0"
+    ws.Range(RepCol(26) & REP_FIRST_ROW + 1 & ":" & RepCol(27) & "2000").NumberFormat = CurrencyFormatCode()
 End Sub
 
 ' Group the filtered records by one column. SUMIFS cannot be used here: its
@@ -761,20 +775,28 @@ Private Sub FormatReports(ByVal ws As Worksheet)
     ' the results header below, in a warmer tone so the two bands read as
     ' related but distinct - RGB(244, 232, 222) is RGB(222, 232, 244)'s own
     ' red/blue channels swapped, keeping the identical lightness/saturation.
-    ws.Range("A" & REP_MATCH_ROW & ":O" & REP_MATCH_ROW).Interior.Color = RGB(244, 232, 222)
-    ws.Range("A" & REP_HDR_ROW & ":Q" & REP_HDR_ROW).Interior.Color = RGB(222, 232, 244)
-    ws.Range("A" & REP_FIRST_ROW & ":A2000").NumberFormat = "dd/mm/yyyy hh:mm"
-    ws.Range("G" & REP_FIRST_ROW & ":I2000").NumberFormat = "#,##0.00"
-    ws.Range("J" & REP_FIRST_ROW & ":N2000").NumberFormat = CurrencyFormatCode()
-    ws.Columns("A:Q").ColumnWidth = 14
-    ws.Columns("B:F").ColumnWidth = 22
-    ws.Columns("Q").ColumnWidth = 30
-    ws.Columns("A").ColumnWidth = ColWidthForPx(180)  ' Date/Time, 180px
-    ' N (Chargeable) is wide enough to hold the Go to record / Clear all
-    ' filters buttons drawn above it (0.10.25, DrawReportsButtons).
-    ws.Columns("N").ColumnWidth = ColWidthForPx(140)
-    ws.Columns("T").ColumnWidth = 22
-    ws.Columns("X").ColumnWidth = 22
+    ws.Range(RepCol(1) & REP_MATCH_ROW & ":" & RepCol(15) & REP_MATCH_ROW).Interior.Color = RGB(244, 232, 222)
+    ws.Range(RepCol(1) & REP_HDR_ROW & ":" & RepCol(17) & REP_HDR_ROW).Interior.Color = RGB(222, 232, 244)
+    ws.Range(RepCol(1) & REP_FIRST_ROW & ":" & RepCol(1) & "2000").NumberFormat = "dd/mm/yyyy hh:mm"
+    ws.Range(RepCol(7) & REP_FIRST_ROW & ":" & RepCol(9) & "2000").NumberFormat = "#,##0.00"
+    ws.Range(RepCol(10) & REP_FIRST_ROW & ":" & RepCol(14) & "2000").NumberFormat = CurrencyFormatCode()
+    ' Filter block A:F (labels A and D, inputs B and F; C and E are spacers),
+    ' G the small gap before the results.
+    ws.Columns("A:B").ColumnWidth = 22
+    ws.Columns("C").ColumnWidth = 3
+    ws.Columns("D").ColumnWidth = 24
+    ws.Columns("E").ColumnWidth = 1.5
+    ws.Columns("F").ColumnWidth = 22
+    ws.Columns("G").ColumnWidth = 2.5
+    ws.Range(RepCol(1) & ":" & RepCol(17)).ColumnWidth = 14
+    ws.Range(RepCol(2) & ":" & RepCol(6)).ColumnWidth = 22
+    ws.Columns(RepCol(17)).ColumnWidth = 30
+    ws.Columns(RepCol(1)).ColumnWidth = ColWidthForPx(180)  ' Date/Time, 180px
+    ' Chargeable is wide enough to hold the Go to record / Clear all filters
+    ' buttons' strip neighbours (0.10.25, DrawReportsButtons).
+    ws.Columns(RepCol(14)).ColumnWidth = ColWidthForPx(140)
+    ws.Columns(RepCol(20)).ColumnWidth = 22
+    ws.Columns(RepCol(24)).ColumnWidth = 22
     ws.Rows(REP_HDR_ROW).Font.Bold = True
 End Sub
 
@@ -803,7 +825,7 @@ Public Sub DeleteVisibleReports()
     If Not RequireActiveFilter(ws, "delete records") Then Exit Sub
 
     On Error Resume Next
-    Set rng = ws.Range("A" & REP_FIRST_ROW).SpillingToRange
+    Set rng = ws.Cells(REP_FIRST_ROW, REP_COL0).SpillingToRange
     On Error GoTo 0
     If rng Is Nothing Then
         Say "There is nothing to delete.", "The Reports sheet has no results under the current filters."
@@ -828,7 +850,7 @@ Public Sub DeleteVisibleReports()
     ' lose" pattern as modJobs.RemoveRow/ClearAll.
     Set rooms = New clsDict
     For i = 1 To n
-        loc = CStr(rng.Cells(i, locCol).Value)
+        loc = CStr(rng.Cells(i, locCol - rng.Column + 1).Value)
         If rooms.Exists(loc) Then
             rooms.Add loc, CLng(rooms.Item(loc)) + 1
         Else
@@ -884,8 +906,8 @@ Public Sub DeleteVisibleReportsConfirmed(ByVal ws As Worksheet, ByVal rng As Ran
     ReDim jobIds(1 To n)
     ReDim locs(1 To n)
     For i = 1 To n
-        jobIds(i) = CStr(rng.Cells(i, JobCol).Value)
-        locs(i) = CStr(rng.Cells(i, LocCol).Value)
+        jobIds(i) = CStr(rng.Cells(i, JobCol - rng.Column + 1).Value)
+        locs(i) = CStr(rng.Cells(i, LocCol - rng.Column + 1).Value)
     Next i
 
     AppOff
@@ -969,7 +991,7 @@ Public Sub TogglePaidSelected(Optional ByVal Confirmed As Boolean = False)
     End If
 
     On Error Resume Next
-    Set rng = ws.Range("A" & REP_FIRST_ROW).SpillingToRange
+    Set rng = ws.Cells(REP_FIRST_ROW, REP_COL0).SpillingToRange
     On Error GoTo 0
     If rng Is Nothing Then
         Say "Select a record first.", "The Reports sheet has no results under the current filters."
@@ -1211,7 +1233,7 @@ Public Sub MarkVisibleReports(ByVal NewPaid As String)
     If Not RequireActiveFilter(ws, "mark records as " & label) Then Exit Sub
 
     On Error Resume Next
-    Set rng = ws.Range("A" & REP_FIRST_ROW).SpillingToRange
+    Set rng = ws.Cells(REP_FIRST_ROW, REP_COL0).SpillingToRange
     On Error GoTo 0
     If rng Is Nothing Then
         Say "There is nothing to mark.", "The Reports sheet has no results under the current filters."
@@ -1237,13 +1259,13 @@ Public Sub MarkVisibleReports(ByVal NewPaid As String)
     ' already at the requested value (they are left alone, not rewritten).
     Set rooms = New clsDict
     For i = 1 To n
-        loc = CStr(rng.Cells(i, locCol).Value)
+        loc = CStr(rng.Cells(i, locCol - rng.Column + 1).Value)
         If rooms.Exists(loc) Then
             rooms.Add loc, CLng(rooms.Item(loc)) + 1
         Else
             rooms.Add loc, 1
         End If
-        If StrComp(Trim$(CStr(rng.Cells(i, paidCol).Value)), NewPaid, vbTextCompare) = 0 Then same = same + 1
+        If StrComp(Trim$(CStr(rng.Cells(i, paidCol - rng.Column + 1).Value)), NewPaid, vbTextCompare) = 0 Then same = same + 1
     Next i
     For Each k In rooms.Keys
         breakdown = breakdown & "  " & CStr(k) & ": " & rooms.Item(CStr(k)) & vbCrLf
@@ -1289,8 +1311,8 @@ Public Sub MarkVisibleReportsConfirmed(ByVal ws As Worksheet, ByVal rng As Range
     ReDim jobIds(1 To n)
     ReDim locs(1 To n)
     For i = 1 To n
-        jobIds(i) = CStr(rng.Cells(i, JobCol).Value)
-        locs(i) = CStr(rng.Cells(i, LocCol).Value)
+        jobIds(i) = CStr(rng.Cells(i, JobCol - rng.Column + 1).Value)
+        locs(i) = CStr(rng.Cells(i, LocCol - rng.Column + 1).Value)
     Next i
 
     AppOff
@@ -1391,7 +1413,7 @@ End Function
 
 Private Function ColByHeader(ByVal ws As Worksheet, ByVal HdrRow As Long, ByVal Header As String) As Long
     Dim c As Long
-    For c = 1 To 100
+    For c = REP_COL0 To REP_COL0 + 100
         If Len(Trim$(CStr(ws.Cells(HdrRow, c).Value))) = 0 Then Exit Function
         If StrComp(CStr(ws.Cells(HdrRow, c).Value), Header, vbTextCompare) = 0 Then
             ColByHeader = c
@@ -1482,7 +1504,7 @@ Public Sub GoToReportRecord()
     ' A real record on this row: Date/Time, column A, is a number. (Empty past
     ' the results, text for FILTER's "no jobs match" message, an error while a
     ' typed constant is blocking the spill.)
-    a = ws.Cells(r, 1).Value2
+    a = ws.Cells(r, REP_COL0).Value2
     If IsError(a) Or IsEmpty(a) Then
         Say "That row is not a record.", "Select a row that shows a print job, then press Go to record."
         Exit Sub
@@ -1544,7 +1566,7 @@ Private Sub ScrollRowIntoView(ByVal cel As Range)
 End Sub
 
 ' ===================================================== header buttons ===
-' The Reports header strip (rows 1-3, from column N). Seven buttons and two
+' The Reports header strip (rows 3-5, from column H, 0.10.28 layout; the diagram below shows the order, not the old rows). Seven buttons and two
 ' small captions in four blocks, left to right:
 '
 '   row 1  [Clear all filters]  Selected record:   Mark all as...  [Export report...]
@@ -1591,13 +1613,13 @@ End Sub
 ' do not say where the button sits.)
 
 Public Sub DrawReportsButtons(ByVal ws As Worksheet)
-    DrawOne ws, 1, REP_STRIP_COL, "Clear all filters", "btnClearFilters", REP_CLEAR_W
-    DrawOne ws, 2, REP_STRIP_COL, "Toggle Paid", "btnTogglePaid", REP_SEL_W
-    DrawOne ws, 3, REP_STRIP_COL, "Go to record", "btnGoToRecord", REP_SEL_W
-    DrawOne ws, 2, REP_STRIP_COL + 1, "Paid", "btnMarkPaid", REP_MARK_W
-    DrawOne ws, 3, REP_STRIP_COL + 1, "Unpaid", "btnMarkUnpaid", REP_MARK_W
-    DrawOne ws, 1, REP_STRIP_COL + 6, "Export report...", "btnExportReport", REP_EXPORT_W
-    DrawOne ws, 3, REP_STRIP_COL + 6, "Delete visible records...", "btnDeleteVisible", REP_EXPORT_W
+    DrawOne ws, REP_BTN_ROW1, REP_STRIP_COL, "Clear all filters", "btnClearFilters", REP_CLEAR_W
+    DrawOne ws, REP_BTN_ROW1, REP_STRIP_COL + 1, "Toggle Paid", "btnTogglePaid", REP_SEL_W
+    DrawOne ws, REP_BTN_ROW2, REP_STRIP_COL + 1, "Go to record", "btnGoToRecord", REP_SEL_W
+    DrawOne ws, REP_BTN_ROW1, REP_STRIP_COL + 2, "Paid", "btnMarkPaid", REP_MARK_W
+    DrawOne ws, REP_BTN_ROW2, REP_STRIP_COL + 2, "Unpaid", "btnMarkUnpaid", REP_MARK_W
+    DrawOne ws, REP_BTN_ROW1, REP_STRIP_COL + 6, "Export report...", "btnExportReport", REP_EXPORT_W
+    DrawOne ws, REP_BTN_ROW2, REP_STRIP_COL + 6, "Delete visible records...", "btnDeleteVisible", REP_EXPORT_W
     DrawReportLabel ws, REP_LBL_SEL, REP_SEL_LABEL, REP_SEL_W
     DrawReportLabel ws, REP_LBL_MARK, REP_MARK_LABEL, REP_MARK_W
     RepositionReportsButtons ws
@@ -1614,13 +1636,13 @@ Public Sub RepositionReportsButtons(ByVal ws As Worksheet)
     markLeft = selLeft + REP_SEL_W + REP_BTN_GAP
     expLeft = markLeft + REP_MARK_W + REP_GROUP_GAP
 
-    PlaceReportButton ws, "btnClearFilters", clearLeft, ws.Rows(1).Top, REP_CLEAR_W, 22
-    PlaceReportButton ws, "btnTogglePaid", selLeft, ws.Rows(2).Top + 0.5, REP_SEL_W, ws.Rows(2).Height - 1
-    PlaceReportButton ws, "btnGoToRecord", selLeft, ws.Rows(3).Top + 0.5, REP_SEL_W, ws.Rows(3).Height - 1
-    PlaceReportButton ws, "btnMarkPaid", markLeft, ws.Rows(2).Top + 0.5, REP_MARK_W, ws.Rows(2).Height - 1
-    PlaceReportButton ws, "btnMarkUnpaid", markLeft, ws.Rows(3).Top + 0.5, REP_MARK_W, ws.Rows(3).Height - 1
-    PlaceReportButton ws, "btnExportReport", expLeft, ws.Rows(1).Top, REP_EXPORT_W, 22
-    PlaceReportButton ws, "btnDeleteVisible", expLeft, ws.Rows(3).Top, REP_EXPORT_W, 22
+    PlaceReportButton ws, "btnClearFilters", clearLeft, ws.Rows(REP_BTN_ROW1).Top + 0.5, REP_CLEAR_W, ws.Rows(REP_BTN_ROW1).Height - 1
+    PlaceReportButton ws, "btnTogglePaid", selLeft, ws.Rows(REP_BTN_ROW1).Top + 0.5, REP_SEL_W, ws.Rows(REP_BTN_ROW1).Height - 1
+    PlaceReportButton ws, "btnGoToRecord", selLeft, ws.Rows(REP_BTN_ROW2).Top + 0.5, REP_SEL_W, ws.Rows(REP_BTN_ROW2).Height - 1
+    PlaceReportButton ws, "btnMarkPaid", markLeft, ws.Rows(REP_BTN_ROW1).Top + 0.5, REP_MARK_W, ws.Rows(REP_BTN_ROW1).Height - 1
+    PlaceReportButton ws, "btnMarkUnpaid", markLeft, ws.Rows(REP_BTN_ROW2).Top + 0.5, REP_MARK_W, ws.Rows(REP_BTN_ROW2).Height - 1
+    PlaceReportButton ws, "btnExportReport", expLeft, ws.Rows(REP_BTN_ROW1).Top + 0.5, REP_EXPORT_W, ws.Rows(REP_BTN_ROW1).Height - 1
+    PlaceReportButton ws, "btnDeleteVisible", expLeft, ws.Rows(REP_BTN_ROW2).Top + 0.5, REP_EXPORT_W, ws.Rows(REP_BTN_ROW2).Height - 1
     PlaceReportLabel ws, REP_LBL_SEL, selLeft, REP_SEL_W
     PlaceReportLabel ws, REP_LBL_MARK, markLeft, REP_MARK_W
 End Sub
@@ -1655,7 +1677,13 @@ Private Sub PlaceReportButton(ByVal ws As Worksheet, ByVal Macro As String, ByVa
     Dim b As Button
     Set b = ReportButton(ws, Macro)
     If b Is Nothing Then Exit Sub
-    If b.Placement <> xlFreeFloating Then b.Placement = xlFreeFloating
+    ' xlMove (0.10.28), not free-floating: Excel raises no event when the filter
+    ' column group is collapsed or expanded, so a free-floating strip would stay
+    ' where it was until the next click. xlMove makes the shape follow its cell
+    ' when columns to its left appear or disappear, without ever resizing it
+    ' (xlMoveAndSize is what resized buttons before). The re-pack below still
+    ' runs on every activation and selection change for width changes.
+    If b.Placement <> xlMove Then b.Placement = xlMove
     If Abs(b.Left - L) > 0.5 Then b.Left = L
     If Abs(b.Top - T) > 0.5 Then b.Top = T
     If Abs(b.Width - W) > 0.5 Then b.Width = W
@@ -1673,7 +1701,7 @@ Private Sub DrawReportLabel(ByVal ws As Worksheet, ByVal Nm As String, ByVal Cap
     For i = ws.Labels.Count To 1 Step -1
         If StrComp(ws.Labels(i).Name, REP_BTN_TAG & Nm, vbBinaryCompare) = 0 Then ws.Labels(i).Delete
     Next i
-    Set lbl = ws.Labels.Add(ws.Cells(1, REP_STRIP_COL).Left, ws.Rows(1).Top, W, REP_LBL_H)
+    Set lbl = ws.Labels.Add(ws.Cells(1, REP_STRIP_COL).Left, ws.Rows(REP_LBL_ROW).Top, W, REP_LBL_H)
     lbl.Name = REP_BTN_TAG & Nm
     lbl.Placement = xlFreeFloating ' see modInit.DrawOne's comment
     lbl.Caption = Caption
@@ -1695,8 +1723,8 @@ Private Sub PlaceReportLabel(ByVal ws As Worksheet, ByVal Nm As String, ByVal L 
         End If
     Next i
     If lbl Is Nothing Then Exit Sub
-    T = ws.Rows(1).Top + ws.Rows(1).Height - REP_LBL_H - 0.5
-    If lbl.Placement <> xlFreeFloating Then lbl.Placement = xlFreeFloating
+    T = ws.Rows(REP_LBL_ROW).Top + ws.Rows(REP_LBL_ROW).Height - REP_LBL_H - 0.5
+    If lbl.Placement <> xlMove Then lbl.Placement = xlMove
     If Abs(lbl.Left - L) > 0.5 Then lbl.Left = L
     If Abs(lbl.Top - T) > 0.5 Then lbl.Top = T
     If Abs(lbl.Width - W) > 0.5 Then lbl.Width = W
@@ -1789,10 +1817,10 @@ Private Sub CritCell(ByVal ws As Worksheet, ByVal LabelAddr As String, ByVal Inp
     ' the widths this depends on.
 End Sub
 
-Private Sub WriteHeaderRow(ByVal ws As Worksheet, ByVal RowNo As Long, ByVal Headers As Variant)
+Private Sub WriteHeaderRow(ByVal ws As Worksheet, ByVal RowNo As Long, ByVal Headers As Variant, Optional ByVal FirstCol As Long = 1)
     Dim i As Long
     For i = LBound(Headers) To UBound(Headers)
-        ws.Cells(RowNo, i - LBound(Headers) + 1).Value = Headers(i)
+        ws.Cells(RowNo, FirstCol + i - LBound(Headers)).Value = Headers(i)
     Next i
 End Sub
 
@@ -1805,7 +1833,7 @@ Public Function FilteredSig(ByVal ws As Worksheet) As String
     Dim rng As Range, n As Long, cellCount As Double, chg As Double, last As Double, bad As String
 
     On Error Resume Next
-    Set rng = ws.Range("A" & REP_FIRST_ROW).SpillingToRange
+    Set rng = ws.Cells(REP_FIRST_ROW, REP_COL0).SpillingToRange
     On Error GoTo 0
     If rng Is Nothing Then
         FilteredSig = "empty"

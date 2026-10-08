@@ -40,7 +40,7 @@ try {
     # the filtered-snapshot path.
     $rep.Range('F7').Value2 = 'Epson SureColor P9500'
     $xl.CalculateFullRebuild()
-    $beforeJobs = [int]$rep.Range('B20').Text
+    $beforeJobs = [int]$rep.Range('I9').Text
     Write-Host ("  filtered to Printer = 'Epson SureColor P9500': {0} jobs" -f $beforeJobs)
     if ($beforeJobs -eq 0) { Write-Host 'FAIL: expected at least one job for this filter'; exit 1 }
 
@@ -78,11 +78,11 @@ try {
     Write-Host ("  before: Main={0} rows, Annexe={1} rows" -f $beforeMain, $beforeAnnexe)
 
     $rep.Activate()
-    $rng = $rep.Range('A23').SpillingToRange
+    $rng = $rep.Range('H11').SpillingToRange
     $n = $rng.Rows.Count
     $locCol = 0; $jobCol = 0
-    for ($c = 1; $c -le 20; $c++) {
-        $h = [string]$rep.Cells(22, $c).Value2
+    for ($c = 8; $c -le 28; $c++) {
+        $h = [string]$rep.Cells(10, $c).Value2
         if ($h -eq 'Location') { $locCol = $c }
         if ($h -eq 'Job ID') { $jobCol = $c }
     }

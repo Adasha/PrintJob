@@ -3,6 +3,34 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.10.28 - Reports: filters moved to a collapsible block on the left, results and controls to their right, no freeze panes.
+  - The filters now sit in columns A:F, a column group (outline +/- above the
+    column letters, summary on G, the small gap before the table). The filter
+    boxes keep their addresses (B4 to B12, F4 to F10, B14, B15, F14).
+  - The row groups are gone: every filter, including those of the former
+    "More filters" group (Has a problem, Has notes, Disregarded), is visible.
+    The "More filters (n set)" summary row (A16) no longer exists.
+  - Everything else starts at column H (modReports.REP_COL0): title and
+    instructions H1:H2, the button strip rows 3-5, Sort by / Sort direction
+    row 7 (I7, K7), Matching rows 8-9 (values I9, J9, K9, M9, U9, V9), results
+    header row 10, results from H11, breakdowns at AA10 and AE10, Job ID in Y.
+  - Excess rows closed up: the table header moved from row 22 to row 10.
+    Filter rows have a fixed 18pt height and no wrapping, so they do not
+    distort the table rows beside them.
+  - Button strip regrouped above the sort options: Clear all filters, Selected
+    record (Toggle Paid / Go to record), Mark all as... (Paid / Unpaid), Export
+    report / Delete visible records. The buttons are placed with xlMove so they
+    follow the table when the filter group is collapsed or expanded; the strip
+    is still re-packed on activation and on each click after a column change.
+  - Freeze panes on Reports removed (also cleared on rebuild).
+  - Results code no longer assumes the table starts in column A: ColByHeader
+    scans from REP_COL0, the bulk commands index the spill relative to its own
+    first column, and Export report reads the block from REP_COL0.
+  - Tests: test-reports, test-reportsfilters (column group instead of row
+    groups), test-reportsnav, test-markpaid, test-togglepaid, test-paid (its
+    Reports totals check had been reading empty cells), test-deletereports and
+    test-summaryformat re-pointed at the new layout.
+
 0.10.27 - Reports: a closed "More filters" group, Student-supplied paper, Has a problem and Disregarded filters.
   - New "More filters" group on Reports (rows 14-15, closed by default): a
     nested row group under the main filters. Row 16 is its summary row,

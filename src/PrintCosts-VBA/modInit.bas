@@ -229,10 +229,11 @@ Public Sub InitialiseWorkbook()
             ' Clear all filters | Selected record: | Mark all as... | Export /
             ' Delete; the two captions are free-floating labels drawn there too.
             DrawReportsButtons ws
-            ' Freezes above the print-job results table (row 20) so its
-            ' header row and the filter/totals area above stay visible while
-            ' scrolling through matches - snag list item 9.
-            SetFreeze ws, "A" & REP_HDR_ROW
+            ' No freeze panes on Reports (0.10.28, direct user request): with the
+            ' filters beside the results table there is nothing worth pinning, and
+            ' a frozen top block would cost screen height. Clears any freeze left
+            ' by an earlier build.
+            SetFreeze ws, ""
         End If
     Next ws
 

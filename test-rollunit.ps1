@@ -101,12 +101,12 @@ try {
     # sheet job.
     $rep = $wb.Worksheets('Reports')
     $xl.CalculateFullRebuild()
-    $rep.Range('F9').Value2 = 'Roll';  $xl.CalculateFullRebuild(); $rollJobs = [int]$rep.Range('B20').Text
-    $rep.Range('F9').Value2 = 'Sheet'; $xl.CalculateFullRebuild(); $sheetJobs = [int]$rep.Range('B20').Text
+    $rep.Range('F9').Value2 = 'Roll';  $xl.CalculateFullRebuild(); $rollJobs = [int]$rep.Range('I9').Text
+    $rep.Range('F9').Value2 = 'Sheet'; $xl.CalculateFullRebuild(); $sheetJobs = [int]$rep.Range('I9').Text
     $rep.Range('F9').ClearContents() | Out-Null; $xl.CalculateFullRebuild()
     Check ($rollJobs -ge 1) "Reports Paper type = Roll finds the roll job on a cm room (got $rollJobs)"
     Check ($sheetJobs -ge 1) "Reports Paper type = Sheet finds the sheet job on a cm room (got $sheetJobs)"
-    Check (($rollJobs + $sheetJobs) -eq [int]$rep.Range('B20').Text) 'Roll + Sheet account for every job on a cm room'
+    Check (($rollJobs + $sheetJobs) -eq [int]$rep.Range('I9').Text) 'Roll + Sheet account for every job on a cm room'
 
     # ---------------------------------------------- same unit re-picked
     Write-Host ''

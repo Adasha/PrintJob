@@ -43,9 +43,9 @@ try {
     foreach ($s in $wb.Worksheets) { foreach ($l in $s.ListObjects) { if ($l.Name -eq 'tblPapers') { $pap = $l } } }
     $rep.Activate()
 
-    function Jobs { $xl.CalculateFullRebuild(); [int]$rep.Range('B20').Text }
+    function Jobs { $xl.CalculateFullRebuild(); [int]$rep.Range('I9').Text }
     function Clear-AllBoxes {
-        foreach ($a in 'B4','B5','B7','B8','B10','B11','B12','F4','F5','F7','F8','F9','F10','B14','B15','F14','B17','F17') { Invoke-ComRetry { $rep.Range($a).ClearContents() | Out-Null } }
+        foreach ($a in 'B4','B5','B7','B8','B10','B11','B12','F4','F5','F7','F8','F9','F10','B14','B15','F14','I7','K7') { Invoke-ComRetry { $rep.Range($a).ClearContents() | Out-Null } }
         $xl.CalculateFullRebuild()
     }
     # One record per job table row that has a Date/Time (the rows _Data keeps;
@@ -76,13 +76,12 @@ try {
     # ---------------------------------------------------------- the group
     Write-Host ''
     Write-Host '=== More filters: a closed nested group ==='
-    Check ([bool]$rep.Rows(14).Hidden -and [bool]$rep.Rows(15).Hidden) 'rows 14-15 (the less-used filters) are hidden by default'
-    Check (-not [bool]$rep.Rows(16).Hidden) 'row 16 (More filters) is visible'
-    Check ([int]$rep.Rows(14).OutlineLevel -eq 3 -and [int]$rep.Rows(15).OutlineLevel -eq 3) "rows 14-15 are a nested group (outline level $($rep.Rows(14).OutlineLevel), expected 3)"
-    Check ([int]$rep.Rows(13).OutlineLevel -eq 2 -and [int]$rep.Rows(17).OutlineLevel -eq 2) 'the whole filter block is still one outer group (rows 13 and 17 at level 2)'
-    Check ([string]$rep.Range('A16').Text -eq 'More filters') "row 16 reads 'More filters' with nothing set (got '$($rep.Range('A16').Text)')"
+    Check (-not [bool]$rep.Rows(14).Hidden -and -not [bool]$rep.Rows(15).Hidden) 'rows 14-15 (the less-used filters) are visible: the row groups are gone (0.10.28)'
+    Check ([int]$rep.Rows(4).OutlineLevel -eq 1 -and [int]$rep.Rows(14).OutlineLevel -eq 1) 'no row groups on the Reports sheet'
+    Check ([int]$rep.Columns('A').OutlineLevel -eq 2 -and [int]$rep.Columns('F').OutlineLevel -eq 2 -and [int]$rep.Columns('G').OutlineLevel -eq 1 -and [int]$rep.Columns('H').OutlineLevel -eq 1) 'filter columns A:F are one column group; G (gap) and H are not in it'
+    Check ([string]$rep.Range('A16').Text -eq '') 'no More filters summary row any more'
     Check ([string]$rep.Range('A14').Text -eq 'Has a problem' -and [string]$rep.Range('D14').Text -eq 'Has notes' -and [string]$rep.Range('A15').Text -eq 'Disregarded') 'the closed group holds Has a problem, Has notes and Disregarded'
-    Check ([string]$rep.Range('A' + 17).Text -eq 'Sort by') 'Sort by sits at row 17'
+    Check ([string]$rep.Range('H7').Text -eq 'Sort by') 'Sort by sits at H7 above the table'
     foreach ($addr in 'B14', 'B15', 'F14', 'F10') {
         Check ([int]$rep.Range($addr).Validation.Type -eq 3) "$addr is a dropdown"
     }
@@ -91,11 +90,9 @@ try {
     Write-Host ''
     Write-Host '=== The summary row counts hidden filters that are set ==='
     $rep.Range('F14').Value2 = 'Yes'; $xl.Calculate()
-    Check ([string]$rep.Range('A16').Text -eq 'More filters (1 set)') "one set (got '$($rep.Range('A16').Text)')"
     $rep.Range('B15').Value2 = 'Paper'; $xl.Calculate()
-    Check ([string]$rep.Range('A16').Text -eq 'More filters (2 set)') "two set (got '$($rep.Range('A16').Text)')"
     Clear-AllBoxes
-    Check ([string]$rep.Range('A16').Text -eq 'More filters') 'cleared: back to plain text'
+    Check ([string]$rep.Range('A16').Text -eq '') 'no More filters summary row any more'
 
     # ------------------------------------ Has a problem / Disregarded
     Write-Host ''
@@ -137,7 +134,6 @@ try {
     Write-Host '=== A filter inside the closed row still applies and still counts ==='
     Check (-not [bool]($xl.Run('HasActiveFilter', $rep))) 'no filter set: HasActiveFilter is false'
     $rep.Range('B15').Value2 = 'Paper'
-    Check ([bool]$rep.Rows(15).Hidden) 'the row is still hidden while its filter is set'
     Check ([bool]($xl.Run('HasActiveFilter', $rep))) 'Disregarded alone satisfies the at-least-one-filter safeguard'
     Clear-AllBoxes
     $rep.Range('F14').Value2 = 'Yes'
@@ -190,9 +186,25 @@ try {
     $xl.Run('InitialiseWorkbook')
     $xl.Run('InitialiseWorkbook')
     $rep = Invoke-ComRetry { $wb.Worksheets('Reports') }
-    Check ([int]$rep.Rows(4).OutlineLevel -eq 2 -and [int]$rep.Rows(14).OutlineLevel -eq 3 -and [int]$rep.Rows(15).OutlineLevel -eq 3) "after two rebuilds the levels are still 2 and 3 (got $($rep.Rows(4).OutlineLevel) and $($rep.Rows(14).OutlineLevel))"
-    Check ([bool]$rep.Rows(14).Hidden -and [bool]$rep.Rows(15).Hidden) 'More filters is closed again after a rebuild'
+    Check ([int]$rep.Columns('A').OutlineLevel -eq 2 -and [int]$rep.Columns('H').OutlineLevel -eq 1 -and [int]$rep.Rows(4).OutlineLevel -eq 1) 'after two rebuilds the column group is still one level'
     Check (-not [bool]$rep.Rows(5).Hidden) 'the main filters are expanded after a rebuild'
+    Check (-not [bool]$rep.Columns('A').Hidden) 'the filter columns are expanded after a rebuild'
+
+    # ------------------------------------- freeze panes and the button strip
+    Write-Host ''
+    Write-Host '=== No freeze panes; the buttons follow the filter column group ==='
+    $rep.Activate()
+    $xl.ActiveWindow.ScrollRow = 1; $xl.ActiveWindow.ScrollColumn = 1
+    Check (-not [bool]$xl.ActiveWindow.FreezePanes) 'Reports has no freeze panes'
+    function BtnLeft { foreach ($s in $rep.Shapes) { if ($s.Name -like 'pcb_btnClearFilters_*') { return [double]$s.Left } } return -1 }
+    $open = BtnLeft
+    Check ($open -ge ($rep.Range('H1').Left - 1)) "expanded: the strip starts at column H (Left $([int]$open), H at $([int]$rep.Range('H1').Left))"
+    $rep.Outline.ShowLevels(0, 1) | Out-Null
+    $shut = BtnLeft
+    Check ([bool]$rep.Columns('A').Hidden -and [bool]$rep.Columns('F').Hidden -and -not [bool]$rep.Columns('G').Hidden) 'collapsed: A:F hidden, the gap column G stays'
+    Check ($shut -lt $open - 100 -and [math]::Abs($shut - $rep.Range('H1').Left) -lt 1.5) "collapsed: the buttons moved with the table, no click needed (Left $([int]$shut))"
+    $rep.Outline.ShowLevels(0, 2) | Out-Null
+    Check ([math]::Abs((BtnLeft) - $open) -lt 1.5) 'expanded again: the buttons are back where they were'
 }
 finally {
     if ($wb) { try { $wb.Close($false) } catch {} }

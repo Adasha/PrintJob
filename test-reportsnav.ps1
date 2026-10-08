@@ -28,8 +28,8 @@ New-Item -ItemType Directory -Path $workDir | Out-Null
 $f = Join-Path $workDir 'PrintJob.xlsm'
 Copy-Item $deliverable $f
 
-$HDR = 22      # modReports.REP_HDR_ROW
-$FIRST = 23    # modReports.REP_FIRST_ROW
+$HDR = 10      # modReports.REP_HDR_ROW
+$FIRST = 11    # modReports.REP_FIRST_ROW
 $xl = New-Object -ComObject Excel.Application
 $xl.Visible = $false
 $xl.DisplayAlerts = $false
@@ -49,13 +49,13 @@ try {
     $rep.Activate()
 
     function RepCol([string]$header) {
-        for ($c = 1; $c -le 40; $c++) { if ([string]$rep.Cells($HDR, $c).Value2 -like $header) { return $c } }
+        for ($c = 8; $c -le 48; $c++) { if ([string]$rep.Cells($HDR, $c).Value2 -like $header) { return $c } }
         return 0
     }
-    function Jobs { $xl.CalculateFullRebuild(); [int]$rep.Range('B20').Text }
-    function SpillOk { [string]$rep.Cells($FIRST, 1).Text -notlike '#SPILL*' }
+    function Jobs { $xl.CalculateFullRebuild(); [int]$rep.Range('I9').Text }
+    function SpillOk { [string]$rep.Cells($FIRST, 8).Text -notlike '#SPILL*' }
     function Clear-AllBoxes {
-        foreach ($a in 'B4','B5','B7','B8','B10','B11','B12','F4','F5','F7','F8','F9','F10','B14','F14','B17','F17') { $rep.Range($a).ClearContents() | Out-Null }
+        foreach ($a in 'B4','B5','B7','B8','B10','B11','B12','F4','F5','F7','F8','F9','F10','B14','F14','I7','K7') { $rep.Range($a).ClearContents() | Out-Null }
         $xl.CalculateFullRebuild()
     }
     function Shape([string]$macro) {
@@ -85,8 +85,8 @@ try {
     $notesCol = RepCol 'Notes'
     if ($notesCol -gt 0) {
         $bad = 0
-        $sp = $rep.Range("A$FIRST").SpillingToRange
-        for ($r = 1; $r -le $sp.Rows.Count; $r++) { if ([string]$sp.Cells($r, $notesCol).Text -eq '0') { $bad++ } }
+        $sp = $rep.Range("H$FIRST").SpillingToRange
+        for ($r = 1; $r -le $sp.Rows.Count; $r++) { if ([string]$sp.Cells($r, $notesCol - 7).Text -eq '0') { $bad++ } }
         Check ($bad -eq 0) 'no blank note is displayed as 0'
     }
 
@@ -95,8 +95,8 @@ try {
     Write-Host '=== Min / Max chargeable cost ==='
     $cc = RepCol 'Chargeable*'
     Check ($cc -gt 0) "found the Chargeable cost column ($cc)"
-    $sp = $rep.Range("A$FIRST").SpillingToRange
-    $vals = @(); for ($r = 1; $r -le $sp.Rows.Count; $r++) { $vals += [math]::Round([double]$sp.Cells($r, $cc).Value2, 4) }
+    $sp = $rep.Range("H$FIRST").SpillingToRange
+    $vals = @(); for ($r = 1; $r -le $sp.Rows.Count; $r++) { $vals += [math]::Round([double]$sp.Cells($r, $cc - 7).Value2, 4) }
     $sorted = $vals | Sort-Object
     $mid = [math]::Round([double]$sorted[[int]($sorted.Count / 2)], 4)
     $rep.Range('B10').Value2 = $mid
@@ -126,15 +126,15 @@ try {
     $rep.Range('F14').Value2 = 'No'
     $rep.Range('B12').Value2 = 'No'
     $rep.Range('B7').Value2 = [double](Get-Date '2020-01-01').ToOADate()
-    $rep.Range('B17').Value2 = 'Qty'
-    $rep.Range('F17').Value2 = 'Descending'
+    $rep.Range('I7').Value2 = 'Qty'
+    $rep.Range('K7').Value2 = 'Descending'
     $xl.Run('btnClearFilters')
     $left = @()
     foreach ($a in 'B4','B5','B7','B8','B10','B11','B12','F4','F5','F7','F8','F9','F10','B14','F14') {
         if ([string]$rep.Range($a).Formula -ne '') { $left += $a }
     }
     Check ($left.Count -eq 0) "every filter box is empty afterwards (still set: $($left -join ', '))"
-    Check (([string]$rep.Range('B17').Value2 -eq 'Qty') -and ([string]$rep.Range('F17').Value2 -eq 'Descending')) 'Sort by / Sort direction are left alone'
+    Check (([string]$rep.Range('I7').Value2 -eq 'Qty') -and ([string]$rep.Range('K7').Value2 -eq 'Descending')) 'Sort by / Sort direction are left alone'
     Check ((Jobs) -eq $total) 'all records are back'
     Check ($rep.Range('F7').Validation.Type -eq 3) 'a cleared box keeps its dropdown'
     Clear-AllBoxes
@@ -144,8 +144,8 @@ try {
     Write-Host '=== Go to record ==='
     $locCol = RepCol 'Location'
     $jobCol = RepCol 'Job ID'
-    $sp = $rep.Range("A$FIRST").SpillingToRange
-    $codes = @(); for ($r = 1; $r -le $sp.Rows.Count; $r++) { $codes += [string]$sp.Cells($r, $locCol).Value2 }
+    $sp = $rep.Range("H$FIRST").SpillingToRange
+    $codes = @(); for ($r = 1; $r -le $sp.Rows.Count; $r++) { $codes += [string]$sp.Cells($r, $locCol - 7).Value2 }
     Check ((@($codes | Select-Object -Unique)).Count -ge 2) "results span both rooms ($((@($codes | Select-Object -Unique)) -join ', '))"
     foreach ($pick in @($codes[0], ($codes | Where-Object { $_ -ne $codes[0] } | Select-Object -First 1))) {
         if (-not $pick) { continue }
@@ -153,7 +153,7 @@ try {
         $row = $FIRST + $idx
         $wantJob = ([string]$rep.Cells($row, $jobCol).Value2).Trim()
         $rep.Activate()
-        Invoke-ComRetry { $rep.Cells($row, 1).Select() | Out-Null }
+        Invoke-ComRetry { $rep.Cells($row, 8).Select() | Out-Null }
         $xl.Run('btnGoToRecord')
         $act = $wb.ActiveSheet
         $lo = $act.ListObjects | Where-Object { $_.Name -eq ('tblJobs_' + $pick) } | Select-Object -First 1
@@ -203,14 +203,14 @@ try {
     Check ([double](Shape 'btnGoToRecord').Left -eq [double](Shape 'btnTogglePaid').Left) 'Go to record is directly under Toggle Paid'
     Check ([double](Shape 'btnMarkUnpaid').Left -eq [double](Shape 'btnMarkPaid').Left) 'Unpaid is directly under Paid'
     $rep.Activate()
-    $rep.Columns('N').Hidden = $true
+    $rep.Columns('H').Hidden = $true
     Invoke-ComRetry { $rep.Range('A5').Select() | Out-Null }
     Invoke-ComRetry { $rep.Range('A6').Select() | Out-Null }
     $cl = [double](Shape 'btnClearFilters').Left
-    Check ($cl -ge ($rep.Columns('O').Left - 0.5)) "N hidden: the strip moved off the hidden column (Left $([int]$cl))"
-    Check (-not (Overlaps)) 'N hidden: the blocks do not overlap'
-    Check (CaptionsOk) 'N hidden: each caption still sits over its buttons'
-    $rep.Columns('N').Hidden = $false
+    Check ($cl -ge ($rep.Columns('I').Left - 0.5)) "H hidden: the strip moved off the hidden column (Left $([int]$cl))"
+    Check (-not (Overlaps)) 'H hidden: the blocks do not overlap'
+    Check (CaptionsOk) 'H hidden: each caption still sits over its buttons'
+    $rep.Columns('H').Hidden = $false
     Invoke-ComRetry { $rep.Range('A5').Select() | Out-Null }
     Invoke-ComRetry { $rep.Range('A6').Select() | Out-Null }
     $same = $true
