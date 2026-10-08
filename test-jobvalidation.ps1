@@ -49,20 +49,10 @@ function VF1($cell)   { try { return [string]$cell.Validation.Formula1 } catch {
 function RowCount($lo) { Invoke-ComRetry -Attempts 5 { $lo.ListRows.Count } }
 
 # A column's Range, retried until Excel actually hands one back: while it is
-# still busy it can throw or return $null (see TestCommon.ps1). Not routed
-# through Invoke-ComRetry, which would unroll a multi-cell Range into an array
-# of its cells; the leading comma keeps this one as a single Range.
+# still busy it can throw or return $null (see TestCommon.ps1). The leading
+# comma keeps the multi-cell Range as one object instead of an array of cells.
 function ColRange($lo, [string]$name) {
-    for ($attempt = 1; $attempt -le 5; $attempt++) {
-        try {
-            $r = $lo.ListColumns($name).Range
-            if ($null -ne $r) { return ,$r }
-        } catch {
-            if ($attempt -eq 5) { throw }
-        }
-        Start-Sleep -Seconds $attempt
-    }
-    throw "ListColumns('$name') returned null"
+    return Invoke-ComRetry -Attempts 5 -RetryOnNull { ,$lo.ListColumns($name).Range }
 }
 
 # Checks one row of the table against $rules, looking every column up by name.

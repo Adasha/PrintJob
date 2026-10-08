@@ -15,14 +15,28 @@
 # null-valued expression" instead of the object it should have returned.
 # Same root cause as build.ps1's SaveAs retry loop (~line 179); this is
 # that pattern reused for the read side.
+#
+# Multi-cell Ranges: the wrapper does not unroll its result, but PowerShell
+# unrolls any enumerable COM object (a multi-cell Range) as soon as the
+# scriptblock emits it, so the caller gets an array of cells, not the Range.
+# Emit it with a leading comma: Invoke-ComRetry { ,$lo.ListColumns($n).Range }.
+# A single-cell Range does not enumerate and needs no comma, but using one
+# is harmless. -RetryOnNull also retries a block that returns $null without
+# throwing (Excel still busy), which a plain retry would pass straight back.
 function Invoke-ComRetry {
     param(
         [Parameter(Mandatory)] [scriptblock]$Action,
-        [int]$Attempts = 3
+        [int]$Attempts = 3,
+        [switch]$RetryOnNull
     )
     for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
         try {
-            return & $Action
+            $result = & $Action
+            if ($RetryOnNull -and $null -eq $result) { throw 'COM call returned null' }
+            if ($null -eq $result) { return }
+            # The leading comma stops this return unrolling a Range the block
+            # emitted with its own comma.
+            return ,$result
         } catch {
             if ($attempt -eq $Attempts) { throw }
             Write-Host "  COM call rejected (attempt $attempt), waiting..."

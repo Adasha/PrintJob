@@ -1090,9 +1090,10 @@ Several acceptance tests are about what happens as a person types, which is wort
 
 Sections 16.2–16.5 (phase 8 scope, other loose ends, the phase 9 snag list, the printer/paper compatibility rework) were completed-work logs and now live in `docs/HISTORY.md`, numbering preserved. Still open from them:
 
-**Punch list (updated 2026-10-02).** Carried forward:
+**Punch list (updated 2026-10-08).** Carried forward:
 
 - ~~**Button arrangement**~~ **Settings page done 2026-10-02 (0.10.16).** The ten buttons moved from below `tblSettings` to a band above the tables, grouped Print rooms / Data / Workbook and packed close together instead of three columns apart; `test-settingslayout.ps1` pins the positions and that a second setup run does not insert the band again. With 0.10.12 to 0.10.14 (column-view and cost-detail controls, six-button side panel) this closes the item; the other sheets were not changed.
+- ~~**`Invoke-ComRetry` unrolls multi-cell Ranges**~~ **Closed 2026-10-08, test harness only (no workbook change, no version bump).** Not a defect in the wrapper: PowerShell unrolls any enumerable COM object when a scriptblock emits it, so `Invoke-ComRetry { $lo.ListColumns($n).Range }` handed back an array of cells. Checked on PowerShell 7.4 with a stand-in enumerable: a block that emits `,$range` comes through intact, a plain one does not. `Invoke-ComRetry` now ends with `return ,$result` (so a comma-emitted Range is not unrolled a second time), gains `-RetryOnNull` (retry a block that returns `$null` without throwing), and `TestCommon.ps1` documents the `,$range` rule. `test-jobvalidation.ps1`'s hand-rolled `ColRange` loop is now a one-line call to the wrapper. Scalars, strings, objects and void blocks behave as before. `test-jobvalidation.ps1` passes against Excel with the change (2026-10-08).
 - **Phase 10 manual run.** The acceptance tests in §15 marked "Phase 10" (AT-01 to AT-09, AT-15) have never been exercised by a person typing; AT-15 needs a Mac.
 - **O7**, aggregation granularity for an automated master (§14). Still deferred. Since 0.10.17 the manual route lets each site choose at export whether to include student names (§10.4), so the "job level without names" form of file exists; what an automated tool may require is still undecided.
 
