@@ -42,6 +42,12 @@ Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)
 
     ' Any edit to configuration invalidates the cached catalogue.
     Select Case Sh.Name
+        Case "Summary"
+            ' The job planner box: re-price and re-bind its lists. Events off - it writes cells.
+            Application.EnableEvents = False
+            PlannerChanged Sh, Target
+            Application.EnableEvents = True
+            Exit Sub
         Case "Papers", "Printers", "Print Technicians", "Settings"
             Invalidate
             ' Fills Width/Height from a chosen standard size and defaults
@@ -95,6 +101,8 @@ Private Sub Workbook_SheetActivate(ByVal Sh As Object)
             RefreshReportFilterLists Sh
             RepositionReportsButtons Sh
         End If
+        ' Prices or print rooms may have changed since the planner was last looked at.
+        If Sh.Name = "Summary" Then RefreshPlanner Sh
         ' Catches a location sheet's buttons drifting from a manually
         ' collapsed/expanded cost-columns group left over from the last visit
         ' - see modInit.RepositionLocationButtons' own comment.

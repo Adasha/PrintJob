@@ -42,7 +42,7 @@ try {
     # -------------------------------------------------- error: Summary ---
     Write-Host '=== Error state: Summary Type conditional formatting ==='
     $sum = $wb.Worksheets('Summary')
-    $errRng = $sum.Range('D10:D2000')
+    $errRng = $sum.Range("D${SUM_FIRST_ROW}:D2000")
     $n = $errRng.FormatConditions.Count
     Check ($n -ge 1) "Summary Type column has a conditional format (count $n)"
     if ($n -ge 1) {
@@ -86,7 +86,7 @@ try {
         }
         return ''
     }
-    $sumFmt = Read-Fmt $sum.Range('D6')
+    $sumFmt = Read-Fmt $sum.Range("D$SUM_TOT_ROW")
     $repFmt = Read-Fmt $rep.Range($repAddr)
     # Exact match, not a loose "-like '*$*'": Excel's NumberFormat setter
     # silently canonicalises a BARE or quoted currency symbol back to the OS's
@@ -99,7 +99,7 @@ try {
     # Re-running InitialiseWorkbook must not have stacked duplicate rules.
     Write-Host ''
     Write-Host '=== Idempotency: re-run does not stack rules ==='
-    $n2 = $sum.Range('D10:D2000').FormatConditions.Count
+    $n2 = $sum.Range("D${SUM_FIRST_ROW}:D2000").FormatConditions.Count
     Check ($n2 -eq 1) "Summary Type rule count after a second InitialiseWorkbook: $n2 (expected 1)"
 }
 finally {

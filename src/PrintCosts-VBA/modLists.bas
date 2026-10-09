@@ -114,6 +114,8 @@ Public Sub RebindAllLocationDropdowns()
     Next v
     Set repWs = ReportsSheet()
     If Not repWs Is Nothing Then RefreshReportFilterLists repWs
+    ' The Summary page's job planner offers every room's printers and papers.
+    RefreshSummaryPlanner
 End Sub
 
 Public Sub BindColumns(ByVal ws As Worksheet)
@@ -264,7 +266,7 @@ End Sub
 ' Every item in Full, suffixed with UNAVAILABLE_SUFFIX where Model can't use
 ' it - the paper-stock direction. Full itself (StocksForLocation's result) is
 ' untouched; a blank Model marks nothing, matching "nothing chosen yet".
-Private Function MarkStocks(ByVal Full As Collection, ByVal Model As String) As Collection
+Public Function MarkStocks(ByVal Full As Collection, ByVal Model As String) As Collection
     Dim out As Collection, i As Long, nm As String
     Set out = New Collection
     For i = 1 To Full.Count
@@ -278,7 +280,7 @@ Private Function MarkStocks(ByVal Full As Collection, ByVal Model As String) As 
 End Function
 
 ' The printer direction of MarkStocks.
-Private Function MarkPrinters(ByVal Full As Collection, ByVal Description As String) As Collection
+Public Function MarkPrinters(ByVal Full As Collection, ByVal Description As String) As Collection
     Dim out As Collection, i As Long, nm As String
     Set out = New Collection
     For i = 1 To Full.Count

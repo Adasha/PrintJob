@@ -24,6 +24,11 @@ Option Explicit
 
 Private Const SHEET_SUM As String = "Summary"
 Private Const SHEET_REPORTS As String = "Reports"
+' Summary table position. The job planner box (modPlanner, rows 5-21) sits above it,
+' so these are 18 rows lower than they were before the planner existed (0.10.29).
+Public Const SUM_TOT_ROW As Long = 24      ' totals values; their labels are the row above
+Public Const SUM_HDR_ROW As Long = 27      ' table header
+Public Const SUM_FIRST_ROW As Long = 28    ' first row of the spilled table
 Private Const DATA_SPILL As String = "_Data!$A$10#"
 Private Const DATA_HDR As String = "_Data!$A$9:$AZ$9"
 Private Const EXPORT_SIG_CELL As String = "AN1"
@@ -116,21 +121,21 @@ Public Sub BuildSummary()
     ' --- totals, above the table ------------------------------------------
     ' Above, not below: the detail spills to an unknown height, so anything
     ' placed under it would be overwritten the moment a job is added.
-    ws.Range("A5").Value = "Totals"
-    ws.Range("A5").Font.Bold = True
-    TotalCell ws, "B6", "Jobs", "=IFERROR(COUNTA(" & C("Job ID") & "),0)"
-    TotalCell ws, "D6", "Gross", "=IFERROR(SUM(" & C("Gross Cost") & "),0)"
-    TotalCell ws, "F6", "Disregarded", "=IFERROR(SUM(" & C("Disregarded") & "),0)"
-    TotalCell ws, "H6", "Chargeable", "=IFERROR(SUM(" & C("Chargeable Cost") & "),0)"
+    ws.Cells(SUM_TOT_ROW - 1, 1).Value = "Totals"
+    ws.Cells(SUM_TOT_ROW - 1, 1).Font.Bold = True
+    TotalCell ws, "B" & SUM_TOT_ROW, "Jobs", "=IFERROR(COUNTA(" & C("Job ID") & "),0)"
+    TotalCell ws, "D" & SUM_TOT_ROW, "Gross", "=IFERROR(SUM(" & C("Gross Cost") & "),0)"
+    TotalCell ws, "F" & SUM_TOT_ROW, "Disregarded", "=IFERROR(SUM(" & C("Disregarded") & "),0)"
+    TotalCell ws, "H" & SUM_TOT_ROW, "Chargeable", "=IFERROR(SUM(" & C("Chargeable Cost") & "),0)"
     ' Snag list item 1c: the chargeable total split by paid status. Paid is
     ' "total minus paid" rather than a separate <>"Yes" SUMIFS, so the two
     ' always reconcile exactly to Chargeable by construction - a blank Paid
     ' (a job that predates the column) falls into Unpaid either way.
-    TotalCell ws, "J6", "Paid", "=IFERROR(SUMIFS(" & C("Chargeable Cost") & "," & C("Paid") & ",""Yes""),0)"
-    TotalCell ws, "L6", "Unpaid", "=IFERROR(SUM(" & C("Chargeable Cost") & ")-SUMIFS(" & C("Chargeable Cost") & "," & C("Paid") & ",""Yes""),0)"
+    TotalCell ws, "J" & SUM_TOT_ROW, "Paid", "=IFERROR(SUMIFS(" & C("Chargeable Cost") & "," & C("Paid") & ",""Yes""),0)"
+    TotalCell ws, "L" & SUM_TOT_ROW, "Unpaid", "=IFERROR(SUM(" & C("Chargeable Cost") & ")-SUMIFS(" & C("Chargeable Cost") & "," & C("Paid") & ",""Yes""),0)"
 
     ' --- headers -----------------------------------------------------------
-    WriteHeaderRow ws, 9, Array("Location", "Printer", "Paper stock", "Type", "Unit", _
+    WriteHeaderRow ws, SUM_HDR_ROW, Array("Location", "Printer", "Paper stock", "Type", "Unit", _
                                 "Jobs", "Qty", "Area m2", "Paper cost", _
                                 "Consumable cost", "Gross", "Disregarded", "Chargeable")
 
@@ -157,11 +162,12 @@ Public Sub BuildSummary()
     f = f & SumBy("Consumable Cost") & "," & SumBy("Gross Cost") & ","
     f = f & SumBy("Disregarded") & "," & SumBy("Chargeable Cost") & ")),"
     f = f & """No print jobs have been recorded yet."")"
-    ws.Range("A10").Formula2 = f
+    ws.Cells(SUM_FIRST_ROW, 1).Formula2 = f
 
     FormatSummary ws
     FormatSummaryErrors ws
     DrawLegend ws
+    BuildPlanner ws
     RelockSheet ws
 End Sub
 
@@ -170,24 +176,24 @@ Private Sub FormatSummary(ByVal ws As Worksheet)
     ' 12 there) rather than its blue results-table header - this table is
     ' itself a totals breakdown (by location/printer/paper stock), the same
     ' category as Reports' "Matching" row, not a per-job record list.
-    ws.Range("A9:M9").Interior.Color = RGB(244, 232, 222)
-    ws.Range("G10:H2000").NumberFormat = "#,##0.00"
-    ws.Range("I10:M2000").NumberFormat = CurrencyFormatCode()
-    ws.Range("D6").NumberFormat = CurrencyFormatCode()
-    ws.Range("F6").NumberFormat = CurrencyFormatCode()
-    ws.Range("H6").NumberFormat = CurrencyFormatCode()
-    ws.Range("J6").NumberFormat = CurrencyFormatCode()
-    ws.Range("L6").NumberFormat = CurrencyFormatCode()
+    ws.Range(ws.Cells(SUM_HDR_ROW, 1), ws.Cells(SUM_HDR_ROW, 13)).Interior.Color = RGB(244, 232, 222)
+    ws.Range("G" & SUM_FIRST_ROW & ":H2000").NumberFormat = "#,##0.00"
+    ws.Range("I" & SUM_FIRST_ROW & ":M2000").NumberFormat = CurrencyFormatCode()
+    ws.Range("D" & SUM_TOT_ROW).NumberFormat = CurrencyFormatCode()
+    ws.Range("F" & SUM_TOT_ROW).NumberFormat = CurrencyFormatCode()
+    ws.Range("H" & SUM_TOT_ROW).NumberFormat = CurrencyFormatCode()
+    ws.Range("J" & SUM_TOT_ROW).NumberFormat = CurrencyFormatCode()
+    ws.Range("L" & SUM_TOT_ROW).NumberFormat = CurrencyFormatCode()
     ws.Columns("A:M").ColumnWidth = 14
     ws.Columns("A:C").ColumnWidth = 24
-    ws.Rows(9).Font.Bold = True
+    ws.Rows(SUM_HDR_ROW).Font.Bold = True
 End Sub
 
 ' Phase 8's "error state" (design doc §11): the one place the workbook's own
 ' formulas already flag a genuine data-integrity break, as opposed to a
 ' routine per-row validation nag - a paper stock a job was costed against has
 ' since been renamed or removed from tblPapers, so the Type lookup in
-' A10's spilled formula falls back to the literal "(not in Papers)" (IFNA in
+' the first row of the table (SUM_FIRST_ROW)'s spilled formula falls back to the literal "(not in Papers)" (IFNA in
 ' BuildSummary above). Like Status, this is pure spilled-formula output with
 ' no per-cell VBA hook, so conditional formatting is the only way to colour
 ' it. Red reuses the exact colour the Reports disjoint-criteria warning and
@@ -195,9 +201,9 @@ End Sub
 ' RefreshExportStatus), so "error" reads the same everywhere it appears.
 Private Sub FormatSummaryErrors(ByVal ws As Worksheet)
     Dim rng As Range, fc As FormatCondition
-    Set rng = ws.Range("D10:D2000")
+    Set rng = ws.Range("D" & SUM_FIRST_ROW & ":D2000")
     Set fc = rng.FormatConditions.Add(Type:=xlExpression, _
-        Formula1:="=D10=""(not in Papers)""")
+        Formula1:="=D" & SUM_FIRST_ROW & "=""(not in Papers)""")
     fc.Font.Color = RGB(176, 0, 32)
     fc.Font.Bold = True
 End Sub
@@ -1764,7 +1770,7 @@ End Function
 ' Cells.Clear does not always release a stale spill parent on a rebuild.
 Private Sub ClearSpillArea(ByVal ws As Worksheet)
     On Error Resume Next
-    ws.Range("A10:BZ5000").ClearContents
+    ws.Range("A" & SUM_FIRST_ROW & ":BZ5000").ClearContents
     On Error GoTo 0
 End Sub
 

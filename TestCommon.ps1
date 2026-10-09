@@ -60,3 +60,7 @@ function Col($lo, $name) {
     }
     return 0
 }
+
+# Summary table position (modReports SUM_*): the job planner box sits above it
+# since 0.10.29. Row of the totals values, of the table header, of its first row.
+$SUM_TOT_ROW = 24; $SUM_HDR_ROW = 27; $SUM_FIRST_ROW = 28

@@ -110,6 +110,8 @@ Public Sub RefreshLocations()
     Dim repWs As Worksheet
     Set repWs = ReportsSheet()
     If Not repWs Is Nothing Then RefreshReportFilterLists repWs
+    ' Same for the Summary page's job planner (printer / paper / room lists).
+    RefreshSummaryPlanner
 
     ' After WriteRegistry, because the status is read out of the registry.
     For Each v In sheets

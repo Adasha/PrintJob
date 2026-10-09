@@ -145,6 +145,8 @@ Public Sub InitialiseWorkbook()
             ' comment) - caught by the length audit that found the Settings
             ' lookup-table buttons' own truncation.
             DrawOne ws, 5, 15, ConfigToggleCaption(), "btnToggleConfigSheets", 130
+            ' The job planner box (modPlanner) at the top of the page.
+            DrawOne ws, PLN_ADD_ROW, PLN_ADD_COL, "Add to print room", "btnPlannerAdd", 130
         ElseIf StrComp(ws.Name, "Printers", vbTextCompare) = 0 Then
             DrawOne ws, 4, 1, "Add row", "btnAddRowPrinters", 110
             DrawOne ws, 4, 3, "Remove row", "btnRemoveRowPrinters", 110

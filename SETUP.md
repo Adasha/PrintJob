@@ -48,7 +48,7 @@ Open `PrintCosts.xlsx`, then open the VBA editor:
 - Windows: **Alt + F11**
 - Mac: **Tools → Macro → Visual Basic Editor**
 
-In the editor, **File → Import File…**, and import these twenty-one files. Order
+In the editor, **File → Import File…**, and import these twenty-two files. Order
 does not matter.
 
 | File | What it is |
@@ -66,6 +66,7 @@ does not matter.
 | `modValidation.bas` | Entry-time checks and the workbook sweep |
 | `modLists.bas` | Dependent dropdowns |
 | `modPicker.bas` | The multi-select picker |
+| `modPlanner.bas` | The job planner box at the top of Summary: price a job, then add it to a print room |
 | `modInit.bas` | One-time setup |
 | `modMain.bas` | The button entry points |
 | `modRegistry.bas` | Finds the print rooms, renames their tables, writes the reporting range |
@@ -77,7 +78,7 @@ does not matter.
 
 If you are on a Mac this list is the whole build, so a missing module is not a
 documentation slip - it is a project that will not compile at step 3. Check you
-imported twenty-one.
+imported twenty-two.
 
 `ThisWorkbook.cls` is the exception: it **cannot be imported**, because every
 workbook already has a `ThisWorkbook` object. Open `ThisWorkbook.cls` in a text
