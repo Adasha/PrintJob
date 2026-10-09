@@ -183,21 +183,21 @@ try {
     [void]$rep.Activate()
     function Jobs { $xl.CalculateFullRebuild(); [int]$rep.Range('I9').Text }
     $all = Jobs
-    $rep.Range('F11').Value2 = 'Fine Arts'
+    $rep.Range('B6').Value2 = 'Fine Arts'
     Check ((Jobs) -eq 2) 'Reports Department filter = Fine Arts shows 2 jobs'
-    $rep.Range('F11').Value2 = 'Textiles'
+    $rep.Range('B6').Value2 = 'Textiles'
     Check ((Jobs) -eq 1) '...Textiles shows 1'
-    $rep.Range('F11').Value2 = 'Old Dept'
+    $rep.Range('B6').Value2 = 'Old Dept'
     Check ((Jobs) -eq 1) '...an inactive department can still be filtered'
-    Check ([int]$rep.Range('F11').Validation.Type -eq 3) 'F11 is a dropdown'
-    $rep.Range('F11').Value2 = ''
+    Check ([int]$rep.Range('B6').Validation.Type -eq 3) 'B6 is a dropdown'
+    $rep.Range('B6').Value2 = ''
     Check ((Jobs) -eq $all) 'cleared, back to all jobs'
-    $rep.Range('F11').Value2 = 'Fine Arts'
+    $rep.Range('B6').Value2 = 'Fine Arts'
     [void]$xl.Run('ClearReportFilters', $rep)
-    Check ([string]$rep.Range('F11').Text -eq '') 'Clear all filters clears the Department box'
-    $rep.Range('F11').Value2 = 'Fine Arts'
+    Check ([string]$rep.Range('B6').Text -eq '') 'Clear all filters clears the Department box'
+    $rep.Range('B6').Value2 = 'Fine Arts'
     Check ([bool]$xl.Run('HasActiveFilter', $rep)) 'a set Department filter counts as an active filter'
-    $rep.Range('F11').Value2 = ''
+    $rep.Range('B6').Value2 = ''
 
     # The Reports breakdown (column AI) lists departments only.
     $bc = $rep.Cells(10, 35).Address($false, $false) -replace '\d+', ''

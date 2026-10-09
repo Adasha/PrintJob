@@ -347,6 +347,7 @@ Private Function Criteria() As String
     ' $B$7/$B$8, not $B$6/$B$7: row 6 is deliberately blank (2026-09-26) - a
     ' gap between the Student/Department pair above and the date pair here,
     ' the same row the date boxes already sat at before that gap was added.
+    ' (Row 6 now holds the Department filter, 0.10.30, so the gap is gone.)
     s = s & "*IF($B$7="""",TRUE,IF(ISERROR($B$7*1),TRUE," & _
         "IFERROR(" & C("Date/Time") & "*1,0)>=$B$7*1))"
     s = s & "*IF($B$8="""",TRUE,IF(ISERROR($B$8*1),TRUE," & _
@@ -422,7 +423,7 @@ Private Function Criteria() As String
     ' Department (0.10.30): the _Data Department column, which is the Departments
     ' sheet's Name for a job whose Student Name matches it (modRegistry.
     ' WriteConsolidated) and blank otherwise. Exact match, from a dropdown.
-    s = s & "*IF($F$11="""",TRUE," & C("Department") & "=$F$11)"
+    s = s & "*IF($B$6="""",TRUE," & C("Department") & "=$B$6)"
 
     Criteria = s
 End Function
@@ -513,6 +514,10 @@ Public Sub BuildReports()
     '              summary row (0.10.27); Sort by at row 17
     CritCell ws, "A4", "B4", "Student/dept. name"
     CritCell ws, "A5", "B5", "Student number"
+    ' Department (0.10.30), directly under the student name/number pair - it is
+    ' the same kind of question (who was this for). Takes row 6, which was the
+    ' blank gap before the dates; the gap is gone.
+    CritCell ws, "A6", "B6", "Department"
     CritCell ws, "A7", "B7", "From date"
     CritCell ws, "A8", "B8", "To date"
     ws.Range("B7:B8").NumberFormat = "dd/mm/yyyy"
@@ -560,7 +565,6 @@ Public Sub BuildReports()
     ' Supplied stocks or a Papers row marked Supplied by student; No = any
     ' other stock. Row 11 on this side is now empty (Has notes moved to the
     ' More filters row below).
-    CritCell ws, "D11", "F11", "Department"
     CritCell ws, "D10", "F10", "Student-supplied paper"
     AddList ws.Range("F10"), """Yes"",""No""", "Student-supplied paper", "Yes shows only jobs on paper the student supplied (Supplied (Roll), Supplied (Sheet) or a Papers row marked Supplied by student), No only jobs on stock the print room supplied. Leave blank to include both."
 
@@ -1256,7 +1260,7 @@ End Function
 ' The filter boxes, by kind. Sort by and Sort direction are not filters and
 ' are in none of them.
 Private Function TextFilterCells() As Variant
-    TextFilterCells = Array("B4", "B5", "B12", "B14", "B15", "F4", "F5", "F7", "F8", "F9", "F10", "F11", "F14")
+    TextFilterCells = Array("B4", "B5", "B12", "B14", "B15", "F4", "F5", "F7", "F8", "F9", "F10", "F14", "B6")
 End Function
 
 Private Function DateFilterCells() As Variant
@@ -2093,7 +2097,7 @@ Public Sub RefreshReportFilterLists(ByVal ws As Worksheet)
 
     ' Department (0.10.30): every department on the Departments sheet, active
     ' or not - an old job for a deactivated one must still be findable.
-    ApplyTo ws, ws.Range("F11"), AllDepartments(), "REP|Department", _
+    ApplyTo ws, ws.Range("B6"), AllDepartments(), "REP|Department", _
         "Department", "Choose a department to see only its jobs, or leave blank to include all."
 End Sub
 

@@ -21,8 +21,8 @@ Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module
   - One lookup ties a job to a department: modCatalog.DepartmentFor (entry) and
     its formula twin, a computed Department column on _Data (reporting). A
     later real Department column on the job row only has to replace those two.
-  - Reports: Department filter (F11, dropdown of every department, active or
-    not) and a By department block beside the other breakdowns. Summary: a By
+  - Reports: Department filter (B6, directly under Student number, in the old
+    blank gap row; dropdown of every department, active or not) and a By department block beside the other breakdowns. Summary: a By
     department box (I5:M21) beside the planner, with an Everyone else line that
     reconciles it to the totals. No change to the Summary table position.
   - Backup / restore carry tblDepartments (a backup without it restores fine).
