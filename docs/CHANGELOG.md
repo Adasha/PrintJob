@@ -27,8 +27,9 @@ Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module
   - Buttons on every location sheet: Add pass, Remove pass (grey unless a
     multi-pass job or one of its passes is selected; a click on a greyed button
     says so), Toggle passes (this job), Toggle all passes, and a Hide/Show pass
-    columns toggle layered under the All / Reduced / Minimal drop-down. Set-up Cost
-    follows the cost-detail toggle. The Reduced view also hides the pass columns.
+    columns toggle (Passes, Colour, Row Type, Parent, Pass), independent of the All /
+    Reduced / Minimal drop-down: only the toggle hides or shows them. Set-up Cost
+    follows the cost-detail toggle.
   - A job with passes keeps its printer. Delete a job and its passes go with it.
     Repeat job copies the group. Location sheets can no longer be sorted or
     filtered (rows stay in the order added; use Reports).

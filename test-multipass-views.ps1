@@ -9,9 +9,8 @@
 #      Passes and Set-up in its row; the Pass type filter (F11) and Passes as a sort
 #      choice; the Matching totals still reconcile; passes never listed.
 #   2. Summary: Passes (C) and Set-up cost (L) per key, totals unchanged in meaning.
-#   3. Column toggles: the pass-column toggle layers under All / Reduced / Minimal
-#      ("All" shows everything except a group toggled off); Set-up Cost follows the
-#      cost toggle.
+#   3. Column toggles: the pass columns follow their own toggle only (All / Reduced /
+#      Minimal neither hide nor show them); Set-up Cost follows the cost toggle.
 #   4. Add pass / Remove pass grey unless a multi-pass job or one of its passes is
 #      selected.
 #   5. Location sheets: no AutoFilter arrows, sorting and filtering withheld.
@@ -113,7 +112,7 @@ try {
     Check ((Near $gross ([double]$sum.Range("D$SUM_TOT_ROW").Value2))) 'the table''s Gross column adds up to the Gross total'
 
     Write-Host ''
-    Write-Host '=== Column toggles layer under the view ==='
+    Write-Host '=== The pass-column toggle is independent of the view ==='
     $pass = 'Passes', 'Colour', 'Row Type', 'Parent', 'Pass'
     [void]$main.Activate()
     function AllHidden($names) { foreach ($n in $names) { if (-not (ColHidden $n)) { return $false } }; return $true }
@@ -126,15 +125,50 @@ try {
     Check (AllHidden $pass) '...and choosing All does not switch the group back on'
     [void]$xl.Run('ToggleMultiPassColumns')
     Check (NoneHidden $pass) 'toggle on again: they show (view All)'
+    foreach ($mode in 'Reduced', 'Minimal') {
+        [void]$xl.Run('SetViewMode', $mode)
+        Check (NoneHidden $pass) "view $mode, toggle on: the pass columns still show (only the toggle hides them)"
+    }
+    [void]$xl.Run('ToggleMultiPassColumns')
     [void]$xl.Run('SetViewMode', 'Reduced')
-    Check (AllHidden $pass) 'Reduced hides them even with the toggle on'
+    Check (AllHidden $pass) 'view Reduced, toggle off: they stay hidden'
+    [void]$xl.Run('ToggleMultiPassColumns')
+    Check (NoneHidden $pass) '...and the toggle shows them again under Reduced'
     [void]$xl.Run('SetViewMode', 'All')
-    Check (NoneHidden $pass) 'back to All shows them'
+    Check (NoneHidden $pass) 'back to All: shown'
     Check (-not (ColHidden 'Set-up Cost')) 'Set-up Cost is visible'
     [void]$xl.Run('ToggleCostColumns')
     Check ((ColHidden 'Set-up Cost') -and (ColHidden 'Consumable Cost')) 'the cost toggle hides Set-up Cost with the other cost detail'
     Check (NoneHidden $pass) '...without touching the pass columns'
     [void]$xl.Run('ToggleCostColumns')
+
+    # A workbook restored from before 0.11.0 has the OLD Reduced-columns list (Restore overwrites it by Key).
+    # The toggle must still show the columns again, and Reduced must still hide them.
+    [void]$xl.Run('SetSetting', 'LOC_REDUCED_COLUMNS', 'Status;Job ID;Area m2;S_SchemaVer')
+    [void]$xl.Run('SetViewMode', 'All')
+    [void]$xl.Run('ToggleMultiPassColumns')
+    Check (AllHidden $pass) 'old Reduced list: the toggle still hides the pass columns'
+    [void]$xl.Run('ToggleMultiPassColumns')
+    Check (NoneHidden $pass) '...and the next click shows them again (it used to do nothing)'
+    [void]$xl.Run('SetViewMode', 'Reduced')
+    [void]$xl.Run('SetViewMode', 'Reduced')
+    Check (NoneHidden $pass) '...and Reduced leaves them showing'
+    [void]$xl.Run('SetViewMode', 'All')
+
+    Write-Host ''
+    Write-Host '=== Pass buttons clear of the job buttons ==='
+    $jobBtns = @(); $passBtns = @()
+    foreach ($b in $main.Buttons()) {
+        if ($b.Top -gt $main.Rows(14).Top -and $b.Top -lt $lo.HeaderRowRange.Top) {
+            if ($b.Name -match 'btn(AddPass|RemovePass|TogglePasses|ToggleAllPasses)') { $passBtns += $b } elseif ($b.Name -match 'btn(AddPrintJob|RepeatJob|Now)') { $jobBtns += $b }
+        }
+    }
+    Check ($jobBtns.Count -eq 3 -and $passBtns.Count -eq 4) 'three job buttons and four pass buttons sit above the table'
+    $maxJob = (($jobBtns | ForEach-Object { $_.Top + $_.Height }) | Measure-Object -Maximum).Maximum
+    $minPass = (($passBtns | ForEach-Object { $_.Top }) | Measure-Object -Minimum).Minimum
+    $maxPass = (($passBtns | ForEach-Object { $_.Top + $_.Height }) | Measure-Object -Maximum).Maximum
+    Check ($minPass -gt $maxJob) ('no pass button overlaps a job button (job buttons end ' + $maxJob + ', pass buttons start ' + $minPass + ')')
+    Check ($maxPass -le $lo.HeaderRowRange.Top) ('the pass buttons stay above the table header (end ' + $maxPass + ', header at ' + $lo.HeaderRowRange.Top + ')')
 
     Write-Host ''
     Write-Host '=== Add pass / Remove pass grey with the selection ==='

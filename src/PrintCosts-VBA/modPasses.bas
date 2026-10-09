@@ -463,10 +463,11 @@ Public Sub PreparePassSheet(ByVal ws As Worksheet)
 End Sub
 
 ' ----------------------------------------------------- column toggle (view) ---
-' The multi-pass columns toggle on top of the All / Reduced / Minimal drop-down
-' (column-view-presets-design.md, decisions 1, 8): a column is hidden if either
-' the view or the toggle hides it, and "All" shows everything except a group
-' toggled off. Set-up Cost is NOT in this group - it follows the cost toggle.
+' The multi-pass columns have their own toggle, independent of the All / Reduced /
+' Minimal drop-down: the view never hides or shows them, only the toggle does
+' (decision 1 of column-view-presets-design.md; the planned Reduced-list entry in
+' its decision 3 was dropped, 2026-10-09). Set-up Cost is NOT in this group - it
+' follows the cost toggle.
 Public Function MultiPassColumns() As Variant
     MultiPassColumns = Array("Passes", "Colour", "Row Type", "Parent", "Pass")
 End Function
@@ -479,14 +480,20 @@ Public Function MultiPassColsCaption() As String
     MultiPassColsCaption = IIf(MultiPassColsHidden(), "Show pass columns", "Hide pass columns")
 End Function
 
-' Re-asserts a hidden toggle after the view has been applied (ApplyReducedView
-' calls this last). Only ever hides: showing is the view's decision.
+' Sets the pass columns from the toggle, and only the toggle: hidden when it says
+' hide, shown when it says show, whatever the All / Reduced / Minimal view is.
+' ApplyReducedView calls this last, so the view's lists cannot override it.
+'
+' Both directions are done here rather than left to the view's Settings list. That
+' list is editable and a Restore workbook overwrites it with whatever the backup
+' held; when showing relied on it, a restored workbook's toggle hid the columns on
+' the first click and could never show them again. A pass column that a (stale or
+' edited) list names is still put back to what the toggle says.
 Public Sub ApplyMultiPassVisibility(ByVal ws As Worksheet)
     Dim lo As ListObject
     Set lo = JobsTable(ws)
     If lo Is Nothing Then Exit Sub
-    If Not MultiPassColsHidden() Then Exit Sub
-    ApplyColumnVisibility lo, MultiPassColumns(), True
+    ApplyColumnVisibility lo, MultiPassColumns(), MultiPassColsHidden()
 End Sub
 
 ' The toggle button: flips the setting and re-applies the view on every

@@ -1,4 +1,4 @@
-﻿# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
+# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
 # If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # One-off, re-runnable template change for multi-pass costing (0.11.0, schema
@@ -199,11 +199,12 @@ try {
         $new.Range.Cells.Item(1,4).Value2 = 'Yes hides the multi-pass columns (Passes, Colour, Row Type, Parent, Pass) on every location sheet (toggled by the button on each one). No shows them. The Set-up Cost column belongs to the cost detail setting instead.'
         $null = $wb.Names.Add('SET_MULTIPASS_COLS_HIDDEN', ('=Settings!$C$' + ($new.Range.Row)))
     }
-    # The Reduced view hides the multi-pass columns as well (column-view-presets-design.md, decision 3).
+    # The Reduced view does NOT hide the multi-pass columns: only their own toggle does. (An
+    # interim build named them here; put the list back to its original value if it has them.)
     for ($i = 1; $i -le $slo.ListRows.Count; $i++) {
         $rr = $slo.ListRows.Item($i).Range
-        if ($rr.Cells.Item(1,1).Value2 -eq 'LOC_REDUCED_COLUMNS' -and $rr.Cells.Item(1,3).Value2 -eq 'Status;Job ID;Area m2;S_SchemaVer') {
-            $rr.Cells.Item(1,3).Value2 = 'Status;Job ID;Area m2;S_SchemaVer;Passes;Colour;Row Type;Parent;Pass'
+        if ($rr.Cells.Item(1,1).Value2 -eq 'LOC_REDUCED_COLUMNS' -and $rr.Cells.Item(1,3).Value2 -eq 'Status;Job ID;Area m2;S_SchemaVer;Passes;Colour;Row Type;Parent;Pass') {
+            $rr.Cells.Item(1,3).Value2 = 'Status;Job ID;Area m2;S_SchemaVer'
         }
         if ($rr.Cells.Item(1,1).Value2 -eq 'SCHEMA') { $rr.Cells.Item(1,3).Value2 = '1.4' }
     }

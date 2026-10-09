@@ -49,7 +49,7 @@ Private Const ROW_DIS_CONS As Long = 9
 Private Const ROW_ROLL_UNIT As Long = 11
 Private Const ROW_PRINTERS As Long = 12
 Private Const ROW_JOB_COUNT As Long = 13
-Private Const REDUCED_COLUMNS_DEFAULT As String = "Status;Job ID;Area m2;S_SchemaVer;Passes;Colour;Row Type;Parent;Pass"
+Private Const REDUCED_COLUMNS_DEFAULT As String = "Status;Job ID;Area m2;S_SchemaVer"
 ' Minimal view hides these IN ADDITION to the Reduced list (so Minimal always
 ' includes Reduced - the setting holds only the extras).
 Private Const MINIMAL_EXTRA_DEFAULT As String = "Printer;Disregard Paper;Disregard Consumable;Print Width mm;Sheet size"
@@ -308,11 +308,17 @@ Private Sub DrawLocationButtons(ByVal ws As Worksheet)
     ' on every location sheet and shaded lighter when no multi-pass printer is
     ' set up (modPasses.RefreshPassButtons). Columns 1, 2, 4, 5 are all wide
     ' enough for the button and are kept on screen by RelocateAtRiskButtons.
+    ' The job buttons above are 22pt tall, taller than their 14.5pt row, so they ran
+    ' on into this one and the pass buttons drew over them. Both rows are made tall
+    ' enough to hold their own buttons, with a 2pt margin inside the pass row.
+    If ws.Rows(TOOLBAR_ROW).RowHeight < 24 Then ws.Rows(TOOLBAR_ROW).RowHeight = 24
     If ws.Rows(PASS_ROW).RowHeight < 26 Then ws.Rows(PASS_ROW).RowHeight = 26
-    DrawOne ws, PASS_ROW, 1, "Add pass", "btnAddPass", 100
-    DrawOne ws, PASS_ROW, 2, "Remove pass", "btnRemovePass", 100
-    DrawOne ws, PASS_ROW, 4, "Toggle passes", "btnTogglePasses", 100
-    DrawOne ws, PASS_ROW, 5, "Toggle all passes", "btnToggleAllPasses", 110
+    Dim passTop As Double
+    passTop = ws.Rows(PASS_ROW).Top + 2
+    DrawOneAtTop ws, 1, passTop, "Add pass", "btnAddPass", 100
+    DrawOneAtTop ws, 2, passTop, "Remove pass", "btnRemovePass", 100
+    DrawOneAtTop ws, 4, passTop, "Toggle passes", "btnTogglePasses", 100
+    DrawOneAtTop ws, 5, passTop, "Toggle all passes", "btnToggleAllPasses", 110
 
     ' View row (2026-10-01): "Show columns:" label, an All/Reduced/Minimal
     ' drop-down and the Hide/Show cost detail button on row 2, from D.
@@ -1432,8 +1438,8 @@ Public Sub ApplyReducedView(ByVal ws As Worksheet)
     ' Show first, hide second: a column named in both lists ends up hidden.
     ApplyColumnVisibility lo, SplitList(showText), False
     ApplyColumnVisibility lo, SplitList(hideText), True
-    ' The multi-pass column toggle sits on top of the view: "All" shows everything
-    ' except a group toggled off (column-view-presets-design.md, decision 8).
+    ' The pass columns follow their own toggle and nothing else: the view neither
+    ' hides nor shows them, so this runs last and has the final word.
     ApplyMultiPassVisibility ws
     RelocateAtRiskButtons ws, lo
     ' User-reported, 2026-09-26: hiding columns left of SIDE_PANEL_COL shifts
