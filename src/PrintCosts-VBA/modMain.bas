@@ -336,6 +336,30 @@ Fail:
     ReportError "Remove row"
 End Sub
 
+Public Sub btnAddRowDepartments()
+    On Error GoTo Fail
+    AddCatalogRow "tblDepartments"
+    Exit Sub
+Fail:
+    ReportError "Add row"
+End Sub
+
+Public Sub btnRemoveRowDepartments()
+    On Error GoTo Fail
+    RemoveCatalogRow "tblDepartments"
+    Exit Sub
+Fail:
+    ReportError "Remove row"
+End Sub
+
+Public Sub btnClearDepartments()
+    On Error GoTo Fail
+    ClearCatalogTable "tblDepartments"
+    Exit Sub
+Fail:
+    ReportError "Clear table"
+End Sub
+
 Public Sub btnClearTechnicians()
     On Error GoTo Fail
     ClearCatalogTable "tblTechnicians"

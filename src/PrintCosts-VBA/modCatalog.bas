@@ -25,6 +25,7 @@ Public Const SUPPLIED_SHEET As String = "Supplied (Sheet)"
 Private mStocks As clsDict      ' by description
 Private mPrinters As clsDict    ' by model
 Private mTechs As clsDict       ' by name -> TechID
+Private mDepts As clsDict       ' by department Name AND by each Alias -> clsDept
 Private mLoaded As Boolean
 Private mDirty As Boolean       ' set alongside mLoaded=False; cleared once
                                  ' every print room's dropdowns have actually
@@ -63,6 +64,7 @@ Public Sub LoadCatalog(Optional ByVal Force As Boolean = False)
     Set mStocks = New clsDict
     Set mPrinters = New clsDict
     Set mTechs = New clsDict
+    Set mDepts = New clsDict
 
     Set lo = Tbl("tblPapers")
     For i = 1 To lo.ListRows.Count
@@ -122,8 +124,99 @@ Public Sub LoadCatalog(Optional ByVal Force As Boolean = False)
         End If
     Next i
 
+    LoadDepartments
+
     mLoaded = True
 End Sub
+
+' Departments (the Departments sheet). Absent table = no departments, so a
+' workbook that predates the sheet loads cleanly. A name or alias claimed by
+' more than one row goes to the FIRST row that claims it (names before any
+' alias of a later row); the sheet warns about the clash when it is typed.
+Private Sub LoadDepartments()
+    Dim lo As ListObject, i As Long, j As Long, d As clsDept, parts As Variant, a As String
+
+    Set lo = Tbl("tblDepartments")
+    If lo Is Nothing Then Exit Sub
+
+    ' Names first, so a later row's alias can never shadow an earlier row's name.
+    For i = 1 To lo.ListRows.Count
+        If Len(Trim$(CStr(CellIn(lo, i, "Name").Value))) > 0 Then
+            Set d = New clsDept
+            d.DeptID = CStr(CellIn(lo, i, "DeptID").Value)
+            d.Name = Trim$(CStr(CellIn(lo, i, "Name").Value))
+            d.Free = (StrComp(Trim$(CStr(CellIn(lo, i, "Free").Value)), "Yes", vbTextCompare) = 0)
+            d.Active = (StrComp(Trim$(CStr(CellIn(lo, i, "Active").Value)), "Yes", vbTextCompare) = 0)
+            d.Found = True
+            If Not mDepts.Exists(d.Name) Then mDepts.Add d.Name, d
+        End If
+    Next i
+    For i = 1 To lo.ListRows.Count
+        If Len(Trim$(CStr(CellIn(lo, i, "Name").Value))) > 0 Then
+            Set d = mDepts.Obj(Trim$(CStr(CellIn(lo, i, "Name").Value)))
+            If StrComp(d.DeptID, CStr(CellIn(lo, i, "DeptID").Value), vbBinaryCompare) = 0 Then
+                parts = Split(CStr(CellIn(lo, i, "Aliases").Value), ";")
+                For j = LBound(parts) To UBound(parts)
+                    a = Trim$(CStr(parts(j)))
+                    If Len(a) > 0 Then
+                        If Not mDepts.Exists(a) Then mDepts.Add a, d
+                    End If
+                Next j
+            End If
+        End If
+    Next i
+End Sub
+
+' ------------------------------------------------------- department lookup -
+' THE one place a job is tied to a department. Today the tie is the job's
+' Student Name matching a department's Name or an Alias (case-insensitive,
+' trimmed; D19). A later release may give jobs a real Department column - this
+' function is then the only thing that changes its source, and every consumer
+' (the auto-disregard on entry, and the Department column on _Data that
+' Reports and Summary read) keeps working unchanged.
+'
+' Includes inactive departments, so history stays classified; a Found = False
+' object (never Nothing) means "not a department".
+Public Function DepartmentFor(ByVal StudentName As String) As clsDept
+    LoadCatalog
+    StudentName = Trim$(StudentName)
+    If Len(StudentName) > 0 Then
+        If mDepts.Exists(StudentName) Then
+            Set DepartmentFor = mDepts.Obj(StudentName)
+            Exit Function
+        End If
+    End If
+    Set DepartmentFor = New clsDept
+End Function
+
+' The department that should make a NEW job free: Active and Free = Yes.
+' Found = False otherwise.
+Public Function FreeDepartmentFor(ByVal StudentName As String) As clsDept
+    Dim d As clsDept
+    Set d = DepartmentFor(StudentName)
+    If d.Found Then
+        If d.Active And d.Free Then
+            Set FreeDepartmentFor = d
+            Exit Function
+        End If
+    End If
+    Set FreeDepartmentFor = New clsDept
+End Function
+
+' Every department name the Reports filter offers: ALL defined departments,
+' active or not, because old jobs for a deactivated department still need to
+' be found. Sorted - a person reads the dropdown.
+Public Function AllDepartments() As Collection
+    Dim out As New Collection, lo As ListObject, i As Long, nm As String
+    Set lo = Tbl("tblDepartments")
+    If Not lo Is Nothing Then
+        For i = 1 To lo.ListRows.Count
+            nm = Trim$(CStr(CellIn(lo, i, "Name").Value))
+            If Len(nm) > 0 Then out.Add nm
+        Next i
+    End If
+    Set AllDepartments = SortedTextCollection(out)
+End Function
 
 Public Function Stock(ByVal Description As String) As clsStock
     LoadCatalog
@@ -351,6 +444,7 @@ Public Sub AddCatalogRow(ByVal TableName As String)
     ' a row left blank is silently excluded from every dropdown.
     DefaultActive lo, r.Range.Cells(1, 1).Row - lo.DataBodyRange.Row + 1
     DefaultSupplied lo, r.Range.Cells(1, 1).Row - lo.DataBodyRange.Row + 1
+    DefaultFree lo, r.Range.Cells(1, 1).Row - lo.DataBodyRange.Row + 1
     ' Technicians, printers and papers each get their site-prefixed ID here,
     ' so it is there the moment the row is - see "catalogue IDs" below.
     FillCatalogId lo, TableName, r.Index
@@ -364,7 +458,7 @@ End Sub
 ' Sets Active to "Yes" on table row RowNo when the table has an Active column
 ' and the cell is blank. Never overwrites an existing value. Caller has already
 ' unlocked the sheet.
-Private Sub DefaultActive(ByVal lo As ListObject, ByVal RowNo As Long)
+Public Sub DefaultActive(ByVal lo As ListObject, ByVal RowNo As Long)
     If Not ColumnExists(lo, "Active") Then Exit Sub
     If Len(Trim$(CStr(CellIn(lo, RowNo, "Active").Value))) = 0 Then
         CellIn(lo, RowNo, "Active").Value = "Yes"
@@ -378,6 +472,16 @@ Private Sub DefaultSupplied(ByVal lo As ListObject, ByVal RowNo As Long)
     If Not ColumnExists(lo, "Supplied by student") Then Exit Sub
     If Len(Trim$(CStr(CellIn(lo, RowNo, "Supplied by student").Value))) = 0 Then
         CellIn(lo, RowNo, "Supplied by student").Value = "No"
+    End If
+End Sub
+
+' Departments table only: a blank Free becomes "No" - a listed department is
+' charged like anyone else until it is explicitly marked Free. Caller has
+' already unlocked the sheet.
+Public Sub DefaultFree(ByVal lo As ListObject, ByVal RowNo As Long)
+    If Not ColumnExists(lo, "Free") Then Exit Sub
+    If Len(Trim$(CStr(CellIn(lo, RowNo, "Free").Value))) = 0 Then
+        CellIn(lo, RowNo, "Free").Value = "No"
     End If
 End Sub
 
@@ -495,6 +599,8 @@ Public Function CatalogIdSpec(ByVal TableName As String, ByRef IdHeader As Strin
             IdHeader = "PrinterID": Code = "PRN": NameHeader = "Model": HwmKey = "PRINTER_ID_HWM"
         Case "tblPapers"
             IdHeader = "StockID": Code = "STK": NameHeader = "Description": HwmKey = "STOCK_ID_HWM"
+        Case "tblDepartments"
+            IdHeader = "DeptID": Code = "DEP": NameHeader = "Name": HwmKey = "DEPT_ID_HWM"
         Case Else
             Exit Function
     End Select
@@ -710,6 +816,9 @@ Private Sub ClearTableInfo(ByVal TableName As String, ByRef Label As String, ByR
         Case "tblPrinters"
             Label = "Printers": KeyHdr = "Model"
             Extra = "Each print room's 'Select printers' choice refers to printers by name, so rooms will need their printers re-selected once you add new ones." & vbCrLf
+        Case "tblDepartments"
+            Label = "Departments": KeyHdr = "Name"
+            Extra = "Jobs already recorded for these departments stay as they are, but Reports and Summary can no longer group them under a department." & vbCrLf
         Case "tblPapers"
             Label = "Papers": KeyHdr = "Description"
             Extra = "The built-in 'Supplied (Roll)' and 'Supplied (Sheet)' stocks are not stored here and stay available." & vbCrLf

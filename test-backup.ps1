@@ -56,7 +56,7 @@ finally {
 }
 
 $catalogCsvs = Get-ChildItem $workDirA -Filter 'PrintCosts-*-CATALOG-*.csv'
-Check ($catalogCsvs.Count -eq 7) "7 catalogue CSVs produced (got $($catalogCsvs.Count))"
+Check ($catalogCsvs.Count -eq 8) "8 catalogue CSVs produced (got $($catalogCsvs.Count))"
 $printersCsv = $catalogCsvs | Where-Object { $_.Name -like '*-CATALOG-tblPrinters-*' } | Select-Object -First 1
 Check ($null -ne $printersCsv) "tblPrinters backup CSV found"
 
