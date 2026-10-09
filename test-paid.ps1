@@ -85,9 +85,9 @@ try {
     Write-Host '=== Summary totals split by paid status and reconcile ==='
     $xl.CalculateFullRebuild()
     $sum = $wb.Worksheets('Summary')
-    $chargeable = [double]$sum.Range('H6').Value2
-    $paid = [double]$sum.Range('J6').Value2
-    $unpaid = [double]$sum.Range('L6').Value2
+    $chargeable = [double]$sum.Range("H$SUM_TOT_ROW").Value2
+    $paid = [double]$sum.Range("J$SUM_TOT_ROW").Value2
+    $unpaid = [double]$sum.Range("L$SUM_TOT_ROW").Value2
     Check ($paid -gt 0) "Paid total is non-zero (got $paid)"
     Check ([Math]::Abs(($paid + $unpaid) - $chargeable) -lt 0.01) "Paid + Unpaid reconciles to Chargeable ($paid + $unpaid = $($paid+$unpaid), Chargeable=$chargeable)"
 

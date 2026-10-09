@@ -20,6 +20,15 @@ Fail:
     ReportError "Add Print Job"
 End Sub
 
+' Summary page: add the job planned in the box at the top to the chosen print room.
+Public Sub btnPlannerAdd()
+    On Error GoTo Fail
+    AddPlannedJob ThisWorkbook.Worksheets("Summary")
+    Exit Sub
+Fail:
+    ReportError "Add to print room"
+End Sub
+
 Public Sub btnNow()
     On Error GoTo Fail
     If Not RequireLocation Then Exit Sub

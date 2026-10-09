@@ -110,9 +110,9 @@ try {
     Write-Host '=== Downstream sanity: Summary/Reports still reconcile ==='
     $xl.CalculateFullRebuild()
     $sum = $wb.Worksheets('Summary')
-    $chargeable = [double]$sum.Range('H6').Value2
-    $paid = [double]$sum.Range('J6').Value2
-    $unpaidV = [double]$sum.Range('L6').Value2
+    $chargeable = [double]$sum.Range("H$SUM_TOT_ROW").Value2
+    $paid = [double]$sum.Range("J$SUM_TOT_ROW").Value2
+    $unpaidV = [double]$sum.Range("L$SUM_TOT_ROW").Value2
     Check ([Math]::Abs(($paid + $unpaidV) - $chargeable) -lt 0.01) "Summary Paid+Unpaid still reconciles to Chargeable ($paid + $unpaidV = $($paid+$unpaidV), Chargeable=$chargeable)"
     $data = $wb.Worksheets('_Data')
     $spill = $data.Range('A10').SpillingToRange

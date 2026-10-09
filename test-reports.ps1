@@ -80,15 +80,15 @@ try {
 
     Write-Host ''
     Write-Host '=== Summary (Location x Printer x Paper Stock) ==='
-    Write-Host ("  A10 formula length: {0} chars" -f $s.Range('A10').Formula2.Length)
+    Write-Host ("  Summary table formula length: {0} chars" -f $s.Range("A$SUM_FIRST_ROW").Formula2.Length)
     try {
-        $sp = $s.Range('A10').SpillingToRange
+        $sp = $s.Range("A$SUM_FIRST_ROW").SpillingToRange
         Write-Host ("  spill: {0} rows x {1} cols" -f $sp.Rows.Count, $sp.Columns.Count)
-    } catch { Write-Host ('  NO SPILL: ' + $s.Range('A10').Text) }
+    } catch { Write-Host ('  NO SPILL: ' + $s.Range("A$SUM_FIRST_ROW").Text) }
     Write-Host ("  totals: jobs={0} gross={1} disregarded={2} chargeable={3}" -f `
-        $s.Range('B6').Text, $s.Range('D6').Text, $s.Range('F6').Text, $s.Range('H6').Text)
+        $s.Range("B$SUM_TOT_ROW").Text, $s.Range("D$SUM_TOT_ROW").Text, $s.Range("F$SUM_TOT_ROW").Text, $s.Range("H$SUM_TOT_ROW").Text)
     $hdrRow = @()
-    for ($col = 1; $col -le 13; $col++) { $hdrRow += [string]$s.Cells(9, $col).Text }
+    for ($col = 1; $col -le 13; $col++) { $hdrRow += [string]$s.Cells($SUM_HDR_ROW, $col).Text }
     Write-Host ('  headers: ' + ($hdrRow -join ' | '))
     Check ($hdrRow[1] -eq 'Printer') "Summary column B header is 'Printer' (got '$($hdrRow[1])')"
     Write-Host "  OK: Printer is now part of the Summary key (Location, Printer, Paper stock, ...)"

@@ -3,6 +3,44 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.10.29 - Summary: a job planner box at the top (price a job before committing to it).
+  - New module modPlanner. The box (A5:F21, boxed out with a navy title band)
+    has Printer, Paper, Roll length (metres) / Number of sheets, Print width mm
+    and Sheet size inputs; "Estimated cost" below shows paper, ink and overall;
+    under that an "Add to print room" dropdown and button.
+  - Printer and Paper offer everything available in ANY print room (every
+    room's permitted printers; every active stock some such printer can take).
+    Same convention as the job table: items the other choice rules out are
+    marked "(unavailable)", not removed. The room list is limited to rooms
+    that have the chosen printer.
+  - Only the inputs that apply are live: Print width for rolls, Sheet size for
+    Supplied (Sheet); the others grey out and empty. The roll length is always
+    entered in metres; Add converts it for a room whose Roll length unit is
+    Centimetres.
+  - The estimate is the job row's own arithmetic at today's prices (Paper =
+    ROUND(Qty x unit cost), Ink = ROUND(area m2 x rate per m2)), gross - the
+    disregard flags are not applied. It refreshes when an input changes and when
+    Summary is activated (a price edited on Papers/Printers shows up).
+  - Add to print room (btnPlannerAdd -> AddPlannedJob): adds a row to the chosen
+    room with Printer, Paper Stock, Qty, Print Width / Sheet size filled in,
+    the room's disregard and technician defaults, Paid = No, a new Job ID and a
+    snapshot (StampRow), then takes you to the row's Student Name. Refuses with
+    a message when the plan is incomplete or conflicting, no room is chosen, or
+    the room does not have the printer.
+  - The Summary table moved down 18 rows: totals values row 24 (labels 23),
+    header row 27, first row 28 (modReports SUM_TOT_ROW / SUM_HDR_ROW /
+    SUM_FIRST_ROW). The colour legend and the column-O buttons stay where they
+    were. Anything outside the workbook that reads Summary by address (the old
+    A10 / row 6 / row 9) must follow.
+  - modLists.MarkStocks / MarkPrinters are now Public (the planner reuses them);
+    RebindAllLocationDropdowns and RefreshLocations refresh the planner too.
+  - Tests: new test-jobplanner (layout, lists, messages, the estimate equals the
+    added row's Gross Cost, prefill, no row when incomplete); test-summaryformat,
+    test-reports, test-layout and test-paid read the shifted rows through the
+    SUM_* constants in TestCommon.ps1.
+  - NOT yet built or run: written without Excel to hand. Run build.ps1, then
+    run-tests.ps1 -Only planner,summary,reports,layout,paid.
+
 0.10.28 - Reports: filters moved to a collapsible block on the left, results and controls to their right, no freeze panes.
   - The filters now sit in columns A:F, a column group (outline +/- above the
     column letters, summary on G, the small gap before the table). The filter
