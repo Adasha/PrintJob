@@ -30,11 +30,11 @@ Private Const CSV_UTF8 As Long = 62         ' xlCSVUTF8
 
 ' The eight catalogue/configuration tables this backs up. Settings is one of
 ' them, not a separate mechanism - modUtils.Tbl finds it on the Settings
-' sheet exactly like the other three lookup tables there. tblDepartments
-' (0.10.30) is the newest; a backup taken before it simply has no file for it,
-' and a restore skips any table the backup lacks.
+' sheet exactly like the other three lookup tables there. tblColours (0.11.0)
+' and tblDepartments (0.10.30) are the newest; a backup taken before either
+' simply has no file for it, and a restore skips any table the backup lacks.
 Private Function CatalogTableNames() As Variant
-    CatalogTableNames = Array("tblTechnicians", "tblPrinters", "tblPapers", "tblDepartments", _
+    CatalogTableNames = Array("tblTechnicians", "tblPrinters", "tblPapers", "tblDepartments", "tblColours", _
         "tblPaperTypes", "tblStandardSizes", "tblConsumables", "tblSettings")
 End Function
 
@@ -51,6 +51,7 @@ Private Function CatalogKeyHeader(ByVal TableName As String) As String
         Case "tblPrinters":      CatalogKeyHeader = "PrinterID"
         Case "tblPapers":        CatalogKeyHeader = "StockID"
         Case "tblDepartments":   CatalogKeyHeader = "DeptID"
+        Case "tblColours":       CatalogKeyHeader = "ColourID"
         Case "tblPaperTypes":    CatalogKeyHeader = "Paper type"
         Case "tblStandardSizes": CatalogKeyHeader = "Size name"
         Case "tblConsumables":   CatalogKeyHeader = "Consumable type"
@@ -97,7 +98,7 @@ Public Sub BackupAll()
     Next i
     AppOn
 
-    why = done & " configuration table" & IIf(done = 1, "", "s") & " backed up (Technicians, Printers, Papers, Departments, the three Settings-page lookup tables, and Settings itself)."
+    why = done & " configuration table" & IIf(done = 1, "", "s") & " backed up (Technicians, Printers, Papers, Departments, Consumables colours, the three Settings-page lookup tables, and Settings itself)."
     If Len(failed) > 0 Then why = why & vbCrLf & vbCrLf & "Could not be backed up:" & vbCrLf & failed
 
     Say "Catalogue backup complete.", why, _
@@ -507,7 +508,7 @@ End Function
 ' columns, and a COM call per cell would take minutes.
 Private Function TableRows(ByVal lo As ListObject, ByVal KeyHeader As String) As Collection
     Dim out As Collection, d As clsDict, a As Variant, hdr() As String
-    Dim r As Long, c As Long, keyCol As Long, nCols As Long
+    Dim r As Long, c As Long, keyCol As Long, nCols As Long, parentCol As Long, isData As Boolean
 
     Set out = New Collection
     Set TableRows = out
@@ -515,6 +516,9 @@ Private Function TableRows(ByVal lo As ListObject, ByVal KeyHeader As String) As
     If lo.DataBodyRange Is Nothing Then Exit Function
 
     keyCol = ColIdx(lo, KeyHeader)
+    ' A job table's colour-pass rows have no Job ID, only a Parent, so a row there
+    ' counts as data when either is filled in (multi-pass: passes share the table).
+    If StrComp(KeyHeader, "Job ID", vbTextCompare) = 0 And ColumnExists(lo, "Parent") Then parentCol = ColIdx(lo, "Parent")
     nCols = lo.ListColumns.Count
     ReDim hdr(1 To nCols)
     For c = 1 To nCols
@@ -524,7 +528,9 @@ Private Function TableRows(ByVal lo As ListObject, ByVal KeyHeader As String) As
     a = lo.DataBodyRange.Value2
     If Not IsArray(a) Then Exit Function
     For r = 1 To UBound(a, 1)
-        If Len(Trim$(SourceText(a(r, keyCol), KeyHeader))) > 0 Then
+        isData = (Len(Trim$(SourceText(a(r, keyCol), KeyHeader))) > 0)
+        If Not isData And parentCol > 0 Then isData = (Len(Trim$(SourceText(a(r, parentCol), "Parent"))) > 0)
+        If isData Then
             Set d = New clsDict
             For c = 1 To nCols
                 d.Add hdr(c), SourceText(a(r, c), hdr(c))
@@ -880,9 +886,14 @@ Private Sub WriteCatalogRow(ByVal lo As ListObject, ByVal RowNo As Long, ByVal d
     For c = 1 To lo.ListColumns.Count
         header = lo.ListColumns(c).Name
         Set cell = CellIn(lo, RowNo, header)
-        If Not cell.HasFormula Then
-            s = ""
-            If d.Exists(header) Then s = Trim$(CStr(d.Item(header)))
+        ' A column the backup does not have at all (an older backup restored
+        ' over a newer workbook, e.g. a 1.3 backup's printers have no Colour
+        ' mode or Template cost) is left exactly as it is, not cleared: that
+        ' would silently turn a multi-pass printer back into a single-pass one
+        ' (multi-pass design decision 34). A column the backup has but holds
+        ' blank is still cleared.
+        If Not cell.HasFormula And d.Exists(header) Then
+            s = Trim$(CStr(d.Item(header)))
             If Len(s) = 0 Then
                 cell.ClearContents
             ElseIf IsNumeric(s) Then

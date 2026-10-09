@@ -127,8 +127,10 @@ Each setting is exposed as a workbook-scoped defined name so formulas and VBA re
 `modSettings` addresses every setting as `SET_<KEY>`, so the defined name — not the row — is what makes an entry a real setting. Every setting ships in `PrintCosts.xlsx`, row and `SET_` name both, in display order; no setup routine adds, moves or relabels one. Setup only stamps `APP_VER` and `SCHEMA` from the code (`modVersion.StampVersionSettings`, also called by `StampBuild`, which adds `BUILT`/`BUILT_BY`), and `RefreshLocations` stamps `LASTREF`. Upgrading means a fresh workbook plus an import: Restore matches Settings rows by `Key` (skipping any whose Notes start "Read-only"), so row order never matters to it. The rows are `SITE_ID`, `SITE_NAME`, `ORG`, `DEPT`, `ROUND_DP`, `CURRENCY`, `SCHEMA`, `LASTREF`, `APP_VER`, `BUILT`, `BUILT_BY`, `EXPORT_FOLDER`, `LOC_REDUCED_VIEW`, `LOC_REDUCED_COLUMNS`, `LOC_MINIMAL_COLUMNS`, `COST_COLS_HIDDEN`, `REPORT_HEADING` and the catalogue ID counters (`TECH_ID_HWM`, `PRINTER_ID_HWM`, `STOCK_ID_HWM`, and from 0.10.30 `DEPT_ID_HWM` — the one Settings row setup *does* add, `modDepartments.EnsureDeptIdSetting`, because the Departments sheet it counts for is itself built in VBA).
 
 **Print Technicians** — `tblTechnicians`: TechID, Name, Department, Active.
-**Printers** — `tblPrinters`: PrinterID, Model, Consumable type, **Cost per m2**, **Max roll width mm**, **Max sheet size**, Active. The last two (printer/paper compatibility rework, §16.5) replace the old `Supported families` multi-select: a printer takes roll stock iff the first is set, sheet stock iff the second is set (a Standard Size name), and both can be set on the same printer. Both columns ship in `PrintCosts.xlsx`; no routine adds them or derives them from the old family list.
+**Printers** — `tblPrinters`: PrinterID, Model, Consumable type, **Cost per m2**, **Colour mode**, **Template cost**, **Max roll width mm**, **Max sheet size**, Active. The last two (printer/paper compatibility rework, §16.5) replace the old `Supported families` multi-select: a printer takes roll stock iff the first is set, sheet stock iff the second is set (a Standard Size name), and both can be set on the same printer. Both columns ship in `PrintCosts.xlsx`; no routine adds them or derives them from the old family list.
 **Departments** — `tblDepartments` (0.10.30, sheet `Departments`, built in VBA by `modDepartments.EnsureDepartmentsSheet`, not shipped in the `.xlsx`): DeptID (`SITE-DEP-0001`, counter `DEPT_ID_HWM`), **Name**, **Aliases** (`;`-separated), **Free** (Yes/No, default No), **Active** (default Yes), Notes, *Match list* (calculated, hidden, locked: `;name;alias;…;` lower-cased, read by the `_Data` Department column), and four **reserved** grey columns for the finer-grained charging to come — `Dis Paper %`, `Dis Cons %`, `Allowance`, `Allowance period` — present so the table's shape is stable, read by nothing yet (§16.6). A job is tied to a department by its **Student Name matching a Name or Alias** (case-insensitive, trimmed; Student No is not used) through the single lookup `modCatalog.DepartmentFor` — D19 stays true that nothing is stored on the job; a later real Department column only has to change that function. When a Student Name is entered by hand on a job and `FreeDepartmentFor` finds an Active, Free department, `modDepartments.StampDepartmentDisregards` sets **both** Disregard columns to Yes (single-cell edits only, from `modValidation.OnCellChanged`): the job is still costed in full, so Gross is unchanged and the money shows as Disregarded. Nothing re-applies it (repeat job, import, re-stamp, the Planner and multi-cell pastes never reach it), so a hand-set value stays; moving to a non-department leaves the flags alone; re-entering the department re-stamps. Classification is by name at read time, not snapshotted: renaming a department on the sheet orphans old jobs, so **deactivate rather than delete or rename**. Duplicate names/aliases across rows are warned about (first row wins). Backed up and restored like the other catalogues (key `DeptID`); a backup that predates it simply has no file for it.
+
+**Consumables (colours)** — `tblColours` (0.11.0, sheet `Consumables`, built in VBA by `modConsumables.EnsureConsumablesSheet`, not shipped in the `.xlsx`): ColourID (`SITE-CLR-0001`, counter `COLOUR_ID_HWM`), **Consumable type** (a `tblConsumables` entry on Settings - which gained `Risograph`), **Colour**, **Cost per m2**, **Active**. Looked up by name, like printers and papers; deactivate rather than rename. A printer's **Colour mode** is `single pass` (blank reads as this) or `multi-pass`, and **Template cost** is the set-up cost of one colour pass; both are read at load time by `LoadCatalog` (nothing is written to older rows) and a multi-pass printer takes sheet stock only (`Compatible`). Backed up and restored like the other catalogues (key `ColourID`). See §17.
 
 **Papers** — `tblPapers`: StockID, Description, Paper type, **Measure** (`Sheet`/`Roll` dropdown), Size mode, Std. size (renamed from "Standard size" 0.9.14 — `modCatalog.EnsureStdSizeColumnName`), **Width mm**, **Height mm**, **Cost**, *Cost unit* (calc), **Supplied by student** (Yes/No, default No; Yes = paper cost always 0, §16.5), Active. The two student-supplied stocks `Supplied (Roll)`/`Supplied (Sheet)` are **not** rows of this table — they are built in (`modCatalog.AddBuiltInStocks`, `SUPPLIED_ROLL`/`SUPPLIED_SHEET`), reserved names, `Cost = 0`, no catalogue size. Earlier builds shipped them as real rows; the template no longer has them, and jobs already recorded against them keep their frozen `S_*` snapshot. The Summary sheet's Type/Unit lookups fall back to fixed values for the two names (`modReports.BuildSummary`).
 
@@ -206,11 +208,13 @@ Row 16+     tblJobs_<CODE> body
 | B9 | `LOC_RollUnit` | Roll-stock `Qty` entry unit, Metres/Centimetres (default Metres) — always converted to and stored as metres, see below (was B6 until 2026-09-29) |
 | B10 | — | Permitted-printers display, `"N printers (comma, separated, list)"` — a read-only `LET` formula over `LOC_Printers` (below), not the named range itself (2026-09-25, swapped with Sheet status/Export, see below) |
 | B11 | — | Live count of jobs on the sheet, `=ROWS(tblJobs_<CODE>)` — a genuine formula, re-written whenever the table is renamed so it never goes stale |
-| AM2 | `LOC_Code` | Location code (auto-assigned, read-only) — side panel |
-| AM3:AM4 | — | Empty since 2026-09-29 (the disregard defaults moved to B6/B7) |
-| AM5 | `LOC_Status` | Validation summary for the sheet — side panel (2026-09-25, was B7) |
-| AM6 | `LOC_Export` | Export status — side panel (2026-09-25, was B8) |
-| AM7 | `LOC_Printers` | Permitted printers, raw semicolon-delimited list — side panel (2026-09-25, was AM5). What `modPicker`'s Select printers… dialog actually writes and `modCatalog`'s compatibility checks actually read; `B7`'s friendly display derives from this, never the other way round |
+> **0.11.0:** the job table grew to 45 columns (A:AS), so the side panel moved from column 36 to 47 and the `LOC_*` settings block from `AL:AM` to `AW:AX` (the names followed; the cell addresses in the rows below are the AX ones). The `AZ1` marker did not move. Known pre-existing quirk, unchanged: the code keeps the export status at row 6 beside Sheet status, which the template places at row 6 too, so the Export text overwrites it - see the §16.2 punch list.
+
+| AX2 | `LOC_Code` | Location code (auto-assigned, read-only) — side panel |
+| AX3:AX4 | — | Empty since 2026-09-29 (the disregard defaults moved to B6/B7) |
+| AX5 | `LOC_Status` | Validation summary for the sheet — side panel (2026-09-25, was B7) |
+| AX6 | `LOC_Export` | Export status — side panel (2026-09-25, was B8) |
+| AX7 | `LOC_Printers` | Permitted printers, raw semicolon-delimited list — side panel (2026-09-25, was AM5). What `modPicker`'s Select printers… dialog actually writes and `modCatalog`'s compatibility checks actually read; `B7`'s friendly display derives from this, never the other way round |
 | AZ1 | — | Marker cell, `PRINTLOC/v1`. Hidden column, never edited |
 
 `LOC_Export` is deliberately separate from `LOC_Status`: validation and export state are independent, and a sheet can easily be valid and unexported at once. Both are derived and rewritten, never typed. `LOC_Export`'s name is created by `modExport` on every refresh rather than shipped in the `.xlsx`, so a duplicated or renamed sheet gets a correct one without hand surgery.
@@ -237,7 +241,7 @@ Duplicating a location sheet (§4.4) copies whatever values are currently sittin
 
 **Side panel (2026-09-25) — Location code, the two disregard-cost defaults and the permitted-printers list, columns AL/AM (38/39).** *(The two disregard-cost defaults moved back to `A6:B7` on 2026-09-29 — see above.)* Hand-edited directly into `PrintCosts.xlsx` (both shipped location sheets) rather than self-provisioned — these are the same shipped named ranges they always were, just repointed to their new cells. None of the four are used per-job, unlike the selectors above, so relocating them cost nothing in day-to-day use. The explanatory prose that used to sit at `D3` (about the **Select printers…** button) moved to `AL6` alongside the relocated printers list; `D1`/`D2` (heading, and the "defaults seed each new print job" note) stayed put, since they still describe what's now directly below them.
 
-**Occasional-use toolbar buttons — Remove Row, Select printers…, Check this sheet, Clear All, Export…, Import…, all six sharing column `SIDE_PANEL_COL` (36) (2026-09-25; the reduced-view toggle and the cost-columns toggle that joined it on 2026-09-27 have since moved to the view row on row 2, below — see §16.3's "button lag" writeup for the cost-columns toggle's history).** Same reasoning as the cell-content move above, applied to buttons: past the table's own columns entirely, so `ApplyColumnVisibility` can never reach them regardless of what `SET_LOC_REDUCED_COLUMNS` names. Only Add Print Job and Now stay on the toolbar proper (row 11, next to the table — moved from row 10 by the toolbar-gap fix below) as the two used on every single job entry. `SIDE_PANEL_COL` was also widened (`ColWidthForPx(210)`, user-reported): a `Buttons.Add` shape's own width is independent of its anchor column's width, so at the column's previous narrow width every 140pt button sprawled two-three columns rightward, straight over the settings block at `AL`/`AM` — blocking its dropdown arrows from being clicked as well as visibly overlapping it. Widening the column keeps every button's footprint contained within its one column.
+**Occasional-use toolbar buttons — Remove Row, Select printers…, Check this sheet, Clear All, Export…, Import…, all six sharing column `SIDE_PANEL_COL` (47 since 0.11.0; was 36) (2026-09-25; the reduced-view toggle and the cost-columns toggle that joined it on 2026-09-27 have since moved to the view row on row 2, below — see §16.3's "button lag" writeup for the cost-columns toggle's history).** Same reasoning as the cell-content move above, applied to buttons: past the table's own columns entirely, so `ApplyColumnVisibility` can never reach them regardless of what `SET_LOC_REDUCED_COLUMNS` names. Only Add Print Job and Now stay on the toolbar proper (row 11, next to the table — moved from row 10 by the toolbar-gap fix below) as the two used on every single job entry. `SIDE_PANEL_COL` was also widened (`ColWidthForPx(210)`, user-reported): a `Buttons.Add` shape's own width is independent of its anchor column's width, so at the column's previous narrow width every 140pt button sprawled two-three columns rightward, straight over the settings block at `AL`/`AM` — blocking its dropdown arrows from being clicked as well as visibly overlapping it. Widening the column keeps every button's footprint contained within its one column.
 
 **All eight packed into one column via pixel-based stacking, not the row grid (2026-09-25, direct user report — see the row-scope bug above for why a second column existed first, and why it didn't last).** Every-other-row spacing only had six safe slots above the table header for seven buttons (eight at the peak, six now), and row height is a whole-row property shared with the main A/B block — the side panel couldn't use taller rows without inflating that block too. `modInit.DrawOneAtTop` (new) takes an explicit pixel `Top` instead of a row number, so the buttons are spaced evenly across whatever vertical room is actually available above the table's *current* header row (`ws.Cells(lo.Range.Row, 1).Top`, read at runtime, not a hardcoded figure) with an 8pt safety margin before it — the first attempt packed the last button flush against the header with none at all. Not tied to any particular row height, so it keeps working if the header moves again, unlike the row-based approach it replaces.
 
@@ -353,6 +357,8 @@ Anyone reordering job-table columns directly in `PrintCosts.xlsx` again (as oppo
 | 22 | Notes | input | Optional |
 | 23 | H_Issues | calc | Hidden working column behind Status |
 
+**Multi-pass columns (0.11.0, schema 1.4).** Eleven columns were added; the numbers in the table above are the pre-0.11.0 positions. Current order: Date/Time, Student Name, Student No, Technician, Printer, **Passes**, **Colour**, Paper Stock, Unit, Qty, Print Width mm, Sheet size, Disregard Paper, Disregard Consumable, Area m2, Paper Cost, Consumable Cost, **Set-up Cost**, Gross Cost, Disregarded, Chargeable Cost, Paid, Status, Job ID, **Row Type**, **Parent**, **Pass**, Notes, H_Issues, **H_Ink**, **H_Setup**, **H_Notices**, then the snapshot block with **S_SetupCost** and **S_ColourID** after S_ConsRate (45 columns, A:AS). `Row Type` is `Job` (or blank, read as Job) or `Pass`; a Pass row carries only Parent, Pass, Colour, its snapshots and a note. `Passes` is a count on a Job row (blank for none). `H_Notices` is the milder second level beside `H_Issues` (Status shows `Notice: ...`, yellow). The three hidden `H_` columns and the snapshot block are locked working columns. The columns are shipped in `PrintCosts.xlsx` by `apply-multipass-template.ps1`; `Outline.SummaryRow` is baked in as `summaryBelow="0"` so the +/- control sits on the job row.
+
 **Snapshot block (24–34)** — locked, grey, collapsed group headed *Historical record — do not edit*: `S_PrinterID`, `S_StockID`, `S_TechID`, `S_Measure`, `S_UnitCost`, `S_StockWidth_mm`, `S_SheetHeight_mm`, `S_ConsRate`, `S_StampedAt`, `S_StampedBy`, `S_SchemaVer`.
 
 **Sheet size (printer/paper compatibility rework, §16.5) — the second genuine job-row column since inception, `modUtils.SCHEMA_VER` 1.1 → 1.2.** Added via `modInit.EnsureSheetSizeJobColumn`, same idempotent `ListColumns.Add` shape as `EnsurePaidColumn`. Plays the same role for `Supplied (Sheet)` that `Print Width mm` already played for roll stock: there's no catalogue size to fall back on for student-supplied paper, so the real size is entered per job and stamped into `S_StockWidth_mm`/`S_SheetHeight_mm` by `modSnapshot.StampRow` (resolved via a `tblStandardSizes` lookup, `modCatalog.StdSizeDims`) exactly as if it had come from a catalogue row — **no change to any cost formula was needed** (§5.1). Both `Print Width mm` (now required, not optional, for `Supplied (Roll)`) and `Sheet size` are validated against the *printer's* capacity, not a stock's nominal size (`modValidation.OnWidthChanged`/`OnSheetSizeChanged`/`RevalidateSuppliedSize`) — and a blank value on a row that needs one is caught by `H_Issues` (`modInit.EnsureJobIssuesFormula`, asserted in VBA rather than a static `.xlsx` formula edit, same self-healing reasoning as `EnsureJobColumnValidation`) the same way every other required field already is, so Check sheet/Check workbook catch a forgotten one.
@@ -382,12 +388,17 @@ Area m2          =IF([@Qty]="","",
                        n, IF([@S_Measure]="Sheet", [@Qty], 1),
                        (w/1000) * h * n))
 
-Paper Cost       =IF([@Qty]="","",ROUND([@Qty]*[@S_UnitCost],SET_ROUND_DP))
-Consumable Cost  =IF([@[Area m2]]="","",ROUND([@[Area m2]]*[@S_ConsRate],SET_ROUND_DP))
-Gross Cost       =IF([@[Paper Cost]]="","",[@[Paper Cost]]+[@[Consumable Cost]])
+Paper Cost       =IF([@Qty]="","",ROUND([@Qty]*[@S_UnitCost],SET_ROUND_DP))   (blank on a Pass row: no Qty)
+Consumable Cost  =IF(Pass,[@H_Ink],                                        (0.11.0)
+                   IF([@[Area m2]]="","",ROUND([@[Area m2]]*[@S_ConsRate],SET_ROUND_DP)
+                      +SUMIFS([H_Ink],[Parent],[@[Job ID]])))
+Set-up Cost      =IF(Pass,[@H_Setup],IF([@[Area m2]]="","",SUMIFS([H_Setup],[Parent],[@[Job ID]])))
+H_Ink (Pass)     =ROUND(parent Area m2 * [@S_ConsRate], SET_ROUND_DP)         (XLOOKUP on Parent = Job ID)
+H_Setup (Pass)   =[@S_SetupCost]
+Gross Cost       =IF([@[Paper Cost]]="","",[@[Paper Cost]]+[@[Consumable Cost]]+N([@[Set-up Cost]]))
 Chargeable Cost  =IF([@[Paper Cost]]="","",
                     IF([@[Disregard Paper]]="Yes",0,[@[Paper Cost]])
-                  + IF([@[Disregard Consumable]]="Yes",0,[@[Consumable Cost]]))
+                  + IF([@[Disregard Consumable]]="Yes",0,[@[Consumable Cost]]+N([@[Set-up Cost]])))
 Disregarded      =IF([@[Gross Cost]]="","",[@[Gross Cost]]-[@[Chargeable Cost]])
 ```
 
@@ -500,7 +511,9 @@ VBA's entire role in reporting is rewriting that one formula (plus refreshing th
 
 One row per **Location × Printer × Paper stock** — a three-column key, extended from the original two-column Location × Paper-stock key (historical "Problem 2": two printers sharing a stock get separate rows, because cost-per-print differs by printer's consumable rate even for the same paper). Key pairs derived with `SORT(UNIQUE(HSTACK(...)))` and aggregated with `COUNTIFS`/`SUMIFS` taking the key columns as **array criteria**, which makes the results spill alongside the keys instead of needing one formula per row.
 
-| Location | Printer | Paper stock | Type | Unit | Jobs | Qty | Area m² | Paper cost | Consumable cost | Gross | Disregarded | Chargeable |
+| Location | Printer | Passes | Paper stock | Type | Unit | Jobs | Qty | Area m² | Paper cost | Consumable cost | Set-up cost | Gross | Disregarded | Chargeable |
+
+(0.11.0: `Passes` after Printer and `Set-up cost` after Consumable cost, A:O; the totals above, the planner box and the department box did not move. `Passes` and `Set-up cost` are summed per key like the other columns; the "(not in Papers)" highlight is on column E. Colour passes are never listed here - only the job's count of them.)
 
 Type and Unit are resolved from `tblPapers` by stock description, wrapped in `IFNA` so a stock renamed or removed since shows `(not in Papers)` rather than an error. These are labels only — no cost figure is ever looked up live (§5.1).
 
@@ -518,6 +531,8 @@ Consumption columns count **every** record regardless of disregard flags; only m
 
 ### 8.3 Reports sheet — rebuilt 2026-09-21 (was "Cost Calculations")
 
+> **0.11.0 results-table shift.** `Passes` (column 6 of the results block) follows Printer and `Set-up cost` (13) follows Consumable cost, so Paper stock is now 7, Gross 14, Chargeable 16, Paid 17, Technician 18, Notes 19, and the hidden Job ID 20. `modReports` carries the numbers that other code keys off as constants (`RC_CHARGEABLE`, `RC_NOTES`, `RC_LAST`, `MATCH_COL_CHARGEABLE/PAID/UNPAID` = 7/16/17, `BRK_COL1/2/3` = 22/26/30 for the three breakdown blocks), and `modExport` reads the Matching totals through them. `Passes` is a sort choice. The Unpaid total binds the filter once with `LET` - it repeated it, and the Pass type clause took the formula past Excel's 8192-character limit. Later column positions quoted below are the pre-0.11.0 ones.
+
 A live `FILTER`+`SORTBY` driven by criteria cells; results update as criteria are typed, and can now be sorted by any result column.
 
 **Filters** (constant `SHEET_REPORTS = "Reports"`):
@@ -530,6 +545,7 @@ A live `FILTER`+`SORTBY` driven by criteria cells; results update as criteria ar
 | B10 | Paid | Yes/No dropdown. Yes = `Paid="Yes"`; No = anything not marked Yes (a blank Paid counts as unpaid, matching the Paid/Unpaid totals) |
 | F4 | Location (print room) | Dropdown, exact match — every registered room, not just those with a job logged |
 | F5 | Technician | Dropdown, exact match |
+| F11 | Pass type (0.11.0) | `Single pass` / `Multi-pass`; blank = all. Multi-pass = the job's `Passes` is a number (`ISNUMBER`) |
 | F7 | Printer | Dropdown, exact match |
 | F8 | Paper stock | Dropdown, exact match |
 | F9 | Paper type | Roll/Sheet dropdown, read off the consolidated `Unit` column (`sheets` = Sheet, `metres` = Roll; centimetre rooms are already metres in `_Data`) |
@@ -629,6 +645,8 @@ Settings keeps its own copies deliberately: it is where someone lands when confi
 | `modInit` | One-time/re-runnable setup: draws the Form Controls, applies protection, unlocks config inputs, sets/clears freeze panes, reorders tabs, groups columns, wraps Settings notes, hands over to RefreshLocations | Built |
 | `modCatalog` | Configuration loaded once per operation; **catalogue row Add/Remove; Clear table (§10.8); the department lookup (`DepartmentFor`, `FreeDepartmentFor`)** | Built |
 | `modDepartments` | The Departments sheet: build/format (`EnsureDepartmentsSheet`), the `DEPT_ID_HWM` setting, sheet-edit handling, the on-entry disregard stamp (§3.3) | Built |
+| `modConsumables` | The Consumables sheet (0.11.0): build/format (`EnsureConsumablesSheet`), the `COLOUR_ID_HWM` Settings row, and `OnColourEdited` (ID, Active default, duplicate-name warning) | Built |
+| `modPasses` | Multi-pass costing (0.11.0): pass rows (`AddPass`, `RemovePass`/`DeletePass`, `RenumberPasses`, `GroupRows`), `RebuildGroups` and `ApplyPassFormat` (row groups and shading), `OnColourChanged`/`RestampPassRow`, `BindPassColours`, the pass buttons' collapse/expand and greying, the pass-column toggle, `PreparePassSheet` | Built |
 | `modSettings` | Typed accessors for settings and named ranges | Built |
 | `modProtect` | Protect/unprotect wrappers, re-applied on open, **no default password** | Built |
 | `modUtils` | Application state, messaging, quiet mode, table and name access, ID generation, schema version constant | Built |
@@ -636,7 +654,7 @@ Settings keeps its own copies deliberately: it is where someone lands when confi
 | Class | Responsibility | State |
 |---|---|---|
 | `clsDict` | Keyed collection, built on `Collection` — §9.3 | Built |
-| `clsStock` / `clsPrinterDef` / `clsDept` | One paper stock / one printer / one department (stored under its Name and each Alias) | Built |
+| `clsStock` / `clsPrinterDef` / `clsDept` / `clsColour` | One paper stock / one printer (with `MultiPass`, `TemplateCost`) / one department / one colour (stored under its Name and each Alias) | Built |
 | `clsRestoreRoom` | One print room's share of a restore: code, name, department, job rows, and the sheet once found or created (`modBackup`) | Built |
 
 **`modReports` exists, but computes nothing at run time.** It writes layout and formulas once. A defect in `modReports` can only produce a wrong *sheet*, visible immediately, not a wrong *figure* on a sheet that looks right.
@@ -752,6 +770,8 @@ VBA operations clear Excel's undo stack. `_Audit` records what was removed, when
 
 **Format.** CSV, written by copying to a temporary workbook and using `SaveAs FileFormat:=xlCSVUTF8`. Excel's own CSV writer, so quoting and comma escaping are its problem, and `xlCSVUTF8` gets `£` and any non-ASCII student name right. The staging sheet is formatted as Text throughout.
 
+**Colour passes (0.11.0).** A multi-pass job's passes are extra rows of the same file, directly after their job: `Row Type` `Pass`, the job's ID in `Parent`, `Pass`, `Colour`, and the snapshots (`S_ConsRate`, `S_SetupCost`, `S_ColourID`, stamp). Their other job fields are blank. The canonical column order gained `Row Type`, `Parent`, `Pass` after `Job ID`, `Passes` and `Colour` after `Printer`, `Set-up Cost` after `Consumable Cost`, and `S_SetupCost`/`S_ColourID` after `S_ConsRate`. A blank `Row Type` on an old row is written as `Job`.
+
 A header block — schema version, site ID, location code and name, generated-at, row count — then a header row, then records. Dates are written `yyyy-mm-dd hh:nn:ss`: a serial would be unreadable and a locale-formatted date ambiguous, since `06/07` is two different days depending on who opens it.
 
 **Column order is not part of the contract.** The header row names the columns and any importer maps by name, so the job table may be reordered freely without invalidating older exports or bumping the schema version. The file uses a canonical order fixed in `modExport`.
@@ -813,6 +833,8 @@ Any of **Student name, Student no, Location, Printer, Paper stock, Technician** 
 - Restoring a backup into the location it came from (after data loss, or reverting a bad edit).
 - Importing one location's exported jobs into a different room.
 - Pulling several locations' exports into one copy of the workbook, for reporting or handover — see the BONUS note in §12.4.
+
+**Colour passes (0.11.0).** `ReadImportRows` treats a row as data when its Job ID or its Parent is filled (a pass has no Job ID) and reads to the last used row. `ApplyImportConfirmed` gathers the file's passes under their jobs and, for each job it writes, replaces that job's whole pass group in one step (whole-row delete, then insert, so outline levels stay with their data) - a job is never half-imported and a repeat import never doubles its passes. Only a file that has a `Row Type` column speaks for passes: a pre-0.11.0 file imports its jobs and leaves any passes alone. A pass whose Parent is not among the file's jobs is skipped and counted in the audit entry. An unknown colour is kept with its stamped rate and shows the milder notice.
 
 **No cost reconciliation needed.** Job-row formulas only ever read the row's own snapshot columns and inputs, never `tblPapers`/`tblPrinters` (§5.1), so an imported row already carries the rates it needs and costs correctly regardless of what the target workbook's configuration tables contain.
 
@@ -1120,7 +1142,8 @@ Added in this pass:
 - ~~**Remove the in-place upgraders; bake the template**~~ **Closed 2026-10-03 (0.10.22).** Upgrading means a fresh workbook plus an import, so the only upgrade logic kept is what adapts exported data to a newer schema (Import and Restore tolerate older files; Restore matches Settings rows by `Key`). `PrintCosts.xlsx` now ships the final layout (Settings rows in display order with `SET_` names, header gap rows, the Settings button-band rows, roll-unit-aware formulas, no stray validation under the job table, no built-in Supplied rows, IDs and counters on the sample rows), made by running the old setup routines on a temp copy; a build from it matched a build from the old template apart from the hidden `LOC_RollUnitApplied` seed. Removed: `EnsureSetting`, `EnsureVersionSettings`, `EnsureSchemaSetting` (now `StampVersionSettings`), `EnsureViewSettings`, `EnsureReportHeadingSetting`, `EnsureCatalogIds`, `RemoveLegacySuppliedRows`, `NormaliseSuppliedFlags`, `EnsureStdSizesName`, `EnsureHeaderGaps`, `EnsureRollUnitFormulas` (with the centimetre x100 migration), `ClearBelowTableValidation`, `MarkQtyRewritten` (only ever called with False), the Settings band insert, the D1:D2 clear, `RelocateButton`'s size reset and the `ColumnExists` guards for columns the template always has. Kept: sheet duplication and rename self-heal, `EnsureSystemSheets`, the `ColumnExists` guards on `Active` and `Status`, and the per-build stamps. Paragraphs in §3-§5 that name routines removed in earlier releases (`EnsurePaidColumn`, `MigratePrinterCapacities`, `NormalizeJobColumnOutlines`, `EnsureToolbarGap`) are left as design history. No Quantity→Qty import alias: no pre-rename export files exist.
 - **Departments: small layout tweaks** — todo. A manual look at 0.10.30 found only minor changes needed to the Reports Department filter (`B6`) and the Summary By department box (`I5:M21`); to be done as a separate pass.
 - **Departments: a real column, and finer-grained charging** — planned, not started (0.10.30 shipped the sheet, the on-entry free rule and the reporting by name). See §16.6.
-- **Multi-pass (per-colour) costing and set-up** — designed (36 decisions), build started 2026-10-09 on `feat/multipass`, ships as 0.11.0 with schema 1.4. See §17. Follow-ups it creates: the Job planner cannot price a multi-pass job (§17.2); catalogue IDs versus names, and the pass-row versus job-row re-stamp inconsistency, are to be revisited after it lands.
+- **Pre-existing, found building 0.11.0: Export status overwrites Sheet status.** `modExport.EXPORT_CELL` puts the export status at row 6 of the settings block, where the template also has `LOC_Status`, so the export text lands on top of the validation summary (in the 0.10.30 build too). Not changed by 0.11.0 beyond following the block to `AX6`. Needs a decision on which row each belongs on.
+- **Multi-pass (per-colour) costing and set-up** — built 2026-10-09 on `feat/multipass`, ships as 0.11.0 with schema 1.4. See §17. Follow-ups it creates: the Job planner cannot price a multi-pass job (§17.2); catalogue IDs versus names, and the pass-row versus job-row re-stamp inconsistency, are to be revisited after it lands.
 - **Reports date filters** have no calendar picker (platform limit, HISTORY §16.3). Revisit if a future Excel adds one.
 - ~~**`LOC_RollUnit` is per-sheet, not per-row**~~ **Closed 2026-10-02, working as intended.** The roll length unit is a deliberate per-sheet display setting (0.10.11): Qty is held in the sheet's unit and converted to metres for `_Data`. A location is not meant to mix centimetre and metre entry job-by-job, so no per-row unit (and no schema bump) is planned.
 - ~~**Mixed-unit import**~~ **Closed 2026-10-02**, no code change needed. `test-importunits.ps1` (Example Print Room on Metres, the Annexe fixture on Centimetres) covers a metres export into a cm room (roll Qty x100, Unit "cm"), a cm export into a metres room (/100, Unit "metres"), Area m2 and Paper Cost unchanged both ways, sheet stock never converted, a cm round trip landing back on the original metres, and a same-unit control.
@@ -1138,7 +1161,7 @@ Built: the `Departments` sheet, the free-department auto-disregard on entry, a D
 
 ## 17. Multi-pass (per-colour) costing and run-length set-up
 
-**Status: designed, build started 2026-10-09 on branch `feat/multipass`, from master 0.10.30.** Raised 2026-10-02 for RISO duplicators, which the flat per-m2 model of §5.1 cannot express: several consumables (one ink and master per colour) at different prices, and a one-off set-up cost per colour. Design closed 2026-10-06 with 36 decisions, kept verbatim with their test results in [multipass-costing-design.md](multipass-costing-design.md); column toggles and button greying are in [column-view-presets-design.md](column-view-presets-design.md). Those two were written before 0.10.27 to 0.10.30 landed. **Where they disagree with this section, this section wins** (§17.2). The options table that stood here until 2026-10-09 (A versus B, set-up per job or per colour) is superseded: shape A was chosen, set-up is per colour pass.
+**Status: built 2026-10-09 on branch `feat/multipass` from master 0.10.30; ships as 0.11.0, schema 1.4 (§17.4 lists where the build departs from or fills gaps in the design).** Raised 2026-10-02 for RISO duplicators, which the flat per-m2 model of §5.1 cannot express: several consumables (one ink and master per colour) at different prices, and a one-off set-up cost per colour. Design closed 2026-10-06 with 36 decisions, kept verbatim with their test results in [multipass-costing-design.md](multipass-costing-design.md); column toggles and button greying are in [column-view-presets-design.md](column-view-presets-design.md). Those two were written before 0.10.27 to 0.10.30 landed. **Where they disagree with this section, this section wins** (§17.2). The options table that stood here until 2026-10-09 (A versus B, set-up per job or per colour) is superseded: shape A was chosen, set-up is per colour pass.
 
 ### 17.1 The model, in brief (decision numbers refer to the design doc)
 
@@ -1168,7 +1191,7 @@ Built: the `Departments` sheet, the free-department auto-disregard on entry, a D
 | **Summary and Reports layout** (planner box and department box above the table; Department filter at `B6`; filters in a left column group since 0.10.28). | New result columns per decision 28; the `Pass type` filter goes next to Paper type in the left group. Exact cells are fixed when built and recorded in §8. |
 | **Module lists.** | New modules are listed in §9.1 and SETUP.md (Mac manual import). |
 
-### 17.3 Build order
+### 17.3 Build order (done; kept as the record of the order it was built in)
 
 1. **Docs** (this section and the two design documents in the repo).
 2. **Data model.** Schema 1.4; template script (job-table columns, printer columns, `summaryBelow`); `Consumables` sheet, `Risograph` type, colour IDs, Backup and Restore changes; read-time printer defaults.
@@ -1177,6 +1200,18 @@ Built: the `Departments` sheet, the free-department auto-disregard on entry, a D
 5. **Reports, Summary and `_Data`.** `Passes`, `Set-up Cost`, `Pass type` filter, `Passes` sort.
 6. **Export, Import, Re-stamp.**
 7. **Close-out.** Tests for each step, changelog, SETUP.md, proof sheet.
+
+### 17.4 As built (0.11.0): choices the design left open, and departures
+
+- **Which columns the pass-column toggle covers.** Passes, Colour, Row Type, Parent and Pass (the design named colour and Passes). The Reduced view's default list hides the same five. Set-up Cost follows the cost toggle only, as designed.
+- **Orphan passes (decision 10)** are flagged ("Parent job not found") but not removed automatically: removing silently would discard a colour and its cost on a guess. Check sheet lists them as problems.
+- **Notice wording (decision 35/36).** `Notice: colour not defined in this workbook - type not checked` - a hyphen, not a semicolon, because Status splits its note on `; `. The prefix `Notice:` is what the yellow conditional format keys on.
+- **Pass row look.** A light shade over every pass row by conditional format (not direct formatting, so a row added below a pass never inherits it).
+- **Sort and filter off on location sheets (decision 12)**: the table's AutoFilter arrows are hidden and `ProtectSheet` withholds sorting and filtering on location sheets only.
+- **Pass cells.** A pass row accepts a colour and a note only; anything else typed on it is cleared with a message. Row Type, Parent and Pass are locked.
+- **Planner.** Multi-pass printers are left out of its printer list (§17.2). The "line on the box saying so" is not built.
+- **`_Data`** filters pass rows out on `Row Type` explicitly (an empty cell passes the per-room block as 0, so the old Date/Time test kept them).
+- **Export of a Job row\'s Passes** is the count shown on the sheet; the pass rows themselves carry the detail.
 
 Open items carried from the design doc: whether the view drop-down wording changes (not in scope); a colour swatch column (future); IDs versus names for all catalogues, and the pass-row versus job-row re-stamp inconsistency (both on the proof sheet, to revisit after this upgrade).
 

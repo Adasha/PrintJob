@@ -8,7 +8,7 @@
 # click on a cell must:
 #   - move a table-anchored button (Clear defaults, on Technician) off a
 #     column that is now hidden, and back when it is revealed;
-#   - keep every side-panel button on column 36 as column 36 shifts left.
+#   - keep every side-panel button on column 47 as column 47 shifts left.
 #
 # Drives a COPY in %TEMP%, never src\PrintJob.xlsm itself. Closes WITHOUT
 # saving.
@@ -63,9 +63,9 @@ try {
 
     Write-Host '=== Baseline ==='
     Check ((ButtonColumnVisible $main 'pcb_btnClearDefaults') -eq $techCol) "btnClearDefaults starts on Technician (col $techCol)"
-    $col36Before = [double]$main.Cells(1, 36).Left
+    $col36Before = [double]$main.Cells(1, 47).Left
     foreach ($p in $sidePanel) {
-        Check ((ButtonLeft $main $p) -eq $col36Before) "$p on column 36 (Left=$col36Before)"
+        Check ((ButtonLeft $main $p) -eq $col36Before) "$p on column 47 (Left=$col36Before)"
     }
 
     Write-Host ''
@@ -83,19 +83,19 @@ try {
     Check ((ButtonColumnVisible $main 'pcb_btnClearDefaults') -eq $techCol) "btnClearDefaults back on Technician"
 
     Write-Host ''
-    Write-Host '=== Manually hide a column left of 36, click a cell: side panel follows ==='
+    Write-Host '=== Manually hide a column left of 47, click a cell: side panel follows ==='
     $hideCol = $lo.Range.Column + (Col $lo 'Printer') - 1
     $main.Columns($hideCol).Hidden = $true
     Nudge $main
-    $col36Hidden = [double]$main.Cells(1, 36).Left
-    Check ($col36Hidden -ne $col36Before) "hiding column $hideCol moved column 36 (was $col36Before, now $col36Hidden)"
+    $col36Hidden = [double]$main.Cells(1, 47).Left
+    Check ($col36Hidden -ne $col36Before) "hiding column $hideCol moved column 47 (was $col36Before, now $col36Hidden)"
     foreach ($p in $sidePanel) {
-        Check ((ButtonLeft $main $p) -eq $col36Hidden) "$p followed column 36 (Left=$col36Hidden)"
+        Check ((ButtonLeft $main $p) -eq $col36Hidden) "$p followed column 47 (Left=$col36Hidden)"
     }
     $main.Columns($hideCol).Hidden = $false
     Nudge $main
     foreach ($p in $sidePanel) {
-        Check ((ButtonLeft $main $p) -eq $col36Before) "$p back on column 36 after reveal"
+        Check ((ButtonLeft $main $p) -eq $col36Before) "$p back on column 47 after reveal"
     }
 
     $xl.Run('SetQuiet', $false)

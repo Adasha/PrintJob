@@ -69,8 +69,8 @@ try {
     # like - .ToString() forces it to a real string first. Found by
     # comparing Columns($jobIdColLetter) against the literal Columns('R')
     # side by side: same column, different (wrong) answer without this cast.
-    $jobIdColLetter = ([char](64 + $jobIdCol + 7)).ToString()
-    Check (-not (-not $c.Columns($jobIdColLetter).Hidden)) "column $jobIdColLetter (Job ID) should be hidden"
+    $jobIdColLetter = $c.Cells(1, 7 + $jobIdCol).Address($false, $false) -replace '\d+', ''
+    Check ([bool]$c.Cells(1, 7 + $jobIdCol).EntireColumn.Hidden) "column $jobIdColLetter (Job ID) should be hidden"
     $sp = $c.Range('H11').SpillingToRange
     Write-Host ("  results spill: {0} rows x {1} cols" -f $sp.Rows.Count, $sp.Columns.Count)
     $jobIdSample = [string]$sp.Cells(1, $jobIdCol).Value2
@@ -121,7 +121,7 @@ try {
         # 2026-09-22 - the six metrics only ever sit on columns the
         # minimum-columns view (snag 2d) never hides, so Chargeable is F13
         # now, not H13.
-        $charge = $c.Range('M9').Text
+        $charge = $c.Range('N9').Text
         $warn = [string]$c.Range('A13').Text
         $line = "  {0,-34} jobs={1,-4} chargeable={2,-10}" -f $label, $jobs, $charge
         if ($warn -ne '') { $line += " WARN: $warn" }
@@ -261,7 +261,7 @@ try {
     # ============================================== Export names / min columns
     # -------------------------------------------------- 2a: default state
     Write-Host '=== Export names toggle is gone (2026-10-02); live view always shows names ==='
-    Check ([string]$c.Range('AJ12').Text -eq '' -and [string]$c.Range('AK12').Text -eq '') 'no Export names label or dropdown at AJ12:AK12'
+    Check ([string]$c.Range('AQ12').Text -eq '' -and [string]$c.Range('AR12').Text -eq '') 'no Export names label or dropdown at AQ12:AR12'
     $xl.CalculateFullRebuild()
     $nameCol = ReportsCol 'Student name'
     $noCol = ReportsCol 'Student no'
@@ -541,7 +541,7 @@ try {
         # and the paper's own dimensions, not something read directly off an
         # export. Still present on the live Reports sheet itself.
         Check (-not ($tableHeaders2 -contains 'Area m2')) "Area m2 excluded from the export by default"
-        Check ($tableHeaders2.Count -eq 15) "all 15 exported result columns present - Area m2 and Notes excluded (got $($tableHeaders2.Count))"
+        Check ($tableHeaders2.Count -eq 17) "all 17 exported result columns present - Area m2 and Notes excluded (got $($tableHeaders2.Count))"
 
         # Export prompt (2026-10-02): answered No for this export (SetExportNames),
         # so Student name VALUES are redacted to a line of 10 hyphens - not blank,

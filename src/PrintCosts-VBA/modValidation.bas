@@ -40,6 +40,21 @@ Public Function OnCellChanged(ByVal ws As Worksheet, ByVal Target As Range) As B
     n = Target.Row - lo.DataBodyRange.Row + 1
     hdr = CStr(lo.HeaderRowRange.Cells(1, Target.Column - lo.Range.Column + 1).Value)
 
+    ' A pass row takes a colour (and a note) and nothing else - the job's details
+    ' are on the job above it (multi-pass design, decision 21).
+    If IsPassRow(lo, n) Then
+        Select Case hdr
+            Case "Colour"
+                OnColourChanged ws, lo, n
+            Case "Notes"
+            Case Else
+                Target.ClearContents
+                Say "A pass only takes a colour.", "The job's printer, paper, quantity and other details are on the job row above this pass.", _
+                    "Change them there; the passes follow."
+        End Select
+        Exit Function
+    End If
+
     Select Case hdr
         Case "Printer"
             OnPrinterChanged ws, lo, n
@@ -149,9 +164,25 @@ End Function
 ' had to be cleared for incompatibility, or when this field was cleared
 ' outright and the other field's list was previously narrowed by it.
 Private Sub OnPrinterChanged(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal n As Long)
-    Dim model As String, stk As String, s As clsStock, p As clsPrinterDef
+    Dim model As String, stk As String, s As clsStock, p As clsPrinterDef, oldModel As String
     model = Clean(CellIn(lo, n, "Printer"))
     stk = Clean(CellIn(lo, n, "Paper Stock"))
+
+    ' A job that has colour passes keeps its printer (multi-pass design decision
+    ' 8): the passes were stamped for that printer's colours and set-up cost.
+    ' The previous printer is the one the row was last stamped with.
+    If PassRowsOf(lo, n).Count > 0 Then
+        oldModel = PrinterModelById(Trim$(CStr(CellIn(lo, n, "S_PrinterID").Value)))
+        If Len(oldModel) > 0 And StrComp(oldModel, model, vbTextCompare) <> 0 Then
+            CellIn(lo, n, "Printer").Value = oldModel
+            Say "This job has colour passes, so its printer cannot be changed.", _
+                "The passes were set up for " & oldModel & ".", _
+                "Remove the passes first, or add a new job for the other printer."
+            BindStockCell ws, lo, n
+            BindPrinterCell ws, lo, n
+            Exit Sub
+        End If
+    End If
 
     ' A printer change can strand a stock that was valid a moment ago (AT-05).
     If Len(stk) > 0 And Len(model) > 0 Then
@@ -429,25 +460,41 @@ End Function
 ' A row can be made invalid by a later edit somewhere else, so the Status
 ' column is not enough on its own.
 Public Sub CheckSheet(ByVal ws As Worksheet)
-    Dim msg As String
+    Dim msg As String, nt As String
     BindColumns ws
-    msg = SheetProblems(ws)
+    ' Put any row groups that have drifted from their Row Type back (multi-pass).
+    RebuildGroups ws
+    msg = SheetProblems(ws, nt)
     If Len(msg) = 0 Then
         SetStatus ws, "Checked " & Format$(Now, "dd/mm/yyyy hh:mm") & " - no problems"
-        Say "No problems found on '" & LocValue(ws, "LOC_Name") & "'."
+        If Len(nt) = 0 Then
+            Say "No problems found on '" & LocValue(ws, "LOC_Name") & "'."
+        Else
+            Say "No problems found on '" & LocValue(ws, "LOC_Name") & "'.", NoticeBlock(nt)
+        End If
     Else
         SetStatus ws, "Problems found - see the Status column"
-        Say "Problems found on '" & LocValue(ws, "LOC_Name") & "':", msg, "The Status column on each row explains what to fix."
+        Say "Problems found on '" & LocValue(ws, "LOC_Name") & "':", msg & NoticeBlock(nt), "The Status column on each row explains what to fix."
     End If
 End Sub
 
+' Notices are a milder level than problems (multi-pass design decision 35): a
+' pass whose colour this workbook does not define is kept and counted, and
+' only mentioned here, never in the problem count.
+Private Function NoticeBlock(ByVal Notices As String) As String
+    If Len(Notices) > 0 Then NoticeBlock = vbCrLf & "Notices (not counted as problems):" & vbCrLf & Notices
+End Function
+
 Public Sub CheckWorkbook()
     Dim ws As Worksheet, all As String, part As String, n As Long
-    Dim unexported As String, u As Long
+    Dim unexported As String, u As Long, nt As String, allNotices As String
 
     For Each ws In ThisWorkbook.Worksheets
         If IsLocation(ws) Then
-            part = SheetProblems(ws)
+            RebuildGroups ws
+            nt = ""
+            part = SheetProblems(ws, nt)
+            If Len(nt) > 0 Then allNotices = allNotices & LocValue(ws, "LOC_Name") & ":" & vbCrLf & nt
             If Len(part) > 0 Then
                 all = all & vbCrLf & LocValue(ws, "LOC_Name") & ":" & vbCrLf & part
                 n = n + 1
@@ -475,32 +522,53 @@ Public Sub CheckWorkbook()
     End If
 
     If n = 0 Then
-        Say "No problems found.", "Every print room sheet checked out clean." & unexported, _
+        Say "No problems found.", "Every print room sheet checked out clean." & NoticeBlock(allNotices) & unexported, _
             IIf(u > 0, "Use the Export... button on each sheet listed.", "")
     Else
         Say "Problems found on " & n & " print room sheet" & IIf(n = 1, "", "s") & ".", _
-            all & unexported, _
+            all & NoticeBlock(allNotices) & unexported, _
             "Go to each sheet and use the Status column to see what needs fixing."
     End If
 End Sub
 
-Private Function SheetProblems(ByVal ws As Worksheet) As String
-    Dim lo As ListObject, i As Long, s As String, c As Long
+' The problems on a sheet, one line each (first ten). Notices - rows whose
+' Status is the milder yellow level because H_Issues is empty but H_Notices is
+' not - are returned apart in Notices and never counted as problems.
+Private Function SheetProblems(ByVal ws As Worksheet, Optional ByRef Notices As String) As String
+    Dim lo As ListObject, i As Long, s As String, c As Long, nn As Long
+    Dim st As Variant, hi As Variant, jid As Variant, rt As Variant, par As Variant, pas As Variant, who As String
     Set lo = JobsTable(ws)
     If lo Is Nothing Then Exit Function
-    For i = 1 To lo.ListRows.Count
-        If Not IsBlankRow(lo, i) Then
-            s = Trim$(CStr(CellIn(lo, i, "Status").Value))
-            If Len(s) > 0 And StrComp(s, "OK", vbTextCompare) <> 0 Then
+    If lo.DataBodyRange Is Nothing Then Exit Function
+    st = ColArr(lo, "Status")
+    hi = ColArr(lo, "H_Issues")
+    jid = ColArr(lo, "Job ID")
+    rt = ColArr(lo, "Row Type")
+    par = ColArr(lo, "Parent")
+    pas = ColArr(lo, "Pass")
+    For i = 1 To UBound(st, 1)
+        s = ""
+        If Not IsError(st(i, 1)) Then s = Trim$(CStr(st(i, 1)))
+        If Len(s) > 0 And StrComp(s, "OK", vbTextCompare) <> 0 Then
+            If StrComp(TextOf(rt(i, 1)), ROW_PASS, vbTextCompare) = 0 Then
+                who = "Pass " & CStr(pas(i, 1)) & " of " & CStr(par(i, 1))
+            Else
+                who = CStr(jid(i, 1))
+            End If
+            If Len(TextOf(hi(i, 1))) > 0 Then
                 c = c + 1
-                If c <= 10 Then
-                    SheetProblems = SheetProblems & "  " & CStr(CellIn(lo, i, "Job ID").Value) & " - " & s & vbCrLf
-                End If
+                If c <= 10 Then SheetProblems = SheetProblems & "  " & who & " - " & s & vbCrLf
+            Else
+                nn = nn + 1
+                If nn <= 10 Then Notices = Notices & "  " & who & " - " & s & vbCrLf
             End If
         End If
     Next i
     If c > 10 Then
         SheetProblems = SheetProblems & "  ... and " & (c - 10) & " more." & vbCrLf
+    End If
+    If nn > 10 Then
+        Notices = Notices & "  ... and " & (nn - 10) & " more." & vbCrLf
     End If
 End Function
 

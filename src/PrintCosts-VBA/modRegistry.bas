@@ -92,6 +92,7 @@ Public Sub RefreshLocations()
         EnsurePrintersDisplay ws
         EnsureJobCountDisplay ws
         BindColumns ws
+        PreparePassSheet ws         ' row groups in line, no sort/filter (multi-pass)
         ApplyReducedView ws
         ApplyCostColumnsVisibility ws
         ProtectSheet ws
@@ -443,9 +444,12 @@ Private Sub WriteRegistry(ByVal sheets As Collection, ByVal codes As clsDict)
 End Sub
 
 Private Sub SpanOf(ByVal lo As ListObject, ByRef n As Long, ByRef fd As Double, ByRef ld As Double)
-    Dim i As Long, d As Double
-    n = RowCount(lo)
-    For i = 1 To n
+    Dim i As Long, d As Double, allRows As Long
+    ' n is the number of print jobs (a multi-pass job's colour passes are rows of
+    ' the table, not jobs); the date scan still walks every row.
+    allRows = RowCount(lo)
+    n = JobRowCount(lo)
+    For i = 1 To allRows
         d = DateSerialOf(CellIn(lo, i, "Date/Time"))
         If d > 0 Then
             If fd = 0 Or d < fd Then fd = d
@@ -463,7 +467,7 @@ End Sub
 ' Shape: Location, then Job ID .. Notes as the job table lays them out.
 Private Sub WriteConsolidated(ByVal sheets As Collection, ByVal codes As clsDict)
     Dim dws As Worksheet, ws As Worksheet, v As Variant
-    Dim lo As ListObject, blocks As String, t As String, code As String
+    Dim lo As ListObject, blocks As String, t As String, code As String, rtCol As Long
 
     Set dws = ThisWorkbook.Worksheets(DATA_SHEET)
     UnlockSheet dws
@@ -497,8 +501,15 @@ Private Sub WriteConsolidated(ByVal sheets As Collection, ByVal codes As clsDict
     '
     ' .Formula2 is required. Writing a dynamic array through .Formula applies
     ' implicit intersection and silently stores a single value.
+    '
+    ' Job rows only (multi-pass design decision 19): a pass row is dropped on its
+    ' Row Type, not left to the Date/Time test - an empty cell goes through the
+    ' per-room block as 0, which that test would keep. Reports and Summary
+    ' therefore never see a pass; a job carries its rolled-up Passes and Set-up
+    ' Cost in its own row.
+    rtCol = ColIdx(JobsTable(sheets(1)), "Row Type") - ColIdx(JobsTable(sheets(1)), FIRST_JOB_COL) + 2
     dws.Cells(DATA_ROW, 1).Formula2 = "=LET(raw,VSTACK(" & blocks & _
-        "),kept,IFERROR(FILTER(raw,INDEX(raw,,2)<>""""),"""")," & DepartmentTail(JobsTable(sheets(1))) & ")"
+        "),kept,IFERROR(FILTER(raw,(INDEX(raw,,2)<>"""")*(INDEX(raw,," & rtCol & ")<>""" & ROW_PASS & """)),"""")," & DepartmentTail(JobsTable(sheets(1))) & ")"
 
     RelockSheet dws
 End Sub
@@ -870,10 +881,12 @@ Private Sub ResetPrintRoom(ByVal ws As Worksheet, ByVal RoomName As String, ByVa
     Set lo = JobsTable(ws)
     If Not lo Is Nothing Then
         For i = lo.ListRows.Count To 2 Step -1
-            lo.ListRows(i).Delete
+            lo.ListRows(i).Range.EntireRow.Delete      ' whole-row, so outline levels go with the data
         Next i
         If lo.ListRows.Count = 1 Then
             ClearTypedCells lo.ListRows(1).Range
+            lo.ListRows(1).Range.EntireRow.OutlineLevel = 1
+            lo.ListRows(1).Range.EntireRow.Hidden = False
         End If
     End If
 

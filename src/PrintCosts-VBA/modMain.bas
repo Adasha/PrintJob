@@ -47,6 +47,51 @@ Fail:
     ReportError "Repeat Job"
 End Sub
 
+' Multi-pass costing (0.11.0) - modPasses.
+Public Sub btnAddPass()
+    On Error GoTo Fail
+    If Not RequireLocation Then Exit Sub
+    AddPass ActiveSheet
+    Exit Sub
+Fail:
+    ReportError "Add pass"
+End Sub
+
+Public Sub btnRemovePass()
+    On Error GoTo Fail
+    If Not RequireLocation Then Exit Sub
+    RemovePass ActiveSheet
+    Exit Sub
+Fail:
+    ReportError "Remove pass"
+End Sub
+
+Public Sub btnTogglePasses()
+    On Error GoTo Fail
+    If Not RequireLocation Then Exit Sub
+    TogglePasses ActiveSheet
+    Exit Sub
+Fail:
+    ReportError "Toggle passes"
+End Sub
+
+Public Sub btnToggleAllPasses()
+    On Error GoTo Fail
+    If Not RequireLocation Then Exit Sub
+    ToggleAllPasses ActiveSheet
+    Exit Sub
+Fail:
+    ReportError "Toggle all passes"
+End Sub
+
+Public Sub btnToggleMultiPass()
+    On Error GoTo Fail
+    ToggleMultiPassColumns
+    Exit Sub
+Fail:
+    ReportError "Hide/Show pass columns"
+End Sub
+
 Public Sub btnRemoveRow()
     On Error GoTo Fail
     If Not RequireLocation Then Exit Sub
@@ -334,6 +379,30 @@ Public Sub btnRemoveRowTechnicians()
     Exit Sub
 Fail:
     ReportError "Remove row"
+End Sub
+
+Public Sub btnAddRowColours()
+    On Error GoTo Fail
+    AddCatalogRow "tblColours"
+    Exit Sub
+Fail:
+    ReportError "Add row"
+End Sub
+
+Public Sub btnRemoveRowColours()
+    On Error GoTo Fail
+    RemoveCatalogRow "tblColours"
+    Exit Sub
+Fail:
+    ReportError "Remove row"
+End Sub
+
+Public Sub btnClearColours()
+    On Error GoTo Fail
+    ClearCatalogTable "tblColours"
+    Exit Sub
+Fail:
+    ReportError "Clear table"
 End Sub
 
 Public Sub btnAddRowDepartments()

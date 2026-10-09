@@ -28,6 +28,13 @@ Public Sub AddPrintJob(ByVal ws As Worksheet)
     End If
     n = r.Index
 
+    ' A new row is appended after every existing group, so it never lands inside
+    ' one - but a row added under a pass inherits that pass's outline level, so
+    ' say what this one is (multi-pass costing, design decision 7).
+    CellIn(lo, n, "Row Type").Value = ROW_JOB
+    r.Range.EntireRow.OutlineLevel = 1
+    r.Range.EntireRow.Hidden = False
+
     CellIn(lo, n, "Job ID").Value = NewJobId(ws, lo)
     CellIn(lo, n, "Date/Time").Value = Now
 
@@ -82,6 +89,7 @@ End Sub
 Public Sub RepeatJob(ByVal ws As Worksheet)
     Dim lo As ListObject, srcRow As Long, r As ListRow, n As Long
     Dim oldJobId As String, srcNotes As String
+    Dim srcPasses As Collection, k As Variant, pr As ListRow, pn As Long
 
     Set lo = JobsTable(ws)
     If lo Is Nothing Then
@@ -91,6 +99,16 @@ Public Sub RepeatJob(ByVal ws As Worksheet)
 
     srcRow = SelectedRow(ws, lo)
     If srcRow = 0 Then Exit Sub
+    ' With a pass selected, repeat the job it belongs to; a multi-pass job is
+    ' repeated with all its passes (multi-pass design, ARCHITECTURE 17.2).
+    If IsPassRow(lo, srcRow) Then
+        srcRow = JobRowFor(lo, srcRow)
+        If srcRow = 0 Then
+            Say "This pass has no job to repeat.", "Its Parent job could not be found on this sheet.", "Run Check this sheet, or repeat the job itself."
+            Exit Sub
+        End If
+    End If
+    Set srcPasses = PassRowsOf(lo, srcRow)
 
     oldJobId = Trim$(CStr(CellIn(lo, srcRow, "Job ID").Value))
     If Len(oldJobId) = 0 Then
@@ -102,6 +120,9 @@ Public Sub RepeatJob(ByVal ws As Worksheet)
     UnlockSheet ws
     Set r = lo.ListRows.Add
     n = r.Index
+    CellIn(lo, n, "Row Type").Value = ROW_JOB
+    r.Range.EntireRow.OutlineLevel = 1
+    r.Range.EntireRow.Hidden = False
 
     CellIn(lo, n, "Student Name").Value = CellIn(lo, srcRow, "Student Name").Value
     CellIn(lo, n, "Student No").Value = CellIn(lo, srcRow, "Student No").Value
@@ -130,10 +151,25 @@ Public Sub RepeatJob(ByVal ws As Worksheet)
         CellIn(lo, n, "Notes").Value = "Copy of " & oldJobId
     End If
 
+    ' The passes follow the new job, numbered afresh, re-stamped at today's
+    ' colour rates and the printer's current Template cost.
+    For Each k In srcPasses
+        Set pr = lo.ListRows.Add
+        pn = pn + 1
+        CellIn(lo, pr.Index, "Row Type").Value = ROW_PASS
+        CellIn(lo, pr.Index, "Parent").Value = CellIn(lo, n, "Job ID").Value
+        CellIn(lo, pr.Index, "Pass").Value = pn
+        CellIn(lo, pr.Index, "Colour").Value = CellIn(lo, CLng(k), "Colour").Value
+        pr.Range.EntireRow.OutlineLevel = 2
+        pr.Range.EntireRow.Hidden = False
+        RestampPassRow ws, lo, pr.Index
+    Next k
+
     RelockSheet ws
     BindStockCell ws, lo, n
     BindPrinterCell ws, lo, n
     StampRow ws, n
+    If pn > 0 Then BindPassColours ws, lo
     AppOn
 
     CellIn(lo, n, "Student Name").Select
@@ -189,9 +225,18 @@ End Sub
 
 Public Sub RemoveRow(ByVal ws As Worksheet)
     Dim lo As ListObject, n As Long, detail As String
+    Dim grp As Collection, i As Long
     Set lo = JobsTable(ws)
     n = SelectedRow(ws, lo)
     If n = 0 Then Exit Sub
+
+    ' A pass is removed as a pass (renumbering the rest); a job takes its whole
+    ' group with it (multi-pass design decision 8).
+    If IsPassRow(lo, n) Then
+        RemovePass ws
+        Exit Sub
+    End If
+    Set grp = GroupRows(lo, n)
 
     ' "Student/Department" (snag 4b, 2026-09-22): the Student Name/No columns
     ' are also used free-text for department charging (D19) - the wording
@@ -200,19 +245,39 @@ Public Sub RemoveRow(ByVal ws As Worksheet)
 
     ' Never a bare "are you sure" - spec 10.12 requires the user to see what
     ' they are about to lose.
+    If grp.Count > 1 Then detail = detail & vbCrLf & "and its " & (grp.Count - 1) & " colour pass" & IIf(grp.Count = 2, "", "es")
     If Not Ask("Delete this print job?" & vbCrLf & vbCrLf & detail & vbCrLf & vbCrLf & "This cannot be undone.", "Remove print job") Then Exit Sub
 
+    DeleteJobGroup ws, lo, grp, detail
+End Sub
+
+' The unprompted delete behind Remove Row: a job and its colour passes (Group is
+' GroupRows' result), with the audit note. Public so a test can reach it past the
+' confirmation, as DeleteVisibleReportsConfirmed is for Reports.
+Public Sub DeleteJobGroupAt(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal JobRow As Long, ByVal Detail As String)
+    DeleteJobGroup ws, lo, GroupRows(lo, JobRow), Detail
+End Sub
+
+Public Sub DeleteJobGroup(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal Group As Collection, ByVal Detail As String)
+    Dim i As Long
     AppOff
-    LogAudit "Remove row", LocValue(ws, "LOC_Name"), detail
+    LogAudit "Remove row", LocValue(ws, "LOC_Name"), Detail
     UnlockSheet ws
-    lo.ListRows(n).Delete
+    ' Whole-row deletes, last row first, so outline levels stay with their data.
+    For i = Group.Count To 1 Step -1
+        If lo.ListRows.Count = 1 Then
+            lo.ListRows(1).Delete
+        Else
+            lo.ListRows(CLng(Group(i))).Range.EntireRow.Delete
+        End If
+    Next i
     RelockSheet ws
     AppOn
 End Sub
 
 Public Sub ClearAll(ByVal ws As Worksheet)
     Dim lo As ListObject, n As Long, i As Long
-    Dim lo_first As Double, lo_last As Double, d As Double, span As String
+    Dim lo_first As Double, lo_last As Double, d As Double, span As String, jobCount As Long
 
     Set lo = JobsTable(ws)
     If lo Is Nothing Then Exit Sub
@@ -221,6 +286,8 @@ Public Sub ClearAll(ByVal ws As Worksheet)
         Say "There is nothing to clear.", "'" & LocValue(ws, "LOC_Name") & "' has no print jobs recorded."
         Exit Sub
     End If
+    ' Pass rows go with their jobs but are not jobs of their own.
+    jobCount = JobRowCount(lo)
 
     For i = 1 To n
         d = DateSerialOf(CellIn(lo, i, "Date/Time"))
@@ -235,10 +302,10 @@ Public Sub ClearAll(ByVal ws As Worksheet)
 
     ' Spec 11 is explicit about what the confirmation must name: the location,
     ' the number of records, and the date range.
-    If Not Ask("Clear All - " & LocValue(ws, "LOC_Name") & vbCrLf & vbCrLf & "This will permanently delete " & n & " print job" & IIf(n = 1, "", "s") & span & "." & vbCrLf & vbCrLf & "Records on other print room sheets are not affected." & vbCrLf & "This cannot be undone. Continue?", "Clear All") Then Exit Sub
+    If Not Ask("Clear All - " & LocValue(ws, "LOC_Name") & vbCrLf & vbCrLf & "This will permanently delete " & jobCount & " print job" & IIf(jobCount = 1, "", "s") & IIf(n > jobCount, " and their " & (n - jobCount) & " colour pass" & IIf(n - jobCount = 1, "", "es"), "") & span & "." & vbCrLf & vbCrLf & "Records on other print room sheets are not affected." & vbCrLf & "This cannot be undone. Continue?", "Clear All") Then Exit Sub
 
     AppOff
-    LogAudit "Clear All", LocValue(ws, "LOC_Name"), n & " records deleted" & span
+    LogAudit "Clear All", LocValue(ws, "LOC_Name"), n & " records deleted (" & jobCount & " jobs)" & span
     UnlockSheet ws
     ' Keep row 1 rather than deleting every row and calling ListRows.Add:
     ' with DataBodyRange empty there is no existing row left for Excel to
@@ -249,12 +316,15 @@ Public Sub ClearAll(ByVal ws As Worksheet)
     ' via the `Count = 1 And IsBlankRow(lo, 1)` check - and RowCount (modUtils)
     ' already treats that state as zero records.
     For i = lo.ListRows.Count To 2 Step -1
-        lo.ListRows(i).Delete
+        lo.ListRows(i).Range.EntireRow.Delete    ' whole-row: outline levels stay with their data
     Next i
     ClearTypedCells lo.ListRows(1).Range
+    lo.ListRows(1).Range.EntireRow.OutlineLevel = 1
+    lo.ListRows(1).Range.EntireRow.Hidden = False
     RelockSheet ws
     AppOn
 
+    n = jobCount
     Say n & " print job" & IIf(n = 1, "", "s") & " deleted from '" & LocValue(ws, "LOC_Name") & "'.", "A note of what was removed has been kept in the workbook's audit log."
 End Sub
 

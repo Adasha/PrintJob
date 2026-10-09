@@ -21,7 +21,7 @@ Private Const BTN_TAG As String = "pcb_"
 ' columns (34, S_SchemaVer) and the AZ1/52 marker, so ApplyColumnVisibility
 ' can never hide a button by hiding the column under it. Same pattern
 ' Summary's own buttons already use at column O, clear of its A:M table.
-Private Const SIDE_PANEL_COL As Long = 36
+Private Const SIDE_PANEL_COL As Long = 47
 
 ' Snag list item 1e's reduced-clutter view: the default hidden-column list,
 ' used when the SET_LOC_REDUCED_COLUMNS setting is blank or missing (SettingText's
@@ -36,6 +36,8 @@ Private Const SIDE_PANEL_COL As Long = 36
 ' config block in A1:B11, a blank row 12, this toolbar on row 13 and the job
 ' table's header on row 15.
 Private Const TOOLBAR_ROW As Long = 15
+' The pass buttons' row (multi-pass costing): the blank row just above the table header.
+Private Const PASS_ROW As Long = 16
 ' Header block rows on a location sheet (short blank gap rows sit between the groups).
 Private Const ROW_NAME As Long = 1
 Private Const ROW_DEPT As Long = 2
@@ -47,7 +49,7 @@ Private Const ROW_DIS_CONS As Long = 9
 Private Const ROW_ROLL_UNIT As Long = 11
 Private Const ROW_PRINTERS As Long = 12
 Private Const ROW_JOB_COUNT As Long = 13
-Private Const REDUCED_COLUMNS_DEFAULT As String = "Status;Job ID;Area m2;S_SchemaVer"
+Private Const REDUCED_COLUMNS_DEFAULT As String = "Status;Job ID;Area m2;S_SchemaVer;Passes;Colour;Row Type;Parent;Pass"
 ' Minimal view hides these IN ADDITION to the Reduced list (so Minimal always
 ' includes Reduced - the setting holds only the extras).
 Private Const MINIMAL_EXTRA_DEFAULT As String = "Printer;Disregard Paper;Disregard Consumable;Print Width mm;Sheet size"
@@ -105,6 +107,8 @@ Public Sub InitialiseWorkbook()
     EnsureSuppliedColumnValidation
     ' The Departments sheet (modDepartments) is likewise built here, not shipped.
     EnsureDepartmentsSheet
+    ' So is the Consumables sheet (modConsumables): the colours a multi-pass printer uses.
+    EnsureConsumablesSheet
 
     ' Runs before the per-sheet loop, not after it (2026-09-27). Row heights
     ' have to be settled before anything is positioned from them, and the
@@ -163,6 +167,11 @@ Public Sub InitialiseWorkbook()
             DrawOne ws, 4, 1, "Add row", "btnAddRowTechnicians", 110
             DrawOne ws, 4, 3, "Remove row", "btnRemoveRowTechnicians", 110
             DrawOne ws, 4, 5, "Clear table", "btnClearTechnicians", 110
+            SetFreeze ws, ""
+        ElseIf StrComp(ws.Name, "Consumables", vbTextCompare) = 0 Then
+            DrawOne ws, 4, 1, "Add row", "btnAddRowColours", 110
+            DrawOne ws, 4, 3, "Remove row", "btnRemoveRowColours", 110
+            DrawOne ws, 4, 5, "Clear table", "btnClearColours", 110
             SetFreeze ws, ""
         ElseIf StrComp(ws.Name, "Departments", vbTextCompare) = 0 Then
             DrawOne ws, 4, 1, "Add row", "btnAddRowDepartments", 110
@@ -294,12 +303,24 @@ Private Sub DrawLocationButtons(ByVal ws As Worksheet)
     DrawOne ws, TOOLBAR_ROW, 3, "Repeat Job", "btnRepeatJob", 110
     DrawOne ws, TOOLBAR_ROW, 5, "Now", "btnNow", 110
 
+    ' Pass controls (multi-pass costing, 0.11.0), on the row between the job
+    ' buttons and the table header so they read as a separate group. They are
+    ' on every location sheet and shaded lighter when no multi-pass printer is
+    ' set up (modPasses.RefreshPassButtons). Columns 1, 2, 4, 5 are all wide
+    ' enough for the button and are kept on screen by RelocateAtRiskButtons.
+    If ws.Rows(PASS_ROW).RowHeight < 26 Then ws.Rows(PASS_ROW).RowHeight = 26
+    DrawOne ws, PASS_ROW, 1, "Add pass", "btnAddPass", 100
+    DrawOne ws, PASS_ROW, 2, "Remove pass", "btnRemovePass", 100
+    DrawOne ws, PASS_ROW, 4, "Toggle passes", "btnTogglePasses", 100
+    DrawOne ws, PASS_ROW, 5, "Toggle all passes", "btnToggleAllPasses", 110
+
     ' View row (2026-10-01): "Show columns:" label, an All/Reduced/Minimal
     ' drop-down and the Hide/Show cost detail button on row 2, from D.
     ' Positioned (and kept off hidden columns) by RepositionViewButtons; drawn
     ' here at their nominal columns.
     DrawViewDropDown ws
     DrawOne ws, VIEW_ROW, VIEW_FIRST_COL + 2, CostColumnsCaption(), "btnToggleCostColumns", VIEW_COST_W
+    DrawOne ws, VIEW_ROW, VIEW_FIRST_COL + 3, MultiPassColsCaption(), "btnToggleMultiPass", VIEW_COST_W
 
     Dim c As Long
     For c = 1 To 15
@@ -703,7 +724,9 @@ Public Sub EnsureJobCountDisplay(ByVal ws As Worksheet)
     ws.Cells(ROW_JOB_COUNT, 1).Value = "Print jobs"
     ws.Cells(ROW_JOB_COUNT, 1).Font.Bold = True
     ws.Cells(ROW_JOB_COUNT, 1).HorizontalAlignment = xlRight
-    ws.Cells(ROW_JOB_COUNT, 2).Formula = "=ROWS(" & lo.Name & ")"
+    ' Jobs, not rows: a multi-pass job's colour passes are rows of the table but
+    ' not print jobs of their own.
+    ws.Cells(ROW_JOB_COUNT, 2).Formula = "=ROWS(" & lo.Name & ")-COUNTIFS(" & lo.Name & "[Row Type]," & Chr$(34) & ROW_PASS & Chr$(34) & ")"
     ws.Cells(ROW_JOB_COUNT, 2).Locked = True
     RelockSheet ws
 End Sub
@@ -813,20 +836,39 @@ Public Sub EnsureJobIssuesFormula(ByVal ws As Worksheet, ByVal lo As ListObject)
 
     UnlockSheet ws
     lo.ListColumns("H_Issues").DataBodyRange.Formula2 = BuildJobIssuesFormula()
+    ' The milder level beside it (multi-pass design decision 35): same stance,
+    ' asserted here so an old or duplicated sheet always carries it.
+    If ColumnExists(lo, "H_Notices") Then lo.ListColumns("H_Notices").DataBodyRange.Formula2 = BuildJobNoticesFormula()
     RelockSheet ws
 End Sub
+
+' Notices are not problems: a pass whose colour this workbook does not define
+' (it came in on an import from a workbook that does) is kept and counted, and
+' shows yellow with this note instead of orange. Prefixed "Notice:" so the
+' Status conditional format can tell the two levels apart from the text alone.
+' Kept to a hyphen, not a semicolon, because Status splits its note on "; ".
+Private Function BuildJobNoticesFormula() As String
+    Const DQ As String = """"
+    If Tbl("tblColours") Is Nothing Then
+        BuildJobNoticesFormula = "=" & DQ & DQ
+        Exit Function
+    End If
+    BuildJobNoticesFormula = "=IF(AND(" & RowRef("Row Type") & "=" & DQ & ROW_PASS & DQ & "," & RefFilled(RowRef("Colour")) & _
+        ",COUNTIFS(tblColours[Colour]," & RowRef("Colour") & ")=0)," & DQ & "; Notice: colour not defined in this workbook - type not checked" & DQ & "," & DQ & DQ & ")"
+End Function
 
 ' One IF per rule - IF(condition,"; message","") - joined with & in a fixed order, all under
 ' an outer IF that leaves the cell blank on a row with no Job ID.
 Private Function BuildJobIssuesFormula() As String
     Const DQ As String = """"
     Dim qty As String, width As String, stock As String, measure As String
+    Dim jobChain As String, passChain As String, colType As String, prnType As String, isMulti As String
     qty = RowRef("Qty")
     width = RowRef("Print Width mm")
     stock = RowRef("Paper Stock")
     measure = RowRef("S_Measure")
 
-    BuildJobIssuesFormula = "=IF(" & RefBlank(RowRef("Job ID")) & "," & DQ & DQ & "," & _
+    jobChain = _
         IssueIf(RefBlank(RowRef("Date/Time")), "Date and time required") & _
         "&" & IssueIf("AND(" & RefBlank(RowRef("Student Name")) & "," & RefBlank(RowRef("Student No")) & ")", "Student name or number required") & _
         "&" & IssueIf(RefBlank(RowRef("Technician")), "Technician required") & _
@@ -837,8 +879,28 @@ Private Function BuildJobIssuesFormula() As String
         "&" & IssueIf("AND(" & measure & "=" & DQ & "Sheet" & DQ & "," & RefFilled(width) & ")", "Print width does not apply to sheet stock") & _
         "&" & IssueIf("AND(" & RefFilled(width) & "," & width & ">" & RowRef("S_StockWidth_mm") & ")", "Print width exceeds stock width") & _
         "&" & IssueIf("AND(" & stock & "=" & DQ & SUPPLIED_ROLL & DQ & "," & RefBlank(width) & ")", "Print width required for student-supplied roll stock") & _
-        "&" & IssueIf("AND(" & stock & "=" & DQ & SUPPLIED_SHEET & DQ & "," & RefBlank(RowRef("Sheet size")) & ")", "Sheet size required for student-supplied sheet stock") & _
-        ")"
+        "&" & IssueIf("AND(" & stock & "=" & DQ & SUPPLIED_SHEET & DQ & "," & RefBlank(RowRef("Sheet size")) & ")", "Sheet size required for student-supplied sheet stock")
+
+    ' A multi-pass job needs at least one colour pass (decision 10). Reads the
+    ' printer's current Colour mode: a status, not a cost, so it may follow the
+    ' catalogue.
+    isMulti = "XLOOKUP(" & RowRef("Printer") & ",tblPrinters[Model],tblPrinters[Colour mode]," & DQ & DQ & ")=" & DQ & COLOUR_MODE_MULTI & DQ
+    jobChain = jobChain & "&" & IssueIf("AND(" & RowRef("Printer") & "<>" & DQ & DQ & "," & isMulti & "," & RefBlank(RowRef("Passes")) & ")", "At least one colour pass is required")
+
+    ' A pass row (decisions 10, 24, 30): a colour, a parent that exists, a number in
+    ' sequence, and a colour of the printer's consumable type when both are known.
+    passChain = IssueIf(RefBlank(RowRef("Colour")), "Colour required") & _
+        "&" & IssueIf("OR(" & RefBlank(RowRef("Parent")) & ",COUNTIFS([Job ID]," & RowRef("Parent") & ")=0)", "Parent job not found") & _
+        "&" & IssueIf(RowRef("Pass") & "<>COUNTIFS(INDEX([Parent],1):" & RowRef("Parent") & "," & RowRef("Parent") & ")", "Pass number out of sequence")
+    If Not Tbl("tblColours") Is Nothing Then
+        colType = "XLOOKUP(" & RowRef("Colour") & ",tblColours[Colour],tblColours[Consumable type]," & DQ & DQ & ")"
+        prnType = "XLOOKUP(XLOOKUP(" & RowRef("Parent") & ",[Job ID],[Printer]," & DQ & DQ & "),tblPrinters[Model],tblPrinters[Consumable type]," & DQ & DQ & ")"
+        passChain = passChain & "&" & IssueIf("AND(" & colType & "<>" & DQ & DQ & "," & prnType & "<>" & DQ & DQ & "," & colType & "<>" & prnType & ")", _
+            "Colour is a different consumable type from the printer's")
+    End If
+
+    BuildJobIssuesFormula = "=IF(" & RowRef("Row Type") & "=" & DQ & ROW_PASS & DQ & "," & passChain & "," & _
+        "IF(" & RefBlank(RowRef("Job ID")) & "," & DQ & DQ & "," & jobChain & "))"
 End Function
 
 Private Function RowRef(ByVal Field As String) As String
@@ -1134,7 +1196,7 @@ End Sub
 ' "Print Technicians" is the sheet's real name (ThisWorkbook.cls Case list) -
 ' the snag list's "Technicians" is shorthand for it.
 Private Function ConfigSheetNames() As Variant
-    ConfigSheetNames = Array("Print Technicians", "Printers", "Papers", "Departments", "Settings")
+    ConfigSheetNames = Array("Print Technicians", "Printers", "Papers", "Consumables", "Departments", "Settings")
 End Function
 
 ' Config sheets ship in the .xlsx with every cell at Excel's default Locked
@@ -1149,6 +1211,7 @@ Private Sub UnlockConfigInputs()
     UnlockTableBody "tblPrinters"
     UnlockTableBody "tblPapers"
     UnlockTableBody "tblDepartments"
+    UnlockTableBody "tblColours"
     UnlockTableBody "tblPaperTypes"
     UnlockTableBody "tblStandardSizes"
     UnlockTableBody "tblConsumables"
@@ -1369,6 +1432,9 @@ Public Sub ApplyReducedView(ByVal ws As Worksheet)
     ' Show first, hide second: a column named in both lists ends up hidden.
     ApplyColumnVisibility lo, SplitList(showText), False
     ApplyColumnVisibility lo, SplitList(hideText), True
+    ' The multi-pass column toggle sits on top of the view: "All" shows everything
+    ' except a group toggled off (column-view-presets-design.md, decision 8).
+    ApplyMultiPassVisibility ws
     RelocateAtRiskButtons ws, lo
     ' User-reported, 2026-09-26: hiding columns left of SIDE_PANEL_COL shifts
     ' that column's pixel position left, but the side panel's buttons are
@@ -1421,7 +1487,7 @@ Public Sub ApplyCostColumnsVisibility(ByVal ws As Worksheet)
     Dim lo As ListObject
     Set lo = JobsTable(ws)
     If lo Is Nothing Then Exit Sub
-    ApplyColumnVisibility lo, Array("Paper Cost", "Consumable Cost", "Gross Cost", "Disregarded"), CostColumnsHidden()
+    ApplyColumnVisibility lo, Array("Paper Cost", "Consumable Cost", "Set-up Cost", "Gross Cost", "Disregarded"), CostColumnsHidden()
     RelocateAtRiskButtons ws, lo
     RepositionSidePanelButtons ws
 End Sub
@@ -1456,6 +1522,10 @@ Private Sub RelocateAtRiskButtons(ByVal ws As Worksheet, ByVal lo As ListObject)
     RelocateButton ws, lo, "btnRepeatJob", "Student No"
     RelocateButton ws, lo, "btnNow", "Printer"
     RelocateButton ws, lo, "btnClearDefaults", "Technician"
+    RelocateButton ws, lo, "btnAddPass", "Date/Time"
+    RelocateButton ws, lo, "btnRemovePass", "Student Name"
+    RelocateButton ws, lo, "btnTogglePasses", "Technician"
+    RelocateButton ws, lo, "btnToggleAllPasses", "Printer"
     RepositionViewButtons ws, lo
 End Sub
 
@@ -1513,6 +1583,19 @@ Private Sub RepositionViewButtons(ByVal ws As Worksheet, ByVal lo As ListObject)
         b.Height = rowH
         b.Placement = xlFreeFloating
         b.Caption = CostColumnsCaption()
+        minLeft = b.Left + VIEW_COST_W + VIEW_BTN_GAP
+    End If
+
+    ' The multi-pass column toggle sits after the cost-detail one.
+    Set b = FindButton(ws, BTN_TAG & "btnToggleMultiPass")
+    col = NextViewColumn(ws, lo, last, minLeft)
+    If Not b Is Nothing And col > 0 Then
+        b.Left = ws.Cells(1, col).Left
+        b.Top = ws.Cells(VIEW_ROW, 1).Top + 0.5
+        b.Width = VIEW_COST_W
+        b.Height = rowH
+        b.Placement = xlFreeFloating
+        b.Caption = MultiPassColsCaption()
     End If
 End Sub
 
@@ -1571,6 +1654,8 @@ Public Sub RepositionLocationButtons(ByVal ws As Worksheet)
     Set lo = JobsTable(ws)
     If Not lo Is Nothing Then RelocateAtRiskButtons ws, lo
     RepositionSidePanelButtons ws
+    ' Add pass / Remove pass grey with the selection (modPasses).
+    RefreshPassButtons ws
 End Sub
 
 ' The eight occasional-use buttons DrawLocationButtons stacks in
@@ -1646,7 +1731,7 @@ End Function
 Private Function IsSafeAnchorColumn(ByVal lo As ListObject, ByVal col As Long) As Boolean
     Dim header As String
     header = lo.ListColumns(col).Name
-    If StrComp(header, "H_Issues", vbTextCompare) = 0 Then Exit Function
+    If Left$(header, 2) = "H_" Then Exit Function      ' hidden working columns (H_Issues, H_Ink ...)
     If Left$(header, 2) = "S_" Then Exit Function
     IsSafeAnchorColumn = Not CBool(lo.ListColumns(col).Range.EntireColumn.Hidden)
 End Function
@@ -1692,7 +1777,7 @@ End Sub
 ' InitialiseWorkbook run must delete the rule it drew last time before
 ' re-adding it - otherwise every re-run stacks another identical one.
 Private Sub ApplyStatusFormat(ByVal ws As Worksheet)
-    Dim lo As ListObject, rng As Range, fc As FormatCondition
+    Dim lo As ListObject, rng As Range, fc As FormatCondition, stCol As String
     Set lo = JobsTable(ws)
     If lo Is Nothing Then Exit Sub
     If lo.DataBodyRange Is Nothing Then Exit Sub
@@ -1700,10 +1785,18 @@ Private Sub ApplyStatusFormat(ByVal ws As Worksheet)
 
     UnlockSheet ws
     rng.FormatConditions.Delete
+    ' Two levels (multi-pass design decision 35): a problem is orange, a notice
+    ' (Status text starting "Notice:") is a milder yellow. Written against the
+    ' whole Status column with INDEX(..., ROW()) so neither rule depends on which
+    ' cell is active when it is added.
+    stCol = rng.Cells(1, 1).EntireColumn.Address(True, True)
     Set fc = rng.FormatConditions.Add(Type:=xlExpression, _
-        Formula1:="=AND(" & rng.Cells(1, 1).Address(False, False) & "<>""""," & _
-                  rng.Cells(1, 1).Address(False, False) & "<>""OK"")")
+        Formula1:="=AND(INDEX(" & stCol & ",ROW())<>"""",INDEX(" & stCol & ",ROW())<>""OK"",LEFT(INDEX(" & stCol & ",ROW()),7)<>""Notice:"")")
     fc.Interior.Color = RGB(255, 192, 0)
+    Set fc = rng.FormatConditions.Add(Type:=xlExpression, _
+        Formula1:="=LEFT(INDEX(" & stCol & ",ROW()),7)=""Notice:""")
+    fc.Interior.Color = RGB(255, 242, 153)
+    ApplyPassFormat ws
     RefreshStatusNotes ws
     RelockSheet ws
 End Sub

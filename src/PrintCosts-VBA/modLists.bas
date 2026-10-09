@@ -78,6 +78,7 @@ Public Sub OnSelection(ByVal ws As Worksheet, ByVal Target As Range)
     hdr = CStr(lo.HeaderRowRange.Cells(1, Target.Column - lo.Range.Column + 1).Value)
     If HasValidation(Target) Then Exit Sub
     n = Target.Row - lo.DataBodyRange.Row + 1
+    If IsPassRow(lo, n) Then Exit Sub       ' a pass takes a colour, not a printer or paper
 
     Select Case hdr
         Case "Paper Stock"
@@ -120,7 +121,7 @@ End Sub
 
 Public Sub BindColumns(ByVal ws As Worksheet)
     Dim lo As ListObject, i As Long, model As String, stk As String
-    Dim stockGroups As clsDict, printerGroups As clsDict, k As Variant
+    Dim stockGroups As clsDict, printerGroups As clsDict, k As Variant, rowTypes As Variant
 
     Set lo = JobsTable(ws)
     If lo Is Nothing Then Exit Sub
@@ -146,11 +147,15 @@ Public Sub BindColumns(ByVal ws As Worksheet)
     ' Paper Stock alone.
     Set stockGroups = New clsDict
     Set printerGroups = New clsDict
+    rowTypes = ColArr(lo, "Row Type")
     For i = 1 To lo.ListRows.Count
-        model = Trim$(CStr(CellIn(lo, i, "Printer").Value))
-        stk = Trim$(CStr(CellIn(lo, i, "Paper Stock").Value))
-        GroupCell stockGroups, model, CellIn(lo, i, "Paper Stock")
-        GroupCell printerGroups, stk, CellIn(lo, i, "Printer")
+        ' A pass row has no printer or paper of its own (it takes a colour).
+        If StrComp(TextOf(rowTypes(i, 1)), ROW_PASS, vbTextCompare) <> 0 Then
+            model = Trim$(CStr(CellIn(lo, i, "Printer").Value))
+            stk = Trim$(CStr(CellIn(lo, i, "Paper Stock").Value))
+            GroupCell stockGroups, model, CellIn(lo, i, "Paper Stock")
+            GroupCell printerGroups, stk, CellIn(lo, i, "Printer")
+        End If
     Next i
 
     For Each k In stockGroups.Keys
@@ -159,6 +164,9 @@ Public Sub BindColumns(ByVal ws As Worksheet)
     For Each k In printerGroups.Keys
         BindPrinterRange ws, printerGroups.Obj(CStr(k)), CStr(k)
     Next k
+
+    ' Each pass row's Colour dropdown (multi-pass costing, modPasses).
+    BindPassColours ws, lo
 End Sub
 
 ' Folds a cell into the range already collected under Key, or starts a new

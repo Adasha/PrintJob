@@ -3,6 +3,56 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.11.0 - Multi-pass (per-colour) costing: RISO-style jobs with a set-up cost per colour. Schema 1.4.
+  Design: docs/multipass-costing-design.md (36 decisions), docs/column-view-presets-design.md,
+  summary and reconciliation in docs/ARCHITECTURE.md section 17.
+  - A multi-pass job is a Job row with one Pass row per colour beneath it, in a
+    collapsible row group (parent on top). Pass rows have no Job ID of their own:
+    Parent holds the job's ID and Pass is numbered 1, 2, 3 (renumbered when one is
+    removed). New job-table columns: Passes, Colour, Set-up Cost, Row Type, Parent,
+    Pass, snapshots S_SetupCost / S_ColourID, hidden helpers H_Ink / H_Setup /
+    H_Notices. The table is now 45 columns wide, so the side panel moved to column
+    47 and the LOC_* settings block from AL:AM to AW:AX.
+  - Printers gain Colour mode (single pass / multi-pass; blank reads as single pass)
+    and Template cost (the set-up cost of one colour pass, e.g. a RISO master). A
+    multi-pass printer takes sheet stock only. New Risograph consumable type.
+  - New Consumables sheet (modConsumables, tblColours): ID (SITE-CLR-0001, counter
+    COLOUR_ID_HWM), Consumable type, Colour, Cost per m2, Active; added to Backup
+    and Restore. A pass's Colour dropdown lists the colours of its printer's type.
+  - Costing: a pass stamps its colour's rate and the printer's Template cost and
+    never follows later price edits (Re-stamp prices re-stamps them; a pass whose
+    colour cannot be found is left alone). Ink per pass = job area x rate. The job
+    row sums its passes: Gross = Paper + Consumable + Set-up; Disregard Consumable
+    covers ink and set-up. Reports, Summary and _Data count Job rows only.
+  - Buttons on every location sheet: Add pass, Remove pass (grey unless a
+    multi-pass job or one of its passes is selected; a click on a greyed button
+    says so), Toggle passes (this job), Toggle all passes, and a Hide/Show pass
+    columns toggle layered under the All / Reduced / Minimal drop-down. Set-up Cost
+    follows the cost-detail toggle. The Reduced view also hides the pass columns.
+  - A job with passes keeps its printer. Delete a job and its passes go with it.
+    Repeat job copies the group. Location sheets can no longer be sorted or
+    filtered (rows stay in the order added; use Reports).
+  - Check: a blank or wrong-type colour, an out-of-sequence number and a missing
+    parent are problems; a colour this workbook does not define is a yellow notice
+    ("Notice: ...") listed apart from the problem count.
+  - Reports and Summary: Passes after Printer, Set-up cost after Consumable cost;
+    Reports gains a Pass type filter (F11) and Passes as a sort choice. The columns
+    after Printer shift by one or two places; the Matching totals and breakdown
+    blocks moved with them.
+  - Export / Import: pass rows travel in the same jobs CSV (Row Type, Parent, Pass,
+    Colour, rates); importing a job replaces its pass group as one block, skips a
+    pass whose job is not in the file, and a pre-0.11.0 file (no Row Type) still
+    imports and leaves passes alone. Restore, Backup and the workbook-source
+    restore read pass rows too.
+  - The Job planner does not offer multi-pass printers (it prices one flat rate).
+  - Restore leaves a column absent from the backup row untouched instead of
+    clearing it, so an older backup cannot turn a multi-pass printer single-pass.
+  - Tests: new test-multipass.ps1, test-multipass-io.ps1 and test-multipass-views.ps1; column positions and
+    counts re-pointed in test-layout, -reducedview, -manualhide, -costcolumns,
+    -paid, -backup, -catalogids, -statusnotes and the Reports/Summary tests.
+  - Build: apply-multipass-template.ps1 is the re-runnable record of the change to
+    PrintCosts.xlsx (it also writes summaryBelow="0" into the location sheet XML).
+  - Docs: the Department job-row column now takes schema 1.5.
 0.10.30 - Departments: other departments' jobs are tracked, and free ones are not charged.
   - New "Departments" sheet (after Papers; modDepartments, clsDept, tblDepartments):
     DeptID, Name, Aliases (separated by ;), Free (Yes/No, default No), Active,

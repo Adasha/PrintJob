@@ -82,10 +82,10 @@ try {
     Check ($null -ne $costBtn) 'cost toggle exists'
     Check ([double]$costBtn.Top -lt [double]$main.Cells(3, 1).Top) 'cost toggle is on row 2 (view row), not in the side panel'
 
-    $col36Before = [double]$main.Cells(1, 36).Left
+    $col36Before = [double]$main.Cells(1, 47).Left
     $sidePanel = 'pcb_btnSelectPrinters', 'pcb_btnCheckSheet', 'pcb_btnRemoveRow', 'pcb_btnClearAll', 'pcb_btnExport', 'pcb_btnImportLocation'
     foreach ($p in $sidePanel) {
-        Check ((SidePanelLeft $main $p) -eq $col36Before) "$p sits on column 36 before hiding (Left=$col36Before)"
+        Check ((SidePanelLeft $main $p) -eq $col36Before) "$p sits on column 47 before hiding (Left=$col36Before)"
     }
 
     # -------------------------------------------------------------- toggle on
@@ -127,10 +127,10 @@ try {
     # ------------------------------------------ THE FIX: no lag, same click
     Write-Host ''
     Write-Host '=== No lag: side panel already repositioned in the SAME click that hid the columns ==='
-    $col36Hidden = [double]$main.Cells(1, 36).Left
-    Check ($col36Hidden -ne $col36Before) "hiding the span actually moved column 36 (was $col36Before, now $col36Hidden) - otherwise this check proves nothing"
+    $col36Hidden = [double]$main.Cells(1, 47).Left
+    Check ($col36Hidden -ne $col36Before) "hiding the span actually moved column 47 (was $col36Before, now $col36Hidden) - otherwise this check proves nothing"
     foreach ($p in $sidePanel) {
-        Check ((SidePanelLeft $main $p) -eq $col36Hidden) "$p already sits on column 36's NEW position, no separate click needed (Left=$col36Hidden)"
+        Check ((SidePanelLeft $main $p) -eq $col36Hidden) "$p already sits on column 47's NEW position, no separate click needed (Left=$col36Hidden)"
     }
 
     # ------------------------------------------------------------- toggle off
@@ -144,7 +144,7 @@ try {
     $btnCaption2 = FindButtonCaption $main 'pcb_btnToggleCostColumns'
     Check ($btnCaption2 -eq 'Hide cost detail') "button caption flipped back to 'Hide cost detail' (got '$btnCaption2')"
     foreach ($p in $sidePanel) {
-        Check ((SidePanelLeft $main $p) -eq $col36Before) "$p is back on column 36's original position, same click (Left=$col36Before)"
+        Check ((SidePanelLeft $main $p) -eq $col36Before) "$p is back on column 47's original position, same click (Left=$col36Before)"
     }
 
     $xl.Run('SetQuiet', $false)

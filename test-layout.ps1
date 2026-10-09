@@ -69,7 +69,9 @@ try {
     $schemaIdx = [array]::IndexOf($names, 'S_SchemaVer') + 1
     Check ($statusIdx -eq $paidIdx + 1) "Status sits right after Paid (paid=$paidIdx status=$statusIdx)"
     Check ($jobIdIdx -eq $statusIdx + 1) "Job ID sits right after Status (status=$statusIdx jobId=$jobIdIdx)"
-    Check ($notesIdx -eq $jobIdIdx + 1) "Notes sits right after Job ID (jobId=$jobIdIdx notes=$notesIdx)"
+    $passIdx = [array]::IndexOf($names, 'Pass') + 1
+    Check (($passIdx -eq $jobIdIdx + 3) -and ($names[$jobIdIdx] -eq 'Row Type') -and ($names[$jobIdIdx + 1] -eq 'Parent')) "Row Type, Parent and Pass follow Job ID (jobId=$jobIdIdx pass=$passIdx)"
+    Check ($notesIdx -eq $passIdx + 1) "Notes sits right after Pass (pass=$passIdx notes=$notesIdx)"
     Check ($schemaIdx -eq $names.Count) "S_SchemaVer is still the last column (idx=$schemaIdx of $($names.Count))"
 
     # ------------------------------------------------------------- header block

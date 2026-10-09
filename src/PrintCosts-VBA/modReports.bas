@@ -53,6 +53,20 @@ Private Const EXPORT_WHEN_CELL As String = "AN2"
 ' Public, because modInit and modExport read the same rows and columns and
 ' must never carry their own copy of these numbers.
 Public Const REP_COL0 As Long = 8
+' Results-table column numbers that other code keys off (counted from REP_COL0 = 1).
+' 0.11.0 inserted Passes (6) after Printer and Set-up cost (13) after Consumable cost.
+Public Const RC_CHARGEABLE As Long = 16
+Public Const RC_NOTES As Long = 19
+Public Const RC_LAST As Long = 19                ' Notes; the hidden Job ID follows it
+' The Matching totals that sit above the results columns the minimum view keeps:
+' Chargeable over Paper stock's neighbour, Paid and Unpaid over Chargeable / Paid.
+Public Const MATCH_COL_CHARGEABLE As Long = 7
+Public Const MATCH_COL_PAID As Long = 16
+Public Const MATCH_COL_UNPAID As Long = 17
+' The breakdown blocks to the right of the table (By print room / paper stock / department).
+Public Const BRK_COL1 As Long = 22
+Public Const BRK_COL2 As Long = 26
+Public Const BRK_COL3 As Long = 30
 Public Const REP_SORT_ROW As Long = 7
 Public Const REP_MATCH_ROW As Long = 8
 Public Const REP_MATCH_VAL_ROW As Long = 9
@@ -135,9 +149,11 @@ Public Sub BuildSummary()
     TotalCell ws, "L" & SUM_TOT_ROW, "Unpaid", "=IFERROR(SUM(" & C("Chargeable Cost") & ")-SUMIFS(" & C("Chargeable Cost") & "," & C("Paid") & ",""Yes""),0)"
 
     ' --- headers -----------------------------------------------------------
-    WriteHeaderRow ws, SUM_HDR_ROW, Array("Location", "Printer", "Paper stock", "Type", "Unit", _
+    ' Passes after Printer and Set-up cost after Consumable cost (0.11.0, multi-pass
+    ' design decision 28): colour passes and their set-up are totals per key like the rest.
+    WriteHeaderRow ws, SUM_HDR_ROW, Array("Location", "Printer", "Passes", "Paper stock", "Type", "Unit", _
                                 "Jobs", "Qty", "Area m2", "Paper cost", _
-                                "Consumable cost", "Gross", "Disregarded", "Chargeable")
+                                "Consumable cost", "Set-up cost", "Gross", "Disregarded", "Chargeable")
 
     ' --- the one formula -----------------------------------------------------
     ' Three-column key - Location, Printer, Paper Stock - rather than the
@@ -154,12 +170,12 @@ Public Sub BuildSummary()
     Dim isRoll As String, isSheet As String
     isRoll = "st=""" & SUPPLIED_ROLL & """"
     isSheet = "st=""" & SUPPLIED_SHEET & """"
-    f = f & "HSTACK(lo,pr,st," & _
+    f = f & "HSTACK(lo,pr," & SumBy("Passes") & ",st," & _
         "IFNA(XLOOKUP(st,tblPapers[Description],tblPapers[Paper type]),IF(OR(" & isRoll & "," & isSheet & "),""Student supplied"",""(not in Papers)"")),"
     f = f & "IFNA(IF(XLOOKUP(st,tblPapers[Description],tblPapers[Measure])=""Sheet"",""sheets"",""metres""),IF(" & isRoll & ",""metres"",IF(" & isSheet & ",""sheets"",""-""))),"
     f = f & "COUNTIFS(" & C("Location") & ",lo," & C("Printer") & ",pr," & C("Paper Stock") & ",st),"
     f = f & SumBy("Qty") & "," & SumBy("Area m2") & "," & SumBy("Paper Cost") & ","
-    f = f & SumBy("Consumable Cost") & "," & SumBy("Gross Cost") & ","
+    f = f & SumBy("Consumable Cost") & "," & SumBy("Set-up Cost") & "," & SumBy("Gross Cost") & ","
     f = f & SumBy("Disregarded") & "," & SumBy("Chargeable Cost") & ")),"
     f = f & """No print jobs have been recorded yet."")"
     ws.Cells(SUM_FIRST_ROW, 1).Formula2 = f
@@ -242,16 +258,17 @@ Private Sub FormatSummary(ByVal ws As Worksheet)
     ' 12 there) rather than its blue results-table header - this table is
     ' itself a totals breakdown (by location/printer/paper stock), the same
     ' category as Reports' "Matching" row, not a per-job record list.
-    ws.Range(ws.Cells(SUM_HDR_ROW, 1), ws.Cells(SUM_HDR_ROW, 13)).Interior.Color = RGB(244, 232, 222)
-    ws.Range("G" & SUM_FIRST_ROW & ":H2000").NumberFormat = "#,##0.00"
-    ws.Range("I" & SUM_FIRST_ROW & ":M2000").NumberFormat = CurrencyFormatCode()
+    ws.Range(ws.Cells(SUM_HDR_ROW, 1), ws.Cells(SUM_HDR_ROW, 15)).Interior.Color = RGB(244, 232, 222)
+    ws.Range("C" & SUM_FIRST_ROW & ":C2000").NumberFormat = "0;-0;"               ' Passes (0 not shown)
+    ws.Range("H" & SUM_FIRST_ROW & ":I2000").NumberFormat = "#,##0.00"           ' Qty, Area m2
+    ws.Range("J" & SUM_FIRST_ROW & ":O2000").NumberFormat = CurrencyFormatCode() ' Paper cost .. Chargeable
     ws.Range("D" & SUM_TOT_ROW).NumberFormat = CurrencyFormatCode()
     ws.Range("F" & SUM_TOT_ROW).NumberFormat = CurrencyFormatCode()
     ws.Range("H" & SUM_TOT_ROW).NumberFormat = CurrencyFormatCode()
     ws.Range("J" & SUM_TOT_ROW).NumberFormat = CurrencyFormatCode()
     ws.Range("L" & SUM_TOT_ROW).NumberFormat = CurrencyFormatCode()
-    ws.Columns("A:M").ColumnWidth = 14
-    ws.Columns("A:C").ColumnWidth = 24
+    ws.Columns("A:O").ColumnWidth = 14
+    ws.Columns("A:D").ColumnWidth = 24      ' Location, Printer, Passes (the planner box shares C), Paper stock
     ws.Rows(SUM_HDR_ROW).Font.Bold = True
 End Sub
 
@@ -267,9 +284,10 @@ End Sub
 ' RefreshExportStatus), so "error" reads the same everywhere it appears.
 Private Sub FormatSummaryErrors(ByVal ws As Worksheet)
     Dim rng As Range, fc As FormatCondition
-    Set rng = ws.Range("D" & SUM_FIRST_ROW & ":D2000")
+    ' The Type column: E since 0.11.0 put Passes in C.
+    Set rng = ws.Range("E" & SUM_FIRST_ROW & ":E2000")
     Set fc = rng.FormatConditions.Add(Type:=xlExpression, _
-        Formula1:="=D" & SUM_FIRST_ROW & "=""(not in Papers)""")
+        Formula1:="=E" & SUM_FIRST_ROW & "=""(not in Papers)""")
     fc.Font.Color = RGB(176, 0, 32)
     fc.Font.Bold = True
 End Sub
@@ -400,6 +418,10 @@ Private Function Criteria() As String
     isSup = "((XLOOKUP(" & C("Paper Stock") & ",tblPapers[Description],tblPapers[Supplied by student],""No"")=""Yes"")" & _
         "+(" & C("Paper Stock") & "=""" & SUPPLIED_ROLL & """)+(" & C("Paper Stock") & "=""" & SUPPLIED_SHEET & """)>0)"
     s = s & "*IF($F$10="""",TRUE,IF($F$10=""Yes""," & isSup & ",NOT(" & isSup & ")))"
+    ' Pass type (0.11.0, multi-pass design decision 32): a multi-pass job is one with
+    ' colour passes, so its Passes (the _Data column) is a number; a single-pass
+    ' job's is blank. Blank filter = all, like the others.
+    s = s & "*IF($F$11="""",TRUE,IF($F$11=""Multi-pass"",ISNUMBER(" & C("Passes") & "),NOT(ISNUMBER(" & C("Passes") & "))))"
 
     ' Has a problem (0.10.27, More filters group): Yes = Status is text and not
     ' OK (the Status column holds "OK" or a joined issue list); No = Status is
@@ -440,10 +462,13 @@ End Function
 ' hidden correlation column, not something offered in the sort-by list).
 ' Student name/no and Paid added 2026-09-22 (snag list items 2a, 2d).
 Private Function ResultHeaders() As Variant
+    ' Passes after Printer and Set-up cost after Consumable cost (multi-pass design
+    ' decision 28). Every later column therefore sits one or two places further
+    ' right than before 0.11.0; see the REP_* constants below.
     ResultHeaders = Array("Date/Time", "Location", "Student name", "Student no", _
-                          "Printer", "Paper stock", _
+                          "Printer", "Passes", "Paper stock", _
                           "Qty", "Unit", "Area m2", "Paper cost", _
-                          "Consumable cost", "Gross", "Disregarded", "Chargeable", "Paid", _
+                          "Consumable cost", "Set-up cost", "Gross", "Disregarded", "Chargeable", "Paid", _
                           "Technician", "Notes")
 End Function
 
@@ -565,6 +590,9 @@ Public Sub BuildReports()
     ' Supplied stocks or a Papers row marked Supplied by student; No = any
     ' other stock. Row 11 on this side is now empty (Has notes moved to the
     ' More filters row below).
+    ' Pass type (0.11.0): row 11 on this side, directly under the paper filters.
+    CritCell ws, "D11", "F11", "Pass type"
+    AddList ws.Range("F11"), """Single pass"",""Multi-pass""", "Pass type", "Single pass shows ordinary jobs, Multi-pass only jobs printed in colour passes (a RISO duplicator, for example). Leave blank to include both."
     CritCell ws, "D10", "F10", "Student-supplied paper"
     AddList ws.Range("F10"), """Yes"",""No""", "Student-supplied paper", "Yes shows only jobs on paper the student supplied (Supplied (Roll), Supplied (Sheet) or a Papers row marked Supplied by student), No only jobs on stock the print room supplied. Leave blank to include both."
 
@@ -641,7 +669,7 @@ Public Sub BuildReports()
     MatchTotal ws, RepCol(2), "Jobs", "=IFERROR(ROWS(FILTER(" & C("Job ID") & "," & ok & ")),0)"
     MatchTotal ws, RepCol(3), "Gross", "=IFERROR(SUM(FILTER(" & C("Gross Cost") & "," & ok & ")),0)"
     MatchTotal ws, RepCol(4), "Disregarded", "=IFERROR(SUM(FILTER(" & C("Disregarded") & "," & ok & ")),0)"
-    MatchTotal ws, RepCol(6), "Chargeable", "=IFERROR(SUM(FILTER(" & C("Chargeable Cost") & "," & ok & ")),0)"
+    MatchTotal ws, RepCol(MATCH_COL_CHARGEABLE), "Chargeable", "=IFERROR(SUM(FILTER(" & C("Chargeable Cost") & "," & ok & ")),0)"
     ' Snag list item 1c: the matching chargeable total split by paid status,
     ' same "total minus paid" reconciliation as Summary's J6/L6 - a blank
     ' Paid (a job that predates the column) falls into Unpaid either way.
@@ -655,13 +683,16 @@ Public Sub BuildReports()
     ' "one row marked Yes" case test-paid.ps1 already covered.
     Dim paidOk As String
     paidOk = ok & "*(" & C("Paid") & "=""Yes"")"
-    MatchTotal ws, RepCol(14), "Paid", "=IFERROR(SUM(FILTER(" & C("Chargeable Cost") & "," & paidOk & ",0)),0)"
-    MatchTotal ws, RepCol(15), "Unpaid", "=IFERROR(SUM(FILTER(" & C("Chargeable Cost") & "," & ok & ",0))-SUM(FILTER(" & C("Chargeable Cost") & "," & paidOk & ",0)),0)"
+    MatchTotal ws, RepCol(MATCH_COL_PAID), "Paid", "=IFERROR(SUM(FILTER(" & C("Chargeable Cost") & "," & paidOk & ",0)),0)"
+    ' The criteria are bound once (LET): this formula repeated them twice, and with
+    ' the Pass type filter added that crossed Excel's 8192-character formula limit.
+    MatchTotal ws, RepCol(MATCH_COL_UNPAID), "Unpaid", "=IFERROR(LET(ok0," & ok & ",cc," & C("Chargeable Cost") & _
+        ",SUM(FILTER(cc,ok0,0))-SUM(FILTER(cc,ok0*(" & C("Paid") & "=""Yes""),0))),0)"
     ws.Range(RepCol(3) & REP_MATCH_VAL_ROW).NumberFormat = CurrencyFormatCode()
     ws.Range(RepCol(4) & REP_MATCH_VAL_ROW).NumberFormat = CurrencyFormatCode()
-    ws.Range(RepCol(6) & REP_MATCH_VAL_ROW).NumberFormat = CurrencyFormatCode()
-    ws.Range(RepCol(14) & REP_MATCH_VAL_ROW).NumberFormat = CurrencyFormatCode()
-    ws.Range(RepCol(15) & REP_MATCH_VAL_ROW).NumberFormat = CurrencyFormatCode()
+    ws.Range(RepCol(MATCH_COL_CHARGEABLE) & REP_MATCH_VAL_ROW).NumberFormat = CurrencyFormatCode()
+    ws.Range(RepCol(MATCH_COL_PAID) & REP_MATCH_VAL_ROW).NumberFormat = CurrencyFormatCode()
+    ws.Range(RepCol(MATCH_COL_UNPAID) & REP_MATCH_VAL_ROW).NumberFormat = CurrencyFormatCode()
 
     ' --- the records ------------------------------------------------------
     ' Job ID is appended after Notes and hidden - the correlation key that
@@ -715,13 +746,17 @@ Public Sub BuildReports()
     ' "0", just stringified) - Paid only ever legitimately holds "Yes",
     ' "No" or blank, never a real 0, so testing for =0 specifically catches
     ' exactly the phantom-zero case and nothing else.
-    Dim paidText As String
+    Dim paidText As String, passesNum As String
     paidText = "IF(" & C("Paid") & "=0," & q & q & "," & C("Paid") & ")"
+    ' Passes is a number or blank in _Data (a count on a multi-pass job). As a real 0
+    ' for the rest, with the zero not displayed (FormatReports), it sorts as a number
+    ' - blank text would sort ahead of every count in descending order.
+    passesNum = "IF(ISNUMBER(" & C("Passes") & ")," & C("Passes") & ",0)"
 
     f = "=IFERROR(LET(" & _
         "res,FILTER(HSTACK(" & C("Date/Time") & "," & C("Location") & "," & sName & "," & sNo & _
-        "," & C("Printer") & "," & C("Paper Stock") & "," & C("Qty") & "," & C("Unit") & "," & C("Area m2") & _
-        "," & C("Paper Cost") & "," & C("Consumable Cost") & "," & C("Gross Cost") & _
+        "," & C("Printer") & "," & passesNum & "," & C("Paper Stock") & "," & C("Qty") & "," & C("Unit") & "," & C("Area m2") & _
+        "," & C("Paper Cost") & "," & C("Consumable Cost") & "," & C("Set-up Cost") & "," & C("Gross Cost") & _
         "," & C("Disregarded") & "," & C("Chargeable Cost") & "," & paidText & "," & C("Technician") & _
         "," & NotesText() & "," & C("Job ID") & ")," & ok & ",""No print jobs match those criteria.""),"
     f = f & "hdrs,{" & QuotedList(hdrs) & "},"
@@ -805,7 +840,7 @@ End Sub
 ' after the hidden Job ID column, then straight into "By print room").
 Private Sub BuildBreakdowns(ByVal ws As Worksheet, ByVal ok As String)
     Dim c1 As String, c2 As String
-    c1 = RepCol(20): c2 = RepCol(24)
+    c1 = RepCol(BRK_COL1): c2 = RepCol(BRK_COL2)
     ws.Range(c1 & REP_HDR_ROW).Value = "By print room"
     ws.Range(c1 & REP_HDR_ROW).Font.Bold = True
     ws.Range(c1 & REP_FIRST_ROW).Formula2 = GroupFormula(ok, "Location")
@@ -816,19 +851,19 @@ Private Sub BuildBreakdowns(ByVal ws As Worksheet, ByVal ok As String)
 
     ' By department (0.10.30): only jobs that ARE a department's - a blank
     ' Department (an ordinary student) would otherwise show as an empty key.
-    ws.Range(RepCol(28) & REP_HDR_ROW).Value = "By department"
-    ws.Range(RepCol(28) & REP_HDR_ROW).Font.Bold = True
-    ws.Range(RepCol(28) & REP_FIRST_ROW).Formula2 = GroupFormula("(" & ok & ")*(" & C("Department") & "<>"""")", "Department")
+    ws.Range(RepCol(BRK_COL3) & REP_HDR_ROW).Value = "By department"
+    ws.Range(RepCol(BRK_COL3) & REP_HDR_ROW).Font.Bold = True
+    ws.Range(RepCol(BRK_COL3) & REP_FIRST_ROW).Formula2 = GroupFormula("(" & ok & ")*(" & C("Department") & "<>"""")", "Department")
 
     ' Each block spills as key | Jobs | Gross | Chargeable, so the money
     ' columns are the third and fourth - Jobs is a count and must not be
     ' formatted as currency.
-    ws.Range(RepCol(21) & REP_FIRST_ROW + 1 & ":" & RepCol(21) & "2000").NumberFormat = "#,##0"
-    ws.Range(RepCol(22) & REP_FIRST_ROW + 1 & ":" & RepCol(23) & "2000").NumberFormat = CurrencyFormatCode()
-    ws.Range(RepCol(25) & REP_FIRST_ROW + 1 & ":" & RepCol(25) & "2000").NumberFormat = "#,##0"
-    ws.Range(RepCol(26) & REP_FIRST_ROW + 1 & ":" & RepCol(27) & "2000").NumberFormat = CurrencyFormatCode()
-    ws.Range(RepCol(29) & REP_FIRST_ROW + 1 & ":" & RepCol(29) & "2000").NumberFormat = "#,##0"
-    ws.Range(RepCol(30) & REP_FIRST_ROW + 1 & ":" & RepCol(31) & "2000").NumberFormat = CurrencyFormatCode()
+    ws.Range(RepCol(BRK_COL1 + 1) & REP_FIRST_ROW + 1 & ":" & RepCol(BRK_COL1 + 1) & "2000").NumberFormat = "#,##0"
+    ws.Range(RepCol(BRK_COL1 + 2) & REP_FIRST_ROW + 1 & ":" & RepCol(BRK_COL1 + 3) & "2000").NumberFormat = CurrencyFormatCode()
+    ws.Range(RepCol(BRK_COL2 + 1) & REP_FIRST_ROW + 1 & ":" & RepCol(BRK_COL2 + 1) & "2000").NumberFormat = "#,##0"
+    ws.Range(RepCol(BRK_COL2 + 2) & REP_FIRST_ROW + 1 & ":" & RepCol(BRK_COL2 + 3) & "2000").NumberFormat = CurrencyFormatCode()
+    ws.Range(RepCol(BRK_COL3 + 1) & REP_FIRST_ROW + 1 & ":" & RepCol(BRK_COL3 + 1) & "2000").NumberFormat = "#,##0"
+    ws.Range(RepCol(BRK_COL3 + 2) & REP_FIRST_ROW + 1 & ":" & RepCol(BRK_COL3 + 3) & "2000").NumberFormat = CurrencyFormatCode()
 End Sub
 
 ' Group the filtered records by one column. SUMIFS cannot be used here: its
@@ -864,11 +899,12 @@ Private Sub FormatReports(ByVal ws As Worksheet)
     ' the results header below, in a warmer tone so the two bands read as
     ' related but distinct - RGB(244, 232, 222) is RGB(222, 232, 244)'s own
     ' red/blue channels swapped, keeping the identical lightness/saturation.
-    ws.Range(RepCol(1) & REP_MATCH_ROW & ":" & RepCol(15) & REP_MATCH_ROW).Interior.Color = RGB(244, 232, 222)
-    ws.Range(RepCol(1) & REP_HDR_ROW & ":" & RepCol(17) & REP_HDR_ROW).Interior.Color = RGB(222, 232, 244)
+    ws.Range(RepCol(1) & REP_MATCH_ROW & ":" & RepCol(MATCH_COL_UNPAID) & REP_MATCH_ROW).Interior.Color = RGB(244, 232, 222)
+    ws.Range(RepCol(1) & REP_HDR_ROW & ":" & RepCol(RC_LAST) & REP_HDR_ROW).Interior.Color = RGB(222, 232, 244)
     ws.Range(RepCol(1) & REP_FIRST_ROW & ":" & RepCol(1) & "2000").NumberFormat = "dd/mm/yyyy hh:mm"
-    ws.Range(RepCol(7) & REP_FIRST_ROW & ":" & RepCol(9) & "2000").NumberFormat = "#,##0.00"
-    ws.Range(RepCol(10) & REP_FIRST_ROW & ":" & RepCol(14) & "2000").NumberFormat = CurrencyFormatCode()
+    ws.Range(RepCol(8) & REP_FIRST_ROW & ":" & RepCol(10) & "2000").NumberFormat = "#,##0.00"      ' Qty, Unit, Area m2
+    ws.Range(RepCol(11) & REP_FIRST_ROW & ":" & RepCol(RC_CHARGEABLE) & "2000").NumberFormat = CurrencyFormatCode()  ' Paper cost .. Chargeable
+    ws.Range(RepCol(6) & REP_FIRST_ROW & ":" & RepCol(6) & "2000").NumberFormat = "0;-0;"        ' Passes (0 not shown)
     ' Filter block A:F (labels A and D, inputs B and F; C and E are spacers),
     ' G the small gap before the results.
     ws.Columns("A:B").ColumnWidth = 22
@@ -877,16 +913,18 @@ Private Sub FormatReports(ByVal ws As Worksheet)
     ws.Columns("E").ColumnWidth = 1.5
     ws.Columns("F").ColumnWidth = 22
     ws.Columns("G").ColumnWidth = 2.5
-    ws.Range(RepCol(1) & ":" & RepCol(17)).ColumnWidth = 14
-    ws.Range(RepCol(2) & ":" & RepCol(6)).ColumnWidth = 22
-    ws.Columns(RepCol(17)).ColumnWidth = 30
+    ws.Range(RepCol(1) & ":" & RepCol(RC_LAST)).ColumnWidth = 14
+    ws.Range(RepCol(2) & ":" & RepCol(5)).ColumnWidth = 22          ' Location .. Printer
+    ws.Columns(RepCol(6)).ColumnWidth = 9                           ' Passes
+    ws.Columns(RepCol(7)).ColumnWidth = 22                          ' Paper stock
+    ws.Columns(RepCol(RC_NOTES)).ColumnWidth = 30
     ws.Columns(RepCol(1)).ColumnWidth = ColWidthForPx(180)  ' Date/Time, 180px
     ' Chargeable is wide enough to hold the Go to record / Clear all filters
     ' buttons' strip neighbours (0.10.25, DrawReportsButtons).
-    ws.Columns(RepCol(14)).ColumnWidth = ColWidthForPx(140)
-    ws.Columns(RepCol(20)).ColumnWidth = 22
-    ws.Columns(RepCol(24)).ColumnWidth = 22
-    ws.Columns(RepCol(28)).ColumnWidth = 22
+    ws.Columns(RepCol(RC_CHARGEABLE)).ColumnWidth = ColWidthForPx(140)
+    ws.Columns(RepCol(BRK_COL1)).ColumnWidth = 22
+    ws.Columns(RepCol(BRK_COL2)).ColumnWidth = 22
+    ws.Columns(RepCol(BRK_COL3)).ColumnWidth = 22
     ws.Rows(REP_HDR_ROW).Font.Bold = True
 End Sub
 
@@ -980,7 +1018,7 @@ Public Sub DeleteVisibleReportsConfirmed(ByVal ws As Worksheet, ByVal rng As Ran
                                          ByVal LocCol As Long, ByVal JobCol As Long, ByVal n As Long)
     Dim i As Long, targetWs As Worksheet, lo As ListObject, rowIdx As Long
     Dim deleted As Long, missing As Long, detail As String
-    Dim jobIds() As String, locs() As String
+    Dim jobIds() As String, locs() As String, grp As Collection, g As Long
 
     ' Same safeguard as the interactive entry point, repeated here because
     ' this is the routine that actually deletes (and the one a test or a
@@ -1010,7 +1048,16 @@ Public Sub DeleteVisibleReportsConfirmed(ByVal ws As Worksheet, ByVal rng As Ran
         End If
         If rowIdx > 0 Then
             UnlockSheet targetWs
-            lo.ListRows(rowIdx).Delete
+            ' A job takes its colour passes with it; whole-row deletes, last row
+            ' first, keep the outline levels with their data.
+            Set grp = GroupRows(lo, rowIdx)
+            For g = grp.Count To 1 Step -1
+                If lo.ListRows.Count = 1 Then
+                    lo.ListRows(1).Delete
+                Else
+                    lo.ListRows(CLng(grp(g))).Range.EntireRow.Delete
+                End If
+            Next g
             RelockSheet targetWs
             deleted = deleted + 1
         Else
@@ -1260,7 +1307,7 @@ End Function
 ' The filter boxes, by kind. Sort by and Sort direction are not filters and
 ' are in none of them.
 Private Function TextFilterCells() As Variant
-    TextFilterCells = Array("B4", "B5", "B12", "B14", "B15", "F4", "F5", "F7", "F8", "F9", "F10", "F14", "B6")
+    TextFilterCells = Array("B4", "B5", "B12", "B14", "B15", "F4", "F5", "F7", "F8", "F9", "F10", "F11", "F14", "B6")
 End Function
 
 Private Function DateFilterCells() As Variant

@@ -200,10 +200,10 @@ try {
     $rep.Range('B6').Value2 = ''
 
     # The Reports breakdown (column AI) lists departments only.
-    $bc = $rep.Cells(10, 35).Address($false, $false) -replace '\d+', ''
-    Check ([string]$rep.Cells(10, 35).Text -eq 'By department') 'Reports has a By department block'
+    $bc = $rep.Cells(10, 37).Address($false, $false) -replace '\d+', ''
+    Check ([string]$rep.Cells(10, 37).Text -eq 'By department') 'Reports has a By department block'
     $names = @(); $jobsCol = @{}
-    for ($r = 12; $r -le 20; $r++) { $n = [string]$rep.Cells($r, 35).Text; if ($n) { $names += $n; $jobsCol[$n] = [int]$rep.Cells($r, 36).Value2 } }
+    for ($r = 12; $r -le 20; $r++) { $n = [string]$rep.Cells($r, 37).Text; if ($n) { $names += $n; $jobsCol[$n] = [int]$rep.Cells($r, 38).Value2 } }
     Check (($names -join ',') -eq 'Fine Arts,Old Dept,Textiles') "breakdown keys: $($names -join ',')"
     Check ($jobsCol['Fine Arts'] -eq 2 -and $jobsCol['Textiles'] -eq 1) 'breakdown job counts are right'
 

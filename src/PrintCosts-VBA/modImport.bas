@@ -140,6 +140,14 @@ Public Sub ApplyImport(ByVal ws As Worksheet, ByVal rows As Collection)
     Set d1 = rows.Item(1)
     If Not d1.Exists("Student Name") Then _
         noNames = vbCrLf & "This file has no student names; names on overwritten records are kept." & vbCrLf
+    Dim passN As Long, pv As Variant
+    For Each pv In rows
+        If IsPassDict(pv) Then passN = passN + 1
+    Next pv
+    If passN > 0 Then
+        noNames = noNames & vbCrLf & "The file has " & passN & " colour pass row" & IIf(passN = 1, "", "s") & _
+            ". A job's passes are replaced together with the job." & vbCrLf
+    End If
     If Not Ask("Import into '" & LocValue(ws, "LOC_Name") & "'?" & vbCrLf & vbCrLf & _
         appended & " new record" & IIf(appended = 1, "", "s") & " will be added." & vbCrLf & _
         overwrite & " existing record" & IIf(overwrite = 1, "", "s") & " will be OVERWRITTEN with the imported version." & vbCrLf & noNames & vbCrLf & _
@@ -154,36 +162,51 @@ End Sub
 Public Sub ApplyImportConfirmed(ByVal ws As Worksheet, ByVal rows As Collection)
     Dim lo As ListObject, d As clsDict, jobId As String, n As Long
     Dim appended As Long, overwrite As Long, v As Variant
+    Dim groups As clsDict, jobsInFile As clsDict, passCount As Long, skipped As Long, k As Variant
+    Dim detail As String
 
     On Error GoTo Fail
     Set lo = JobsTable(ws)
     If lo Is Nothing Then Exit Sub
 
+    ' Pass rows travel in the same file as their jobs, after them (multi-pass
+    ' design decisions 18, 21). Each job's passes are gathered here and written
+    ' with the job, replacing its whole group as one block, so a job is never
+    ' half-imported. A pass whose job is not in the file is skipped and counted.
+    GatherPassGroups rows, groups, jobsInFile, skipped
+
     AppOff
     UnlockSheet ws
     For Each v In rows
         Set d = v
-        jobId = Trim$(CStr(d.Item("Job ID")))
-        If Len(jobId) > 0 Then
-            n = FindRowByJobId(lo, jobId)
-            If n = 0 Then
-                appended = appended + 1
-                If lo.ListRows.Count = 1 And IsBlankRow(lo, 1) Then
-                    n = 1
+        If Not IsPassDict(d) Then
+            jobId = Trim$(CStr(d.Item("Job ID")))
+            If Len(jobId) > 0 Then
+                n = FindRowByJobId(lo, jobId)
+                If n = 0 Then
+                    appended = appended + 1
+                    If lo.ListRows.Count = 1 And IsBlankRow(lo, 1) Then
+                        n = 1
+                    Else
+                        n = lo.ListRows.Add.Index
+                    End If
                 Else
-                    n = lo.ListRows.Add.Index
+                    overwrite = overwrite + 1
                 End If
-            Else
-                overwrite = overwrite + 1
+                WriteImportedRow lo, n, d
+                ' Only a file that carries Row Type (schema 1.4) speaks for the passes.
+                If d.Exists("Row Type") Then passCount = passCount + ReplacePasses(lo, n, jobId, groups)
             End If
-            WriteImportedRow lo, n, d
         End If
     Next v
     RelockSheet ws
     Application.Calculate
     AppOn
 
-    LogAudit "Import", LocValue(ws, "LOC_Name"), appended & " added, " & overwrite & " overwritten"
+    detail = appended & " added, " & overwrite & " overwritten"
+    If passCount > 0 Or skipped > 0 Then detail = detail & "; " & passCount & " colour passes written"
+    If skipped > 0 Then detail = detail & ", " & skipped & " skipped (their job is not in the file)"
+    LogAudit "Import", LocValue(ws, "LOC_Name"), detail
 
     ' Imported rows bypass Worksheet_Change, so Status/H_Issues need a sweep
     ' rather than relying on the event that normally drives it. CheckSheet
@@ -196,13 +219,100 @@ Fail:
     ReportError "Import"
 End Sub
 
+' A row in the file is a pass row when its Row Type says so. A file from before
+' 0.11.0 has no Row Type, so every row reads as a job.
+Private Function IsPassDict(ByVal d As clsDict) As Boolean
+    IsPassDict = (StrComp(Trim$(CStr(d.Item("Row Type"))), ROW_PASS, vbTextCompare) = 0)
+End Function
+
+' Sorts the file's pass rows under their jobs. Groups: Job ID -> Collection of the
+' pass dicts in file order; JobsInFile: the set of Job IDs the file's job rows
+' name; Skipped: passes whose Parent is not among them.
+Private Sub GatherPassGroups(ByVal rows As Collection, ByRef Groups As clsDict, ByRef JobsInFile As clsDict, ByRef Skipped As Long)
+    Dim v As Variant, d As clsDict, key As String, col As Collection
+    Set Groups = New clsDict
+    Set JobsInFile = New clsDict
+    Skipped = 0
+    For Each v In rows
+        Set d = v
+        If Not IsPassDict(d) Then
+            key = Trim$(CStr(d.Item("Job ID")))
+            If Len(key) > 0 Then JobsInFile.Add key, True
+        End If
+    Next v
+    For Each v In rows
+        Set d = v
+        If IsPassDict(d) Then
+            key = Trim$(CStr(d.Item("Parent")))
+            If Len(key) > 0 And JobsInFile.Exists(key) Then
+                If Not Groups.Exists(key) Then Groups.Add key, New Collection
+                Set col = Groups.Obj(key)
+                col.Add d
+            Else
+                Skipped = Skipped + 1
+            End If
+        End If
+    Next v
+End Sub
+
+' Replaces the pass group of the job at table row JobRow with the file's passes
+' for it (none: the group is simply removed). Whole-row inserts and deletes, so
+' outline levels stay with their data. Returns the passes written. Caller has the
+' sheet unlocked and events off.
+Private Function ReplacePasses(ByVal lo As ListObject, ByVal JobRow As Long, ByVal JobId As String, ByVal Groups As clsDict) As Long
+    Dim old As Collection, i As Long, k As Long, n As Long, col As Collection, idx As Long
+
+    Set old = PassRowsOf(lo, JobRow)
+    For i = old.Count To 1 Step -1
+        lo.ListRows(CLng(old(i))).Range.EntireRow.Delete
+    Next i
+
+    lo.ListRows(JobRow).Range.EntireRow.OutlineLevel = 1
+    lo.ListRows(JobRow).Range.EntireRow.Hidden = False
+    If Not Groups.Exists(JobId) Then Exit Function
+    Set col = Groups.Obj(JobId)
+    For k = 1 To col.Count
+        idx = JobRow + k
+        If idx <= lo.ListRows.Count Then
+            lo.ListRows(idx).Range.EntireRow.Insert
+        Else
+            lo.ListRows.Add
+        End If
+        ClearTypedCells lo.ListRows(idx).Range
+        WriteImportedPass lo, idx, col(k)
+        lo.ListRows(idx).Range.EntireRow.OutlineLevel = 2
+        lo.ListRows(idx).Range.EntireRow.Hidden = False
+        n = n + 1
+    Next k
+    ReplacePasses = n
+End Function
+
+' A pass row's few fields (design decision 21). Its Consumable Cost and Set-up
+' Cost are not written - the table's own formulas derive them from the stamped
+' S_ConsRate / S_SetupCost, exactly as for a pass entered here, so the imported
+' figures come out the same without any catalogue lookup (an unknown colour is
+' kept and shows the milder notice).
+Private Sub WriteImportedPass(ByVal lo As ListObject, ByVal RowNo As Long, ByVal d As clsDict)
+    CellIn(lo, RowNo, "Row Type").Value = ROW_PASS
+    WriteText lo, RowNo, "Parent", d
+    WriteNum lo, RowNo, "Pass", d
+    WriteText lo, RowNo, "Colour", d
+    WriteText lo, RowNo, "Notes", d
+    WriteText lo, RowNo, "S_ColourID", d
+    WriteNum lo, RowNo, "S_ConsRate", d
+    WriteNum lo, RowNo, "S_SetupCost", d
+    WriteDate lo, RowNo, "S_StampedAt", d
+    WriteText lo, RowNo, "S_StampedBy", d
+    WriteText lo, RowNo, "S_SchemaVer", d
+End Sub
+
 Private Sub CountChange(ByVal lo As ListObject, ByVal rows As Collection, ByRef Appended As Long, ByRef Overwrite As Long)
     Dim d As clsDict, jobId As String, v As Variant
     Appended = 0: Overwrite = 0
     For Each v In rows
         Set d = v
         jobId = Trim$(CStr(d.Item("Job ID")))
-        If Len(jobId) > 0 Then
+        If Len(jobId) > 0 And Not IsPassDict(d) Then
             If FindRowByJobId(lo, jobId) > 0 Then
                 Overwrite = Overwrite + 1
             Else
@@ -223,6 +333,8 @@ Private Function FindRowByJobId(ByVal lo As ListObject, ByVal JobId As String) A
 End Function
 
 Private Sub WriteImportedRow(ByVal lo As ListObject, ByVal RowNo As Long, ByVal d As clsDict)
+    ' A file from before 0.11.0 has no Row Type: every row in it is a job.
+    CellIn(lo, RowNo, "Row Type").Value = ROW_JOB
     WriteText lo, RowNo, "Job ID", d
     WriteDate lo, RowNo, "Date/Time", d
     If d.Exists("Student Name") Then WriteText lo, RowNo, "Student Name", d
@@ -258,6 +370,9 @@ Private Sub WriteImportedRow(ByVal lo As ListObject, ByVal RowNo As Long, ByVal 
     WriteNum lo, RowNo, "S_StockWidth_mm", d
     WriteNum lo, RowNo, "S_SheetHeight_mm", d
     WriteNum lo, RowNo, "S_ConsRate", d
+    ' Absent from a 1.3 file (and blank on a job row in a 1.4 one): written blank.
+    WriteNum lo, RowNo, "S_SetupCost", d
+    WriteText lo, RowNo, "S_ColourID", d
     WriteDate lo, RowNo, "S_StampedAt", d
     WriteText lo, RowNo, "S_StampedBy", d
     WriteText lo, RowNo, "S_SchemaVer", d
@@ -322,7 +437,7 @@ Public Function ReadImportRows(ByVal path As String) As Collection
     Dim fi() As Variant, i As Long, c As Long, r As Long
     Dim lastRow As Long, lastCol As Long
     Dim headers() As String, rows As New Collection, d As clsDict
-    Dim wasUpdating As Boolean, omitNames As Boolean
+    Dim wasUpdating As Boolean, omitNames As Boolean, keyJob As Long, keyParent As Long, isData As Boolean
 
     ' Every field forced to Text on the way in, mirroring modExport's "@"
     ' number format on the way out - so "00001" keeps its leading zeros and an
@@ -343,6 +458,13 @@ Public Function ReadImportRows(ByVal path As String) As Collection
     Set ws = wbIn.Worksheets(1)
 
     lastCol = ws.Cells(HDR_ROW, ws.Columns.Count).End(xlToLeft).Column
+    ' A pass row has no Job ID, only a Parent, so "is this a data row" asks about
+    ' both columns when the file has them (multi-pass: pass rows share the file).
+    keyJob = 1: keyParent = 0
+    For c = 1 To lastCol
+        If StrComp(Trim$(CStr(ws.Cells(HDR_ROW, c).Value)), "Job ID", vbTextCompare) = 0 Then keyJob = c
+        If StrComp(Trim$(CStr(ws.Cells(HDR_ROW, c).Value)), "Parent", vbTextCompare) = 0 Then keyParent = c
+    Next c
     If Len(Trim$(CStr(ws.Cells(HDR_ROW, 1).Value))) = 0 Then
         wbIn.Close False
         Application.ScreenUpdating = wasUpdating
@@ -360,9 +482,15 @@ Public Function ReadImportRows(ByVal path As String) As Collection
         headers(c) = Trim$(CStr(ws.Cells(HDR_ROW, c).Value))
     Next c
 
-    lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
+    ' The last used row, not the last row of column 1: a file can end in pass
+    ' rows, whose first column (Job ID) is blank.
+    lastRow = ws.UsedRange.Row + ws.UsedRange.Rows.Count - 1
     For r = FIRST_DATA_ROW To lastRow
-        If Len(Trim$(CStr(ws.Cells(r, 1).Value))) = 0 Then Exit For
+        isData = (Len(Trim$(CStr(ws.Cells(r, keyJob).Value))) > 0)
+        If keyParent > 0 Then
+            If Len(Trim$(CStr(ws.Cells(r, keyParent).Value))) > 0 Then isData = True
+        End If
+        If Not isData Then Exit For
         Set d = New clsDict
         For c = 1 To lastCol
             ' No "Student Name" key at all when the file left names out, so

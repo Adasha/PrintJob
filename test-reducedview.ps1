@@ -9,7 +9,7 @@
 #     SET_LOC_MINIMAL_COLUMNS. Both lists are editable settings.
 #   - A permanently-hidden column (H_Issues) is never touched.
 #   - The view buttons slide off any hidden column; the old toggle is gone from
-#     the side panel and the remaining seven buttons stay on column 36.
+#     the side panel and the remaining seven buttons stay on column 47.
 #   - Add Print Job / Now / etc. keep their width and relocate off hidden columns.
 #
 # Drives a COPY in %TEMP%, never src\PrintJob.xlsm itself. Closes WITHOUT
@@ -126,7 +126,7 @@ try {
     Check ($null -eq (FindButton $main 'pcb_btnToggleReducedView')) 'old Reduce clutter button is gone'
     $sidePanel = 'pcb_btnSelectPrinters', 'pcb_btnCheckSheet', 'pcb_btnRemoveRow', 'pcb_btnClearAll', 'pcb_btnExport', 'pcb_btnImportLocation'
     foreach ($p in $sidePanel) {
-        Check ((ButtonColumn $main $p) -eq 36) "$p sits in the side panel (column 36)"
+        Check ((ButtonColumn $main $p) -eq 47) "$p sits in the side panel (column 47)"
     }
     # Stack is packed from the top: first button at the sheet top, no gap where the toggle was.
     $tops = $sidePanel | ForEach-Object { [double](FindButton $main $_).Top }
@@ -264,22 +264,22 @@ try {
         }
     }
 
-    # ---------------------------------- side panel tracks column 36 through views
+    # ---------------------------------- side panel tracks column 47 through views
     Write-Host ''
-    Write-Host '=== Side panel stays pinned to column 36 through a Minimal/All cycle ==='
-    $col36Before = [double]$main.Cells(1, 36).Left
+    Write-Host '=== Side panel stays pinned to column 47 through a Minimal/All cycle ==='
+    $col36Before = [double]$main.Cells(1, 47).Left
     foreach ($p in $sidePanel) {
-        Check ([double](FindButton $main $p).Left -eq $col36Before) "$p sits on column 36 before hiding"
+        Check ([double](FindButton $main $p).Left -eq $col36Before) "$p sits on column 47 before hiding"
     }
     [void]$xl.Run('SetViewMode', 'Minimal'); Start-Sleep -Milliseconds 300
-    $col36Hidden = [double]$main.Cells(1, 36).Left
-    Check ($col36Hidden -ne $col36Before) 'Minimal actually moved column 36 (otherwise this proves nothing)'
+    $col36Hidden = [double]$main.Cells(1, 47).Left
+    Check ($col36Hidden -ne $col36Before) 'Minimal actually moved column 47 (otherwise this proves nothing)'
     foreach ($p in $sidePanel) {
-        Check ([double](FindButton $main $p).Left -eq $col36Hidden) "$p followed column 36 while hidden"
+        Check ([double](FindButton $main $p).Left -eq $col36Hidden) "$p followed column 47 while hidden"
     }
     [void]$xl.Run('SetViewMode', 'All'); Start-Sleep -Milliseconds 300
     foreach ($p in $sidePanel) {
-        Check ([double](FindButton $main $p).Left -eq $col36Before) "$p back on column 36 after revealing"
+        Check ([double](FindButton $main $p).Left -eq $col36Before) "$p back on column 47 after revealing"
     }
 
     $xl.Run('SetQuiet', $false)

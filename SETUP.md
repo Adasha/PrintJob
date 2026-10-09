@@ -48,7 +48,7 @@ Open `PrintCosts.xlsx`, then open the VBA editor:
 - Windows: **Alt + F11**
 - Mac: **Tools → Macro → Visual Basic Editor**
 
-In the editor, **File → Import File…**, and import these twenty-four files. Order
+In the editor, **File → Import File…**, and import these twenty-seven files. Order
 does not matter.
 
 | File | What it is |
@@ -57,6 +57,7 @@ does not matter.
 | `clsStock.cls` | One paper stock |
 | `clsPrinterDef.cls` | One printer |
 | `clsDept.cls` | One department (Departments sheet) |
+| `clsColour.cls` | One colour (Consumables sheet) |
 | `clsRestoreRoom.cls` | One print room's share of a restore |
 | `modUtils.bas` | Application state, messaging, table and name access |
 | `modSettings.bas` | Typed access to the global settings |
@@ -68,6 +69,8 @@ does not matter.
 | `modLists.bas` | Dependent dropdowns |
 | `modPicker.bas` | The multi-select picker |
 | `modDepartments.bas` | The Departments sheet: build, sheet edits, and setting both disregards to Yes when a free department's name is entered on a job |
+| `modConsumables.bas` | The Consumables sheet: the colours a multi-pass printer prints with - build, ID counter, sheet edits |
+| `modPasses.bas` | Multi-pass costing: colour pass rows (add, remove, renumber, row groups), the pass buttons and column toggle, Colour dropdowns |
 | `modPlanner.bas` | The job planner box at the top of Summary: price a job, then add it to a print room |
 | `modInit.bas` | One-time setup |
 | `modMain.bas` | The button entry points |
@@ -172,12 +175,21 @@ blocks on Reports and Summary) without changing any charge. Set a department
 to Inactive rather than renaming or deleting it, so its old jobs stay grouped.
 The sheet is built by setup; there is nothing to import.
 
+**The Consumables sheet** lists the colours of a multi-pass printer (a RISO duplicator,
+for example) and what each costs per square metre; each colour belongs to a consumable
+type from the list on Settings (there is a Risograph type). On the Printers sheet set
+a printer's Colour mode to multi-pass and give it a Template cost (the set-up cost of
+one colour pass). A job on that printer then gets Add pass / Remove pass buttons above
+its table: one pass row per colour beneath the job, costed from the colour and the
+Template cost. The sheet is built by setup; there is nothing to import. Location sheets
+are not sortable or filterable; use Reports for that.
+
 **The Summary sheet's "Hide settings sheets" button** hides Print
-Technicians, Printers, Papers, Departments and Settings from the tab bar (not full Excel
+Technicians, Printers, Papers, Consumables, Departments and Settings from the tab bar (not full Excel
 protection - Unhide still reaches them). Click it again, now labelled "Show
 settings sheets", to bring them back.
 
-**Add row/Remove row/Clear table buttons** sit above the Printers, Papers, Departments and Print
+**Add row/Remove row/Clear table buttons** sit above the Printers, Papers, Consumables, Departments and Print
 Technicians tables. Removing a row never affects a print job already
 recorded against it - every job snapshots the price it was costed at.
 **Clear table** empties that one sheet's table (after a warning naming what
@@ -246,6 +258,9 @@ job IDs already carry it.
 | `test-nextid.ps1` | The persisted Job ID high-water mark: deleting the top row must not reissue its ID, and the mark must survive RefreshLocations |
 | `test-catalogids.ps1` | Site-prefixed technician/printer/paper IDs: allocated on Add row and on typed rows, never reissued after a delete, and a restore of another site's catalogue adds rows (renaming clashing names to `Name (SITE)`) instead of overwriting |
 | `test-import.ps1` | Export All Locations, and Import restoring into origin and into a different room |
+| `test-multipass.ps1` | Multi-pass costing: the Consumables sheet and a multi-pass printer, Add pass (Parent, Pass, outline levels, Template cost), colour rates and roll-up, Disregard Consumable, problems versus notices, the printer-change block, collapse/expand, removing and renumbering, Repeat job, counts, deleting a group |
+| `test-multipass-io.ps1` | Export/Import of passes (round trip, block replacement, orphan passes, a pre-0.11.0 file, an unknown colour), Re-stamp prices, a pass added mid-table, and the colours table in the backup |
+| `test-multipass-views.ps1` | Multi-pass on Reports and Summary (Passes and Set-up columns, Pass type filter, Passes sort), the pass-column toggle layered under the All / Reduced / Minimal view, Add/Remove pass greying, no sort or filter on location sheets, the planner leaving out multi-pass printers |
 | `test-departments.ps1` | The Departments sheet and table, Add row and typed rows (IDs, defaults, tidied aliases, duplicate warning), the on-entry disregard stamp (name, alias, case; Free/inactive/non-department; a hand-set value survives; re-entry re-stamps), the `_Data` Department column, the Reports filter, breakdown and Summary box reconciling to the totals |
 | `test-deletereports.ps1` | Export report (a static-value `.xlsx` snapshot) and the Reports-page bulk delete, including the audit log entry |
 | `test-suppliedstock.ps1` | Printer/paper compatibility rework: "Supplied by student" paper stock — zero Paper Cost with normal Consumable Cost, Print Width mm/Sheet size required-field enforcement, and rejection when an entered width/size exceeds the chosen printer's capacity |

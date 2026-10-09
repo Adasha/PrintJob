@@ -22,10 +22,15 @@ Option Explicit
 Public Const SUPPLIED_ROLL As String = "Supplied (Roll)"
 Public Const SUPPLIED_SHEET As String = "Supplied (Sheet)"
 
+' tblPrinters[Colour mode] values (multi-pass costing, 0.11.0). Blank = single pass.
+Public Const COLOUR_MODE_SINGLE As String = "single pass"
+Public Const COLOUR_MODE_MULTI As String = "multi-pass"
+
 Private mStocks As clsDict      ' by description
 Private mPrinters As clsDict    ' by model
 Private mTechs As clsDict       ' by name -> TechID
 Private mDepts As clsDict       ' by department Name AND by each Alias -> clsDept
+Private mColours As clsDict     ' by colour name -> clsColour (Consumables sheet)
 Private mLoaded As Boolean
 Private mDirty As Boolean       ' set alongside mLoaded=False; cleared once
                                  ' every print room's dropdowns have actually
@@ -65,6 +70,7 @@ Public Sub LoadCatalog(Optional ByVal Force As Boolean = False)
     Set mPrinters = New clsDict
     Set mTechs = New clsDict
     Set mDepts = New clsDict
+    Set mColours = New clsDict
 
     Set lo = Tbl("tblPapers")
     For i = 1 To lo.ListRows.Count
@@ -97,6 +103,12 @@ Public Sub LoadCatalog(Optional ByVal Force As Boolean = False)
             p.Model = CStr(CellIn(lo, i, "Model").Value)
             p.Consumable = CStr(CellIn(lo, i, "Consumable type").Value)
             p.RatePerM2 = NumOf(CellIn(lo, i, "Cost per m2"))
+            ' Multi-pass (0.11.0): blank or absent reads as single pass / 0, so a
+            ' printer row that predates the columns behaves exactly as before.
+            If ColumnExists(lo, "Colour mode") Then
+                p.MultiPass = (StrComp(Trim$(CStr(CellIn(lo, i, "Colour mode").Value)), COLOUR_MODE_MULTI, vbTextCompare) = 0)
+            End If
+            If ColumnExists(lo, "Template cost") Then p.TemplateCost = NumOf(CellIn(lo, i, "Template cost"))
             p.MaxRollWidthMM = NumOf(CellIn(lo, i, "Max roll width mm"))
             p.MaxSheetSize = Trim$(CStr(CellIn(lo, i, "Max sheet size").Value))
             If Len(p.MaxSheetSize) > 0 Then
@@ -125,8 +137,33 @@ Public Sub LoadCatalog(Optional ByVal Force As Boolean = False)
     Next i
 
     LoadDepartments
+    LoadColours
 
     mLoaded = True
+End Sub
+
+' Colours (the Consumables sheet). Absent table = no colours, so a workbook
+' that predates the sheet loads cleanly. Keyed by colour name, like printers
+' and papers (design decision 26a); a name used twice goes to the first row.
+Private Sub LoadColours()
+    Dim lo As ListObject, i As Long, c As clsColour, nm As String
+    Set lo = Tbl("tblColours")
+    If lo Is Nothing Then Exit Sub
+    For i = 1 To lo.ListRows.Count
+        nm = Trim$(CStr(CellIn(lo, i, "Colour").Value))
+        If Len(nm) > 0 Then
+            If Not mColours.Exists(nm) Then
+                Set c = New clsColour
+                c.ColourID = CStr(CellIn(lo, i, "ColourID").Value)
+                c.Colour = nm
+                c.ConsumableType = Trim$(CStr(CellIn(lo, i, "Consumable type").Value))
+                c.RatePerM2 = NumOf(CellIn(lo, i, "Cost per m2"))
+                c.Active = (StrComp(Trim$(CStr(CellIn(lo, i, "Active").Value)), "Yes", vbTextCompare) = 0)
+                c.Found = True
+                mColours.Add nm, c
+            End If
+        End If
+    Next i
 End Sub
 
 ' Departments (the Departments sheet). Absent table = no departments, so a
@@ -236,6 +273,44 @@ Public Function Prn(ByVal Model As String) As clsPrinterDef
     End If
 End Function
 
+' A colour by name; Found = False (never Nothing) when this workbook does not
+' define it - an imported pass row may name a colour defined only elsewhere.
+Public Function Colour(ByVal ColourName As String) As clsColour
+    LoadCatalog
+    If mColours.Exists(ColourName) Then
+        Set Colour = mColours.Obj(ColourName)
+    Else
+        Set Colour = New clsColour
+    End If
+End Function
+
+' Active colours of one consumable type, sorted - what a pass's Colour dropdown
+' offers for a printer of that type (design decision 3).
+Public Function ColoursFor(ByVal ConsumableType As String) As Collection
+    Dim out As New Collection, k As Variant, c As clsColour
+    LoadCatalog
+    For Each k In mColours.Keys()
+        Set c = mColours.Obj(CStr(k))
+        If c.Active And StrComp(c.ConsumableType, Trim$(ConsumableType), vbTextCompare) = 0 Then out.Add c.Colour
+    Next k
+    Set ColoursFor = SortedTextCollection(out)
+End Function
+
+' The model name of the printer with this PrinterID, "" if none - how a job
+' row's S_PrinterID is turned back into the printer it was stamped with.
+Public Function PrinterModelById(ByVal PrinterID As String) As String
+    Dim k As Variant, p As clsPrinterDef
+    If Len(PrinterID) = 0 Then Exit Function
+    LoadCatalog
+    For Each k In mPrinters.Keys()
+        Set p = mPrinters.Obj(CStr(k))
+        If StrComp(p.PrinterID, PrinterID, vbBinaryCompare) = 0 Then
+            PrinterModelById = p.Model
+            Exit Function
+        End If
+    Next k
+End Function
+
 Public Function TechID(ByVal TechName As String) As String
     LoadCatalog
     TechID = CStr(mTechs.Item(TechName))
@@ -262,6 +337,8 @@ Public Function Compatible(ByVal Model As String, ByVal Description As String) A
     If Not s.Found Then Exit Function
 
     If s.Measure = "Roll" Then
+        ' Multi-pass costing is sheet stock only (design decision 9).
+        If p.MultiPass Then Exit Function
         If p.MaxRollWidthMM <= 0 Then Exit Function
         If s.PerJobSize Then
             Compatible = True
@@ -297,7 +374,7 @@ End Function
 ' a size fit rather than a family list.
 Public Function CapacityText(ByVal p As clsPrinterDef) As String
     Dim parts As String
-    If p.MaxRollWidthMM > 0 Then parts = "roll stock up to " & Format$(p.MaxRollWidthMM, "#,##0") & " mm wide"
+    If p.MaxRollWidthMM > 0 And Not p.MultiPass Then parts = "roll stock up to " & Format$(p.MaxRollWidthMM, "#,##0") & " mm wide"
     If Len(p.MaxSheetSize) > 0 Then
         If Len(parts) > 0 Then parts = parts & " or "
         parts = parts & "sheet stock up to " & p.MaxSheetSize
@@ -601,6 +678,8 @@ Public Function CatalogIdSpec(ByVal TableName As String, ByRef IdHeader As Strin
             IdHeader = "StockID": Code = "STK": NameHeader = "Description": HwmKey = "STOCK_ID_HWM"
         Case "tblDepartments"
             IdHeader = "DeptID": Code = "DEP": NameHeader = "Name": HwmKey = "DEPT_ID_HWM"
+        Case "tblColours"
+            IdHeader = "ColourID": Code = "CLR": NameHeader = "Colour": HwmKey = "COLOUR_ID_HWM"
         Case Else
             Exit Function
     End Select
@@ -819,6 +898,9 @@ Private Sub ClearTableInfo(ByVal TableName As String, ByRef Label As String, ByR
         Case "tblDepartments"
             Label = "Departments": KeyHdr = "Name"
             Extra = "Jobs already recorded for these departments stay as they are, but Reports and Summary can no longer group them under a department." & vbCrLf
+        Case "tblColours"
+            Label = "Consumables (colours)": KeyHdr = "Colour"
+            Extra = "Pass rows already recorded keep their stamped ink rate, but their colour will no longer be found here." & vbCrLf
         Case "tblPapers"
             Label = "Papers": KeyHdr = "Description"
             Extra = "The built-in 'Supplied (Roll)' and 'Supplied (Sheet)' stocks are not stored here and stay available." & vbCrLf

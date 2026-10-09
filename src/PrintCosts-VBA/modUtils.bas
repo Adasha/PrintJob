@@ -19,7 +19,12 @@ Public Const MARKER_CELL As String = "AZ1"
 ' Measure (Sheet/Roll) is now the only such attribute, and S_Measure already
 ' snapshots it. Records exported at 1.2 still import: columns are read by
 ' header name, so the extra S_Family column is simply ignored.
-Public Const SCHEMA_VER As String = "1.3"
+' 1.4 (multi-pass costing, 0.11.0): the job table gained Passes, Colour,
+' Set-up Cost, Row Type, Parent, Pass and the S_SetupCost / S_ColourID
+' snapshots (plus the hidden H_Ink, H_Setup and H_Notices working columns).
+' Records exported at 1.3 still import: the missing columns read as a Job row
+' with no passes and no set-up cost.
+Public Const SCHEMA_VER As String = "1.4"
 Public Const JOBS_PREFIX As String = "tblJobs_"
 Public Const LIST_SEP As String = ";"
 

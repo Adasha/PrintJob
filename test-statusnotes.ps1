@@ -93,11 +93,15 @@ try {
     elseif ($lastStatus.DisplayFormat.Interior.Color -ne 49407) { Write-Host "FAIL: incomplete row Status is not amber (fill $($lastStatus.DisplayFormat.Interior.Color))"; $failed++ }
     else { Write-Host "OK: the incomplete row's Status ('$($lastStatus.Text)') is shown amber" }
 
-    # Re-running setup must not stack a second rule.
+    # Re-running setup must not stack a second rule. Since 0.11.0 the Status column carries
+    # three: the amber problem rule, the yellow notice rule and the pass-row shading that covers
+    # the whole table body - so the check is that the count does not change, not that it is 1.
+    $cntBefore = $wb.Worksheets('Example Print Room').ListObjects('tblJobs_MAIN').ListColumns('Status').DataBodyRange.FormatConditions.Count
+    if ($cntBefore -lt 2) { Write-Host "FAIL: Status has only $cntBefore rules (expected problem + notice + shading)"; $failed++ }
     $xl.Run('InitialiseWorkbook')
     $cnt2 = $wb.Worksheets('Example Print Room').ListObjects('tblJobs_MAIN').ListColumns('Status').DataBodyRange.FormatConditions.Count
-    if ($cnt2 -ne 1) { Write-Host "FAIL: Status has $cnt2 rules after a second InitialiseWorkbook (expected 1)"; $failed++ }
-    else { Write-Host 'OK: re-running InitialiseWorkbook leaves one Status rule' }
+    if ($cnt2 -ne $cntBefore) { Write-Host "FAIL: Status has $cnt2 rules after a second InitialiseWorkbook (expected $cntBefore)"; $failed++ }
+    else { Write-Host "OK: re-running InitialiseWorkbook leaves the same $cnt2 Status rules" }
 }
 finally {
     if ($wb) { $wb.Close($false) }

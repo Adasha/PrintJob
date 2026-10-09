@@ -157,7 +157,21 @@ try {
     $null = Ensure-Col $plo 'Colour mode'   ((Col $plo 'Cost per m2').Index + 1) 'Consumable type'
     $null = Ensure-Col $plo 'Template cost' ((Col $plo 'Colour mode').Index + 1) 'Cost per m2'
     Restore-Widths $plo $prnW
-    (Col $plo 'Colour mode').DataBodyRange.Value2 = 'single pass'
+    foreach ($cell in (Col $plo 'Colour mode').DataBodyRange.Cells) { if (-not $cell.Value2) { $cell.Value2 = 'single pass' } }
+    $v = (Col $plo 'Colour mode').DataBodyRange.Validation
+    $v.Delete()
+    $v.Add(3, 1, 1, 'single pass,multi-pass')       # xlValidateList, xlValidAlertStop, xlBetween
+    $v.InputTitle = 'Colour mode'
+    $v.InputMessage = 'single pass: one flat Cost per m2, as always. multi-pass (a RISO duplicator, say): each job is printed in several colour passes, costed from the Consumables sheet, and each pass costs the Template cost to set up.'
+    $v.ErrorTitle = 'Colour mode'
+    $v.ErrorMessage = 'Choose single pass or multi-pass.'
+    $v = (Col $plo 'Template cost').DataBodyRange.Validation
+    $v.Delete()
+    $v.Add(2, 1, 7, '0')                            # xlValidateDecimal, xlValidAlertStop, xlGreaterEqual
+    $v.InputTitle = 'Template cost'
+    $v.InputMessage = 'Multi-pass printers only: what it costs to set up one colour pass (making a RISO master, for example). Charged once per pass, however many copies are run. Leave blank for none.'
+    $v.ErrorTitle = 'Template cost'
+    $v.ErrorMessage = 'Enter a number, zero or more.'
     (Col $plo 'Colour mode').Range.EntireColumn.ColumnWidth = [double]14
     (Col $plo 'Template cost').Range.EntireColumn.ColumnWidth = [double]14
 
