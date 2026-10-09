@@ -103,6 +103,8 @@ Public Sub InitialiseWorkbook()
     ' stamp the build date - that is build.ps1's job, via StampBuild.
     StampVersionSettings
     EnsureSuppliedColumnValidation
+    ' The Departments sheet (modDepartments) is likewise built here, not shipped.
+    EnsureDepartmentsSheet
 
     ' Runs before the per-sheet loop, not after it (2026-09-27). Row heights
     ' have to be settled before anything is positioned from them, and the
@@ -161,6 +163,11 @@ Public Sub InitialiseWorkbook()
             DrawOne ws, 4, 1, "Add row", "btnAddRowTechnicians", 110
             DrawOne ws, 4, 3, "Remove row", "btnRemoveRowTechnicians", 110
             DrawOne ws, 4, 5, "Clear table", "btnClearTechnicians", 110
+            SetFreeze ws, ""
+        ElseIf StrComp(ws.Name, "Departments", vbTextCompare) = 0 Then
+            DrawOne ws, 4, 1, "Add row", "btnAddRowDepartments", 110
+            DrawOne ws, 4, 3, "Remove row", "btnRemoveRowDepartments", 110
+            DrawOne ws, 4, 5, "Clear table", "btnClearDepartments", 110
             SetFreeze ws, ""
         ElseIf StrComp(ws.Name, "Settings", vbTextCompare) = 0 Then
             ' Buttons sit in a band ABOVE the tables (2026-10-02, direct user
@@ -1127,7 +1134,7 @@ End Sub
 ' "Print Technicians" is the sheet's real name (ThisWorkbook.cls Case list) -
 ' the snag list's "Technicians" is shorthand for it.
 Private Function ConfigSheetNames() As Variant
-    ConfigSheetNames = Array("Print Technicians", "Printers", "Papers", "Settings")
+    ConfigSheetNames = Array("Print Technicians", "Printers", "Papers", "Departments", "Settings")
 End Function
 
 ' Config sheets ship in the .xlsx with every cell at Excel's default Locked
@@ -1141,6 +1148,7 @@ Private Sub UnlockConfigInputs()
     UnlockTableBody "tblTechnicians"
     UnlockTableBody "tblPrinters"
     UnlockTableBody "tblPapers"
+    UnlockTableBody "tblDepartments"
     UnlockTableBody "tblPaperTypes"
     UnlockTableBody "tblStandardSizes"
     UnlockTableBody "tblConsumables"
@@ -1161,6 +1169,11 @@ Private Sub UnlockTableBody(ByVal TableName As String)
     ' from the row above it, and Setup re-applies it on every run.
     If CatalogIdSpec(TableName, idHdr, idCode, nameHdr, hwmKey) Then
         lo.ListColumns(idHdr).DataBodyRange.Locked = True
+    End If
+    ' tblDepartments' "Match list" is a calculated column the Department
+    ' lookup on _Data reads; nobody types into it.
+    If StrComp(TableName, "tblDepartments", vbTextCompare) = 0 Then
+        If ColumnExists(lo, "Match list") Then lo.ListColumns("Match list").DataBodyRange.Locked = True
     End If
     RelockSheet lo.Parent
 End Sub

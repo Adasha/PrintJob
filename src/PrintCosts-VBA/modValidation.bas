@@ -50,7 +50,12 @@ Public Function OnCellChanged(ByVal ws As Worksheet, ByVal Target As Range) As B
             OnWidthChanged ws, lo, n
         Case "Sheet size"
             OnSheetSizeChanged ws, lo, n
-        Case "Student Name", "Student No"
+        Case "Student Name"
+            ' A free department's name sets both disregards to Yes, once, now -
+            ' see modDepartments. Never re-applied by anything else.
+            StampDepartmentDisregards lo, n
+            CheckStudent ws, lo, n
+        Case "Student No"
             CheckStudent ws, lo, n
         Case "Technician"
             StampRow ws, n

@@ -48,7 +48,7 @@ Open `PrintCosts.xlsx`, then open the VBA editor:
 - Windows: **Alt + F11**
 - Mac: **Tools → Macro → Visual Basic Editor**
 
-In the editor, **File → Import File…**, and import these twenty-two files. Order
+In the editor, **File → Import File…**, and import these twenty-four files. Order
 does not matter.
 
 | File | What it is |
@@ -56,6 +56,7 @@ does not matter.
 | `clsDict.cls` | Keyed store — replaces `Scripting.Dictionary`, which does not exist on Mac |
 | `clsStock.cls` | One paper stock |
 | `clsPrinterDef.cls` | One printer |
+| `clsDept.cls` | One department (Departments sheet) |
 | `clsRestoreRoom.cls` | One print room's share of a restore |
 | `modUtils.bas` | Application state, messaging, table and name access |
 | `modSettings.bas` | Typed access to the global settings |
@@ -66,6 +67,7 @@ does not matter.
 | `modValidation.bas` | Entry-time checks and the workbook sweep |
 | `modLists.bas` | Dependent dropdowns |
 | `modPicker.bas` | The multi-select picker |
+| `modDepartments.bas` | The Departments sheet: build, sheet edits, and setting both disregards to Yes when a free department's name is entered on a job |
 | `modPlanner.bas` | The job planner box at the top of Summary: price a job, then add it to a print room |
 | `modInit.bas` | One-time setup |
 | `modMain.bas` | The button entry points |
@@ -78,7 +80,7 @@ does not matter.
 
 If you are on a Mac this list is the whole build, so a missing module is not a
 documentation slip - it is a project that will not compile at step 3. Check you
-imported twenty-two.
+imported twenty-four.
 
 `ThisWorkbook.cls` is the exception: it **cannot be imported**, because every
 workbook already has a `ThisWorkbook` object. Open `ThisWorkbook.cls` in a text
@@ -160,12 +162,22 @@ value on the Settings sheet to send CSV exports and report snapshots
 somewhere else instead - it only takes effect if that folder already exists
 on the computer running Excel.
 
+**The Departments sheet** lists other departments whose print jobs are tracked
+but not charged. Give a department a Name (and optional Aliases, separated by
+`;`) and set Free to Yes: when that name is then typed as a job's Student Name,
+both Disregard columns are set to Yes, so the job is costed but not charged. You
+can still change either by hand afterwards - it is applied once, on entry. Free =
+No recognises the department for Reports (Department filter, By department
+blocks on Reports and Summary) without changing any charge. Set a department
+to Inactive rather than renaming or deleting it, so its old jobs stay grouped.
+The sheet is built by setup; there is nothing to import.
+
 **The Summary sheet's "Hide settings sheets" button** hides Print
-Technicians, Printers, Papers and Settings from the tab bar (not full Excel
+Technicians, Printers, Papers, Departments and Settings from the tab bar (not full Excel
 protection - Unhide still reaches them). Click it again, now labelled "Show
 settings sheets", to bring them back.
 
-**Add row/Remove row/Clear table buttons** sit above the Printers, Papers and Print
+**Add row/Remove row/Clear table buttons** sit above the Printers, Papers, Departments and Print
 Technicians tables. Removing a row never affects a print job already
 recorded against it - every job snapshots the price it was costed at.
 **Clear table** empties that one sheet's table (after a warning naming what
@@ -234,6 +246,7 @@ job IDs already carry it.
 | `test-nextid.ps1` | The persisted Job ID high-water mark: deleting the top row must not reissue its ID, and the mark must survive RefreshLocations |
 | `test-catalogids.ps1` | Site-prefixed technician/printer/paper IDs: allocated on Add row and on typed rows, never reissued after a delete, and a restore of another site's catalogue adds rows (renaming clashing names to `Name (SITE)`) instead of overwriting |
 | `test-import.ps1` | Export All Locations, and Import restoring into origin and into a different room |
+| `test-departments.ps1` | The Departments sheet and table, Add row and typed rows (IDs, defaults, tidied aliases, duplicate warning), the on-entry disregard stamp (name, alias, case; Free/inactive/non-department; a hand-set value survives; re-entry re-stamps), the `_Data` Department column, the Reports filter, breakdown and Summary box reconciling to the totals |
 | `test-deletereports.ps1` | Export report (a static-value `.xlsx` snapshot) and the Reports-page bulk delete, including the audit log entry |
 | `test-suppliedstock.ps1` | Printer/paper compatibility rework: "Supplied by student" paper stock — zero Paper Cost with normal Consumable Cost, Print Width mm/Sheet size required-field enforcement, and rejection when an entered width/size exceeds the chosen printer's capacity |
 | `run-tests.ps1` | Runs every `test-*.ps1` in turn and prints one line per script; `-Only` takes name fragments. Logs land in `%TEMP%\testrun-<Label>` |

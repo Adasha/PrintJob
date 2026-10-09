@@ -28,11 +28,13 @@ Option Explicit
 
 Private Const CSV_UTF8 As Long = 62         ' xlCSVUTF8
 
-' The seven catalogue/configuration tables this backs up. Settings is one of
+' The eight catalogue/configuration tables this backs up. Settings is one of
 ' them, not a separate mechanism - modUtils.Tbl finds it on the Settings
-' sheet exactly like the other three lookup tables there.
+' sheet exactly like the other three lookup tables there. tblDepartments
+' (0.10.30) is the newest; a backup taken before it simply has no file for it,
+' and a restore skips any table the backup lacks.
 Private Function CatalogTableNames() As Variant
-    CatalogTableNames = Array("tblTechnicians", "tblPrinters", "tblPapers", _
+    CatalogTableNames = Array("tblTechnicians", "tblPrinters", "tblPapers", "tblDepartments", _
         "tblPaperTypes", "tblStandardSizes", "tblConsumables", "tblSettings")
 End Function
 
@@ -48,6 +50,7 @@ Private Function CatalogKeyHeader(ByVal TableName As String) As String
         Case "tblTechnicians":   CatalogKeyHeader = "TechID"
         Case "tblPrinters":      CatalogKeyHeader = "PrinterID"
         Case "tblPapers":        CatalogKeyHeader = "StockID"
+        Case "tblDepartments":   CatalogKeyHeader = "DeptID"
         Case "tblPaperTypes":    CatalogKeyHeader = "Paper type"
         Case "tblStandardSizes": CatalogKeyHeader = "Size name"
         Case "tblConsumables":   CatalogKeyHeader = "Consumable type"
@@ -94,7 +97,7 @@ Public Sub BackupAll()
     Next i
     AppOn
 
-    why = done & " configuration table" & IIf(done = 1, "", "s") & " backed up (Technicians, Printers, Papers, the four Settings-page lookup tables, and Settings itself)."
+    why = done & " configuration table" & IIf(done = 1, "", "s") & " backed up (Technicians, Printers, Papers, Departments, the three Settings-page lookup tables, and Settings itself)."
     If Len(failed) > 0 Then why = why & vbCrLf & vbCrLf & "Could not be backed up:" & vbCrLf & failed
 
     Say "Catalogue backup complete.", why, _

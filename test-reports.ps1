@@ -169,7 +169,7 @@ try {
     Write-Host ''
     Write-Host '=== Reports: filter block layout (2026-10-02) ==='
     $expect = [ordered]@{
-        A4 = 'Student/dept. name'; A5 = 'Student number'; A7 = 'From date'; A8 = 'To date'; A10 = 'Min cost'; A11 = 'Max cost'; A12 = 'Paid'
+        A4 = 'Student/dept. name'; A5 = 'Student number'; A6 = 'Department'; A7 = 'From date'; A8 = 'To date'; A10 = 'Min cost'; A11 = 'Max cost'; A12 = 'Paid'
         D4 = 'Location (print room)'; D5 = 'Technician'; D7 = 'Printer'; D8 = 'Paper stock'; D9 = 'Paper type'; D10 = 'Student-supplied paper'
         A14 = 'Has a problem'; D14 = 'Has notes'; A15 = 'Disregarded'
         H7 = 'Sort by'; J7 = 'Sort direction'
@@ -177,7 +177,7 @@ try {
     foreach ($k in $expect.Keys) {
         Check ([string]$c.Range($k).Text -eq $expect[$k]) "$k reads '$($expect[$k])' (got '$($c.Range($k).Text)')"
     }
-    foreach ($k in 'A6', 'D6', 'A9', 'B9', 'D11', 'A16', 'D16') {
+    foreach ($k in 'D6', 'A9', 'B9', 'A16', 'D16') {
         Check ([string]$c.Range($k).Text -eq '') "$k is a blank gap row (got '$($c.Range($k).Text)')"
     }
 

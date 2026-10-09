@@ -48,7 +48,7 @@ Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)
             PlannerChanged Sh, Target
             Application.EnableEvents = True
             Exit Sub
-        Case "Papers", "Printers", "Print Technicians", "Settings"
+        Case "Papers", "Printers", "Print Technicians", "Departments", "Settings"
             Invalidate
             ' Fills Width/Height from a chosen standard size and defaults
             ' Active - see modCatalog.OnPaperEdited. Events off: it writes cells.
@@ -65,6 +65,11 @@ Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)
             ElseIf Sh.Name = "Print Technicians" Then
                 Application.EnableEvents = False
                 OnCatalogEdited "tblTechnicians", Target
+                Application.EnableEvents = True
+            ElseIf Sh.Name = "Departments" Then
+                ' ID, Active/Free defaults, tidy aliases, clash warning - modDepartments.
+                Application.EnableEvents = False
+                OnDepartmentEdited Target
                 Application.EnableEvents = True
             End If
             Exit Sub
@@ -123,7 +128,7 @@ Private Sub Workbook_SheetDeactivate(ByVal Sh As Object)
     If Not CatalogDirty() Then Exit Sub
 
     Select Case Sh.Name
-        Case "Papers", "Printers", "Print Technicians", "Settings"
+        Case "Papers", "Printers", "Print Technicians", "Departments", "Settings"
             AppOff
             RebindAllLocationDropdowns
             ClearCatalogDirty

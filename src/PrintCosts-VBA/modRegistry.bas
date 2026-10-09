@@ -498,10 +498,33 @@ Private Sub WriteConsolidated(ByVal sheets As Collection, ByVal codes As clsDict
     ' .Formula2 is required. Writing a dynamic array through .Formula applies
     ' implicit intersection and silently stores a single value.
     dws.Cells(DATA_ROW, 1).Formula2 = "=LET(raw,VSTACK(" & blocks & _
-        "),IFERROR(FILTER(raw,INDEX(raw,,2)<>""""),""""))"
+        "),kept,IFERROR(FILTER(raw,INDEX(raw,,2)<>""""),"""")," & DepartmentTail(JobsTable(sheets(1))) & ")"
 
     RelockSheet dws
 End Sub
+
+' The last argument of the consolidated LET: `kept` with one more column
+' appended, "Department" (0.10.30) - the Departments sheet's Name for a job
+' whose Student Name equals a department's Name or one of its Aliases (the
+' hidden, lower-cased `Match list` column holds ";name;alias;" for each row),
+' and blank for everyone else. FIND, not SEARCH, on lower-cased text: SEARCH
+' treats * and ? in a name as wildcards. This is THE place a job is tied to a
+' department for reporting - the formula twin of modCatalog.DepartmentFor -
+' so a real Department column on the job row would replace just this.
+' Reports and Summary read it by header like any other column.
+Private Function DepartmentTail(ByVal lo As ListObject) As String
+    Dim sn As Long
+    If Tbl("tblDepartments") Is Nothing Then
+        DepartmentTail = "kept"
+        Exit Function
+    End If
+    ' Student Name's column in `raw`: its offset within the job-table span, +1
+    ' for the Location column HSTACKed in front.
+    sn = ColIdx(lo, "Student Name") - ColIdx(lo, FIRST_JOB_COL) + 2
+    DepartmentTail = "IFERROR(HSTACK(kept,MAP(INDEX(kept,," & sn & ")," & _
+        "LAMBDA(n,IF(TRIM(n&"""")="""","""",IFERROR(INDEX(tblDepartments[Name]," & _
+        "MATCH(TRUE,ISNUMBER(FIND("";""&LOWER(TRIM(n&""""))&"";"",tblDepartments[Match list])),0)),""""))))),kept)"
+End Function
 
 ' One location's rows for the consolidated range, in metres. A Centimetres
 ' room's roll rows carry Unit "cm" and a Qty in centimetres (the roll length
@@ -532,6 +555,8 @@ Private Sub WriteHeaders(ByVal dws As Worksheet, ByVal lo As ListObject)
     For i = c1 To c2
         dws.Cells(HDR_ROW, i - c1 + 2).Value = lo.HeaderRowRange.Cells(1, i).Value
     Next i
+    ' The computed column after the last job column - see DepartmentTail.
+    dws.Cells(HDR_ROW, c2 - c1 + 3).Value = "Department"
     dws.Rows(HDR_ROW).Font.Bold = True
 End Sub
 

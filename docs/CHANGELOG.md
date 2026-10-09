@@ -3,6 +3,33 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.10.30 - Departments: other departments' jobs are tracked, and free ones are not charged.
+  - New "Departments" sheet (after Papers; modDepartments, clsDept, tblDepartments):
+    DeptID, Name, Aliases (separated by ;), Free (Yes/No, default No), Active,
+    Notes, a hidden Match list, and four grey RESERVED columns (Dis Paper %,
+    Dis Cons %, Allowance, Allowance period) that nothing reads yet. Add row /
+    Remove row / Clear table like the other catalogues; DeptIDs are SITE-DEP-0001
+    from a new DEPT_ID_HWM Settings row (the one row setup adds itself).
+  - Entering a job's Student Name that matches an Active, Free department's Name
+    or an Alias (any case, extra spaces ignored) sets Disregard Paper and
+    Disregard Consumable to Yes. The job is still costed: Gross is unchanged,
+    Disregarded equals Gross, Chargeable is 0. Applied once, on entry; change
+    either flag by hand and it stays (nothing re-applies it - not other edits,
+    Student No, Repeat job, import, the Planner or a multi-cell paste). Moving to
+    a name that is not a free department leaves the flags alone. Free = No
+    departments are recognised for reporting only.
+  - One lookup ties a job to a department: modCatalog.DepartmentFor (entry) and
+    its formula twin, a computed Department column on _Data (reporting). A
+    later real Department column on the job row only has to replace those two.
+  - Reports: Department filter (B6, directly under Student number, in the old
+    blank gap row; dropdown of every department, active or not) and a By department block beside the other breakdowns. Summary: a By
+    department box (I5:M21) beside the planner, with an Everyone else line that
+    reconciles it to the totals. No change to the Summary table position.
+  - Backup / restore carry tblDepartments (a backup without it restores fine).
+  - Deactivate rather than rename or delete a department: jobs are classified by
+    name when read, not frozen on the row.
+  - Tests: new test-departments.ps1; the backup tests now expect 8 catalogue CSVs.
+
 0.10.29 - Summary: a job planner box at the top (price a job before committing to it).
   - New module modPlanner. The box (A5:F21, boxed out with a navy title band)
     has Printer, Paper, Roll length (metres) / Number of sheets, Print width mm
