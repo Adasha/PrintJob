@@ -168,7 +168,73 @@ Public Sub BuildSummary()
     FormatSummaryErrors ws
     DrawLegend ws
     BuildPlanner ws
+    BuildDeptBox ws
     RelockSheet ws
+End Sub
+
+' --- by department (0.10.30) -----------------------------------------------
+' A small box beside the job planner (I5:M21): each department that has jobs,
+' with its Jobs / Gross / Disregarded / Chargeable, and an "Everyone else" line
+' for the jobs that are not a department's. It reads the Department column of
+' _Data (modRegistry.WriteConsolidated), so it is pure formula - nothing to
+' refresh. Placed beside, not under, the Summary spill (the spill's height is
+' unknown); capped at 14 departments so it can never run into the totals row,
+' with the title saying so if there are more (Reports has the full breakdown).
+Private Sub BuildDeptBox(ByVal ws As Worksheet)
+    Const TOP_ROW As Long = 5
+    Const HDR_R As Long = 6
+    Const FIRST_R As Long = 7
+    Const ELSE_R As Long = 21
+    Const CAP As Long = 14
+    Dim dept As String, names As String, box As Range
+
+    dept = C("Department")
+    names = "UNIQUE(FILTER(" & dept & "," & dept & "<>""""))"
+
+    Set box = ws.Range("I" & TOP_ROW & ":M" & ELSE_R)
+    box.Interior.Color = RGB(238, 243, 250)
+    With ws.Range("I" & TOP_ROW & ":M" & TOP_ROW)
+        .Interior.Color = RGB(31, 56, 100)
+        .Font.Color = RGB(255, 255, 255)
+        .Font.Bold = True
+        .Font.Size = 12
+    End With
+    ws.Range("I" & TOP_ROW).Formula2 = "=IFERROR(IF(ROWS(" & names & ")>" & CAP & _
+        ",""By department (first " & CAP & " of ""&ROWS(" & names & ")&"")"",""By department""),""By department"")"
+
+    ws.Range("I" & HDR_R).Value = "Department"
+    ws.Range("J" & HDR_R).Value = "Jobs"
+    ws.Range("K" & HDR_R).Value = "Gross"
+    ws.Range("L" & HDR_R).Value = "Disregarded"
+    ws.Range("M" & HDR_R).Value = "Chargeable"
+    With ws.Range("I" & HDR_R & ":M" & HDR_R)
+        .Font.Bold = True
+        .Borders(xlEdgeBottom).LineStyle = xlContinuous
+        .Borders(xlEdgeBottom).Color = RGB(150, 160, 175)
+    End With
+    ws.Range("J" & HDR_R & ":M" & HDR_R).HorizontalAlignment = xlRight
+
+    ' The names, then one spilled column per figure aligned to them.
+    ws.Range("I" & FIRST_R).Formula2 = "=IFERROR(TAKE(SORT(" & names & ")," & CAP & "),"""")"
+    ws.Range("J" & FIRST_R).Formula2 = "=IFERROR(IF(I" & FIRST_R & "#="""","""",COUNTIFS(" & dept & ",I" & FIRST_R & "#)),"""")"
+    ws.Range("K" & FIRST_R).Formula2 = "=IFERROR(IF(I" & FIRST_R & "#="""","""",SUMIFS(" & C("Gross Cost") & "," & dept & ",I" & FIRST_R & "#)),"""")"
+    ws.Range("L" & FIRST_R).Formula2 = "=IFERROR(IF(I" & FIRST_R & "#="""","""",SUMIFS(" & C("Disregarded") & "," & dept & ",I" & FIRST_R & "#)),"""")"
+    ws.Range("M" & FIRST_R).Formula2 = "=IFERROR(IF(I" & FIRST_R & "#="""","""",SUMIFS(" & C("Chargeable Cost") & "," & dept & ",I" & FIRST_R & "#)),"""")"
+
+    ws.Range("I" & ELSE_R).Value = "Everyone else"
+    ws.Range("J" & ELSE_R).Formula2 = "=IFERROR(COUNTIFS(" & dept & ",""""," & C("Job ID") & ",""<>""),0)"
+    ws.Range("K" & ELSE_R).Formula2 = "=IFERROR(SUMIFS(" & C("Gross Cost") & "," & dept & ",""""),0)"
+    ws.Range("L" & ELSE_R).Formula2 = "=IFERROR(SUMIFS(" & C("Disregarded") & "," & dept & ",""""),0)"
+    ws.Range("M" & ELSE_R).Formula2 = "=IFERROR(SUMIFS(" & C("Chargeable Cost") & "," & dept & ",""""),0)"
+    With ws.Range("I" & ELSE_R & ":M" & ELSE_R)
+        .Font.Bold = True
+        .Borders(xlEdgeTop).LineStyle = xlContinuous
+        .Borders(xlEdgeTop).Color = RGB(150, 160, 175)
+    End With
+
+    ws.Range("J" & FIRST_R & ":J" & ELSE_R).NumberFormat = "#,##0"
+    ws.Range("K" & FIRST_R & ":M" & ELSE_R).NumberFormat = CurrencyFormatCode()
+    ws.Columns("I").ColumnWidth = 24
 End Sub
 
 Private Sub FormatSummary(ByVal ws As Worksheet)
@@ -353,6 +419,10 @@ Private Function Criteria() As String
     ' $F$4 (2026-09-27, see its CritCell call site) once Technician/Printer/
     ' Paper Stock shifted down a row and freed it.
     s = s & "*IF($F$4="""",TRUE," & C("Location") & "=$F$4)"
+    ' Department (0.10.30): the _Data Department column, which is the Departments
+    ' sheet's Name for a job whose Student Name matches it (modRegistry.
+    ' WriteConsolidated) and blank otherwise. Exact match, from a dropdown.
+    s = s & "*IF($F$11="""",TRUE," & C("Department") & "=$F$11)"
 
     Criteria = s
 End Function
@@ -490,6 +560,7 @@ Public Sub BuildReports()
     ' Supplied stocks or a Papers row marked Supplied by student; No = any
     ' other stock. Row 11 on this side is now empty (Has notes moved to the
     ' More filters row below).
+    CritCell ws, "D11", "F11", "Department"
     CritCell ws, "D10", "F10", "Student-supplied paper"
     AddList ws.Range("F10"), """Yes"",""No""", "Student-supplied paper", "Yes shows only jobs on paper the student supplied (Supplied (Roll), Supplied (Sheet) or a Papers row marked Supplied by student), No only jobs on stock the print room supplied. Leave blank to include both."
 
@@ -739,6 +810,12 @@ Private Sub BuildBreakdowns(ByVal ws As Worksheet, ByVal ok As String)
     ws.Range(c2 & REP_HDR_ROW).Font.Bold = True
     ws.Range(c2 & REP_FIRST_ROW).Formula2 = GroupFormula(ok, "Paper Stock")
 
+    ' By department (0.10.30): only jobs that ARE a department's - a blank
+    ' Department (an ordinary student) would otherwise show as an empty key.
+    ws.Range(RepCol(28) & REP_HDR_ROW).Value = "By department"
+    ws.Range(RepCol(28) & REP_HDR_ROW).Font.Bold = True
+    ws.Range(RepCol(28) & REP_FIRST_ROW).Formula2 = GroupFormula("(" & ok & ")*(" & C("Department") & "<>"""")", "Department")
+
     ' Each block spills as key | Jobs | Gross | Chargeable, so the money
     ' columns are the third and fourth - Jobs is a count and must not be
     ' formatted as currency.
@@ -746,6 +823,8 @@ Private Sub BuildBreakdowns(ByVal ws As Worksheet, ByVal ok As String)
     ws.Range(RepCol(22) & REP_FIRST_ROW + 1 & ":" & RepCol(23) & "2000").NumberFormat = CurrencyFormatCode()
     ws.Range(RepCol(25) & REP_FIRST_ROW + 1 & ":" & RepCol(25) & "2000").NumberFormat = "#,##0"
     ws.Range(RepCol(26) & REP_FIRST_ROW + 1 & ":" & RepCol(27) & "2000").NumberFormat = CurrencyFormatCode()
+    ws.Range(RepCol(29) & REP_FIRST_ROW + 1 & ":" & RepCol(29) & "2000").NumberFormat = "#,##0"
+    ws.Range(RepCol(30) & REP_FIRST_ROW + 1 & ":" & RepCol(31) & "2000").NumberFormat = CurrencyFormatCode()
 End Sub
 
 ' Group the filtered records by one column. SUMIFS cannot be used here: its
@@ -803,6 +882,7 @@ Private Sub FormatReports(ByVal ws As Worksheet)
     ws.Columns(RepCol(14)).ColumnWidth = ColWidthForPx(140)
     ws.Columns(RepCol(20)).ColumnWidth = 22
     ws.Columns(RepCol(24)).ColumnWidth = 22
+    ws.Columns(RepCol(28)).ColumnWidth = 22
     ws.Rows(REP_HDR_ROW).Font.Bold = True
 End Sub
 
@@ -1176,7 +1256,7 @@ End Function
 ' The filter boxes, by kind. Sort by and Sort direction are not filters and
 ' are in none of them.
 Private Function TextFilterCells() As Variant
-    TextFilterCells = Array("B4", "B5", "B12", "B14", "B15", "F4", "F5", "F7", "F8", "F9", "F10", "F14")
+    TextFilterCells = Array("B4", "B5", "B12", "B14", "B15", "F4", "F5", "F7", "F8", "F9", "F10", "F11", "F14")
 End Function
 
 Private Function DateFilterCells() As Variant
@@ -2010,6 +2090,11 @@ Public Sub RefreshReportFilterLists(ByVal ws As Worksheet)
     ' BuildReports' CritCell call site.
     ApplyTo ws, ws.Range("F4"), AllLocationCodes(), "REP|Location", _
         "Location (print room)", "Choose a print room, or leave blank to include all."
+
+    ' Department (0.10.30): every department on the Departments sheet, active
+    ' or not - an old job for a deactivated one must still be findable.
+    ApplyTo ws, ws.Range("F11"), AllDepartments(), "REP|Department", _
+        "Department", "Choose a department to see only its jobs, or leave blank to include all."
 End Sub
 
 ' Distinct, sorted, non-blank values of one column of the consolidated range,

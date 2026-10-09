@@ -234,6 +234,7 @@ job IDs already carry it.
 | `test-nextid.ps1` | The persisted Job ID high-water mark: deleting the top row must not reissue its ID, and the mark must survive RefreshLocations |
 | `test-catalogids.ps1` | Site-prefixed technician/printer/paper IDs: allocated on Add row and on typed rows, never reissued after a delete, and a restore of another site's catalogue adds rows (renaming clashing names to `Name (SITE)`) instead of overwriting |
 | `test-import.ps1` | Export All Locations, and Import restoring into origin and into a different room |
+| `test-departments.ps1` | The Departments sheet and table, Add row and typed rows (IDs, defaults, tidied aliases, duplicate warning), the on-entry disregard stamp (name, alias, case; Free/inactive/non-department; a hand-set value survives; re-entry re-stamps), the `_Data` Department column, the Reports filter, breakdown and Summary box reconciling to the totals |
 | `test-deletereports.ps1` | Export report (a static-value `.xlsx` snapshot) and the Reports-page bulk delete, including the audit log entry |
 | `test-suppliedstock.ps1` | Printer/paper compatibility rework: "Supplied by student" paper stock — zero Paper Cost with normal Consumable Cost, Print Width mm/Sheet size required-field enforcement, and rejection when an entered width/size exceeds the chosen printer's capacity |
 | `run-tests.ps1` | Runs every `test-*.ps1` in turn and prints one line per script; `-Only` takes name fragments. Logs land in `%TEMP%\testrun-<Label>` |

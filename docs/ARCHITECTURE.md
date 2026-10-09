@@ -481,7 +481,8 @@ Two report sheets: **Summary** (at-a-glance totals) and **Reports** (filterable 
   VSTACK(
     HSTACK(IF(SEQUENCE(ROWS(tblJobs_MAIN[Date/Time]))>0,"MAIN"),  tblJobs_MAIN[[Date/Time]:[Notes]]),
     HSTACK(IF(SEQUENCE(ROWS(tblJobs_ANNEX[Date/Time]))>0,"ANNEX"), tblJobs_ANNEX[[Date/Time]:[Notes]])),
-  IFERROR(FILTER(raw, INDEX(raw,,2)<>""), ""))
+  kept, IFERROR(FILTER(raw, INDEX(raw,,2)<>""), ""),
+  IFERROR(HSTACK(kept, MAP(INDEX(kept,,<Student Name column>), LAMBDA(n, <department of n>))), kept))
 ```
 
 The span's boundary column names (`FIRST_JOB_COL`/`LAST_JOB_COL`, `modRegistry`) changed from `"Job ID"`/`"Notes"` to `"Date/Time"`/`"Notes"` on 2026-09-22, when `modInit.ReorderJobColumns` moved Status and Job ID away from the front of the table (§4.1, §5) — Job ID stopped being the leftmost real column, so the span's start had to move with it. Status and Job ID are still fully included in the consolidated range either way, since they now sit *inside* the `Date/Time`→`Notes` span rather than starting it.
@@ -489,8 +490,9 @@ The span's boundary column names (`FIRST_JOB_COL`/`LAST_JOB_COL`, `modRegistry`)
 - **`IF(SEQUENCE(ROWS(…))>0,"CODE")` rather than a bare `"CODE"`**: `HSTACK` does not broadcast a scalar against a column.
 - **`FILTER(raw, INDEX(raw,,2)<>"")` drops blank table rows.**
 - **`IFERROR` on the outside** is the §4.3 safety net.
+- **`Department` (0.10.30) is a computed column appended after `Notes`** (`modRegistry.DepartmentTail`): for each row, the Departments sheet's `Name` whose hidden `Match list` contains `;<lower-cased trimmed Student Name>;`, else blank. `FIND` on lower-cased text, not `SEARCH`, so `*` or `?` in a name is not a wildcard. It is the formula twin of `modCatalog.DepartmentFor` and the **only** place reporting ties a job to a department — a real Department column on the job row would replace just this (§16.6). Inactive departments still classify. If a name/alias is claimed twice the formula takes the first matching row, `DepartmentFor` the first *name* — the sheet warns about the clash, so it is a corner case, not a design.
 
-Shape: `Location`, then `Date/Time` through `Notes` — 22 columns (21 job-row columns, up from 20 once Paid was added, §5). Headers are written to row 9 from the first location's actual header row, so they cannot drift.
+Shape: `Location`, then `Date/Time` through `Notes` — 22 columns (21 job-row columns, up from 20 once Paid was added, §5), then the computed `Department` (23). Headers are written to row 9 from the first location's actual header row, so they cannot drift.
 
 VBA's entire role in reporting is rewriting that one formula (plus refreshing the Reports filter dropdowns, §8.4). Everything downstream is a live worksheet formula.
 
@@ -505,6 +507,8 @@ Type and Unit are resolved from `tblPapers` by stock description, wrapped in `IF
 Consumption columns count **every** record regardless of disregard flags; only money columns split (D8).
 
 **Job planner (0.10.29).** The top of the sheet, rows 5-21 of columns A:F, is a boxed utility, `modPlanner`, separate from the report below it: choose a printer and paper (and roll length / print width / sheet size as the paper needs), read the estimated paper, ink and overall cost, and add the job to a chosen print room. The report therefore starts lower: totals labels row 23, values row 24, table header row 27, first row 28 (`modReports.SUM_TOT_ROW` / `SUM_HDR_ROW` / `SUM_FIRST_ROW`; the legend at `O9` and the column-O buttons did not move). The estimate repeats the job row's formulas (§5) in VBA at today's catalogue prices - Paper `ROUND(Qty x unit cost)`, Ink `ROUND(area m2 x printer rate)`, gross - and is written when an input changes (`Workbook_SheetChange` -> `PlannerChanged`) and when Summary is activated; it is a calculator, not a record, and nothing reads it except `AddPlannedJob`, which recomputes first. Lists reuse `modLists.ApplyTo` with fixed staging tags (`PLN|PRN`, `PLN|STK`, `PLN|LOC`) and the "(unavailable)" marking (§7.2). `AddPlannedJob` follows `RepeatJob`: add the row, fill the inputs, `NextJobId`, `StampRow`, bind the row's dropdowns. Roll length is metres in the box and converted to the room's `LOC_RollUnit` on add. Not applied: disregard flags (gross only), multi-pass costing.
+
+**By department (0.10.30).** Beside the planner, `I5:M21` (`modReports.BuildDeptBox`): each department that has jobs, A–Z, with Jobs / Gross / Disregarded / Chargeable, and an **Everyone else** line (jobs with no department) at row 21, so the box reconciles to the totals row. Pure formula over `_Data`'s `Department` column — five spilled columns aligned to the names — capped at 14 departments so it can never reach the totals row; past that the title reads `By department (first 14 of n)` and Reports has the full list. Column `I` is widened to 24 for the names. The Summary table's own position (`SUM_TOT_ROW`/`SUM_HDR_ROW`/`SUM_FIRST_ROW`) did not move.
 
 **Totals sit above the table, not beneath it.** The detail spills to an unpredictable height, so anything below it is overwritten the moment a job is added.
 
@@ -530,6 +534,7 @@ A live `FILTER`+`SORTBY` driven by criteria cells; results update as criteria ar
 | F8 | Paper stock | Dropdown, exact match |
 | F9 | Paper type | Roll/Sheet dropdown, read off the consolidated `Unit` column (`sheets` = Sheet, `metres` = Roll; centimetre rooms are already metres in `_Data`) |
 | F10 | Student-supplied paper (0.10.27) | Yes/No dropdown. Yes = the job's paper stock is `Supplied (Roll)`, `Supplied (Sheet)` (built in, not Papers rows) or a Papers row with *Supplied by student* = Yes, looked up live by name like the Summary's Type column; No = anything else, including a stock no longer in Papers |
+| F11 | Department (0.10.30) | Dropdown, exact match against the `_Data` `Department` column (§8.1) — every department on the Departments sheet, active or not, so an old job for a deactivated department is still findable. Counted by `HasActiveFilter` and cleared by Clear all filters (`F11` is in `TextFilterCells`). A **By department** breakdown (Jobs / Gross / Chargeable, departments only) sits with the other two at `RepCol(28)` |
 | B14 | Has a problem (0.10.27, More filters group) | Yes = Status is text and not `OK`; No = Status is `OK`. Blank = all |
 | B15 | Disregarded (0.10.27, More filters group) | Dropdown: *Paper* / *Consumable* = that Disregard column is Yes; *Both* = both are. Blank = all |
 | F14 | Has notes (moved from F11 in 0.10.27, More filters group) | Yes/No; see 0.10.25 below |
@@ -585,6 +590,7 @@ They cannot use `SUMIFS` for the breakdowns below — its arguments must be rang
 
 - **Student name / Student number**: non-strict autocomplete (`ApplyTo ..., Strict:=False`) over previously-recorded values — offered for convenience, but free text (or an unlogged number) is still accepted, since there is no authoritative student list (D1).
 - **Technician**: recorded values, strict list.
+- **Department** (0.10.30): every row of `tblDepartments` by name (`modCatalog.AllDepartments`), strict list.
 - **Printer / Paper Stock**: **every active catalogue entry**, not just ones actually used yet (snag item 4, resolved) — deliberately independent of each other rather than cross-filtered by compatibility, so an incompatible combination on Reports simply returns an empty result rather than being prevented at the filter stage (unlike the location-sheet entry dropdowns, §7.2, which do enforce compatibility because an incompatible *job* would be a real error).
 
 **No calendar-icon date picker** was added to the From/To date cells (snag item 5). Checked and confirmed: the pop-up calendar icon on a date-formatted cell is an Excel-for-the-web feature and never ships on desktop Excel, Windows or Mac — this is a platform gap, not a bug, and is recorded as such rather than worked around. A custom worksheet-based picker (in the style of `modPicker`'s no-ActiveX multi-select) was considered and explicitly deferred rather than built.
@@ -845,7 +851,7 @@ Any of **Student name, Student no, Location, Printer, Paper stock, Technician** 
 
 The ad-hoc "get me back to where I was" path, distinct from the two artefacts above: not a per-location CSV (§10.4), not a filtered Reports snapshot (§10.4's Export report), but every catalogue/configuration table plus every location's job records, in one pass, sharing one timestamp. New module `modBackup.bas`. Buttons on Settings: **Backup workbook...** / **Restore workbook...**, alongside the existing Export All Locations / Import commands — the four now share the second of the two button rows below `tblSettings` (0.9.12, §16.4 addendum; previously stacked in column T).
 
-**Backup All** (`modBackup.BackupAll`): runs the existing `ExportAllLocations` unchanged (own summary dialog) for job records, then writes one CSV per catalogue table — `tblTechnicians`, `tblPrinters`, `tblPapers`, the three Settings-page lookup tables (`tblPaperTypes`, `tblStandardSizes`, `tblConsumables`), and `tblSettings` itself (one of the seven, not a separate mechanism — `modUtils.Tbl` finds it on the Settings sheet the same way it finds the other three lookup tables there). Named `PrintCosts-<SITE>-CATALOG-<TableName>-yyyymmdd-hhmm.csv`, written to the same resolved `ExportFolder()` (now `Public`, reused unchanged rather than re-deriving the OneDrive-URL resolution logic — §10.4's own env-var gotcha lives there, and duplicating it would risk drifting out of sync).
+**Backup All** (`modBackup.BackupAll`): runs the existing `ExportAllLocations` unchanged (own summary dialog) for job records, then writes one CSV per catalogue table — `tblTechnicians`, `tblPrinters`, `tblPapers`, `tblDepartments` (0.10.30; key `DeptID`; a backup that predates it has no file for it and a restore simply skips it), the three Settings-page lookup tables (`tblPaperTypes`, `tblStandardSizes`, `tblConsumables`), and `tblSettings` itself (one of the eight, not a separate mechanism — `modUtils.Tbl` finds it on the Settings sheet the same way it finds the other three lookup tables there). Named `PrintCosts-<SITE>-CATALOG-<TableName>-yyyymmdd-hhmm.csv`, written to the same resolved `ExportFolder()` (now `Public`, reused unchanged rather than re-deriving the OneDrive-URL resolution logic — §10.4's own env-var gotcha lives there, and duplicating it would risk drifting out of sync).
 
 **Deliberate reuse over a second CSV format.** A catalogue CSV's header block is padded to the same eight rows `modExport.BuildBlock` uses for a per-location job export (title/schema/site/generated/rows, then a deliberately blank row 8), so the table header always lands on row 9 and data on row 10 — exactly where `modImport.ReadImportRows`'s own hardcoded row numbers already look. Restore therefore reads catalogue rows with the **same, unmodified, already-tested function** that reads job rows; no second CSV parser exists in this workbook.
 
@@ -1117,6 +1123,14 @@ Added in this pass:
 - ~~**`LOC_RollUnit` is per-sheet, not per-row**~~ **Closed 2026-10-02, working as intended.** The roll length unit is a deliberate per-sheet display setting (0.10.11): Qty is held in the sheet's unit and converted to metres for `_Data`. A location is not meant to mix centimetre and metre entry job-by-job, so no per-row unit (and no schema bump) is planned.
 - ~~**Mixed-unit import**~~ **Closed 2026-10-02**, no code change needed. `test-importunits.ps1` (Example Print Room on Metres, the Annexe fixture on Centimetres) covers a metres export into a cm room (roll Qty x100, Unit "cm"), a cm export into a metres room (/100, Unit "metres"), Area m2 and Paper Cost unchanged both ways, sheet stock never converted, a cm round trip landing back on the original metres, and a same-unit control.
 
+
+### 16.6 Departments: what comes next (0.10.30)
+
+Built: the `Departments` sheet, the free-department auto-disregard on entry, a Department filter and breakdowns on Reports, a by-department box on Summary (§3.3, §8). Deliberately **not** built, and what the table is shaped for:
+
+- **A real Department column on the job row** (schema 1.3 → 1.4, via the `EnsurePaidColumn`/`EnsureSheetSizeJobColumn` pattern). It would remove the by-name weaknesses: classification not snapshotted (a rename or delete on the sheet reclassifies history), a student whose name equals a department's, typos missing. Cheap to do because the tie is in two places only — `modCatalog.DepartmentFor` (entry) and `modRegistry.DepartmentTail` (`_Data`). Plan: add the column; `DepartmentFor` stamps it at entry; `DepartmentTail` becomes a plain pass-through of the column; one-off backfill of existing rows by exact name/alias match; export/import carry the header by name (§10.4/§10.5) and an older file just reads it blank.
+- **Finer-grained charging.** The reserved grey columns `Dis Paper %` and `Dis Cons %` (charge a fraction rather than all-or-nothing; `Free` would become the 100/100 case) and `Allowance` / `Allowance period` (a free allowance per department, and the same idea per student, which needs a per-student table). Nothing reads them yet. Because a job's disregard flags are plain Yes/No, percentages need a design decision: either a new numeric column on the job row or a cost formula change (§5.1), and the snapshot rule (§6) says the rate in force must be frozen on the row.
+- **Re-applying the rule.** Today it fires only on a hand-typed Student Name. Repeat job, import and the Planner do not apply it, and changing a department's Free flag later does not touch existing jobs. A *Check* warning for a job whose department is Free but whose flags say otherwise would be the gentle form.
 
 ---
 

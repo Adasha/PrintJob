@@ -177,7 +177,7 @@ try {
     foreach ($k in $expect.Keys) {
         Check ([string]$c.Range($k).Text -eq $expect[$k]) "$k reads '$($expect[$k])' (got '$($c.Range($k).Text)')"
     }
-    foreach ($k in 'A6', 'D6', 'A9', 'B9', 'D11', 'A16', 'D16') {
+    foreach ($k in 'A6', 'D6', 'A9', 'B9', 'A16', 'D16') {
         Check ([string]$c.Range($k).Text -eq '') "$k is a blank gap row (got '$($c.Range($k).Text)')"
     }
 

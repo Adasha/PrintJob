@@ -149,6 +149,86 @@ try {
     (J 6 'Student Name').Value2 = 'Fine Arts'
     Check ((Dis 6) -eq 'Yes/Yes') 'the new name does'
 
+    Write-Host ''
+    Write-Host '=== Reporting ==='
+    # State now: the department is called Fine Arts. Make three department jobs
+    # (two Fine Arts - one by alias, odd case - and one Textiles) and leave
+    # the rest as they are.
+    (J 1 'Student Name').Value2 = 'fine arts'
+    (J 2 'Student Name').Value2 = 'FA'
+    (J 3 'Student Name').Value2 = 'Textiles'
+    (J 4 'Student Name').Value2 = 'Old Dept'
+    (J 6 'Student Name').Value2 = 'Zed Student'     # was left on the department name by the section above
+    $xl.CalculateFullRebuild()
+    $data = $wb.Worksheets('_Data')
+    $hdrs = @{}
+    for ($c = 1; $c -le 60; $c++) { $h = [string]$data.Cells(9, $c).Value2; if ($h) { $hdrs[$h] = $c } }
+    Check ($hdrs.ContainsKey('Department')) '_Data has a Department column'
+    $spill = $data.Range('A10').SpillingToRange
+    $rows = $spill.Rows.Count
+    $dc = $hdrs['Department']; $sc = $hdrs['Student Name']
+    $v = $data.Range($data.Cells(10, 1), $data.Cells(9 + $rows, $dc)).Value2
+    $fa = 0; $tx = 0; $od = 0; $blank = 0; $badNonBlank = 0
+    for ($r = 1; $r -le $rows; $r++) {
+        $d = [string]$v[$r, $dc]; $s = [string]$v[$r, $sc]
+        switch ($d) { 'Fine Arts' { $fa++ } 'Textiles' { $tx++ } 'Old Dept' { $od++ } '' { $blank++ } default { $badNonBlank++ } }
+    }
+    Check ($fa -eq 2) "two jobs are classed Fine Arts (the name and the alias) - got $fa"
+    Check ($tx -eq 1) "one is Textiles - got $tx"
+    Check ($od -eq 1) "an INACTIVE department still classifies its jobs - got $od"
+    Check ($badNonBlank -eq 0) 'no other department name appears'
+    Check ($blank -eq ($rows - 4)) "every other row is blank (got $blank of $rows)"
+
+    $rep = Invoke-ComRetry { $wb.Worksheets('Reports') }
+    [void]$rep.Activate()
+    function Jobs { $xl.CalculateFullRebuild(); [int]$rep.Range('I9').Text }
+    $all = Jobs
+    $rep.Range('F11').Value2 = 'Fine Arts'
+    Check ((Jobs) -eq 2) 'Reports Department filter = Fine Arts shows 2 jobs'
+    $rep.Range('F11').Value2 = 'Textiles'
+    Check ((Jobs) -eq 1) '...Textiles shows 1'
+    $rep.Range('F11').Value2 = 'Old Dept'
+    Check ((Jobs) -eq 1) '...an inactive department can still be filtered'
+    Check ([int]$rep.Range('F11').Validation.Type -eq 3) 'F11 is a dropdown'
+    $rep.Range('F11').Value2 = ''
+    Check ((Jobs) -eq $all) 'cleared, back to all jobs'
+    $rep.Range('F11').Value2 = 'Fine Arts'
+    [void]$xl.Run('ClearReportFilters', $rep)
+    Check ([string]$rep.Range('F11').Text -eq '') 'Clear all filters clears the Department box'
+    $rep.Range('F11').Value2 = 'Fine Arts'
+    Check ([bool]$xl.Run('HasActiveFilter', $rep)) 'a set Department filter counts as an active filter'
+    $rep.Range('F11').Value2 = ''
+
+    # The Reports breakdown (column AI) lists departments only.
+    $bc = $rep.Cells(10, 35).Address($false, $false) -replace '\d+', ''
+    Check ([string]$rep.Cells(10, 35).Text -eq 'By department') 'Reports has a By department block'
+    $names = @(); $jobsCol = @{}
+    for ($r = 12; $r -le 20; $r++) { $n = [string]$rep.Cells($r, 35).Text; if ($n) { $names += $n; $jobsCol[$n] = [int]$rep.Cells($r, 36).Value2 } }
+    Check (($names -join ',') -eq 'Fine Arts,Old Dept,Textiles') "breakdown keys: $($names -join ',')"
+    Check ($jobsCol['Fine Arts'] -eq 2 -and $jobsCol['Textiles'] -eq 1) 'breakdown job counts are right'
+
+    # The Summary box reconciles to the Summary totals.
+    $sum = Invoke-ComRetry { $wb.Worksheets('Summary') }
+    [void]$sum.Activate()
+    $xl.CalculateFullRebuild()
+    Check ([string]$sum.Range('I5').Text -eq 'By department') 'Summary has the By department box'
+    $dn = @(); $jobsT = 0; $gT = 0.0; $dsT = 0.0; $chT = 0.0
+    for ($r = 7; $r -le 21; $r++) {
+        $n = [string]$sum.Cells($r, 9).Text
+        if ($r -le 20 -and $n) { $dn += $n }
+        if ($r -eq 21 -or $n) {
+            $jobsT += [double]$sum.Cells($r, 10).Value2; $gT += [double]$sum.Cells($r, 11).Value2
+            $dsT += [double]$sum.Cells($r, 12).Value2; $chT += [double]$sum.Cells($r, 13).Value2
+        }
+    }
+    Check (($dn -join ',') -eq 'Fine Arts,Old Dept,Textiles') "box lists departments with jobs, sorted: $($dn -join ',')"
+    Check ([string]$sum.Range('I21').Text -eq 'Everyone else') 'last line is Everyone else'
+    Check ([Math]::Abs($jobsT - [double]$sum.Range('B24').Value2) -lt 0.001) "jobs reconcile to the total ($jobsT)"
+    Check ([Math]::Abs($gT - [double]$sum.Range('D24').Value2) -lt 0.005) "gross reconciles ($gT)"
+    Check ([Math]::Abs($dsT - [double]$sum.Range('F24').Value2) -lt 0.005) "disregarded reconciles ($dsT)"
+    Check ([Math]::Abs($chT - [double]$sum.Range('H24').Value2) -lt 0.005) "chargeable reconciles ($chT)"
+    Check ([double]$sum.Range('L7').Value2 -gt 0) 'Fine Arts shows a disregarded amount (free department)'
+
     $xl.Run('SetQuiet', $false)
 }
 finally {
