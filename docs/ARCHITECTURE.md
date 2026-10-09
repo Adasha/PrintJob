@@ -1120,7 +1120,7 @@ Added in this pass:
 - ~~**Remove the in-place upgraders; bake the template**~~ **Closed 2026-10-03 (0.10.22).** Upgrading means a fresh workbook plus an import, so the only upgrade logic kept is what adapts exported data to a newer schema (Import and Restore tolerate older files; Restore matches Settings rows by `Key`). `PrintCosts.xlsx` now ships the final layout (Settings rows in display order with `SET_` names, header gap rows, the Settings button-band rows, roll-unit-aware formulas, no stray validation under the job table, no built-in Supplied rows, IDs and counters on the sample rows), made by running the old setup routines on a temp copy; a build from it matched a build from the old template apart from the hidden `LOC_RollUnitApplied` seed. Removed: `EnsureSetting`, `EnsureVersionSettings`, `EnsureSchemaSetting` (now `StampVersionSettings`), `EnsureViewSettings`, `EnsureReportHeadingSetting`, `EnsureCatalogIds`, `RemoveLegacySuppliedRows`, `NormaliseSuppliedFlags`, `EnsureStdSizesName`, `EnsureHeaderGaps`, `EnsureRollUnitFormulas` (with the centimetre x100 migration), `ClearBelowTableValidation`, `MarkQtyRewritten` (only ever called with False), the Settings band insert, the D1:D2 clear, `RelocateButton`'s size reset and the `ColumnExists` guards for columns the template always has. Kept: sheet duplication and rename self-heal, `EnsureSystemSheets`, the `ColumnExists` guards on `Active` and `Status`, and the per-build stamps. Paragraphs in §3-§5 that name routines removed in earlier releases (`EnsurePaidColumn`, `MigratePrinterCapacities`, `NormalizeJobColumnOutlines`, `EnsureToolbarGap`) are left as design history. No Quantity→Qty import alias: no pre-rename export files exist.
 - **Departments: small layout tweaks** — todo. A manual look at 0.10.30 found only minor changes needed to the Reports Department filter (`B6`) and the Summary By department box (`I5:M21`); to be done as a separate pass.
 - **Departments: a real column, and finer-grained charging** — planned, not started (0.10.30 shipped the sheet, the on-entry free rule and the reporting by name). See §16.6.
-- **Per-colour consumables and run-length (set-up) costing** — planned, not started; the current model cannot express it. See §17.
+- **Multi-pass (per-colour) costing and set-up** — designed (36 decisions), build started 2026-10-09 on `feat/multipass`, ships as 0.11.0 with schema 1.4. See §17. Follow-ups it creates: the Job planner cannot price a multi-pass job (§17.2); catalogue IDs versus names, and the pass-row versus job-row re-stamp inconsistency, are to be revisited after it lands.
 - **Reports date filters** have no calendar picker (platform limit, HISTORY §16.3). Revisit if a future Excel adds one.
 - ~~**`LOC_RollUnit` is per-sheet, not per-row**~~ **Closed 2026-10-02, working as intended.** The roll length unit is a deliberate per-sheet display setting (0.10.11): Qty is held in the sheet's unit and converted to metres for `_Data`. A location is not meant to mix centimetre and metre entry job-by-job, so no per-row unit (and no schema bump) is planned.
 - ~~**Mixed-unit import**~~ **Closed 2026-10-02**, no code change needed. `test-importunits.ps1` (Example Print Room on Metres, the Annexe fixture on Centimetres) covers a metres export into a cm room (roll Qty x100, Unit "cm"), a cm export into a metres room (/100, Unit "metres"), Area m2 and Paper Cost unchanged both ways, sheet stock never converted, a cm round trip landing back on the original metres, and a same-unit control.
@@ -1130,55 +1130,55 @@ Added in this pass:
 
 Built: the `Departments` sheet, the free-department auto-disregard on entry, a Department filter and breakdowns on Reports, a by-department box on Summary (§3.3, §8). Deliberately **not** built, and what the table is shaped for:
 
-- **A real Department column on the job row** (schema 1.3 → 1.4, via the `EnsurePaidColumn`/`EnsureSheetSizeJobColumn` pattern). It would remove the by-name weaknesses: classification not snapshotted (a rename or delete on the sheet reclassifies history), a student whose name equals a department's, typos missing. Cheap to do because the tie is in two places only — `modCatalog.DepartmentFor` (entry) and `modRegistry.DepartmentTail` (`_Data`). Plan: add the column; `DepartmentFor` stamps it at entry; `DepartmentTail` becomes a plain pass-through of the column; one-off backfill of existing rows by exact name/alias match; export/import carry the header by name (§10.4/§10.5) and an older file just reads it blank.
+- **A real Department column on the job row** (schema **1.4 → 1.5**: multi-pass costing takes 1.4, §17.2; the column ships in the template like every other, since the in-place upgraders are gone). It would remove the by-name weaknesses: classification not snapshotted (a rename or delete on the sheet reclassifies history), a student whose name equals a department's, typos missing. Cheap to do because the tie is in two places only — `modCatalog.DepartmentFor` (entry) and `modRegistry.DepartmentTail` (`_Data`). Plan: add the column; `DepartmentFor` stamps it at entry; `DepartmentTail` becomes a plain pass-through of the column; one-off backfill of existing rows by exact name/alias match; export/import carry the header by name (§10.4/§10.5) and an older file just reads it blank.
 - **Finer-grained charging.** The reserved grey columns `Dis Paper %` and `Dis Cons %` (charge a fraction rather than all-or-nothing; `Free` would become the 100/100 case) and `Allowance` / `Allowance period` (a free allowance per department, and the same idea per student, which needs a per-student table). Nothing reads them yet. Because a job's disregard flags are plain Yes/No, percentages need a design decision: either a new numeric column on the job row or a cost formula change (§5.1), and the snapshot rule (§6) says the rate in force must be frozen on the row.
 - **Re-applying the rule.** Today it fires only on a hand-typed Student Name. Repeat job, import and the Planner do not apply it, and changing a department's Free flag later does not touch existing jobs. A *Check* warning for a job whose department is Free but whose flags say otherwise would be the gentle form.
 
 ---
 
-## 17. Planned: per-colour consumables and run-length costing
+## 17. Multi-pass (per-colour) costing and run-length set-up
 
-**Status: future work, not scheduled. Raised 2026-10-02.** Some printer types, RISO duplicators being the motivating case, do not fit the cost model in §5.1, which assumes every printer has one flat rate per m2 of printed area.
+**Status: designed, build started 2026-10-09 on branch `feat/multipass`, from master 0.10.30.** Raised 2026-10-02 for RISO duplicators, which the flat per-m2 model of §5.1 cannot express: several consumables (one ink and master per colour) at different prices, and a one-off set-up cost per colour. Design closed 2026-10-06 with 36 decisions, kept verbatim with their test results in [multipass-costing-design.md](multipass-costing-design.md); column toggles and button greying are in [column-view-presets-design.md](column-view-presets-design.md). Those two were written before 0.10.27 to 0.10.30 landed. **Where they disagree with this section, this section wins** (§17.2). The options table that stood here until 2026-10-09 (A versus B, set-up per job or per colour) is superseded: shape A was chosen, set-up is per colour pass.
 
-### 17.1 What the current model cannot express
+### 17.1 The model, in brief (decision numbers refer to the design doc)
 
-1. **Several consumables with different prices.** A RISO uses a separate ink (and often a separate master) per colour, and the colours do not cost the same. `tblPrinters` carries a single `Consumable type` and a single `Cost per m2`, snapshotted to `S_ConsRate`; `Consumable Cost = Area m2 x S_ConsRate`. There is nowhere to say "this job used black and fluorescent orange".
-2. **A set-up cost, then a cheap run.** The first sheet carries a one-off cost (making the master, priming the drum, spoilage) and each further copy is far cheaper. `Consumable Cost` is linear in area, and area is linear in `Qty`, so sheet 1 and sheet 500 cost the same. A flat rate must either overcharge long runs or undercharge short ones.
+- **One Job row, plus one Pass row per colour beneath it** in a collapsible row group, parent on top (1, 7). Pass rows carry no Job ID of their own, only the parent's ID in `Parent` and a `Pass` number that is renumbered automatically when one is removed (15, 24). `Row Type` is `Job` or `Pass`; Reports, `_Data` and every total read Job rows only (4, 19).
+- **Printers** gain `Colour mode` (`single pass` / `multi-pass`) and `Template cost`, the start-up cost of one colour pass. Blank reads as `single pass` and 0 at read time; nothing is written to old rows (2, 34). A single-pass printer behaves exactly as today. Multi-pass is sheet stock only (9).
+- **Colours** are a new `Consumables` sheet and `tblColours`: ID (`<SITE>-CLR-0001`, counter `COLOUR_ID_HWM`), Consumable type, Colour, Cost per m2, Active (26, 27). The type list stays on Settings (`tblConsumables`) with a new `Risograph` type. A pass's colour dropdown lists colours of its printer's type (3). Lookups are by name, as for printers and papers (26a).
+- **Costing.** A pass row stamps `S_ConsRate` (colour cost per m2) and `S_SetupCost` (the printer's Template cost) when it is created and never follows later edits (23); Re-stamp prices re-stamps them, and leaves a pass whose colour it cannot find alone (25, 31). Ink area per pass is the parent's whole sheet area times Qty (11). On a pass: `Consumable Cost = ROUND(Area x S_ConsRate)`, `Set-up Cost = S_SetupCost`. On the job: both are the sum of its passes, through hidden `H_Ink` / `H_Setup` helper columns and `SUMIFS` on `Parent` (16). **Gross = Paper + Consumable + Set-up. Chargeable = (Disregard Paper ? 0 : Paper) + (Disregard Consumable ? 0 : Consumable + Set-up).** Disregard flags live on the parent and cover every pass (6a, 9).
+- **Reports and Summary** show `Passes` (after Printer) and `Set-up Cost` (after Consumable Cost) per job, never per-pass detail (17, 28). Reports gain a `Pass type` filter (blank = all) and a `Passes` sort (32).
+- **Export and Import** carry pass rows in the same jobs CSV, distinguished by `Row Type`; a pass row holds only Row Type, Parent, Pass, colour, ink cost and set-up cost, and Import replaces a job's whole pass group as one block (18, 21). Exports from schema 1.3 still import: missing columns read as `Job`, 0 passes, 0 set-up (20). An unknown colour imports normally and shows a milder yellow notice rather than a problem (30, 31, 35).
+- **Check rules.** A blank colour, a colour of the wrong consumable type, an out-of-sequence pass number and an orphan pass are problems; an unknown colour is a notice (10, 24, 30, 35).
+- **Buttons.** Add pass, Remove pass, Toggle passes (this job) and Toggle all passes, on every location sheet, lighter when no multi-pass printer exists; Add pass / Remove pass grey out unless a multi-pass job or pass row is selected, and a click on a greyed button shows "Select a multi-pass job, or one of its passes, first." (7, 22, 36). A separate column toggle covers `Colour` and `Passes`; `Set-up Cost` stays with the cost toggle; the All / Reduced / Minimal drop-down is layered under the toggles (22; companion doc 1, 2, 8).
+- **Sheets are not sortable or filterable** (12), and a printer cannot be changed on a job that has passes (8). Whole-row `EntireRow.Insert` / `.Delete` keep outline levels aligned; a rebuild routine repairs them and backs Check workbook (design doc, tests).
+- **Template.** `Outline.SummaryRow` cannot change once a table exists, so `summaryBelow="0"` is baked into the location sheet XML of `PrintCosts.xlsx` by a re-runnable script, together with the new columns (design doc, tests).
 
-These are two separate problems that arrive together. Either can be built without the other.
+### 17.2 Reconciliation with master 0.10.30 (decided 2026-10-09)
 
-### 17.2 Constraints any design must respect
+| Item | Resolution |
+|---|---|
+| **Schema number.** Decision 29 takes 1.4, and §16.6's Department job-row column also named 1.4. | Multi-pass takes **1.4**. The Department column moves to **1.5** (§16.6 updated). |
+| **Version.** | The block ships as **0.11.0**: new functionality, so a phase-digit move (§3.5). Build steps are labelled `0.11.0 (n/N)` like 0.10.30. |
+| **Decision 12's precondition** (Reports filtering first). | Met: 0.10.27 and 0.10.28. |
+| **Job planner** (0.10.29) prices one flat rate and cannot price a pass group. | The planner's printer list **excludes multi-pass printers**, with a line on the box saying so. Pricing a planned multi-pass job is a follow-up. |
+| **Departments** (0.10.30). | No clash. The free-department rule fires on a hand-typed Student Name on a Job row, which sets the parent's flags and so covers every pass (9). Pass rows have no student name and never reach it. `_Data` holds Job rows only (19), so `DepartmentTail` is unchanged. |
+| **Repeat job** on a multi-pass job (not in the design). | Copies the whole pass group, re-stamped at today's prices as the Job row already is, and renumbers the passes. On a pass row it acts on the parent. |
+| **Restore workbook** reading job rows (0.10.23, 0.10.24). | Job rows come in through `ReadImportRows` / `WriteImportedRow`, so pass rows follow decision 18 with no separate path. To be verified by test. |
+| **Backup** (decisions 33, 34). | The colours table joins `CatalogTableNames()`, `CatalogKeyHeader()`, `CatalogIdSpec` / `SyncCatalogHwm` and `RenameIfNameTaken` beside `tblDepartments`; `WriteCatalogRow` leaves a column absent from the backup row untouched. |
+| **Summary and Reports layout** (planner box and department box above the table; Department filter at `B6`; filters in a left column group since 0.10.28). | New result columns per decision 28; the `Pass type` filter goes next to Paper type in the left group. Exact cells are fixed when built and recorded in §8. |
+| **Module lists.** | New modules are listed in §9.1 and SETUP.md (Mac manual import). |
 
-- **AT-09 / §6.** Job-row formulas read only snapshot columns and the row's own inputs, never `tblPrinters` or `tblPapers`. New rates must be stamped as `S_*` values at row creation, so a later price change never alters history.
-- **§3.5 / §5.** Adding a job-row column is a schema bump (`modUtils.SCHEMA_VER`, currently 1.3; this feature takes 1.4) and flows through Export, Import and `_Data`. Import must keep costing correctly without catalogue reconciliation (§10.5), so anything added has to be carried in the export file too.
-- **Printers that do not need this must not pay for it.** An inkjet or laser printer keeps today's one-rate behaviour, with no extra input.
-- **Mac and Windows parity (§9.3).** No new picker may depend on ActiveX.
+### 17.3 Build order
 
-### 17.3 Options (not yet chosen)
+1. **Docs** (this section and the two design documents in the repo).
+2. **Data model.** Schema 1.4; template script (job-table columns, printer columns, `summaryBelow`); `Consumables` sheet, `Risograph` type, colour IDs, Backup and Restore changes; read-time printer defaults.
+3. **Costing core.** Pass rows, row-type aware formulas, roll-up, `StampRow` for passes, Add / Remove pass, outline groups, deletes, printer-change block, Check rules and the milder notice level.
+4. **Buttons and column toggles.** Pass buttons and greying, the multi-pass column group, the layered view.
+5. **Reports, Summary and `_Data`.** `Passes`, `Set-up Cost`, `Pass type` filter, `Passes` sort.
+6. **Export, Import, Re-stamp.**
+7. **Close-out.** Tests for each step, changelog, SETUP.md, proof sheet.
 
-**Run-length cost** is the simpler half. A printer gains `Set-up cost` and `Run cost per m2`, and the consumable formula becomes `Set-up + Area x Run rate`, with set-up applied once per job. Both rates are snapshotted. Preferred: keep it inside `Consumable Cost`, so Gross/Disregarded/Chargeable need no change and *Disregard Consumable* already covers it. Open: whether set-up is per job or per colour pass (on a RISO each colour is a separate master, so per colour is closer to reality).
-
-**Per-colour pricing** needs the job to say which consumables it used. Two shapes:
-
-| Shape | How | Trade-off |
-|---|---|---|
-| A. Consumable rates catalogue | New `tblConsumableRates` (Printer, Consumable, Set-up, Run rate). A job picks a consumable (colour) from a dropdown filtered by printer; a multi-colour job is several rows. | Smallest schema change. Keeps one consumable per row, so every existing formula and report works. But "one job" and "one row" stop being the same thing, which Job ID (§3.2) and Summary job counts would have to account for. |
-| B. Colours on the job row | A `Colours` list or a block of per-colour columns on the job. | One row per job, which suits reporting. Awkward in a fixed-column table, and a wide change touching Export, Import and every report. |
-
-Leaning A.
-
-### 17.4 Decisions needed before building
-
-1. Is set-up charged per job, per colour, or per master? Ask the print room what a RISO master costs to make versus a copy to run.
-2. Should a multi-colour job be one row or several (A versus B)?
-3. Does Qty mean copies (RISO, sheet-fed) as it does for sheet stock today? Ink area would then be area per copy.
-4. Is a flat rate per colour per m2 accurate enough, or does ink usage need coverage as an input? Assume flat to start with.
-5. Schema impact: the version bump, what Export and Import carry, and whether `_Data` and the Reports consolidated range need new columns.
-
-### 17.5 Suggested staging
-
-1. Run-length cost on a single consumable (set-up plus run rate on the printer). Smallest step, solves the "cheap subsequent copies" half, testable on its own.
-2. Per-colour consumables on top, once 17.4 (2) is decided.
+Open items carried from the design doc: whether the view drop-down wording changes (not in scope); a colour swatch column (future); IDs versus names for all catalogues, and the pass-row versus job-row re-stamp inconsistency (both on the proof sheet, to revisit after this upgrade).
 
 ---
 
