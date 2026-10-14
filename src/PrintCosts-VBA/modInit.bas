@@ -109,6 +109,8 @@ Public Sub InitialiseWorkbook()
     EnsureDepartmentsSheet
     ' So is the Consumables sheet (modConsumables): the colours a multi-pass printer uses.
     EnsureConsumablesSheet
+    ' The university subsidy setting (modSettings) is added here too, not shipped.
+    EnsureSubsidySetting
 
     ' Runs before the per-sheet loop, not after it (2026-09-27). Row heights
     ' have to be settled before anything is positioned from them, and the

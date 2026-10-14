@@ -67,6 +67,11 @@ Public Const MATCH_COL_UNPAID As Long = 17
 Public Const BRK_COL1 As Long = 22
 Public Const BRK_COL2 As Long = 26
 Public Const BRK_COL3 As Long = 30
+' The subsidy total (0.10.31): directly above Unpaid, label over value like the
+' Matching totals but two rows up, because the row below Unpaid is the results
+' header. Rows 6 and 7 are free above that column.
+Public Const REP_SUB_LABEL_ROW As Long = 6
+Public Const REP_SUB_VAL_ROW As Long = 7
 Public Const REP_SORT_ROW As Long = 7
 Public Const REP_MATCH_ROW As Long = 8
 Public Const REP_MATCH_VAL_ROW As Long = 9
@@ -693,6 +698,7 @@ Public Sub BuildReports()
     ws.Range(RepCol(MATCH_COL_CHARGEABLE) & REP_MATCH_VAL_ROW).NumberFormat = CurrencyFormatCode()
     ws.Range(RepCol(MATCH_COL_PAID) & REP_MATCH_VAL_ROW).NumberFormat = CurrencyFormatCode()
     ws.Range(RepCol(MATCH_COL_UNPAID) & REP_MATCH_VAL_ROW).NumberFormat = CurrencyFormatCode()
+    BuildSubsidyTotal ws
 
     ' --- the records ------------------------------------------------------
     ' Job ID is appended after Notes and hidden - the correlation key that
@@ -1919,6 +1925,26 @@ End Sub
 ' value, same column, rather than TotalCell's label-to-the-left - see that
 ' call site's 2026-09-22 comment for why (a shared-column collision with
 ' the results table's hideable columns, §8.3).
+' The billable amount after the university subsidy (0.10.31): the Matching Chargeable
+' total less the Settings subsidy percentage, in the cells directly above Unpaid.
+' Chargeable itself, and every per-job amount, stays the full figure. Live formulas
+' on SET_SUBSIDY_PCT, so a changed setting shows at once with no rebuild; a missing
+' or invalid setting reads as no subsidy. The percentage is clamped to 0-100%.
+Private Sub BuildSubsidyTotal(ByVal ws As Worksheet)
+    Dim col As String, pct As String, chg As String
+    col = RepCol(MATCH_COL_UNPAID)
+    chg = RepCol(MATCH_COL_CHARGEABLE) & REP_MATCH_VAL_ROW
+    pct = "MIN(1,MAX(0,N(SET_SUBSIDY_PCT)))"
+    ws.Range(col & REP_SUB_LABEL_ROW).Formula2 = "=IFERROR(""After ""&ROUND(" & pct & "*100,2)&""% subsidy"",""After subsidy"")"
+    ws.Range(col & REP_SUB_VAL_ROW).Formula2 = "=IFERROR(ROUND(" & chg & "*(1-" & pct & "),IF(ISNUMBER(SET_ROUND_DP),SET_ROUND_DP,2))," & chg & ")"
+    With ws.Range(col & REP_SUB_LABEL_ROW & ":" & col & REP_SUB_VAL_ROW)
+        .Font.Bold = True
+        .HorizontalAlignment = xlRight
+        .Interior.Color = RGB(244, 232, 222)
+    End With
+    ws.Range(col & REP_SUB_VAL_ROW).NumberFormat = CurrencyFormatCode()
+End Sub
+
 Private Sub MatchTotal(ByVal ws As Worksheet, ByVal ColLetter As String, ByVal Label As String, ByVal f As String)
     ws.Range(ColLetter & REP_MATCH_ROW).Value = Label
     ws.Range(ColLetter & REP_MATCH_ROW).Font.Bold = True
