@@ -1,6 +1,9 @@
 Attribute VB_Name = "modSettings"
 Option Explicit
 
+' Settings key of the university subsidy (0.10.31), see the subsidy section below.
+Public Const SUBSIDY_KEY As String = "SUBSIDY_PCT"
+
 ' This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
 ' If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
@@ -62,3 +65,77 @@ End Function
 Public Function CurrencyFormatCode() As String
     CurrencyFormatCode = "[$" & CurrencySymbol() & "]#,##0.00"
 End Function
+
+' ------------------------------------------------------------- subsidy ---
+' University subsidy (0.10.31): the share of the chargeable cost the university
+' pays, one percentage for every print room. Stored on Settings as a fraction
+' formatted as a percentage (25% is 0.25), so typing 25 or 25% both mean 25%.
+' It only drives the "after subsidy" totals on Reports and in the exported
+' report; no job row, cost or snapshot is changed, so there is no schema change.
+' The subsidy as a fraction, 0 to 1. A blank, non-numeric or out-of-range
+' value reads as no subsidy / the nearest limit rather than an error.
+Public Function SubsidyFraction() As Double
+    Dim f As Double
+    f = SettingNum(SUBSIDY_KEY, 0)
+    If f < 0 Then f = 0
+    If f > 1 Then f = 1
+    SubsidyFraction = f
+End Function
+
+' "25" or "12.5": the subsidy as a percentage for wording, never a trailing ".".
+Public Function SubsidyPercentText() As String
+    SubsidyPercentText = CStr(Round(SubsidyFraction() * 100, 2))
+End Function
+
+' Settings rows normally ship in PrintCosts.xlsx; this one is added here, like
+' DEPT_ID_HWM, so the template (and any other branch's edits to it) is not
+' touched. Idempotent: an existing row and name are left alone, so a value the
+' user has set survives every re-run of setup. Called from InitialiseWorkbook.
+Public Sub EnsureSubsidySetting()
+    Dim lo As ListObject, ws As Worksheet, i As Long, pos As Long, anchor As Long
+    Dim k As String, r As ListRow, c As Range
+
+    Set lo = Tbl("tblSettings")
+    If lo Is Nothing Then Exit Sub
+    Set ws = lo.Parent
+    UnlockSheet ws
+
+    For i = 1 To lo.ListRows.Count
+        k = Trim$(CStr(CellIn(lo, i, "Key").Value))
+        If StrComp(k, SUBSIDY_KEY, vbTextCompare) = 0 Then pos = i
+        If StrComp(k, "CURRENCY", vbTextCompare) = 0 Then anchor = i
+    Next i
+
+    If pos = 0 Then
+        If anchor > 0 Then Set r = lo.ListRows.Add(anchor + 1) Else Set r = lo.ListRows.Add
+        pos = r.Index
+        CellIn(lo, pos, "Key").Value = SUBSIDY_KEY
+        CellIn(lo, pos, "Setting").Value = "University subsidy"
+        CellIn(lo, pos, "Value").Value = 0
+        CellIn(lo, pos, "Notes").Value = "The percentage of the chargeable cost the university subsidises, one value for every print room (for example 25%). " & _
+            "Reports and exported reports show the billable amount after subsidy next to the full chargeable figures. " & _
+            "Recorded jobs are not changed. Leave at 0% for no subsidy."
+    End If
+
+    Set c = CellIn(lo, pos, "Value")
+    c.NumberFormat = "0.##%"
+    With c.Validation
+        .Delete
+        .Add Type:=xlValidateDecimal, AlertStyle:=xlValidAlertStop, Operator:=xlBetween, Formula1:="0", Formula2:="1"
+        .IgnoreBlank = True
+        .ShowError = True
+        .ErrorTitle = "University subsidy"
+        .ErrorMessage = "Enter a percentage from 0% to 100%, for example 25%."
+        .InputTitle = "University subsidy"
+        .InputMessage = "Percentage of the chargeable cost the university pays, e.g. 25%."
+    End With
+
+    Set c = Nothing
+    On Error Resume Next
+    Set c = ThisWorkbook.Names("SET_" & SUBSIDY_KEY).RefersToRange
+    On Error GoTo 0
+    If c Is Nothing Then
+        ThisWorkbook.Names.Add Name:="SET_" & SUBSIDY_KEY, RefersTo:="='" & ws.Name & "'!" & CellIn(lo, pos, "Value").Address
+    End If
+    RelockSheet ws
+End Sub

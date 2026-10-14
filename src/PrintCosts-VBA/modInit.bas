@@ -105,6 +105,8 @@ Public Sub InitialiseWorkbook()
     EnsureSuppliedColumnValidation
     ' The Departments sheet (modDepartments) is likewise built here, not shipped.
     EnsureDepartmentsSheet
+    ' The university subsidy setting (modSettings) is added here too, not shipped.
+    EnsureSubsidySetting
 
     ' Runs before the per-sheet loop, not after it (2026-09-27). Row heights
     ' have to be settled before anything is positioned from them, and the

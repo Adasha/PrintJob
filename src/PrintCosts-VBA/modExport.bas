@@ -44,7 +44,7 @@ Private mQuietNames As Long
 ' Rows in the Reports export header block before any promoted fields (see
 ' SnapshotHeaderBlock): title, blank, site ID, site name, date range, rows, blank,
 ' total chargeable, paid, still owed.
-Private Const HEADER_FIXED As Long = 10
+Private Const HEADER_FIXED As Long = 11
 
 ' The title of an exported report when Settings has no "Report heading".
 Public Const DEFAULT_REPORT_HEADING As String = "Print job report"
@@ -280,7 +280,7 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
     Dim lastCol As Long, rng As Range, block As Variant, n As Long
     Dim path As String, wbOut As Workbook
     Dim promoted As Collection, header As Variant, full As Variant, tableHeaderRow As Long
-    Dim totalChargeable As Double, stillOwed As Double, paidTotal As Double
+    Dim totalChargeable As Double, stillOwed As Double, paidTotal As Double, billable As Double
     Dim footer As Variant, footerStartRow As Long
     Dim names As VbMsgBoxResult, printSetOk As Boolean
 
@@ -328,12 +328,14 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
     ' those are already computed over the exact same filter criteria the
     ' export is a snapshot of, so there is exactly one place that knows how
     ' "still owed" reconciles to "total chargeable minus paid".
-    totalChargeable = SafeNum(repWs.Range(RepCol(6) & REP_MATCH_VAL_ROW).Value)
-    stillOwed = SafeNum(repWs.Range(RepCol(15) & REP_MATCH_VAL_ROW).Value)
-    paidTotal = SafeNum(repWs.Range(RepCol(14) & REP_MATCH_VAL_ROW).Value)
+    totalChargeable = SafeNum(repWs.Range(RepCol(MATCH_COL_CHARGEABLE) & REP_MATCH_VAL_ROW).Value)
+    stillOwed = SafeNum(repWs.Range(RepCol(MATCH_COL_UNPAID) & REP_MATCH_VAL_ROW).Value)
+    paidTotal = SafeNum(repWs.Range(RepCol(MATCH_COL_PAID) & REP_MATCH_VAL_ROW).Value)
+    ' After-subsidy total: the Reports sheet's own cell, like the three above.
+    billable = SafeNum(repWs.Range(RepCol(MATCH_COL_UNPAID) & REP_SUB_VAL_ROW).Value)
 
     block = AppendTotalsRow(block)
-    header = SnapshotHeaderBlock(repWs, rng, n, promoted, totalChargeable, paidTotal, stillOwed)
+    header = SnapshotHeaderBlock(repWs, rng, n, promoted, totalChargeable, paidTotal, stillOwed, billable)
     full = CombineBlocks(header, block)
     tableHeaderRow = UBound(header, 1) + 2   ' + 1 blank separator + 1 to reach the header row itself
 
@@ -660,7 +662,7 @@ End Function
 Private Function SnapshotHeaderBlock(ByVal repWs As Worksheet, ByVal rng As Range, _
                                      ByVal n As Long, ByVal promoted As Collection, _
                                      ByVal TotalChargeable As Double, ByVal Paid As Double, _
-                                     ByVal StillOwed As Double) As Variant
+                                     ByVal StillOwed As Double, ByVal Billable As Double) As Variant
 
     Dim a() As Variant, r As Long, item As Variant
 
@@ -678,6 +680,9 @@ Private Function SnapshotHeaderBlock(ByVal repWs As Worksheet, ByVal rng As Rang
     a(8, 1) = "Total chargeable": a(8, 2) = TotalChargeable
     a(9, 1) = "Paid":             a(9, 2) = Paid
     a(10, 1) = "Still owed":      a(10, 2) = StillOwed
+    ' 0.10.31: the amount billed once the university subsidy is taken off the
+    ' chargeable total. Total chargeable above stays the full figure.
+    a(11, 1) = "Billable after " & SubsidyPercentText() & "% subsidy": a(11, 2) = Billable
 
     r = HEADER_FIXED
     For Each item In promoted
