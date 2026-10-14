@@ -226,6 +226,8 @@ try {
 
     Write-Host ''
     Write-Host '=== Backup includes the colours table ==='
+    # Backup writes the jobs file under the same minute-stamped name as the export above; clear it so Excel does not ask to overwrite.
+    Get-ChildItem $workDir -Filter 'PrintCosts-*-MAIN-*.csv' | Remove-Item -Force
     [void]$xl.Run('btnBackupWorkbook')
     $cat = @(Get-ChildItem $workDir -Filter 'PrintCosts-*-CATALOG-tblColours-*.csv')
     Check ($cat.Count -eq 1) 'the colours table has its own backup CSV'
