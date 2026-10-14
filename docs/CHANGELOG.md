@@ -3,6 +3,19 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.10.31 - University subsidy: a percentage of the chargeable cost, shown as a billable total.
+  - New Settings row "University subsidy" (SUBSIDY_PCT, SET_SUBSIDY_PCT): one percentage for
+    every print room, 0% to 100%, default 0. Added by modSettings.EnsureSubsidySetting from
+    setup (like DEPT_ID_HWM), not shipped in the template; re-running setup keeps the value.
+  - Reports: "After N% subsidy" total directly above Unpaid (rows 6-7) = Matching Chargeable
+    less the subsidy, rounded to the currency decimals. Chargeable, Paid, Unpaid and every
+    job amount still show the full figure. Live formula: changing the setting updates it at
+    once, and it follows the filters.
+  - Export report: a "Billable after N% subsidy" line follows Still owed in the header block.
+  - No schema change (still 1.3): nothing is stored on a job. Export and import of job CSVs
+    are unchanged.
+  - Tests: new test-subsidy.ps1.
+
 0.10.30 - Departments: other departments' jobs are tracked, and free ones are not charged.
   - New "Departments" sheet (after Papers; modDepartments, clsDept, tblDepartments):
     DeptID, Name, Aliases (separated by ;), Free (Yes/No, default No), Active,
