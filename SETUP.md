@@ -152,7 +152,7 @@ show, and it, like Delete visible records, refuses to run until at least one
 filter is set.
 
 **Clear the sample data** before live use. Each print room has a **Clear All**
-button. Row `UNI-MAIN-00012` is deliberately invalid, to show the Status column
+button. Row `UNI-EXAMPLE-00012` is deliberately invalid, to show the Status column
 working.
 
 **Sheets are protected without a password.** That stops accidental edits to

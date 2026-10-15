@@ -33,7 +33,7 @@ try {
     $xl.Run('SetQuiet', $true)
     $main = $wb.Worksheets('Example Print Room')
     $annex = $wb.Worksheets('Annexe')
-    $lo = $main.ListObjects('tblJobs_MAIN')
+    $lo = $main.ListObjects('tblJobs_EXAMPLE')
     $aloAnnex = $annex.ListObjects('tblJobs_ANNEX')
 
     function IsHidden($ws, $lo, $header) {
@@ -109,7 +109,7 @@ try {
     Write-Host ''
     Write-Host '=== Import into a sheet whose columns are hidden ==='
     $xl.Run('btnExportAll')
-    $mainCsv = Get-ChildItem $workDir -Filter 'PrintCosts-*-MAIN-*.csv' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    $mainCsv = Get-ChildItem $workDir -Filter 'PrintCosts-*-EXAMPLE-*.csv' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
     Check ($null -ne $mainCsv) 'export produced a CSV for Example Print Room'
 
     [void]$xl.Run('SetViewMode', 'Minimal'); Settle

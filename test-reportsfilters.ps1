@@ -38,7 +38,7 @@ try {
     $rep = Invoke-ComRetry { $wb.Worksheets('Reports') }
     $main = $wb.Worksheets('Example Print Room')
     $annexe = $wb.Worksheets('Annexe')
-    $loMain = $main.ListObjects('tblJobs_MAIN')
+    $loMain = $main.ListObjects('tblJobs_EXAMPLE')
     $loAnnexe = $annexe.ListObjects('tblJobs_ANNEX')
     $pap = $null
     foreach ($s in $wb.Worksheets) { foreach ($l in $s.ListObjects) { if ($l.Name -eq 'tblPapers') { $pap = $l } } }

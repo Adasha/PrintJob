@@ -2,10 +2,10 @@
 # If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # Restore workbook removes the shipped sample room ("Example Print Room", code
-# MAIN) once the backup's own print rooms are in - but only while it is still
+# EXAMPLE) once the backup's own print rooms are in - but only while it is still
 # the untouched sample:
 #   1. backup holds Annexe only          -> Example Print Room removed
-#   2. backup holds MAIN and Annexe      -> Example Print Room kept (it IS a restored room)
+#   2. backup holds EXAMPLE and Annexe   -> Example Print Room kept (it IS a restored room)
 #   3. backup holds Annexe only, but the example room has a real job -> kept
 # Drives COPIES in %TEMP%, never src\PrintJob.xlsm.
 
@@ -74,16 +74,16 @@ finally {
 
 $full = Get-ChildItem $dirA -Filter 'PrintCosts-*-CATALOG-tblPrinters-*.csv' | Select-Object -First 1
 Check ($null -ne $full) 'a backup file to point Restore at found'
-$mainCsv = Get-ChildItem $dirA -Filter 'PrintCosts-*.csv' | Where-Object { $_.Name -notlike '*-CATALOG-*' -and $_.Name -like '*MAIN*' } | Select-Object -First 1
-Check ($null -ne $mainCsv) 'MAIN job CSV found'
+$mainCsv = Get-ChildItem $dirA -Filter 'PrintCosts-*.csv' | Where-Object { $_.Name -notlike '*-CATALOG-*' -and $_.Name -like '*EXAMPLE*' } | Select-Object -First 1
+Check ($null -ne $mainCsv) 'EXAMPLE job CSV found'
 
 Write-Host ''
-Write-Host '=== 2. Backup holds MAIN and Annexe: Example Print Room stays ==='
+Write-Host '=== 2. Backup holds EXAMPLE and Annexe: Example Print Room stays ==='
 $names = Restore-Fresh $full.FullName $null
-Check ($names -contains 'Example Print Room') 'Example Print Room kept when the backup includes MAIN'
+Check ($names -contains 'Example Print Room') 'Example Print Room kept when the backup includes the sample room'
 Check ($names -contains 'Annexe') 'Annexe created'
 
-# Take MAIN out of the backup set for the remaining cases.
+# Take the sample room out of the backup set for the remaining cases.
 $mainCsv | Remove-Item -Force
 
 Write-Host ''
@@ -97,10 +97,10 @@ Write-Host '=== 3. Example room holds a real job: it stays ==='
 $names = Restore-Fresh $full.FullName {
     param($xl, $wb)
     $ws = $wb.Worksheets('Example Print Room')
-    $lo = $ws.ListObjects('tblJobs_MAIN')
+    $lo = $ws.ListObjects('tblJobs_EXAMPLE')
     $xl.Run('UnlockSheet', $ws)
     $row = $lo.ListRows.Add()
-    $row.Range.Cells(1, $lo.ListColumns('Job ID').Index).Value2 = 'UNI-MAIN-00013'
+    $row.Range.Cells(1, $lo.ListColumns('Job ID').Index).Value2 = 'UNI-EXAMPLE-00013'
     $xl.Run('RelockSheet', $ws)
 }
 Check ($names -contains 'Annexe') 'Annexe created'

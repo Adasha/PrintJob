@@ -40,7 +40,7 @@ try {
     $xl.Run('SetQuiet', $true)
     $main = $wb.Worksheets('Example Print Room')
     $annexe = $wb.Worksheets('Annexe')
-    $loM = $main.ListObjects('tblJobs_MAIN')
+    $loM = $main.ListObjects('tblJobs_EXAMPLE')
     $loA = $annexe.ListObjects('tblJobs_ANNEX')
 
     function Near($a, $b) { return ([Math]::Abs([double]$a - [double]$b) -lt 0.000001) }
@@ -100,7 +100,7 @@ try {
     Write-Host '=== Metres file imported into the Centimetres room ==='
     [void]$main.Activate()
     [void]$xl.Run('btnExport')
-    $csvM = Newest-Csv 'MAIN'
+    $csvM = Newest-Csv 'EXAMPLE'
     Check ($null -ne $csvM) 'Main export written'
     Import-Csv-Into $annexe $csvM
 

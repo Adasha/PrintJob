@@ -29,7 +29,7 @@ try {
     $xl.Run('SetQuiet', $true)
     $rep = $wb.Worksheets('Reports')
     $main = $wb.Worksheets('Example Print Room')
-    $loMain = $main.ListObjects('tblJobs_MAIN')
+    $loMain = $main.ListObjects('tblJobs_EXAMPLE')
     $annexe = $wb.Worksheets('Annexe')
     $loAnnexe = $annexe.ListObjects('tblJobs_ANNEX')
 

@@ -54,7 +54,7 @@ try {
     $wb = $xl.Workbooks.Open($f)
     $xl.Run('SetQuiet', $true)
     $main = $wb.Worksheets('Example Print Room')
-    $lo = $main.ListObjects('tblJobs_MAIN')
+    $lo = $main.ListObjects('tblJobs_EXAMPLE')
     $work = $wb.Worksheets('_Work')
 
     # Absolute sheet columns, not table-relative - returning a live Range/

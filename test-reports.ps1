@@ -75,7 +75,7 @@ try {
     Write-Host ("  results spill: {0} rows x {1} cols" -f $sp.Rows.Count, $sp.Columns.Count)
     $jobIdSample = [string]$sp.Cells(1, $jobIdCol).Value2
     Write-Host ("  {0}16 (Job ID) sample value: '{1}'" -f $jobIdColLetter, $jobIdSample)
-    Check (-not ($jobIdSample -notmatch '-MAIN-|-ANNEX-')) 'hidden Job ID column does not look like a Job ID'
+    Check (-not ($jobIdSample -notmatch '-EXAMPLE-|-ANNEX-')) 'hidden Job ID column does not look like a Job ID'
     Write-Host "  OK: Job ID is present as a hidden column ($jobIdColLetter)"
 
     Write-Host ''

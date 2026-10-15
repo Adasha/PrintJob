@@ -41,13 +41,13 @@ try {
     $xl.Run('SetQuiet', $true)
     $site = [string]$xl.Run('SettingText', 'SITE_ID', 'SITE')
     $main = Invoke-ComRetry { $wb.Worksheets('Example Print Room') }
-    $lo = $main.ListObjects('tblJobs_MAIN')
+    $lo = $main.ListObjects('tblJobs_EXAMPLE')
     function J([int]$rowNo, [string]$h) { return (Invoke-ComRetry -RetryOnNull { $lo.ListRows($rowNo).Range.Cells(1, (Col $lo $h)) }) }
     function W([int]$rowNo, [string]$h, $v) { [void]$xl.Run('UnlockSheet', $main); if ($v -is [int] -or $v -is [double]) { $v = ([double]$v).ToString([Globalization.CultureInfo]::InvariantCulture) }; $cell = J $rowNo $h; Invoke-ComRetry { $cell.Value2 = $v } | Out-Null }
     function Pick([int]$rowNo) { [void]$main.Activate(); [void]((J $rowNo 'Date/Time').Select()) }
     function Level([int]$rowNo) { return [int]$lo.ListRows($rowNo).Range.EntireRow.OutlineLevel }
     function Near([double]$a, [double]$b) { return ([Math]::Abs($a - $b) -lt 0.0001) }
-    function Latest-Csv { return (Get-ChildItem $workDir -Filter 'PrintCosts-*-MAIN-*.csv' | Sort-Object LastWriteTime -Descending | Select-Object -First 1) }
+    function Latest-Csv { return (Get-ChildItem $workDir -Filter 'PrintCosts-*-EXAMPLE-*.csv' | Sort-Object LastWriteTime -Descending | Select-Object -First 1) }
 
     # ---- setup: colours, a RISO printer, one job with three passes ----------------
     $cws = $wb.Worksheets('Consumables'); $clo = $cws.ListObjects('tblColours')
@@ -169,7 +169,7 @@ try {
     Check (([int](J $jr 'Passes').Value2) -eq 2) '...Passes 2'
     # An orphan pass (its job is not in the file) is skipped.
     $orph = @(); foreach ($ln in $lines[0..8]) { $orph += $ln }
-    $orph += ',Pass,UNI-MAIN-99999,1,,,,,,,Black,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,'
+    $orph += ',Pass,UNI-EXAMPLE-99999,1,,,,,,,Black,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,'
     $orphFile = Join-Path $workDir 'orphan.csv'
     Set-Content $orphFile $orph -Encoding UTF8
     $before = $lo.ListRows.Count
@@ -227,7 +227,7 @@ try {
     Write-Host ''
     Write-Host '=== Backup includes the colours table ==='
     # Backup writes the jobs file under the same minute-stamped name as the export above; clear it so Excel does not ask to overwrite.
-    Get-ChildItem $workDir -Filter 'PrintCosts-*-MAIN-*.csv' | Remove-Item -Force
+    Get-ChildItem $workDir -Filter 'PrintCosts-*-EXAMPLE-*.csv' | Remove-Item -Force
     [void]$xl.Run('btnBackupWorkbook')
     $cat = @(Get-ChildItem $workDir -Filter 'PrintCosts-*-CATALOG-tblColours-*.csv')
     Check ($cat.Count -eq 1) 'the colours table has its own backup CSV'

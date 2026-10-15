@@ -94,7 +94,7 @@ try {
     Write-Host ''
     Write-Host '=== Job entry ==='
     $main = Invoke-ComRetry { $wb.Worksheets('Example Print Room') }
-    $lo = $main.ListObjects('tblJobs_MAIN')
+    $lo = $main.ListObjects('tblJobs_EXAMPLE')
     [void]$xl.Run('UnlockSheet', $main)
     function J([int]$rowNo, [string]$h) { return $lo.ListRows($rowNo).Range.Cells(1, (Col $lo $h)) }
     function Reset-Row([int]$rowNo) {

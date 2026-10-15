@@ -35,7 +35,7 @@ try {
     $wb = Invoke-ComRetry { $xl.Workbooks.Open($f) }
     $xl.Run('SetQuiet', $true)
     $main = Invoke-ComRetry { $wb.Worksheets('Example Print Room') }
-    $lo = $main.ListObjects('tblJobs_MAIN')
+    $lo = $main.ListObjects('tblJobs_EXAMPLE')
     function J([int]$rowNo, [string]$h) { return (Invoke-ComRetry -RetryOnNull { $lo.ListRows($rowNo).Range.Cells(1, (Col $lo $h)) }) }
     function W([int]$rowNo, [string]$h, $v) { [void]$xl.Run('UnlockSheet', $main); if ($v -is [int] -or $v -is [double]) { $v = ([double]$v).ToString([Globalization.CultureInfo]::InvariantCulture) }; $cell = J $rowNo $h; Invoke-ComRetry { $cell.Value2 = $v } | Out-Null }
     function Pick([int]$rowNo) { [void]$main.Activate(); [void]((J $rowNo 'Date/Time').Select()) }

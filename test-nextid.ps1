@@ -27,7 +27,7 @@ try {
     $wb = $xl.Workbooks.Open($f)
     $xl.Run('SetQuiet', $true)
     $ws = $wb.Worksheets('Example Print Room')
-    $lo = $ws.ListObjects('tblJobs_MAIN')
+    $lo = $ws.ListObjects('tblJobs_EXAMPLE')
 
     function Get-JobIdCol {
         for ($i = 1; $i -le $lo.ListColumns.Count; $i++) {

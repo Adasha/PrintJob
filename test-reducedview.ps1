@@ -34,7 +34,7 @@ try {
     $xl.Run('SetQuiet', $true)
     $main = $wb.Worksheets('Example Print Room')
     $annex = $wb.Worksheets('Annexe')
-    $lo = $main.ListObjects('tblJobs_MAIN')
+    $lo = $main.ListObjects('tblJobs_EXAMPLE')
     $aloAnnex = $annex.ListObjects('tblJobs_ANNEX')
 
     function IsHidden($ws, $lo, $header) {

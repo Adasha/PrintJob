@@ -39,7 +39,7 @@ try {
     $rep = $wb.Worksheets('Reports')
     $main = $wb.Worksheets('Example Print Room')
     $annexe = $wb.Worksheets('Annexe')
-    $loMain = $main.ListObjects('tblJobs_MAIN')
+    $loMain = $main.ListObjects('tblJobs_EXAMPLE')
     $loAnnexe = $annexe.ListObjects('tblJobs_ANNEX')
     $rep.Activate()
 

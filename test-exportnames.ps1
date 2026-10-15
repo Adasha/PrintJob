@@ -38,7 +38,7 @@ try {
     $xl.Run('SetQuiet', $true)
     $main = $wb.Worksheets('Example Print Room')
     $annexe = $wb.Worksheets('Annexe')
-    $loM = $main.ListObjects('tblJobs_MAIN')
+    $loM = $main.ListObjects('tblJobs_EXAMPLE')
     $loA = $annexe.ListObjects('tblJobs_ANNEX')
 
     function Set-Cell($ws, [int]$row, [int]$col, $v) { Invoke-ComRetry { $c = $ws.Cells($row, $col); if ($v -is [string]) { $c.Value2 = [string]$v } else { $c.Value2 = [double]$v } } | Out-Null; Start-Sleep -Milliseconds 300 }
@@ -55,7 +55,7 @@ try {
     function Export-Main($name) {
         [void]$main.Activate()
         [void]$xl.Run('btnExport')
-        $csv = Get-ChildItem $workDir -Filter 'PrintCosts-*-MAIN-*.csv' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        $csv = Get-ChildItem $workDir -Filter 'PrintCosts-*-EXAMPLE-*.csv' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
         $copy = Join-Path $workDir $name
         Copy-Item $csv.FullName $copy -Force
         Remove-Item $csv.FullName -Force

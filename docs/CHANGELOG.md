@@ -68,6 +68,9 @@ Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module
     now comes back under its own name, department, defaults and permitted printers instead of
     being merged into the sample room; and a room with a single permitted printer no longer
     gets a phantom empty job row above its first restored job.
+  - The sample room's code is EXAMPLE (was MAIN, a likely code for a site's own first room). The
+    restore finds the sample by name and contents, so workbooks that still ship it as MAIN work.
+    Template change: apply-example-code-template.ps1.
   - A fresh build leaves every sheet scrolled to A1 (build.ps1 runs ResetSheetViews last).
 
 0.10.31 - University subsidy: a percentage of the chargeable cost, shown as a billable total.

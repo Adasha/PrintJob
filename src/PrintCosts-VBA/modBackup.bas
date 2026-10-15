@@ -29,7 +29,6 @@ Option Explicit
 Private Const CSV_UTF8 As Long = 62         ' xlCSVUTF8
 
 ' The shipped sample room - see "the example room" below.
-Private Const EXAMPLE_ROOM_CODE As String = "MAIN"
 Private Const EXAMPLE_ROOM_NAME As String = "Example Print Room"
 Private Const EXAMPLE_ROOM_SAMPLE_JOBS As Long = 12
 
@@ -684,50 +683,65 @@ Fail:
 End Sub
 
 ' ---------------------------------------------------- the example room ---
-' The workbook ships with one sample room (code MAIN, 12 invented jobs) so the
-' features can be tried before any real room exists. Once a restore has brought
-' in the site's real rooms it is only clutter - and a room that would turn up
-' in Reports and in the next Backup - so the restore removes it.
+' The workbook ships with one sample room (12 invented jobs) so the features can
+' be tried before any real room exists. Once a restore has brought in the site's
+' real rooms it is only clutter - and a room that would turn up in Reports and in
+' the next Backup - so the restore removes it.
 '
-' Removed only when it is still the sample: the name and code are the shipped
-' ones (renaming it makes it someone's room), it holds nothing but sample jobs
-' (a real job gets a Job ID after the sample ones), and the backup does not
-' itself contain MAIN (then the sample room IS the restored room).
+' The sample is recognised by what it is, not by its code: the shipped name, and
+' nothing but sample jobs (a real job gets a Job ID after the sample ones). Its
+' code is EXAMPLE now; workbooks built before 0.11.1 shipped it as MAIN, and a
+' site's own first room is as likely to be coded MAIN as anything, so no code is
+' assumed here.
 
-' The example room's sheet when this plan should remove it, else Nothing.
+' The sample room's sheet when this plan should remove it, else Nothing. Rooms
+' the restore itself writes into are never candidates: a restored room that
+' happens to be called Example Print Room is the site's, not the sample.
 Private Function ExampleRoomToRemove(ByVal Rooms As Collection) As Worksheet
-    Dim ws As Worksheet, v As Variant, room As clsRestoreRoom, real As Long
-
-    Set ws = SheetForCode(EXAMPLE_ROOM_CODE)
-    If ws Is Nothing Then Exit Function
-    If StrComp(LocValue(ws, "LOC_Name"), EXAMPLE_ROOM_NAME, vbTextCompare) <> 0 Then Exit Function
+    Dim ws As Worksheet, v As Variant, rv As Variant, room As clsRestoreRoom, real As Long, restored As Boolean
 
     For Each v In Rooms
         Set room = v
-        If StrComp(room.Code, EXAMPLE_ROOM_CODE, vbTextCompare) = 0 Then Exit Function
         If Len(room.Code) > 0 Then real = real + 1
     Next v
     If real = 0 Then Exit Function
 
-    If HoldsOnlySampleJobs(ws) Then Set ExampleRoomToRemove = ws
+    For Each v In LocationSheets()
+        Set ws = v
+        If IsSampleRoom(ws) Then
+            restored = False
+            For Each rv In Rooms
+                Set room = rv
+                If StrComp(room.Code, LocValue(ws, "LOC_Code"), vbTextCompare) = 0 Then restored = True
+            Next rv
+            If Not restored Then
+                Set ExampleRoomToRemove = ws
+                Exit Function
+            End If
+        End If
+    Next v
 End Function
 
 ' The sample room's sheet when Room is the backup's own room under the sample's
-' code - an older workbook whose real room kept "MAIN" - and the sample is still
-' untouched. Such a room must not be restored INTO the sample (it would keep the
-' sample's name, defaults and permitted printers), so PrepareRoom reuses the sheet
-' for it. That includes a backup whose room is itself still called Example Print
-' Room: a site that kept the sample and added its own data to it (and its own
-' permitted printers) - an unrenamed sample is the sample's sheet, not the user's.
+' code and the sample is still untouched. Such a room must not be restored INTO
+' the sample (it would keep the sample's name, defaults and permitted printers),
+' so PrepareRoom reuses the sheet for it. That includes a backup whose room is
+' itself still called Example Print Room: a site that kept the sample and added
+' its own data to it (and its own permitted printers) - an unrenamed sample is
+' the sample's sheet, not the user's.
 Private Function SampleRoomToReuse(ByVal Room As clsRestoreRoom) As Worksheet
     Dim ws As Worksheet
 
-    If StrComp(Room.Code, EXAMPLE_ROOM_CODE, vbTextCompare) <> 0 Then Exit Function
     If Len(Room.RoomName) = 0 Then Exit Function
-    Set ws = SheetForCode(EXAMPLE_ROOM_CODE)
+    Set ws = SheetForCode(Room.Code)
     If ws Is Nothing Then Exit Function
-    If StrComp(LocValue(ws, "LOC_Name"), EXAMPLE_ROOM_NAME, vbTextCompare) <> 0 Then Exit Function
-    If HoldsOnlySampleJobs(ws) Then Set SampleRoomToReuse = ws
+    If IsSampleRoom(ws) Then Set SampleRoomToReuse = ws
+End Function
+
+' Still the sample as shipped: its name, and no job but the sample ones.
+Private Function IsSampleRoom(ByVal Ws As Worksheet) As Boolean
+    If StrComp(LocValue(Ws, "LOC_Name"), EXAMPLE_ROOM_NAME, vbTextCompare) <> 0 Then Exit Function
+    IsSampleRoom = HoldsOnlySampleJobs(Ws)
 End Function
 
 Private Function HoldsOnlySampleJobs(ByVal Ws As Worksheet) As Boolean
@@ -740,7 +754,7 @@ Private Function HoldsOnlySampleJobs(ByVal Ws As Worksheet) As Boolean
         For Each c In lo.ListColumns("Job ID").DataBodyRange.Cells
             id = Trim$(CStr(c.Value2))
             If Len(id) > 0 Then
-                If Not id Like "*-" & EXAMPLE_ROOM_CODE & "-000##" Then Exit Function
+                If Not id Like "*-" & LocValue(Ws, "LOC_Code") & "-000##" Then Exit Function
                 If Val(Right$(id, 2)) > EXAMPLE_ROOM_SAMPLE_JOBS Then Exit Function
             End If
         Next c
@@ -753,10 +767,11 @@ End Function
 ' not bury the restore's own summary). Back is the sheet to return the user to;
 ' it is repointed at the first restored room if it was the one being deleted.
 Private Sub RemoveExampleRoom(ByVal Rooms As Collection, ByRef Back As Object, ByRef Summary As String)
-    Dim ex As Worksheet, wasQuiet As Boolean, room As clsRestoreRoom
+    Dim ex As Worksheet, wasQuiet As Boolean, room As clsRestoreRoom, code As String
 
     Set ex = ExampleRoomToRemove(Rooms)
     If ex Is Nothing Then Exit Sub
+    code = LocValue(ex, "LOC_Code")
 
     If Not Back Is Nothing Then
         If StrComp(Back.Name, ex.Name, vbTextCompare) = 0 Then Set Back = Rooms.Item(1).Sheet
@@ -767,10 +782,19 @@ Private Sub RemoveExampleRoom(ByVal Rooms As Collection, ByRef Back As Object, B
     DeletePrintRoom ex
     gQuiet = wasQuiet
 
-    If SheetForCode(EXAMPLE_ROOM_CODE) Is Nothing Then
-        Summary = Summary & "- " & EXAMPLE_ROOM_CODE & " (" & EXAMPLE_ROOM_NAME & "): sample print room removed" & vbCrLf
+    ' A restored room called like the sample was created under "<name> 2".
+    Dim rv As Variant
+    For Each rv In Rooms
+        Set room = rv
+        If Not room.Sheet Is Nothing Then TidySheetName room.Sheet
+    Next rv
+    gQuiet = True
+    RefreshLocations                ' the registry holds sheet names
+    gQuiet = wasQuiet
+    If SheetForCode(code) Is Nothing Then
+        Summary = Summary & "- " & code & " (" & EXAMPLE_ROOM_NAME & "): sample print room removed" & vbCrLf
     Else
-        Summary = Summary & "- " & EXAMPLE_ROOM_CODE & " (" & EXAMPLE_ROOM_NAME & "): could not be removed - delete it with Remove print room" & vbCrLf
+        Summary = Summary & "- " & code & " (" & EXAMPLE_ROOM_NAME & "): could not be removed - delete it with Remove print room" & vbCrLf
     End If
 End Sub
 

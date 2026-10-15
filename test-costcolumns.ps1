@@ -40,7 +40,7 @@ try {
     Add-AnnexeFixture $xl $wb | Out-Null
     $xl.Run('SetQuiet', $true)
     $annex = $wb.Worksheets('Annexe')
-    $lo = $main.ListObjects('tblJobs_MAIN')
+    $lo = $main.ListObjects('tblJobs_EXAMPLE')
 
     function IsHidden($ws, $lo, $header) {
         $c = $lo.Range.Column + (Col $lo $header) - 1
