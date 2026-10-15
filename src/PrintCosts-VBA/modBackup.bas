@@ -716,13 +716,14 @@ End Function
 ' code - an older workbook whose real room kept "MAIN" - and the sample is still
 ' untouched. Such a room must not be restored INTO the sample (it would keep the
 ' sample's name, defaults and permitted printers), so PrepareRoom reuses the sheet
-' for it. Nothing when the backup's room really is the sample (same name).
+' for it. That includes a backup whose room is itself still called Example Print
+' Room: a site that kept the sample and added its own data to it (and its own
+' permitted printers) - an unrenamed sample is the sample's sheet, not the user's.
 Private Function SampleRoomToReuse(ByVal Room As clsRestoreRoom) As Worksheet
     Dim ws As Worksheet
 
     If StrComp(Room.Code, EXAMPLE_ROOM_CODE, vbTextCompare) <> 0 Then Exit Function
     If Len(Room.RoomName) = 0 Then Exit Function
-    If StrComp(Room.RoomName, EXAMPLE_ROOM_NAME, vbTextCompare) = 0 Then Exit Function
     Set ws = SheetForCode(EXAMPLE_ROOM_CODE)
     If ws Is Nothing Then Exit Function
     If StrComp(LocValue(ws, "LOC_Name"), EXAMPLE_ROOM_NAME, vbTextCompare) <> 0 Then Exit Function
