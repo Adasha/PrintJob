@@ -276,11 +276,7 @@ Public Sub DeleteJobGroup(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal G
     UnlockSheet ws
     ' Whole-row deletes, last row first, so outline levels stay with their data.
     For i = Group.Count To 1 Step -1
-        If lo.ListRows.Count = 1 Then
-            lo.ListRows(1).Delete
-        Else
-            lo.ListRows(CLng(Group(i))).Range.EntireRow.Delete
-        End If
+        If Not BlankSoleRow(lo) Then lo.ListRows(CLng(Group(i))).Range.EntireRow.Delete
     Next i
     RelockSheet ws
     AppOn

@@ -1052,11 +1052,7 @@ Public Sub DeleteVisibleReportsConfirmed(ByVal ws As Worksheet, ByVal rng As Ran
             ' first, keep the outline levels with their data.
             Set grp = GroupRows(lo, rowIdx)
             For g = grp.Count To 1 Step -1
-                If lo.ListRows.Count = 1 Then
-                    lo.ListRows(1).Delete
-                Else
-                    lo.ListRows(CLng(grp(g))).Range.EntireRow.Delete
-                End If
+                If Not BlankSoleRow(lo) Then lo.ListRows(CLng(grp(g))).Range.EntireRow.Delete
             Next g
             RelockSheet targetWs
             deleted = deleted + 1

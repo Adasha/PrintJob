@@ -235,6 +235,23 @@ Public Sub ClearTypedCells(ByVal RowRange As Range)
     Next c
 End Sub
 
+' Call before deleting a table row: if it is the table's ONLY row, blanks it
+' (typed cells only, formulas kept) and returns True, meaning "already dealt
+' with - do not delete". A table taken to zero rows has no row left for Excel to
+' copy formatting from, so the next ListRows.Add produces a row dressed like the
+' header (navy fill, white bold text, header height) - found 2026-10-15 on the
+' Consumables sheet, and the same on every catalogue sheet and the job tables.
+' The blank row this leaves is the state AddCatalogRow/AddPrintJob already reuse
+' (Count = 1 And IsBlankRow) and RowCount reports as zero rows, exactly as
+' Clear table / Clear All leave it.
+Public Function BlankSoleRow(ByVal lo As ListObject) As Boolean
+    If lo.ListRows.Count <> 1 Then Exit Function
+    ClearTypedCells lo.ListRows(1).Range
+    lo.ListRows(1).Range.EntireRow.OutlineLevel = 1    ' a pass row's level goes with its data
+    lo.ListRows(1).Range.EntireRow.Hidden = False
+    BlankSoleRow = True
+End Function
+
 ' ------------------------------------------------------------------- names ---
 Public Function LocRange(ByVal ws As Worksheet, ByVal RefName As String) As Range
     On Error GoTo Missing

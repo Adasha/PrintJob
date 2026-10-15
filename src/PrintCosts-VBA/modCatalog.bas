@@ -819,9 +819,18 @@ Public Sub RemoveCatalogRow(ByVal TableName As String)
         "Print jobs already recorded against it keep their frozen prices and are not affected. This cannot be undone.", _
         "Remove row") Then Exit Sub
 
+    DoRemoveCatalogRow lo, n
+End Sub
+
+' The unprompted delete, split out because Ask always declines in quiet mode
+' (as DoClearCatalogTable is). Removing a table's last remaining row blanks it
+' instead - see modUtils.BlankSoleRow.
+Public Sub DoRemoveCatalogRow(ByVal lo As ListObject, ByVal RowNo As Long)
+    Dim ws As Worksheet
+    Set ws = lo.Parent
     AppOff
     UnlockSheet ws
-    lo.ListRows(n).Delete
+    If Not BlankSoleRow(lo) Then lo.ListRows(RowNo).Delete
     RelockSheet ws
     Invalidate
     AppOn
