@@ -112,8 +112,8 @@ try {
         }
         Set-Crit $c.Range('B4') $name
         Set-Crit $c.Range('B5') $num
-        Set-Crit $c.Range('B7') $from
-        Set-Crit $c.Range('B8') $to
+        Set-Crit $c.Range('B8') $from
+        Set-Crit $c.Range('B9') $to
         $xl.CalculateFullRebuild()
         $jobs = $c.Range('I9').Text
         # "Matching" totals moved from a label-left-of-value row (B/D/F/H/J/L)
@@ -122,7 +122,7 @@ try {
         # minimum-columns view (snag 2d) never hides, so Chargeable is F13
         # now, not H13.
         $charge = $c.Range('N9').Text
-        $warn = [string]$c.Range('A13').Text
+        $warn = [string]$c.Range('A14').Text
         $line = "  {0,-34} jobs={1,-4} chargeable={2,-10}" -f $label, $jobs, $charge
         if ($warn -ne '') { $line += " WARN: $warn" }
         Write-Host $line
@@ -148,53 +148,56 @@ try {
     # here, since ClearContents on a range spanning a locked cell fails
     # outright on a protected sheet.
     $c.Range('B4:B5').ClearContents() | Out-Null
-    $c.Range('B7:B8').ClearContents() | Out-Null
+    $c.Range('B8:B9').ClearContents() | Out-Null
 
     Write-Host ''
     Write-Host '=== Reports: new filters (Technician / Printer / Paper Stock) ==='
-    Write-Host '  (F5/F6/F7 are now dropdowns - Technician exact-matches recorded jobs, Printer/Paper stock list the whole active catalogue)'
-    Write-Host '  (2026-09-27: Technician/Printer/Paper Stock shifted down one row, F4:F6 -> F5:F7, to make room for Location at F4)'
-    $c.Range('F5').Value2 = 'J. Okonkwo'
+    Write-Host '  (E5/E7/E10 are dropdowns - Technician exact-matches recorded jobs, Printer/Paper stock list the whole active catalogue)'
+    Write-Host '  (2026-09-27: Technician/Printer/Paper Stock shifted down one row, F4:F6 -> F5:F7, to make room for Location at F4; the inputs moved F -> E in 0.11.0)'
+    $c.Range('E5').Value2 = 'J. Okonkwo'
     $xl.CalculateFullRebuild()
     Write-Host ("  Technician = 'J. Okonkwo': jobs={0}" -f $c.Range('I9').Text)
     Check (-not ([int]$c.Range('I9').Text -eq 0)) 'expected at least one match on Technician filter'
-    $c.Range('F5').ClearContents() | Out-Null
+    $c.Range('E5').ClearContents() | Out-Null
 
-    $c.Range('F7').Value2 = 'Epson SureColor P9500'
+    $c.Range('E7').Value2 = 'Epson SureColor P9500'
     $xl.CalculateFullRebuild()
     Write-Host ("  Printer = 'Epson SureColor P9500': jobs={0}" -f $c.Range('I9').Text)
     Check (-not ([int]$c.Range('I9').Text -eq 0)) 'expected at least one match on Printer filter'
-    $c.Range('F7').ClearContents() | Out-Null
+    $c.Range('E7').ClearContents() | Out-Null
 
     Write-Host ''
     Write-Host '=== Reports: filter block layout (2026-10-02) ==='
     $expect = [ordered]@{
-        A4 = 'Student/dept. name'; A5 = 'Student number'; A6 = 'Department'; A7 = 'From date'; A8 = 'To date'; A10 = 'Min cost'; A11 = 'Max cost'; A12 = 'Paid'
-        D4 = 'Location (print room)'; D5 = 'Technician'; D7 = 'Printer'; D8 = 'Paper stock'; D9 = 'Paper type'; D10 = 'Student-supplied paper'
-        A14 = 'Has a problem'; D14 = 'Has notes'; A15 = 'Disregarded'
+        A4 = 'Student/dept. name'; A5 = 'Student number'; A6 = 'Department'; A8 = 'From date'; A9 = 'To date'; A11 = 'Min cost'; A12 = 'Max cost'; A13 = 'Paid'
+        D4 = 'Location (print room)'; D5 = 'Technician'; D7 = 'Printer model'; D8 = 'Printer type'; D10 = 'Paper stock'; D11 = 'Paper type'; D12 = 'Student-supplied paper'
+        A15 = 'Has a problem'; D15 = 'Has notes'; A16 = 'Disregarded'
         H7 = 'Sort by'; J7 = 'Sort direction'
     }
     foreach ($k in $expect.Keys) {
         Check ([string]$c.Range($k).Text -eq $expect[$k]) "$k reads '$($expect[$k])' (got '$($c.Range($k).Text)')"
     }
-    foreach ($k in 'D6', 'A9', 'B9', 'A16', 'D16') {
+    foreach ($k in 'A7', 'B7', 'A10', 'B10', 'D6', 'E6', 'D9', 'E9', 'D16', 'E16') {
         Check ([string]$c.Range($k).Text -eq '') "$k is a blank gap row (got '$($c.Range($k).Text)')"
     }
 
-    Check ([string]$c.Range('A12').Text -eq 'Paid' -and [string]$c.Range('A11').Text -eq 'Max cost') 'Min cost, Max cost and Paid are consecutive rows (no gap above Paid, 0.10.26)'
+    Check ([string]$c.Range('A13').Text -eq 'Paid' -and [string]$c.Range('A12').Text -eq 'Max cost') 'Min cost, Max cost and Paid are consecutive rows (no gap above Paid, 0.10.26)'
+    Check ([double]$c.Columns('E').ColumnWidth -gt 10 -and [double]$c.Columns('F').ColumnWidth -lt 5) 'right-hand filter inputs are in E, beside their labels in D (0.11.0); F is the spacer'
+    Check ([string]$c.Range('E8').Validation.Formula1 -like '*Multi-pass*') 'Printer type (E8) offers Single pass / Multi-pass'
+    Check ([string]$c.Range('B16').Validation.Formula1 -like '*Neither*') 'Disregarded (B16) offers Neither (0.11.0)'
 
     Write-Host ''
     Write-Host '=== Reports: Paid and Paper type filters ==='
     $xl.CalculateFullRebuild()
     $all = [int]$c.Range('I9').Text
-    $c.Range('B12').Value2 = 'Yes'; $xl.CalculateFullRebuild(); $yes = [int]$c.Range('I9').Text
-    $c.Range('B12').Value2 = 'No';  $xl.CalculateFullRebuild(); $no = [int]$c.Range('I9').Text
-    $c.Range('B12').ClearContents() | Out-Null
+    $c.Range('B13').Value2 = 'Yes'; $xl.CalculateFullRebuild(); $yes = [int]$c.Range('I9').Text
+    $c.Range('B13').Value2 = 'No';  $xl.CalculateFullRebuild(); $no = [int]$c.Range('I9').Text
+    $c.Range('B13').ClearContents() | Out-Null
     Write-Host ("  all={0} paid=Yes: {1}  paid=No: {2}" -f $all, $yes, $no)
     Check (($yes + $no) -eq $all) 'Paid Yes + No should account for every job (blank counts as No)'
-    $c.Range('F9').Value2 = 'Roll';  $xl.CalculateFullRebuild(); $roll = [int]$c.Range('I9').Text
-    $c.Range('F9').Value2 = 'Sheet'; $xl.CalculateFullRebuild(); $sheet = [int]$c.Range('I9').Text
-    $c.Range('F9').ClearContents() | Out-Null
+    $c.Range('E11').Value2 = 'Roll';  $xl.CalculateFullRebuild(); $roll = [int]$c.Range('I9').Text
+    $c.Range('E11').Value2 = 'Sheet'; $xl.CalculateFullRebuild(); $sheet = [int]$c.Range('I9').Text
+    $c.Range('E11').ClearContents() | Out-Null
     Write-Host ("  paper type Roll: {0}  Sheet: {1}" -f $roll, $sheet)
     Check (($roll + $sheet) -eq $all) 'Roll + Sheet should account for every job'
     Check ($roll -gt 0 -and $sheet -gt 0) 'fixture should contain both roll and sheet jobs'
@@ -203,12 +206,12 @@ try {
 
     Write-Host ''
     Write-Host '=== Reports: dropdown/date-picker UI controls ==='
-    foreach ($addr in 'F5', 'F7', 'F8', 'I7', 'K7', 'B12', 'F9') {
+    foreach ($addr in 'E5', 'E7', 'E10', 'I7', 'K7', 'B13', 'E11') {
         $t = $c.Range($addr).Validation.Type
         Write-Host ("  {0} validation type: {1} (3 = list/dropdown)" -f $addr, $t)
         Check (-not ($t -ne 3)) "$addr should be a list dropdown"
     }
-    foreach ($addr in 'B7', 'B8') {
+    foreach ($addr in 'B8', 'B9') {
         $t = $c.Range($addr).Validation.Type
         Write-Host ("  {0} validation type: {1} (4 = date; the native calendar picker is web-only and does not appear on desktop Excel)" -f $addr, $t)
         Check (-not ($t -ne 4)) "$addr should be Date-type validation"
@@ -391,7 +394,7 @@ try {
     $xl.Run('SetExportNames', $false)
     # F6, not F5 (2026-09-27: Location took F4, Technician/Printer/Paper
     # Stock shifted down one row).
-    $rep.Range('F7').Value2 = 'Epson SureColor P9500'
+    $rep.Range('E7').Value2 = 'Epson SureColor P9500'
     $xl.CalculateFullRebuild()
     $rep.Activate()
     $xl.Run('btnExportReport')
@@ -499,7 +502,7 @@ try {
     # not a product bug - Export report is never run twice a second in
     # practice).
     Remove-Item $xlsx1.FullName -Force -ErrorAction SilentlyContinue
-    $rep.Range('F7').Value2 = ''
+    $rep.Range('E7').Value2 = ''
     $xl.CalculateFullRebuild()
     $rep.Activate()
     $xl.Run('btnExportReport')

@@ -86,12 +86,12 @@ try {
     $charge = [double]$rep.Range('N9').Value2
     Check ($charge -gt 0) "Matching chargeable (N9) reads a figure ($charge)"
 
-    $rep.Range('F11').Value2 = 'Multi-pass'; Invoke-ComRetry { $xl.CalculateFullRebuild() } | Out-Null
+    $rep.Range('E8').Value2 = 'Multi-pass'; Invoke-ComRetry { $xl.CalculateFullRebuild() } | Out-Null
     Check ([int]$rep.Range('I9').Value2 -eq 1) 'Pass type = Multi-pass finds the one multi-pass job'
-    $rep.Range('F11').Value2 = 'Single pass'; Invoke-ComRetry { $xl.CalculateFullRebuild() } | Out-Null
+    $rep.Range('E8').Value2 = 'Single pass'; Invoke-ComRetry { $xl.CalculateFullRebuild() } | Out-Null
     Check ([int]$rep.Range('I9').Value2 -eq $sample) 'Pass type = Single pass finds the rest'
     Check ([bool]$xl.Run('HasActiveFilter', $rep)) 'a set Pass type counts as an active filter'
-    $rep.Range('F11').Value2 = ''; Invoke-ComRetry { $xl.CalculateFullRebuild() } | Out-Null
+    $rep.Range('E8').Value2 = ''; Invoke-ComRetry { $xl.CalculateFullRebuild() } | Out-Null
     Check ([int]$rep.Range('I9').Value2 -eq $sample + 1) 'blank Pass type = everything'
     $rep.Range('I7').Value2 = 'Passes'; $rep.Range('K7').Value2 = 'Descending'; Invoke-ComRetry { $xl.CalculateFullRebuild() } | Out-Null
     Start-Sleep -Seconds 1
@@ -156,19 +156,49 @@ try {
     [void]$xl.Run('SetViewMode', 'All')
 
     Write-Host ''
-    Write-Host '=== Pass buttons clear of the job buttons ==='
-    $jobBtns = @(); $passBtns = @()
-    foreach ($b in $main.Buttons()) {
-        if ($b.Top -gt $main.Rows(14).Top -and $b.Top -lt $lo.HeaderRowRange.Top) {
-            if ($b.Name -match 'btn(AddPass|RemovePass|TogglePasses|ToggleAllPasses)') { $passBtns += $b } elseif ($b.Name -match 'btn(AddPrintJob|RepeatJob|Now)') { $jobBtns += $b }
-        }
+    Write-Host '=== Location toolbar: Print jobs | Colour passes | pass toggles | Now ==='
+    function Btn([string]$macro) { foreach ($b in $main.Buttons()) { if ($b.Name.StartsWith('pcb_' + $macro + '_')) { return $b } }; throw "button $macro not found" }
+    $order = 'btnAddPrintJob', 'btnRepeatJob', 'btnRemoveRow', 'btnAddPass', 'btnRemovePass', 'btnTogglePasses', 'btnToggleAllPasses', 'btnNow'
+    $caps  = 'New', 'Repeat', 'Delete', 'Add', 'Remove', 'Toggle passes', 'Toggle all passes', 'Now'
+    for ($i = 0; $i -lt $order.Count; $i++) {
+        Check ([string](Btn $order[$i]).Caption -eq $caps[$i]) "$($order[$i]) is captioned '$($caps[$i])'"
     }
-    Check ($jobBtns.Count -eq 3 -and $passBtns.Count -eq 4) 'three job buttons and four pass buttons sit above the table'
-    $maxJob = (($jobBtns | ForEach-Object { $_.Top + $_.Height }) | Measure-Object -Maximum).Maximum
-    $minPass = (($passBtns | ForEach-Object { $_.Top }) | Measure-Object -Minimum).Minimum
-    $maxPass = (($passBtns | ForEach-Object { $_.Top + $_.Height }) | Measure-Object -Maximum).Maximum
-    Check ($minPass -gt $maxJob) ('no pass button overlaps a job button (job buttons end ' + $maxJob + ', pass buttons start ' + $minPass + ')')
-    Check ($maxPass -le $lo.HeaderRowRange.Top) ('the pass buttons stay above the table header (end ' + $maxPass + ', header at ' + $lo.HeaderRowRange.Top + ')')
+    $btns = $order | ForEach-Object { Btn $_ }
+    $inOrder = $true
+    for ($i = 1; $i -lt $btns.Count; $i++) { if ($btns[$i].Left -lt $btns[$i - 1].Left + $btns[$i - 1].Width - 0.01) { $inOrder = $false } }
+    Check $inOrder 'the eight toolbar buttons run left to right in that order without overlapping'
+    $maxBtn = (($btns | ForEach-Object { $_.Top + $_.Height }) | Measure-Object -Maximum).Maximum
+    Check ($maxBtn -le $lo.HeaderRowRange.Top) ('the toolbar stays above the table header (end ' + $maxBtn + ', header at ' + $lo.HeaderRowRange.Top + ')')
+    Check ((@($btns | Where-Object { $_.Top -lt $main.Rows(14).Top })).Count -eq 0) 'the toolbar sits below the config block'
+
+    $pJobs = $main.Shapes.Item('pcp_Jobs'); $pPass = $main.Shapes.Item('pcp_Passes'); $pTog = $main.Shapes.Item('pcp_Toggles')
+    Check ([string]$pJobs.TextFrame2.TextRange.Text -eq 'Print jobs') "the first panel is titled 'Print jobs'"
+    Check ([string]$pPass.TextFrame2.TextRange.Text -eq 'Colour passes') "the second panel is titled 'Colour passes'"
+    Check ($pJobs.Fill.ForeColor.RGB -ne $pPass.Fill.ForeColor.RGB) 'Print jobs and Colour passes are shaded differently'
+    $gapJobsPass = $pPass.Left - ($pJobs.Left + $pJobs.Width)
+    $gapPassTog = $pTog.Left - ($pPass.Left + $pPass.Width)
+    Check ($gapPassTog -gt 0 -and $gapPassTog -lt $gapJobsPass) "the toggles sit closer to Colour passes ($gapPassTog) than Colour passes to Print jobs ($gapJobsPass)"
+    Check ((Btn 'btnNow').Left -gt $pTog.Left + $pTog.Width) 'Now is to the right of the panels'
+    $inside = $true
+    foreach ($pair in @(@('btnAddPrintJob', $pJobs), @('btnRepeatJob', $pJobs), @('btnRemoveRow', $pJobs), @('btnAddPass', $pPass), @('btnRemovePass', $pPass), @('btnTogglePasses', $pTog), @('btnToggleAllPasses', $pTog))) {
+        $bb = Btn $pair[0]; $pp = $pair[1]
+        if ($bb.Left -lt $pp.Left -or $bb.Left + $bb.Width -gt $pp.Left + $pp.Width -or $bb.Top -lt $pp.Top -or $bb.Top + $bb.Height -gt $pp.Top + $pp.Height) { $inside = $false }
+    }
+    Check $inside 'every button sits inside its panel'
+
+    # Rigid under a column change: widen column A, re-settle, the whole toolbar moves by the same amount.
+    $before = $btns | ForEach-Object { [double]$_.Left - [double]$btns[0].Left }
+    $w0 = $main.Columns(1).ColumnWidth
+    [void]$xl.Run('UnlockSheet', $main)
+    $main.Columns(1).ColumnWidth = $w0 + 12
+    [void]$xl.Run('RepositionLocationButtons', $main)
+    $btns2 = $order | ForEach-Object { Btn $_ }
+    $after = $btns2 | ForEach-Object { [double]$_.Left - [double]$btns2[0].Left }
+    $same = $true; for ($i = 0; $i -lt $before.Count; $i++) { if ([math]::Abs($before[$i] - $after[$i]) -gt 0.5) { $same = $false } }
+    Check $same 'a column width change leaves the toolbar''s internal spacing alone'
+    $main.Columns(1).ColumnWidth = $w0
+    [void]$xl.Run('RepositionLocationButtons', $main)
+    [void]$xl.Run('RelockSheet', $main)
 
     Write-Host ''
     Write-Host '=== Add pass / Remove pass grey with the selection ==='

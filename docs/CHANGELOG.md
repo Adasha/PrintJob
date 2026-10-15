@@ -31,6 +31,14 @@ Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module
     Reduced / Minimal drop-down: only the toggle hides or shows them. Set-up Cost
     follows the cost-detail toggle.
   - A job with passes keeps its printer. Delete a job and its passes go with it.
+  - Refinements: the location toolbar is one row of shaded panels - Print jobs (New,
+    Repeat, Delete), Colour passes (Add, Remove), the pass toggles - then Now, laid out
+    from fixed widths so column changes cannot strand a button; Delete leaves the side
+    panel. Reports: right-hand filter inputs moved from F to E, Printer is Printer model,
+    Pass type is Printer type (under Printer model), gaps after Printer type and
+    Department, Disregarded gains Neither, and the button strip is free-floating so a
+    column resize cannot pull it apart (it no longer follows a collapsed filter group).
+    See docs/ARCHITECTURE.md section 17.4.
     Repeat job copies the group. Location sheets can no longer be sorted or
     filtered (rows stay in the order added; use Reports).
   - Check: a blank or wrong-type colour, an out-of-sequence number and a missing

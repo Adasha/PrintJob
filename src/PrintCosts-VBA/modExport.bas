@@ -712,7 +712,7 @@ Private Function SnapshotFooterBlock() As Variant
     SnapshotFooterBlock = a
 End Function
 
-' The From/To filter boxes (B7/B8) name the range the user actually asked
+' The From/To filter boxes (B8/B9) name the range the user actually asked
 ' for, so they win when set - even a one-sided filter ("From 01/01/2026,
 ' no end") is more informative than a min/max over whatever happened to
 ' match. Only once neither is set does this fall back to the actual spread
@@ -720,8 +720,8 @@ End Function
 Private Function DateRangeText(ByVal repWs As Worksheet, ByVal rng As Range) As String
     Dim fromD As Variant, toD As Variant, minD As Double, maxD As Double
 
-    fromD = repWs.Range("B7").Value
-    toD = repWs.Range("B8").Value
+    fromD = repWs.Range("B8").Value
+    toD = repWs.Range("B9").Value
     If IsDate(fromD) Or IsDate(toD) Then
         If IsDate(fromD) And IsDate(toD) Then
             DateRangeText = Format$(CDate(fromD), "dd/mm/yyyy") & " to " & Format$(CDate(toD), "dd/mm/yyyy")

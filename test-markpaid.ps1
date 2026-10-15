@@ -73,9 +73,9 @@ try {
         }
         return @{ Rng = $rng; LocCol = $locCol; JobCol = $jobCol; N = $rng.Rows.Count; VKeys = $keys }
     }
-    $filterCells = @('B4','B5','B7','B8','B10','B11','B12','F4','F5','F7','F8','F9','F10','B14','F14','I7','K7')
+    $filterCells = @('B4','B5','B8','B9','B11','B12','B13','E4','E5','E7','E10','E11','E12','B15','E15','I7','K7')
     function FilterState { ($filterCells | ForEach-Object { '{0}={1}' -f $_, [string]$rep.Range($_).Value2 }) -join ';' }
-    function ClearFilters { foreach ($a in @('B4','B5','B7','B8','B10','B11','B12','F4','F5','F7','F8','F9','F10','B14','F14')) { $rep.Range($a).ClearContents() | Out-Null }; $xl.CalculateFullRebuild() }
+    function ClearFilters { foreach ($a in @('B4','B5','B8','B9','B11','B12','B13','E4','E5','E7','E10','E11','E12','B15','E15')) { $rep.Range($a).ClearContents() | Out-Null }; $xl.CalculateFullRebuild() }
 
     # ------------------------------------------------------------ the cluster
     Write-Host '=== The cluster on the Reports header ==='
@@ -116,28 +116,28 @@ try {
     $rep.Range('B4').Value2 = '   '
     Check (-not [bool]$xl.Run('HasActiveFilter', $rep)) 'spaces only in the name box -> false'
     $rep.Range('B4').ClearContents() | Out-Null
-    $rep.Range('B7').Value2 = 'not a date'
+    $rep.Range('B8').Value2 = 'not a date'
     Check (-not [bool]$xl.Run('HasActiveFilter', $rep)) 'From date text that will not coerce (ignored by Criteria) -> false'
-    $rep.Range('B7').ClearContents() | Out-Null
+    $rep.Range('B8').ClearContents() | Out-Null
     $rep.Range('I7').Value2 = 'Qty'
     Check (-not [bool]$xl.Run('HasActiveFilter', $rep)) 'Sort by set, no filter -> false (sort is not a filter)'
     $rep.Range('I7').ClearContents() | Out-Null
-    $rep.Range('B7').Value2 = [double](Get-Date '2020-01-01').ToOADate()
+    $rep.Range('B8').Value2 = [double](Get-Date '2020-01-01').ToOADate()
     Check ([bool]$xl.Run('HasActiveFilter', $rep)) 'a real From date -> true'
-    $rep.Range('B7').ClearContents() | Out-Null
-    $rep.Range('F7').Value2 = 'Epson SureColor P9500'
+    $rep.Range('B8').ClearContents() | Out-Null
+    $rep.Range('E7').Value2 = 'Epson SureColor P9500'
     Check ([bool]$xl.Run('HasActiveFilter', $rep)) 'Printer set -> true'
     ClearFilters
-    $rep.Range('B10').Value2 = 'abc'
+    $rep.Range('B11').Value2 = 'abc'
     Check (-not [bool]$xl.Run('HasActiveFilter', $rep)) 'Min cost text that is not a number -> false'
     ClearFilters
-    $rep.Range('B10').Value2 = 1
+    $rep.Range('B11').Value2 = 1
     Check ([bool]$xl.Run('HasActiveFilter', $rep)) 'a numeric Min cost -> true'
     ClearFilters
-    $rep.Range('B11').Value2 = 100
+    $rep.Range('B12').Value2 = 100
     Check ([bool]$xl.Run('HasActiveFilter', $rep)) 'a numeric Max cost -> true'
     ClearFilters
-    $rep.Range('F14').Value2 = 'Yes'
+    $rep.Range('E15').Value2 = 'Yes'
     Check ([bool]$xl.Run('HasActiveFilter', $rep)) 'Has notes set -> true'
     ClearFilters
 
@@ -178,7 +178,7 @@ try {
     # ------------------------------------------------- filtered: Paid = Yes
     Write-Host ''
     Write-Host '=== With a filter: only the visible rows change ==='
-    $rep.Range('F7').Value2 = 'Epson SureColor P9500'
+    $rep.Range('E7').Value2 = 'Epson SureColor P9500'
     $xl.CalculateFullRebuild()
     $vis = VisibleInfo
     Write-Host ("  filtered to Printer = 'Epson SureColor P9500': {0} of {1} records visible" -f $vis.N, $before.Count)
@@ -204,7 +204,7 @@ try {
     $hiddenChanged = @($after.Keys | Where-Object { -not $visSet.ContainsKey($_) -and $after[$_] -ne $baseline[$_] }).Count
     Check ($hiddenChanged -eq 0) 'no hidden row was touched'
     Check ((FilterState) -eq $filtersBefore) 'filter and sort boxes are exactly as they were'
-    Check (([string]$rep.Range('F7').Value2) -eq 'Epson SureColor P9500') 'Printer filter still set'
+    Check (([string]$rep.Range('E7').Value2) -eq 'Epson SureColor P9500') 'Printer filter still set'
     Check ($log -like '*marked Paid*') 'confirmation message names Paid'
     Check ($main.ProtectContents -and $annexe.ProtectContents) 'room sheets are protected again afterwards'
 

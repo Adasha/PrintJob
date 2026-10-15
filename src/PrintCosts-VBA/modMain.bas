@@ -17,7 +17,7 @@ Public Sub btnAddPrintJob()
     AddPrintJob ActiveSheet
     Exit Sub
 Fail:
-    ReportError "Add Print Job"
+    ReportError "New print job"
 End Sub
 
 ' Summary page: add the job planned in the box at the top to the chosen print room.
@@ -44,7 +44,7 @@ Public Sub btnRepeatJob()
     RepeatJob ActiveSheet
     Exit Sub
 Fail:
-    ReportError "Repeat Job"
+    ReportError "Repeat print job"
 End Sub
 
 ' Multi-pass costing (0.11.0) - modPasses.
@@ -98,7 +98,12 @@ Public Sub btnRemoveRow()
     RemoveRow ActiveSheet
     Exit Sub
 Fail:
-    ReportError "Remove Row"
+    ReportError "Delete print job"
+End Sub
+
+' The location toolbar panels' OnAction: a click on a panel (not on a button) runs this
+' and does nothing, rather than selecting the shape where it could be dragged or deleted.
+Public Sub btnPanelNoop()
 End Sub
 
 Public Sub btnExport()

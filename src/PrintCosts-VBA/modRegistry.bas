@@ -266,6 +266,15 @@ Public Sub HealButtons()
                 End If
             End If
         Next i
+        ' The location toolbar's panels (modInit.DrawPanel) carry btnPanelNoop.
+        For i = 1 To ws.Shapes.Count
+            If Left$(ws.Shapes(i).Name, 4) = "pcp_" Then
+                cur = CStr(ws.Shapes(i).OnAction)
+                If InStr(cur, "!") > 0 Then
+                    If InStr(1, cur, mine, vbTextCompare) <> 1 Then ws.Shapes(i).OnAction = "btnPanelNoop"
+                End If
+            End If
+        Next i
     Next ws
 End Sub
 

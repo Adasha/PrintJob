@@ -10,7 +10,7 @@ Public Sub AddPrintJob(ByVal ws As Worksheet)
     Dim lo As ListObject, r As ListRow, n As Long
     Set lo = JobsTable(ws)
     If lo Is Nothing Then
-        Say "This sheet has no print job table.", "Add Print Job only works on a print room sheet.", "Switch to a print room tab and try again."
+        Say "This sheet has no print job table.", "The New button only works on a print room sheet.", "Switch to a print room tab and try again."
         Exit Sub
     End If
 
@@ -18,6 +18,17 @@ Public Sub AddPrintJob(ByVal ws As Worksheet)
     ' printer/paper default was already caught at the moment it was set - see
     ' that sub's comment for why (Excel for Mac's dropdown selection).
     EnsureDefaultsClean ws
+
+    ' A button or shape left selected (a copied sheet arrives with every shape
+    ' selected) makes the row operations below fail with 1004, so select a cell
+    ' first.
+    If ws Is ActiveSheet Then
+        If TypeName(Selection) <> "Range" Then
+            On Error Resume Next
+            lo.HeaderRowRange.Cells(1, 1).Select
+            On Error GoTo 0
+        End If
+    End If
 
     AppOff
     UnlockSheet ws
@@ -93,7 +104,7 @@ Public Sub RepeatJob(ByVal ws As Worksheet)
 
     Set lo = JobsTable(ws)
     If lo Is Nothing Then
-        Say "This sheet has no print job table.", "Repeat Job only works on a print room sheet.", "Switch to a print room tab and try again."
+        Say "This sheet has no print job table.", "The Repeat button only works on a print room sheet.", "Switch to a print room tab and try again."
         Exit Sub
     End If
 
@@ -112,7 +123,7 @@ Public Sub RepeatJob(ByVal ws As Worksheet)
 
     oldJobId = Trim$(CStr(CellIn(lo, srcRow, "Job ID").Value))
     If Len(oldJobId) = 0 Then
-        Say "This row has no print job to repeat.", "Repeat Job duplicates an existing print job, and the selected row is blank.", "Click a print job you want to repeat, then try again."
+        Say "This row has no print job to repeat.", "Repeat duplicates an existing print job, and the selected row is blank.", "Click a print job you want to repeat, then try again."
         Exit Sub
     End If
 
@@ -246,7 +257,7 @@ Public Sub RemoveRow(ByVal ws As Worksheet)
     ' Never a bare "are you sure" - spec 10.12 requires the user to see what
     ' they are about to lose.
     If grp.Count > 1 Then detail = detail & vbCrLf & "and its " & (grp.Count - 1) & " colour pass" & IIf(grp.Count = 2, "", "es")
-    If Not Ask("Delete this print job?" & vbCrLf & vbCrLf & detail & vbCrLf & vbCrLf & "This cannot be undone.", "Remove print job") Then Exit Sub
+    If Not Ask("Delete this print job?" & vbCrLf & vbCrLf & detail & vbCrLf & vbCrLf & "This cannot be undone.", "Delete print job") Then Exit Sub
 
     DeleteJobGroup ws, lo, grp, detail
 End Sub

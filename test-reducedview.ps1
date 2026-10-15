@@ -124,7 +124,7 @@ try {
     Check ($null -eq (FindButton $main 'pcb_btnViewReduced')) 'old Reduced button is gone'
     Check ($null -eq (FindButton $main 'pcb_btnViewMinimal')) 'old Minimal button is gone'
     Check ($null -eq (FindButton $main 'pcb_btnToggleReducedView')) 'old Reduce clutter button is gone'
-    $sidePanel = 'pcb_btnSelectPrinters', 'pcb_btnCheckSheet', 'pcb_btnRemoveRow', 'pcb_btnClearAll', 'pcb_btnExport', 'pcb_btnImportLocation'
+    $sidePanel = 'pcb_btnSelectPrinters', 'pcb_btnCheckSheet', 'pcb_btnClearAll', 'pcb_btnExport', 'pcb_btnImportLocation'
     foreach ($p in $sidePanel) {
         Check ((ButtonColumn $main $p) -eq 47) "$p sits in the side panel (column 47)"
     }
@@ -252,14 +252,17 @@ try {
     # --------------------------- button width survives repeated view changes
     Write-Host ''
     Write-Host '=== In-table buttons keep their width across repeated view changes ==='
-    $atRisk = 'pcb_btnAddPrintJob', 'pcb_btnRepeatJob', 'pcb_btnNow', 'pcb_btnClearDefaults'
+    # The toolbar buttons (0.11.0 refinement) are laid out from fixed widths, not anchored to columns;
+    # btnClearDefaults is still in the table's span and relocates.
+    $widths = [ordered]@{ pcb_btnAddPrintJob = 56; pcb_btnRepeatJob = 64; pcb_btnRemoveRow = 56; pcb_btnAddPass = 56; pcb_btnRemovePass = 66
+                          pcb_btnTogglePasses = 96; pcb_btnToggleAllPasses = 116; pcb_btnNow = 60; pcb_btnClearDefaults = 110 }
     for ($cycle = 1; $cycle -le 2; $cycle++) {
         [void]$xl.Run('SetViewMode', 'Minimal'); Start-Sleep -Milliseconds 300
         [void]$xl.Run('SetViewMode', 'All'); Start-Sleep -Milliseconds 300
-        foreach ($p in $atRisk) {
+        foreach ($p in $widths.Keys) {
             $b = FindButton $main $p
             # Excel snaps shape widths to the screen pixel grid, so 110pt reads back as 109.875 at some display scalings; allow a point of slack.
-        Check ([math]::Abs([double]$b.Width - 110) -lt 1) "$p is still 110pt wide after cycle $cycle (width $($b.Width))"
+            Check ([math]::Abs([double]$b.Width - $widths[$p]) -lt 1) "$p is still $($widths[$p])pt wide after cycle $cycle (width $($b.Width))"
             Check ([int]$b.Placement -eq 3) "$p is xlFreeFloating after cycle $cycle"
         }
     }

@@ -72,7 +72,7 @@ Private Const VIEW_DD_NAME As String = "ddViewMode"
 ' from that one: a first draft of this pair was declared mid-file, next to
 ' SidePanelButtonLayout itself, and hit the identical "Variable not defined"
 ' compile failure this comment already warns about.
-Private Const SIDE_PANEL_BTN_COUNT As Long = 6
+Private Const SIDE_PANEL_BTN_COUNT As Long = 5
 
 ' Settings sheet's button band (2026-10-02): the three rows between the sheet's
 ' description (row 2) and the tables' subtitle row, one per button group. The
@@ -85,6 +85,38 @@ Private Const SETTINGS_BAND_ROW_H As Double = 26
 Private Const SETTINGS_BTN_W As Double = 130
 Private Const SETTINGS_BTN_GAP As Double = 4
 Private Const SIDE_PANEL_MIN_GAP As Double = 3
+
+' A location sheet's toolbar (rows TOOLBAR_ROW and PASS_ROW together): shaded
+' panels of buttons - Print jobs, Colour passes and the pass toggles - then Now,
+' laid out left to right by RepositionToolbar from fixed widths and gaps. The
+' panels are rounded-rectangle shapes named TB_PANEL_TAG & <name>, drawn behind
+' the buttons; their OnAction is a do-nothing macro so a click on one runs that
+' instead of selecting the shape. The MSO_* values are the Office enum members,
+' written as numbers (this project does not reference the enum by name).
+Private Const TB_PANEL_TAG As String = "pcp_"
+Private Const TB_PANEL_JOBS As String = "Jobs"
+Private Const TB_PANEL_PASSES As String = "Passes"
+Private Const TB_PANEL_TOGGLES As String = "Toggles"
+Private Const TB_PAD As Double = 6              ' inside a panel's edge
+Private Const TB_GAP As Double = 4              ' between buttons in a panel
+Private Const TB_PANEL_GAP As Double = 14       ' between unrelated groups
+Private Const TB_ASSOC_GAP As Double = 5        ' Colour passes to its toggles
+Private Const TB_TITLE_H As Double = 15         ' the panel title's band
+Private Const TB_BTN_H As Double = 22
+Private Const TB_W_NEW As Double = 56
+Private Const TB_W_REPEAT As Double = 64
+Private Const TB_W_DELETE As Double = 56
+Private Const TB_W_ADD As Double = 56
+Private Const TB_W_REMOVE As Double = 66
+Private Const TB_W_TOGGLE As Double = 96
+Private Const TB_W_TOGGLE_ALL As Double = 116
+Private Const TB_W_NOW As Double = 60
+Private Const MSO_ROUNDED_RECT As Long = 5      ' msoShapeRoundedRectangle
+Private Const MSO_FALSE As Long = 0
+Private Const MSO_TRUE As Long = -1
+Private Const MSO_ANCHOR_TOP As Long = 1        ' msoAnchorTop
+Private Const MSO_ALIGN_LEFT As Long = 1        ' msoAlignLeft
+Private Const MSO_SEND_TO_BACK As Long = 1      ' msoSendToBack
 
 ' Set by a setup run and consumed by the message Refresh Locations shows, so a
 ' full setup can say how many buttons it drew without a second dialog.
@@ -294,33 +326,15 @@ Private Sub DrawLocationButtons(ByVal ws As Worksheet)
     '    reduced-view setting hides - general protection, since
     '    SET_LOC_REDUCED_COLUMNS is user-editable and a fixed anchor choice
     '    can't stay safe forever (§4.1's own "not a general solution" note).
-    ' Three buttons, two columns apart each (comment above) - Repeat Job
-    ' slots into the same "skip a column, land the next button's overflow
-    ' harmlessly on empty space" pattern Add Print Job/Now already use, one
-    ' step further right: column 3 (Student No) rather than 5 (Printer) is
-    ' what keeps it nestled between the other two instead of past both of
-    ' them. Now moves from 3 to 5 to make room - its own 110pt overflows
-    ' column 5 (Printer) the same harmless way it used to overflow column 3.
-    DrawOne ws, TOOLBAR_ROW, 1, "Add Print Job", "btnAddPrintJob", 110
-    DrawOne ws, TOOLBAR_ROW, 3, "Repeat Job", "btnRepeatJob", 110
-    DrawOne ws, TOOLBAR_ROW, 5, "Now", "btnNow", 110
-
-    ' Pass controls (multi-pass costing, 0.11.0), on the row between the job
-    ' buttons and the table header so they read as a separate group. They are
-    ' on every location sheet and shaded lighter when no multi-pass printer is
-    ' set up (modPasses.RefreshPassButtons). Columns 1, 2, 4, 5 are all wide
-    ' enough for the button and are kept on screen by RelocateAtRiskButtons.
-    ' The job buttons above are 22pt tall, taller than their 14.5pt row, so they ran
-    ' on into this one and the pass buttons drew over them. Both rows are made tall
-    ' enough to hold their own buttons, with a 2pt margin inside the pass row.
+    ' 0.11.0 refinement: the job, pass and Now buttons are no longer anchored to
+    ' columns at all. They are one horizontal toolbar across rows TOOLBAR_ROW and
+    ' PASS_ROW (see DrawToolbar), laid out from fixed widths and gaps by
+    ' RepositionToolbar, so no column hide, reorder or resize can strand one.
+    ' Both rows are made tall enough to hold the panels: a panel's title above a
+    ' 22pt button needs about 48pt between them.
     If ws.Rows(TOOLBAR_ROW).RowHeight < 24 Then ws.Rows(TOOLBAR_ROW).RowHeight = 24
     If ws.Rows(PASS_ROW).RowHeight < 26 Then ws.Rows(PASS_ROW).RowHeight = 26
-    Dim passTop As Double
-    passTop = ws.Rows(PASS_ROW).Top + 2
-    DrawOneAtTop ws, 1, passTop, "Add pass", "btnAddPass", 100
-    DrawOneAtTop ws, 2, passTop, "Remove pass", "btnRemovePass", 100
-    DrawOneAtTop ws, 4, passTop, "Toggle passes", "btnTogglePasses", 100
-    DrawOneAtTop ws, 5, passTop, "Toggle all passes", "btnToggleAllPasses", 110
+    DrawToolbar ws
 
     ' View row (2026-10-01): "Show columns:" label, an All/Reduced/Minimal
     ' drop-down and the Hide/Show cost detail button on row 2, from D.
@@ -385,8 +399,8 @@ Private Sub DrawLocationButtons(ByVal ws As Worksheet)
         headerTop = ws.Cells(lo.Range.Row, 1).Top
         SidePanelButtonLayout headerTop, btnH, stepPx
         Dim capts() As Variant, macros() As Variant
-        capts = Array("Select printers...", "Check this sheet", "Remove Row", "Clear All", "Export...", "Import...")
-        macros = Array("btnSelectPrinters", "btnCheckSheet", "btnRemoveRow", "btnClearAll", "btnExport", "btnImportLocation")
+        capts = Array("Select printers...", "Check this sheet", "Clear All", "Export...", "Import...")
+        macros = Array("btnSelectPrinters", "btnCheckSheet", "btnClearAll", "btnExport", "btnImportLocation")
         For i = 0 To UBound(macros)
             DrawOneAtTop ws, SIDE_PANEL_COL, i * stepPx, CStr(capts(i)), CStr(macros(i)), 140, btnH
         Next i
@@ -398,6 +412,137 @@ Private Sub DrawLocationButtons(ByVal ws As Worksheet)
     ' inside the table's column span, so RelocateAtRiskButtons covers it
     ' (below).
     DrawOne ws, ROW_DEF_PRINTER, 4, "Clear defaults", "btnClearDefaults", 110
+End Sub
+
+' The location toolbar, drawn once per InitialiseWorkbook run at nominal positions
+' and then placed by RepositionToolbar:
+'
+'   [ Print jobs       ]   [ Colour passes ] [               ]   [Now]
+'   [ New Repeat Delete]   [ Add   Remove   ] [Toggle passes ...]
+'
+' Print jobs (blue) and Colour passes (amber) are titled panels; the two toggles
+' sit in a third, untitled panel in a paler amber, close beside Colour passes so
+' the three read as a family. Now stands on its own at the right. The macros are
+' unchanged from the earlier layout (btnAddPrintJob, btnRepeatJob, btnRemoveRow,
+' btnAddPass, ...), only the captions are shorter. modPasses.RefreshPassButtons
+' finds the pass buttons by those macro names in their shape names.
+Private Sub DrawToolbar(ByVal ws As Worksheet)
+    Dim y As Double
+    y = ws.Rows(TOOLBAR_ROW).Top
+
+    DrawPanel ws, TB_PANEL_JOBS, "Print jobs", RGB(222, 232, 244), RGB(140, 165, 205)
+    DrawPanel ws, TB_PANEL_PASSES, "Colour passes", RGB(252, 232, 206), RGB(214, 165, 105)
+    DrawPanel ws, TB_PANEL_TOGGLES, "", RGB(253, 243, 228), RGB(226, 192, 150)
+
+    DrawOneAtTop ws, 1, y, "New", "btnAddPrintJob", TB_W_NEW, TB_BTN_H
+    DrawOneAtTop ws, 1, y, "Repeat", "btnRepeatJob", TB_W_REPEAT, TB_BTN_H
+    DrawOneAtTop ws, 1, y, "Delete", "btnRemoveRow", TB_W_DELETE, TB_BTN_H
+    DrawOneAtTop ws, 1, y, "Add", "btnAddPass", TB_W_ADD, TB_BTN_H
+    DrawOneAtTop ws, 1, y, "Remove", "btnRemovePass", TB_W_REMOVE, TB_BTN_H
+    DrawOneAtTop ws, 1, y, "Toggle passes", "btnTogglePasses", TB_W_TOGGLE, TB_BTN_H
+    DrawOneAtTop ws, 1, y, "Toggle all passes", "btnToggleAllPasses", TB_W_TOGGLE_ALL, TB_BTN_H
+    DrawOneAtTop ws, 1, y, "Now", "btnNow", TB_W_NOW, TB_BTN_H
+
+    RepositionToolbar ws
+End Sub
+
+Private Sub DrawPanel(ByVal ws As Worksheet, ByVal PanelName As String, ByVal Title As String, _
+                      ByVal FillColour As Long, ByVal EdgeColour As Long)
+    Dim s As Shape
+    Set s = ws.Shapes.AddShape(MSO_ROUNDED_RECT, ws.Cells(1, 1).Left, ws.Rows(TOOLBAR_ROW).Top, 100, 40)
+    s.Name = TB_PANEL_TAG & PanelName
+    s.Placement = xlFreeFloating ' see DrawOne's comment - same column-resize drift risk
+    s.Fill.Solid
+    s.Fill.ForeColor.RGB = FillColour
+    s.Line.ForeColor.RGB = EdgeColour
+    s.Line.Weight = 1
+    s.Shadow.Visible = MSO_FALSE
+    s.Adjustments.Item(1) = 0.12
+    s.OnAction = "btnPanelNoop"
+    With s.TextFrame2
+        .WordWrap = MSO_FALSE
+        .VerticalAnchor = MSO_ANCHOR_TOP
+        .MarginLeft = TB_PAD
+        .MarginRight = 2
+        .MarginTop = 2
+        .MarginBottom = 0
+        .TextRange.Text = Title
+        .TextRange.ParagraphFormat.Alignment = MSO_ALIGN_LEFT
+        .TextRange.Font.Size = 8
+        .TextRange.Font.Bold = MSO_TRUE
+        .TextRange.Font.Fill.ForeColor.RGB = RGB(60, 60, 60)
+    End With
+    s.ZOrder MSO_SEND_TO_BACK
+End Sub
+
+' Lays the toolbar out from the first visible column on, from fixed widths and
+' gaps (the TB_* constants), so it is one rigid strip whatever the columns do.
+' It is xlFreeFloating throughout and Excel raises no event for a width change,
+' so this runs wherever the other location buttons are re-settled
+' (RelocateAtRiskButtons: activation, selection change, the view and cost-column
+' toggles). A shape that is not there (an older sheet, a deleted panel) is
+' skipped, and one already in place is left alone.
+Private Sub RepositionToolbar(ByVal ws As Worksheet)
+    Dim c As Long, x As Double, panelTop As Double, panelH As Double, btnTop As Double
+    Dim w As Double
+
+    For c = 1 To 40
+        If Not ws.Columns(c).Hidden Then Exit For
+    Next c
+    x = ws.Cells(1, c).Left
+    panelTop = ws.Rows(TOOLBAR_ROW).Top + 1
+    panelH = ws.Rows(TOOLBAR_ROW).Height + ws.Rows(PASS_ROW).Height - 2
+    btnTop = panelTop + TB_TITLE_H + (panelH - TB_TITLE_H - TB_BTN_H) / 2
+
+    ' Print jobs: New, Repeat, Delete.
+    w = 2 * TB_PAD + TB_W_NEW + TB_W_REPEAT + TB_W_DELETE + 2 * TB_GAP
+    PlacePanel ws, TB_PANEL_JOBS, x, panelTop, w, panelH
+    PlaceToolbarButton ws, "btnAddPrintJob", x + TB_PAD, btnTop, TB_W_NEW
+    PlaceToolbarButton ws, "btnRepeatJob", x + TB_PAD + TB_W_NEW + TB_GAP, btnTop, TB_W_REPEAT
+    PlaceToolbarButton ws, "btnRemoveRow", x + TB_PAD + TB_W_NEW + TB_W_REPEAT + 2 * TB_GAP, btnTop, TB_W_DELETE
+    x = x + w + TB_PANEL_GAP
+
+    ' Colour passes: Add, Remove.
+    w = 2 * TB_PAD + TB_W_ADD + TB_W_REMOVE + TB_GAP
+    PlacePanel ws, TB_PANEL_PASSES, x, panelTop, w, panelH
+    PlaceToolbarButton ws, "btnAddPass", x + TB_PAD, btnTop, TB_W_ADD
+    PlaceToolbarButton ws, "btnRemovePass", x + TB_PAD + TB_W_ADD + TB_GAP, btnTop, TB_W_REMOVE
+    x = x + w + TB_ASSOC_GAP
+
+    ' The pass toggles, close beside Colour passes.
+    w = 2 * TB_PAD + TB_W_TOGGLE + TB_W_TOGGLE_ALL + TB_GAP
+    PlacePanel ws, TB_PANEL_TOGGLES, x, panelTop, w, panelH
+    PlaceToolbarButton ws, "btnTogglePasses", x + TB_PAD, btnTop, TB_W_TOGGLE
+    PlaceToolbarButton ws, "btnToggleAllPasses", x + TB_PAD + TB_W_TOGGLE + TB_GAP, btnTop, TB_W_TOGGLE_ALL
+    x = x + w + TB_PANEL_GAP
+
+    PlaceToolbarButton ws, "btnNow", x, btnTop, TB_W_NOW
+End Sub
+
+Private Sub PlacePanel(ByVal ws As Worksheet, ByVal PanelName As String, ByVal L As Double, _
+                       ByVal T As Double, ByVal W As Double, ByVal H As Double)
+    Dim s As Shape
+    On Error Resume Next
+    Set s = ws.Shapes(TB_PANEL_TAG & PanelName)
+    On Error GoTo 0
+    If s Is Nothing Then Exit Sub
+    If s.Placement <> xlFreeFloating Then s.Placement = xlFreeFloating
+    If Abs(s.Left - L) > 0.5 Then s.Left = L
+    If Abs(s.Top - T) > 0.5 Then s.Top = T
+    If Abs(s.Width - W) > 0.5 Then s.Width = W
+    If Abs(s.Height - H) > 0.5 Then s.Height = H
+End Sub
+
+Private Sub PlaceToolbarButton(ByVal ws As Worksheet, ByVal Macro As String, ByVal L As Double, _
+                               ByVal T As Double, ByVal W As Double)
+    Dim b As Button
+    Set b = FindButton(ws, BTN_TAG & Macro & "_")
+    If b Is Nothing Then Exit Sub
+    If b.Placement <> xlFreeFloating Then b.Placement = xlFreeFloating
+    If Abs(b.Left - L) > 0.5 Then b.Left = L
+    If Abs(b.Top - T) > 0.5 Then b.Top = T
+    If Abs(b.Width - W) > 0.5 Then b.Width = W
+    If Abs(b.Height - TB_BTN_H) > 0.5 Then b.Height = TB_BTN_H
 End Sub
 
 ' The side panel's shared button height and vertical step, derived from
@@ -1078,6 +1223,10 @@ Private Sub ClearButtons(ByVal ws As Worksheet)
     For i = ws.DropDowns.Count To 1 Step -1
         If Left$(ws.DropDowns(i).Name, Len(BTN_TAG)) = BTN_TAG Then ws.DropDowns(i).Delete
     Next i
+    ' The location toolbar's panels (DrawPanel).
+    For i = ws.Shapes.Count To 1 Step -1
+        If Left$(ws.Shapes(i).Name, Len(TB_PANEL_TAG)) = TB_PANEL_TAG Then ws.Shapes(i).Delete
+    Next i
 End Sub
 
 ' The All/Reduced/Minimal drop-down (a forms control, so it works on Mac as
@@ -1526,14 +1675,8 @@ End Sub
 ' column whichever way the setting just moved, including back to its own
 ' preferred column once reduced view is switched off again.
 Private Sub RelocateAtRiskButtons(ByVal ws As Worksheet, ByVal lo As ListObject)
-    RelocateButton ws, lo, "btnAddPrintJob", "Date/Time"
-    RelocateButton ws, lo, "btnRepeatJob", "Student No"
-    RelocateButton ws, lo, "btnNow", "Printer"
     RelocateButton ws, lo, "btnClearDefaults", "Technician"
-    RelocateButton ws, lo, "btnAddPass", "Date/Time"
-    RelocateButton ws, lo, "btnRemovePass", "Student Name"
-    RelocateButton ws, lo, "btnTogglePasses", "Technician"
-    RelocateButton ws, lo, "btnToggleAllPasses", "Printer"
+    RepositionToolbar ws
     RepositionViewButtons ws, lo
 End Sub
 
@@ -1672,7 +1815,7 @@ End Sub
 Private Sub RepositionSidePanelButtons(ByVal ws As Worksheet)
     Dim macros As Variant, i As Long, j As Long, b As Button, prefix As String
     Dim targetLeft As Double, lo As ListObject, btnH As Double, stepPx As Double
-    macros = Array("btnSelectPrinters", "btnCheckSheet", "btnRemoveRow", "btnClearAll", "btnExport", "btnImportLocation")
+    macros = Array("btnSelectPrinters", "btnCheckSheet", "btnClearAll", "btnExport", "btnImportLocation")
     targetLeft = ws.Cells(1, SIDE_PANEL_COL).Left
 
     ' Must use the SAME height DrawLocationButtons drew these at (2026-09-27)

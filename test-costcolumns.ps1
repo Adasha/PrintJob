@@ -83,7 +83,7 @@ try {
     Check ([double]$costBtn.Top -lt [double]$main.Cells(3, 1).Top) 'cost toggle is on row 2 (view row), not in the side panel'
 
     $col36Before = [double]$main.Cells(1, 47).Left
-    $sidePanel = 'pcb_btnSelectPrinters', 'pcb_btnCheckSheet', 'pcb_btnRemoveRow', 'pcb_btnClearAll', 'pcb_btnExport', 'pcb_btnImportLocation'
+    $sidePanel = 'pcb_btnSelectPrinters', 'pcb_btnCheckSheet', 'pcb_btnClearAll', 'pcb_btnExport', 'pcb_btnImportLocation'
     foreach ($p in $sidePanel) {
         Check ((SidePanelLeft $main $p) -eq $col36Before) "$p sits on column 47 before hiding (Left=$col36Before)"
     }

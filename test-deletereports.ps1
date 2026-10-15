@@ -38,7 +38,7 @@ try {
     # moved from F5 2026-09-27 when Location took F4 and the rest shifted down
     # one row) so this is a genuine subset, not the whole workbook - exercises
     # the filtered-snapshot path.
-    $rep.Range('F7').Value2 = 'Epson SureColor P9500'
+    $rep.Range('E7').Value2 = 'Epson SureColor P9500'
     $xl.CalculateFullRebuild()
     $beforeJobs = [int]$rep.Range('I9').Text
     Write-Host ("  filtered to Printer = 'Epson SureColor P9500': {0} jobs" -f $beforeJobs)
