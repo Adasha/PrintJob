@@ -100,7 +100,7 @@ $wb = $null
 try {
     $wb = Invoke-ComRetry -Attempts 5 { $xl.Workbooks.Open($f) }
     $ws = Invoke-ComRetry -Attempts 5 { $wb.Worksheets('Example Print Room') }
-    $lo = $ws.ListObjects('tblJobs_MAIN')
+    $lo = $ws.ListObjects('tblJobs_EXAMPLE')
 
     Write-Host '=== as shipped, after setup ==='
     Check-Row $lo 1 'first row'

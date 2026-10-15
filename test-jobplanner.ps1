@@ -47,7 +47,7 @@ try {
     $xl.Run('SetQuiet', $true)
     $sum = Invoke-ComRetry -Attempts 5 { $wb.Worksheets('Summary') }
     $ws = Invoke-ComRetry -Attempts 5 { $wb.Worksheets('Example Print Room') }
-    $lo = $ws.ListObjects('tblJobs_MAIN')
+    $lo = $ws.ListObjects('tblJobs_EXAMPLE')
 
     Write-Host '=== layout ==='
     Check ([string]$sum.Range('A5').Text -eq 'Plan a print job') 'box title in A5'

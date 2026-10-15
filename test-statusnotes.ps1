@@ -30,7 +30,7 @@ try {
     Add-AnnexeFixture $xl $wb | Out-Null
     $xl.Run('SetQuiet', $true)
     $ws = $wb.Worksheets('Example Print Room')
-    $lo = $ws.ListObjects('tblJobs_MAIN')
+    $lo = $ws.ListObjects('tblJobs_EXAMPLE')
     $ws.Activate()
 
     $sc = $lo.ListColumns('Status')
@@ -76,7 +76,7 @@ try {
     # ---- warning fill: every non-"OK" Status cell, on every location sheet
     Write-Host ''
     Write-Host '=== Warning state: Status column conditional formatting ==='
-    foreach ($sheetTable in @(@('Example Print Room', 'tblJobs_MAIN'), @('Annexe', 'tblJobs_ANNEX'))) {
+    foreach ($sheetTable in @(@('Example Print Room', 'tblJobs_EXAMPLE'), @('Annexe', 'tblJobs_ANNEX'))) {
         $wsx = $wb.Worksheets($sheetTable[0])
         $rng = $wsx.ListObjects($sheetTable[1]).ListColumns('Status').DataBodyRange
         $cnt = $rng.FormatConditions.Count
@@ -96,10 +96,10 @@ try {
     # Re-running setup must not stack a second rule. Since 0.11.0 the Status column carries
     # three: the amber problem rule, the yellow notice rule and the pass-row shading that covers
     # the whole table body - so the check is that the count does not change, not that it is 1.
-    $cntBefore = $wb.Worksheets('Example Print Room').ListObjects('tblJobs_MAIN').ListColumns('Status').DataBodyRange.FormatConditions.Count
+    $cntBefore = $wb.Worksheets('Example Print Room').ListObjects('tblJobs_EXAMPLE').ListColumns('Status').DataBodyRange.FormatConditions.Count
     if ($cntBefore -lt 2) { Write-Host "FAIL: Status has only $cntBefore rules (expected problem + notice + shading)"; $failed++ }
     $xl.Run('InitialiseWorkbook')
-    $cnt2 = $wb.Worksheets('Example Print Room').ListObjects('tblJobs_MAIN').ListColumns('Status').DataBodyRange.FormatConditions.Count
+    $cnt2 = $wb.Worksheets('Example Print Room').ListObjects('tblJobs_EXAMPLE').ListColumns('Status').DataBodyRange.FormatConditions.Count
     if ($cnt2 -ne $cntBefore) { Write-Host "FAIL: Status has $cnt2 rules after a second InitialiseWorkbook (expected $cntBefore)"; $failed++ }
     else { Write-Host "OK: re-running InitialiseWorkbook leaves the same $cnt2 Status rules" }
 }

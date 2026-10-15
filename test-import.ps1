@@ -32,7 +32,7 @@ try {
     $xl.Run('SetQuiet', $true)
     $main = $wb.Worksheets('Example Print Room')
     $annexe = $wb.Worksheets('Annexe')
-    $loMain = $main.ListObjects('tblJobs_MAIN')
+    $loMain = $main.ListObjects('tblJobs_EXAMPLE')
 
     function Col($lo, $name) {
         for ($i = 1; $i -le $lo.ListColumns.Count; $i++) {
@@ -48,7 +48,7 @@ try {
     Write-Host '=== Export All Locations ==='
     $xl.Run('btnExportAll')
     Write-Host $xl.Run('QuietLog')
-    $mainCsv = Get-ChildItem $workDir -Filter 'PrintCosts-*-MAIN-*.csv' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    $mainCsv = Get-ChildItem $workDir -Filter 'PrintCosts-*-EXAMPLE-*.csv' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if (-not $mainCsv) { Write-Host 'FAIL: no CSV produced for Example Print Room'; exit 1 }
     Write-Host ("  {0}" -f $mainCsv.Name)
 
@@ -126,7 +126,7 @@ try {
         if ([string]$loAnnexe.ListRows($i).Range.Cells(1, $idColAnnexe).Value2 -eq $victimId) { $movedIn = $true }
     }
     if (-not $movedIn) { Write-Host "FAIL: $victimId was not imported into Annexe Print Room"; exit 1 }
-    if ($victimId -notmatch '-MAIN-') { Write-Host "FAIL: test assumption broken, victim ID does not carry a MAIN prefix"; exit 1 }
+    if ($victimId -notmatch '-EXAMPLE-') { Write-Host "FAIL: test assumption broken, victim ID does not carry an EXAMPLE prefix"; exit 1 }
     Write-Host ("OK: '{0}' landed in Annexe's table with its ORIGINAL Job ID (prefix untouched)" -f $victimId)
 
     # --- confirm it now reports under Annexe's location in _Data ----------

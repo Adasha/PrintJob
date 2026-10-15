@@ -1,8 +1,8 @@
 # This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
 # If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 #
-# An older workbook whose real print room kept the shipped sample's code (MAIN),
-# whether or not it was renamed: Restore workbook used to import its jobs INTO
+# An older workbook whose real print room kept the shipped sample's code (EXAMPLE),
+# whether or not it was renamed (and, last case, one that shipped the sample as MAIN): Restore workbook used to import its jobs INTO
 # the sample room, which kept its name, department and permitted printers. It now
 # reuses the sample's sheet for the room, so the restored room comes back with
 # its own settings (here: two permitted printers, one of them not in the sample).
@@ -18,11 +18,11 @@ function New-WorkDir {
     return $d
 }
 
-function Restore-Case([string]$label, [string]$roomName, [string]$sheetExpected) {
+function Restore-Case([string]$label, [string]$roomName, [string]$sheetExpected, [string]$code = 'EXAMPLE') {
     Write-Host "=== $label ==="
     $dirA = New-WorkDir; $fA = Join-Path $dirA 'Old.xlsm'; Copy-Item $deliverable $fA
     $dirB = New-WorkDir; $fB = Join-Path $dirB 'PrintJob.xlsm'; Copy-Item $deliverable $fB
-    $printers = ''
+    $printers = ''; $codeA = ''
     $xlA = New-Object -ComObject Excel.Application
     $xlA.Visible = $false; $xlA.DisplayAlerts = $false
     $wbA = $null
@@ -41,7 +41,15 @@ function Restore-Case([string]$label, [string]$roomName, [string]$sheetExpected)
         $ws.Names.Item('LOC_Printers').RefersToRange.Value2 = $printers
         $ws.Names.Item('LOC_DefPrinter').RefersToRange.Value2 = ([string]$c.Cells(1, 1).Value2)
         Invoke-ComRetry { $xlA.Run('RelockSheet', $ws) } | Out-Null
-        $jobsA = $ws.ListObjects('tblJobs_MAIN').ListRows.Count
+        if ($code -ne 'EXAMPLE') {
+            # An older workbook that shipped the sample as MAIN.
+            Invoke-ComRetry { $xlA.Run('UnlockSheet', $ws) } | Out-Null
+            $ws.Names.Item('LOC_Code').RefersToRange.Value2 = $code
+            Invoke-ComRetry { $xlA.Run('RelockSheet', $ws) } | Out-Null
+            $xlA.Run('RefreshLocations')
+        }
+        $codeA = [string]$ws.Names.Item('LOC_Code').RefersToRange.Value2
+        $jobsA = $ws.ListObjects("tblJobs_$code").ListRows.Count
         Check ($jobsA -ge 1) "old room has job rows ($jobsA)"
         Check ($printers -match ';.') "old room permits two printers ($printers)"
         $wbA.Save()
@@ -63,13 +71,15 @@ function Restore-Case([string]$label, [string]$roomName, [string]$sheetExpected)
         Start-Sleep -Milliseconds 300
 
         $names = @(); foreach ($s in $wbB.Worksheets) { $names += $s.Name }
+        $rooms = 0; foreach ($s in $wbB.Worksheets) { if ([string]$xlB.Run('IsLocation', $s) -eq 'True') { $rooms++ } }
+        Check ($rooms -eq 1) "exactly one print room remains ($rooms)"
         Check ($names -contains $sheetExpected) "the restored room's sheet is '$sheetExpected' (sheets: $($names -join ', '))"
         $room = $wbB.Worksheets($sheetExpected)
-        Check ([string]$xlB.Run('LocValue', $room, 'LOC_Code') -eq 'MAIN') 'code kept as MAIN'
+        Check ([string]$xlB.Run('LocValue', $room, 'LOC_Code') -eq $code) "code kept as $code (got '$($xlB.Run('LocValue', $room, 'LOC_Code'))', A had '$codeA')"
         Check ([string]$xlB.Run('LocValue', $room, 'LOC_Name') -eq $roomName) 'room name restored'
         Check ([string]$xlB.Run('LocValue', $room, 'LOC_Dept') -eq 'Photography') 'department restored'
         Check ([string]$xlB.Run('LocValue', $room, 'LOC_Printers') -eq $printers) "permitted printers restored (got '$($xlB.Run('LocValue', $room, 'LOC_Printers'))')"
-        $lo = $room.ListObjects('tblJobs_MAIN')
+        $lo = $room.ListObjects("tblJobs_$code")
         Check ($lo.ListRows.Count -eq $jobsA) "job rows match the old room ($jobsA, got $($lo.ListRows.Count))"
         $xlB.Run('SetQuiet', $false)
     }
@@ -82,6 +92,7 @@ function Restore-Case([string]$label, [string]$roomName, [string]$sheetExpected)
 
 Restore-Case 'Sample room renamed in the older workbook' 'Photo Studio' 'Photo Studio'
 Restore-Case 'Sample room NOT renamed, only given its own printers' 'Example Print Room' 'Example Print Room'
+Restore-Case 'Older workbook that shipped the sample as MAIN' 'Example Print Room' 'Example Print Room' 'MAIN'
 
 Write-Host ''
 if ($anyFail) { Write-Host 'FAIL' } else { Write-Host 'PASS' }

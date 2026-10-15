@@ -50,7 +50,7 @@ try {
         @{ Sheet = 'Papers';            Table = 'tblPapers';      Jobs = $false },
         @{ Sheet = 'Departments';       Table = 'tblDepartments'; Jobs = $false },
         @{ Sheet = 'Consumables';       Table = 'tblColours';     Jobs = $false },
-        @{ Sheet = 'Example Print Room'; Table = 'tblJobs_MAIN';  Jobs = $true }
+        @{ Sheet = 'Example Print Room'; Table = 'tblJobs_EXAMPLE';  Jobs = $true }
     )
 
     foreach ($c in $cases) {

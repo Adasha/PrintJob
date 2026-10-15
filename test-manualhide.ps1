@@ -29,7 +29,7 @@ try {
     $wb = $xl.Workbooks.Open($f)
     $xl.Run('SetQuiet', $true)
     $main = $wb.Worksheets('Example Print Room')
-    $lo = $main.ListObjects('tblJobs_MAIN')
+    $lo = $main.ListObjects('tblJobs_EXAMPLE')
 
     function ButtonLeft($ws, $prefix) {
         $n = $ws.Buttons().Count

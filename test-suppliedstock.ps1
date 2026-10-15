@@ -39,7 +39,7 @@ try {
     $wb = Invoke-ComRetry { $xl.Workbooks.Open($f) }
     $xl.Run('SetQuiet', $true)
     $main = $wb.Worksheets('Example Print Room')
-    $lo = $main.ListObjects('tblJobs_MAIN')
+    $lo = $main.ListObjects('tblJobs_EXAMPLE')
 
     function Col($lo, $name) {
         for ($try = 1; $try -le 5; $try++) {

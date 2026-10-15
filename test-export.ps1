@@ -76,7 +76,7 @@ try {
 
     # Edit a quantity. The fingerprint must notice: no event fires for this
     # when macros are off, which is the whole reason it is derived.
-    $lo = $ws.ListObjects('tblJobs_MAIN')
+    $lo = $ws.ListObjects('tblJobs_EXAMPLE')
     $qtyCol = 0
     for ($i = 1; $i -le $lo.ListColumns.Count; $i++) {
         if ($lo.ListColumns($i).Name -eq 'Qty') { $qtyCol = $i }

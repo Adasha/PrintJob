@@ -37,7 +37,7 @@ try {
     $wb = Invoke-ComRetry { $xl.Workbooks.Open($f) }
     $xl.Run('SetQuiet', $true)
     $main = $wb.Worksheets('Example Print Room')
-    $lo = $main.ListObjects('tblJobs_MAIN')
+    $lo = $main.ListObjects('tblJobs_EXAMPLE')
     $data = $wb.Worksheets('_Data')
 
     $stkCol = $lo.Range.Column + (Col $lo 'Paper Stock') - 1

@@ -79,7 +79,7 @@ try {
     $pr.Cells(1, (Col $plo 'Active')).Value2 = 'Yes'
 
     $main = Invoke-ComRetry { $wb.Worksheets('Example Print Room') }
-    $lo = $main.ListObjects('tblJobs_MAIN')
+    $lo = $main.ListObjects('tblJobs_EXAMPLE')
     $loc = $main.Names.Item('LOC_Printers').RefersToRange
     [void]$xl.Run('UnlockSheet', $main)
     $loc.Value2 = ([string]$loc.Value2 + ';Test RISO')

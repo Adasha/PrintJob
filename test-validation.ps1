@@ -61,7 +61,7 @@ try {
     # Excel can still be settling from Workbook_Open's own macro work when
     # this lands - retried the same way build.ps1 retries its SaveAs.
     $main = Invoke-ComRetry { $wb.Worksheets('Example Print Room') }
-    $lo = $main.ListObjects('tblJobs_MAIN')
+    $lo = $main.ListObjects('tblJobs_EXAMPLE')
     $before = $lo.ListRows.Count
 
 

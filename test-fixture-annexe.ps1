@@ -27,10 +27,10 @@
 # place.
 #
 # The new sheet's LOC_Code is set to "ANNEX" before Refresh Locations runs,
-# rather than left as the copied "MAIN": AssignCode (modRegistry) reads
+# rather than left as the copied "EXAMPLE": AssignCode (modRegistry) reads
 # whatever LOC_Code already holds first, and Example Print Room reaches the
-# refresh loop first (it's earlier in the workbook), so an unchanged "MAIN"
-# on the copy would only be deduplicated to something like "MAIN2" - not the
+# refresh loop first (it's earlier in the workbook), so an unchanged "EXAMPLE"
+# on the copy would only be deduplicated to something like "EXAMPLE2" - not the
 # "ANNEX" every dependent test hardcodes via tblJobs_ANNEX.
 
 . (Join-Path $PSScriptRoot 'TestCommon.ps1')

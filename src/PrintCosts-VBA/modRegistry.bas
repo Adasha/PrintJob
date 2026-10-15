@@ -894,6 +894,21 @@ Fail:
     ReportError "Restore workbook"
 End Function
 
+' Gives a room's sheet the name its LOC_Name asks for once that name is free -
+' a restored room called like the sample room is created while the sample still
+' holds the name ("Example Print Room 2"), and takes it over when the restore
+' removes the sample. Does nothing when the name is not free or already right.
+Public Sub TidySheetName(ByVal ws As Worksheet)
+    Dim want As String
+
+    want = SanitiseSheetName(LocValue(ws, "LOC_Name"))
+    If StrComp(ws.Name, want, vbTextCompare) = 0 Then Exit Sub
+    If SheetExists(want) Then Exit Sub
+    On Error Resume Next
+    ws.Name = want
+    On Error GoTo 0
+End Sub
+
 ' Any location sheet will do - they are structurally interchangeable by
 ' construction (self-healing InitialiseWorkbook/RefreshLocations) - so this
 ' just takes the first one found in workbook order, deterministically.

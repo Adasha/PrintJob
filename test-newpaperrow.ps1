@@ -36,7 +36,7 @@ try {
     $papers = $wb.Worksheets('Papers')
     $plo = $papers.ListObjects('tblPapers')
     $main = $wb.Worksheets('Example Print Room')
-    $jlo = $main.ListObjects('tblJobs_MAIN')
+    $jlo = $main.ListObjects('tblJobs_EXAMPLE')
 
     function Col($lo, $name) {
         for ($try = 1; $try -le 5; $try++) {
