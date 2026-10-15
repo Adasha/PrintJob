@@ -143,6 +143,8 @@ try {
     # produced, and users re-run InitialiseWorkbook every time they add a
     # print room.
     $xl.Run('StampBuild')
+    # Last, so nothing after it can scroll a sheet: every sheet back at A1.
+    $xl.Run('ResetSheetViews')
     $log = $xl.Run('QuietLog')
     $xl.Run('SetQuiet', $false)
     $stamped = $xl.Run('VersionString')

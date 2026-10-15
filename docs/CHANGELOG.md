@@ -62,6 +62,9 @@ Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module
   - Build: apply-multipass-template.ps1 is the re-runnable record of the change to
     PrintCosts.xlsx (it also writes summaryBelow="0" into the location sheet XML).
   - Docs: the Department job-row column now takes schema 1.5.
+  - Restore workbook removes the sample "Example Print Room" once the backup's own print
+    rooms are in, if it is still untouched (see ARCHITECTURE section 10.7).
+  - A fresh build leaves every sheet scrolled to A1 (build.ps1 runs ResetSheetViews last).
 
 0.10.31 - University subsidy: a percentage of the chargeable cost, shown as a billable total.
   - New Settings row "University subsidy" (SUBSIDY_PCT, SET_SUBSIDY_PCT): one percentage for

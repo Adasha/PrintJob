@@ -28,6 +28,11 @@ Option Explicit
 
 Private Const CSV_UTF8 As Long = 62         ' xlCSVUTF8
 
+' The shipped sample room - see "the example room" below.
+Private Const EXAMPLE_ROOM_CODE As String = "MAIN"
+Private Const EXAMPLE_ROOM_NAME As String = "Example Print Room"
+Private Const EXAMPLE_ROOM_SAMPLE_JOBS As Long = 12
+
 ' The eight catalogue/configuration tables this backs up. Settings is one of
 ' them, not a separate mechanism - modUtils.Tbl finds it on the Settings
 ' sheet exactly like the other three lookup tables there. tblColours (0.11.0)
@@ -228,6 +233,7 @@ Public Sub RestoreFromFile(ByVal AnyFilePath As String)
         "A print room listed above that does not exist here yet will be CREATED" & _
         IIf(PlanHasRoomSettings(rooms), ", with its default technician, printer and paper, permitted printers and roll length unit from the workbook. ", ". ") & _
         "Job records will be imported into each print room listed above, following the same rule as Import (existing Job ID: overwritten; new Job ID: added). " & _
+        IIf(ExampleRoomToRemove(rooms) Is Nothing, "", "The sample '" & EXAMPLE_ROOM_NAME & "' print room, which this restore does not touch, will be REMOVED once the restore completes. ") & _
         "This cannot be undone.", "Restore workbook") Then Exit Sub
 
     ApplyRestorePlan catalogRows, rooms
@@ -657,6 +663,10 @@ Private Sub ApplyRestorePlan(ByVal CatalogRows As clsDict, ByVal Rooms As Collec
     Next v
     AppOn
 
+    ' Only when every room in the backup landed: a skipped room means the
+    ' restore is incomplete, and the sample room is not worth losing for that.
+    If ran > 0 And ran = Rooms.Count Then RemoveExampleRoom Rooms, back, summary
+
     ' CreatePrintRoom leaves the new room active; put the user back where they were.
     On Error Resume Next
     If Not back Is Nothing Then back.Activate
@@ -671,6 +681,79 @@ Private Sub ApplyRestorePlan(ByVal CatalogRows As clsDict, ByVal Rooms As Collec
 Fail:
     AppReset
     ReportError "Restore workbook"
+End Sub
+
+' ---------------------------------------------------- the example room ---
+' The workbook ships with one sample room (code MAIN, 12 invented jobs) so the
+' features can be tried before any real room exists. Once a restore has brought
+' in the site's real rooms it is only clutter - and a room that would turn up
+' in Reports and in the next Backup - so the restore removes it.
+'
+' Removed only when it is still the sample: the name and code are the shipped
+' ones (renaming it makes it someone's room), it holds nothing but sample jobs
+' (a real job gets a Job ID after the sample ones), and the backup does not
+' itself contain MAIN (then the sample room IS the restored room).
+
+' The example room's sheet when this plan should remove it, else Nothing.
+Private Function ExampleRoomToRemove(ByVal Rooms As Collection) As Worksheet
+    Dim ws As Worksheet, v As Variant, room As clsRestoreRoom, real As Long
+
+    Set ws = SheetForCode(EXAMPLE_ROOM_CODE)
+    If ws Is Nothing Then Exit Function
+    If StrComp(LocValue(ws, "LOC_Name"), EXAMPLE_ROOM_NAME, vbTextCompare) <> 0 Then Exit Function
+
+    For Each v In Rooms
+        Set room = v
+        If StrComp(room.Code, EXAMPLE_ROOM_CODE, vbTextCompare) = 0 Then Exit Function
+        If Len(room.Code) > 0 Then real = real + 1
+    Next v
+    If real = 0 Then Exit Function
+
+    If HoldsOnlySampleJobs(ws) Then Set ExampleRoomToRemove = ws
+End Function
+
+Private Function HoldsOnlySampleJobs(ByVal Ws As Worksheet) As Boolean
+    Dim lo As ListObject, c As Range, id As String
+
+    Set lo = JobsTable(Ws)
+    If lo Is Nothing Then Exit Function
+    If lo.ListRows.Count > EXAMPLE_ROOM_SAMPLE_JOBS Then Exit Function
+    If lo.ListRows.Count > 0 Then
+        For Each c In lo.ListColumns("Job ID").DataBodyRange.Cells
+            id = Trim$(CStr(c.Value2))
+            If Len(id) > 0 Then
+                If Not id Like "*-" & EXAMPLE_ROOM_CODE & "-000##" Then Exit Function
+                If Val(Right$(id, 2)) > EXAMPLE_ROOM_SAMPLE_JOBS Then Exit Function
+            End If
+        Next c
+    End If
+    HoldsOnlySampleJobs = True
+End Function
+
+' Deletes the example room through the same core Remove print room uses (audit
+' entry and Refresh Locations included; the refresh dialog is muted so it does
+' not bury the restore's own summary). Back is the sheet to return the user to;
+' it is repointed at the first restored room if it was the one being deleted.
+Private Sub RemoveExampleRoom(ByVal Rooms As Collection, ByRef Back As Object, ByRef Summary As String)
+    Dim ex As Worksheet, wasQuiet As Boolean, room As clsRestoreRoom
+
+    Set ex = ExampleRoomToRemove(Rooms)
+    If ex Is Nothing Then Exit Sub
+
+    If Not Back Is Nothing Then
+        If StrComp(Back.Name, ex.Name, vbTextCompare) = 0 Then Set Back = Rooms.Item(1).Sheet
+    End If
+
+    wasQuiet = gQuiet
+    gQuiet = True
+    DeletePrintRoom ex
+    gQuiet = wasQuiet
+
+    If SheetForCode(EXAMPLE_ROOM_CODE) Is Nothing Then
+        Summary = Summary & "- " & EXAMPLE_ROOM_CODE & " (" & EXAMPLE_ROOM_NAME & "): sample print room removed" & vbCrLf
+    Else
+        Summary = Summary & "- " & EXAMPLE_ROOM_CODE & " (" & EXAMPLE_ROOM_NAME & "): could not be removed - delete it with Remove print room" & vbCrLf
+    End If
 End Sub
 
 ' Finds the room by its code, creating it when the backup names a room this

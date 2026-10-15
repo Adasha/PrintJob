@@ -1314,6 +1314,29 @@ Private Sub SetFreeze(ByVal ws As Worksheet, ByVal Anchor As String)
     On Error GoTo 0
 End Sub
 
+' Puts every visible sheet back at the top-left, cell A1, and finishes on Summary.
+' Called by build.ps1 as its last step: the build selects cells across the
+' sheets (SetFreeze, the toolbars) in a window Excel never showed, which left
+' Settings and the print rooms scrolled to the right in the saved file.
+Public Sub ResetSheetViews()
+    Dim ws As Worksheet
+    Dim ev As Boolean
+    ev = Application.EnableEvents
+    Application.EnableEvents = False
+    On Error Resume Next
+    For Each ws In ThisWorkbook.Worksheets
+        If ws.Visible = xlSheetVisible Then
+            ws.Activate
+            ActiveWindow.ScrollColumn = 1
+            ActiveWindow.ScrollRow = 1
+            ws.Range("A1").Select
+        End If
+    Next ws
+    ThisWorkbook.Worksheets("Summary").Activate
+    On Error GoTo 0
+    Application.EnableEvents = ev
+End Sub
+
 ' ------------------------------------------------------------- tab order ---
 ' Enforces the tab order the snag list settled on (item 12): Summary,
 ' Reports, every print room, then the four configuration sheets in a fixed
