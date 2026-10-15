@@ -5,9 +5,10 @@
 #
 #   - The "More filters" rows (14-15) are a nested row group, closed by default;
 #     row 16 is its summary row and says how many of its filters are set.
-#   - Has a problem (B14): Yes / No. Disregarded (B15): Paper / Consumable / Both.
-#   - Has notes moved into the closed group (F14).
-#   - Student-supplied paper (F10): Yes / No.
+#   - Has a problem (B15): Yes / No. Disregarded (B16): Paper / Consumable / Both / Neither.
+#   - Has notes in the More filters row (E15).
+#   - Student-supplied paper (E12): Yes / No.
+#   (Addresses are the 0.11.0 layout: right-hand inputs in E, a gap after Department.)
 #   - A filter set inside the closed row still applies, still counts for the
 #     bulk-command safeguard and is emptied by Clear all filters.
 #
@@ -45,7 +46,7 @@ try {
 
     function Jobs { $xl.CalculateFullRebuild(); [int]$rep.Range('I9').Text }
     function Clear-AllBoxes {
-        foreach ($a in 'B4','B5','B7','B8','B10','B11','B12','F4','F5','F7','F8','F9','F10','B14','B15','F14','I7','K7') { Invoke-ComRetry { $rep.Range($a).ClearContents() | Out-Null } }
+        foreach ($a in 'B4','B5','B8','B9','B11','B12','B13','E4','E5','E7','E10','E11','E12','B15','B16','E15','I7','K7') { Invoke-ComRetry { $rep.Range($a).ClearContents() | Out-Null } }
         $xl.CalculateFullRebuild()
     }
     # One record per job table row that has a Date/Time (the rows _Data keeps;
@@ -79,20 +80,18 @@ try {
     Check (-not [bool]$rep.Rows(14).Hidden -and -not [bool]$rep.Rows(15).Hidden) 'rows 14-15 (the less-used filters) are visible: the row groups are gone (0.10.28)'
     Check ([int]$rep.Rows(4).OutlineLevel -eq 1 -and [int]$rep.Rows(14).OutlineLevel -eq 1) 'no row groups on the Reports sheet'
     Check ([int]$rep.Columns('A').OutlineLevel -eq 2 -and [int]$rep.Columns('F').OutlineLevel -eq 2 -and [int]$rep.Columns('G').OutlineLevel -eq 1 -and [int]$rep.Columns('H').OutlineLevel -eq 1) 'filter columns A:F are one column group; G (gap) and H are not in it'
-    Check ([string]$rep.Range('A16').Text -eq '') 'no More filters summary row any more'
-    Check ([string]$rep.Range('A14').Text -eq 'Has a problem' -and [string]$rep.Range('D14').Text -eq 'Has notes' -and [string]$rep.Range('A15').Text -eq 'Disregarded') 'the closed group holds Has a problem, Has notes and Disregarded'
+    Check ([string]$rep.Range('A15').Text -eq 'Has a problem' -and [string]$rep.Range('D15').Text -eq 'Has notes' -and [string]$rep.Range('A16').Text -eq 'Disregarded') 'the closed group holds Has a problem, Has notes and Disregarded'
     Check ([string]$rep.Range('H7').Text -eq 'Sort by') 'Sort by sits at H7 above the table'
-    foreach ($addr in 'B14', 'B15', 'F14', 'F10') {
+    foreach ($addr in 'B15', 'B16', 'E15', 'E12') {
         Check ([int]$rep.Range($addr).Validation.Type -eq 3) "$addr is a dropdown"
     }
 
     # --------------------------------------------- counter on the summary row
     Write-Host ''
     Write-Host '=== The summary row counts hidden filters that are set ==='
-    $rep.Range('F14').Value2 = 'Yes'; $xl.Calculate()
-    $rep.Range('B15').Value2 = 'Paper'; $xl.Calculate()
+    $rep.Range('E15').Value2 = 'Yes'; $xl.Calculate()
+    $rep.Range('B16').Value2 = 'Paper'; $xl.Calculate()
     Clear-AllBoxes
-    Check ([string]$rep.Range('A16').Text -eq '') 'no More filters summary row any more'
 
     # ------------------------------------ Has a problem / Disregarded
     Write-Host ''
@@ -114,17 +113,21 @@ try {
     $wantBoth = @($recs | Where-Object { $_.DPaper -eq 'Yes' -and $_.DCons -eq 'Yes' }).Count
     $wantOk = @($recs | Where-Object { $_.Status -eq 'OK' }).Count
     Check ($wantBoth -ge 1) 'fixture has a record with both flags'
-    $rep.Range('B15').Value2 = 'Paper'
+    $rep.Range('B16').Value2 = 'Paper'
     Check ((Jobs) -eq $wantPaper) 'Disregarded = Paper matches the records with Disregard Paper = Yes'
-    $rep.Range('B15').Value2 = 'Consumable'
+    $rep.Range('B16').Value2 = 'Consumable'
     Check ((Jobs) -eq $wantCons) 'Disregarded = Consumable matches the records with Disregard Consumable = Yes'
-    $rep.Range('B15').Value2 = 'Both'
+    $rep.Range('B16').Value2 = 'Both'
     Check ((Jobs) -eq $wantBoth) "Disregarded = Both matches the records with both flags ($wantBoth)"
+    $wantNeither = @($recs | Where-Object { $_.DPaper -ne 'Yes' -and $_.DCons -ne 'Yes' }).Count
+    $rep.Range('B16').Value2 = 'Neither'
+    Check ((Jobs) -eq $wantNeither) "Disregarded = Neither matches the records with no flag set ($wantNeither)"
+    Check ($wantNeither -ge 1 -and $wantNeither -lt $recs.Count) 'fixture has records both with and without a disregard flag'
     Clear-AllBoxes
-    $rep.Range('B14').Value2 = 'Yes'
+    $rep.Range('B15').Value2 = 'Yes'
     Check ((Jobs) -eq $wantProb) 'Has a problem = Yes matches the records whose Status is not OK'
     Check ($wantProb -ge 1) 'fixture has at least one problem record'
-    $rep.Range('B14').Value2 = 'No'
+    $rep.Range('B15').Value2 = 'No'
     Check ((Jobs) -eq $wantOk) "Has a problem = No matches the records whose Status is OK ($wantOk)"
     Clear-AllBoxes
     Check ((Jobs) -eq $recs.Count) 'blank filters show every record'
@@ -133,14 +136,14 @@ try {
     Write-Host ''
     Write-Host '=== A filter inside the closed row still applies and still counts ==='
     Check (-not [bool]($xl.Run('HasActiveFilter', $rep))) 'no filter set: HasActiveFilter is false'
-    $rep.Range('B15').Value2 = 'Paper'
+    $rep.Range('B16').Value2 = 'Paper'
     Check ([bool]($xl.Run('HasActiveFilter', $rep))) 'Disregarded alone satisfies the at-least-one-filter safeguard'
     Clear-AllBoxes
-    $rep.Range('F14').Value2 = 'Yes'
+    $rep.Range('E15').Value2 = 'Yes'
     Check ([bool]($xl.Run('HasActiveFilter', $rep))) 'Has notes (now in the closed row) alone satisfies the safeguard'
-    $rep.Range('B14').Value2 = 'Yes'; $rep.Range('B15').Value2 = 'Both'
+    $rep.Range('B15').Value2 = 'Yes'; $rep.Range('B16').Value2 = 'Both'
     $xl.Run('btnClearFilters')
-    Check ([string]$rep.Range('B14').Formula -eq '' -and [string]$rep.Range('B15').Formula -eq '' -and [string]$rep.Range('F14').Formula -eq '') 'Clear all filters empties the closed row too'
+    Check ([string]$rep.Range('B15').Formula -eq '' -and [string]$rep.Range('B16').Formula -eq '' -and [string]$rep.Range('E15').Formula -eq '') 'Clear all filters empties the closed row too'
 
     # ------------------------------------------------ Student-supplied paper
     Write-Host ''
@@ -157,14 +160,14 @@ try {
     $wantSup = @($recs | Where-Object { $_.Stock -eq $stockName }).Count
     Write-Host "  expected: $wantSup of $($recs.Count) records on '$stockName'"
     Check ($wantSup -ge 1) 'at least one record uses the flagged stock'
-    $rep.Range('F10').Value2 = 'Yes'
+    $rep.Range('E12').Value2 = 'Yes'
     Check ((Jobs) -eq $wantSup) 'Yes shows exactly the records on stock marked Supplied by student'
-    $rep.Range('F10').Value2 = 'No'
+    $rep.Range('E12').Value2 = 'No'
     Check ((Jobs) -eq ($recs.Count - $wantSup)) 'No shows every other record'
-    $rep.Range('F10').ClearContents() | Out-Null
+    $rep.Range('E12').ClearContents() | Out-Null
     Check ((Jobs) -eq $recs.Count) 'blank shows every record'
     $pap.ListRows($pr).Range.Cells(1, $supIdx).Value2 = 'No'
-    $rep.Range('F10').Value2 = 'Yes'
+    $rep.Range('E12').Value2 = 'Yes'
     Check ((Jobs) -eq 0) 'with no stock marked Supplied by student, Yes shows nothing'
     # The two built-in stocks are not Papers rows; put one on a record and count again.
     $stockCell = $loMain.ListRows(2).Range.Cells(1, $stockIdx)
@@ -192,19 +195,38 @@ try {
 
     # ------------------------------------- freeze panes and the button strip
     Write-Host ''
-    Write-Host '=== No freeze panes; the buttons follow the filter column group ==='
+    Write-Host '=== No freeze panes; the button strip is one rigid piece (0.11.0 refinement) ==='
     $rep.Activate()
     $xl.ActiveWindow.ScrollRow = 1; $xl.ActiveWindow.ScrollColumn = 1
     Check (-not [bool]$xl.ActiveWindow.FreezePanes) 'Reports has no freeze panes'
-    function BtnLeft { foreach ($s in $rep.Shapes) { if ($s.Name -like 'pcb_btnClearFilters_*') { return [double]$s.Left } } return -1 }
-    $open = BtnLeft
+    function BtnLeft([string]$macro) { foreach ($s in $rep.Shapes) { if ($s.Name -like "pcb_${macro}_*") { return [double]$s.Left } } return -1 }
+    $macros = 'btnClearFilters', 'btnTogglePaid', 'btnGoToRecord', 'btnMarkPaid', 'btnMarkUnpaid', 'btnExportReport', 'btnDeleteVisible'
+    $open = BtnLeft 'btnClearFilters'
     Check ($open -ge ($rep.Range('H1').Left - 1)) "expanded: the strip starts at column H (Left $([int]$open), H at $([int]$rep.Range('H1').Left))"
+    $lefts0 = $macros | ForEach-Object { BtnLeft $_ }
+
+    # Collapsing the filters leaves the strip at the expanded position: it must never be left over
+    # the filter boxes, and it re-settles to the same place on the next click.
     $rep.Outline.ShowLevels(0, 1) | Out-Null
-    $shut = BtnLeft
     Check ([bool]$rep.Columns('A').Hidden -and [bool]$rep.Columns('F').Hidden -and -not [bool]$rep.Columns('G').Hidden) 'collapsed: A:F hidden, the gap column G stays'
-    Check ($shut -lt $open - 100 -and [math]::Abs($shut - $rep.Range('H1').Left) -lt 1.5) "collapsed: the buttons moved with the table, no click needed (Left $([int]$shut))"
+    Check ([math]::Abs((BtnLeft 'btnClearFilters') - $open) -lt 1.5) 'collapsed: the strip has not jumped'
+    [void]$xl.Run('RepositionReportsButtons', $rep)
+    Check ([math]::Abs((BtnLeft 'btnClearFilters') - $open) -lt 1.5) 'collapsed, re-settled: the strip stays at its expanded position'
     $rep.Outline.ShowLevels(0, 2) | Out-Null
-    Check ([math]::Abs((BtnLeft) - $open) -lt 1.5) 'expanded again: the buttons are back where they were'
+    Check ([math]::Abs((BtnLeft 'btnClearFilters') - $open) -lt 1.5) 'expanded again: the strip is where it was, clear of the filter boxes'
+    Check ((BtnLeft 'btnClearFilters') -ge ($rep.Range('G1').Left + $rep.Columns('G').Width - 1)) 'the strip starts right of the filter columns'
+
+    # Resizing a results column under the strip moves none of it.
+    $w0 = [double]$rep.Columns('K').ColumnWidth
+    $rep.Columns('K').ColumnWidth = $w0 + 20
+    $lefts1 = $macros | ForEach-Object { BtnLeft $_ }
+    $moved = 0; for ($i = 0; $i -lt $lefts0.Count; $i++) { if ([math]::Abs($lefts0[$i] - $lefts1[$i]) -gt 0.5) { $moved++ } }
+    Check ($moved -eq 0) "widening a results column leaves the strip alone ($moved of $($macros.Count) buttons moved)"
+    [void]$xl.Run('RepositionReportsButtons', $rep)
+    $lefts2 = $macros | ForEach-Object { BtnLeft $_ }
+    $moved = 0; for ($i = 0; $i -lt $lefts0.Count; $i++) { if ([math]::Abs($lefts0[$i] - $lefts2[$i]) -gt 0.5) { $moved++ } }
+    Check ($moved -eq 0) "...and re-settling keeps it where it was ($moved moved)"
+    $rep.Columns('K').ColumnWidth = $w0
 }
 finally {
     if ($wb) { try { $wb.Close($false) } catch {} }

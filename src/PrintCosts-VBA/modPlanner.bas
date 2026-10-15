@@ -162,7 +162,9 @@ Private Function AllRoomPrinters() As Collection
     Set seen = New clsDict
     For Each v In LocationSheets()
         For Each m In PrintersFor(v)
-            If Not seen.Exists(CStr(m)) Then
+            ' A multi-pass printer is not offered: the planner prices one flat rate
+            ' and cannot price a job's colour passes (multi-pass design, ARCHITECTURE 17.2).
+            If Not seen.Exists(CStr(m)) And Not Prn(CStr(m)).MultiPass Then
                 seen.Add CStr(m), True
                 out.Add CStr(m)
             End If

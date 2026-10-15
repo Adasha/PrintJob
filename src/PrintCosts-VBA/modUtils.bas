@@ -19,7 +19,12 @@ Public Const MARKER_CELL As String = "AZ1"
 ' Measure (Sheet/Roll) is now the only such attribute, and S_Measure already
 ' snapshots it. Records exported at 1.2 still import: columns are read by
 ' header name, so the extra S_Family column is simply ignored.
-Public Const SCHEMA_VER As String = "1.3"
+' 1.4 (multi-pass costing, 0.11.0): the job table gained Passes, Colour,
+' Set-up Cost, Row Type, Parent, Pass and the S_SetupCost / S_ColourID
+' snapshots (plus the hidden H_Ink, H_Setup and H_Notices working columns).
+' Records exported at 1.3 still import: the missing columns read as a Job row
+' with no passes and no set-up cost.
+Public Const SCHEMA_VER As String = "1.4"
 Public Const JOBS_PREFIX As String = "tblJobs_"
 Public Const LIST_SEP As String = ";"
 
@@ -229,6 +234,23 @@ Public Sub ClearTypedCells(ByVal RowRange As Range)
         If Not c.HasFormula Then c.ClearContents
     Next c
 End Sub
+
+' Call before deleting a table row: if it is the table's ONLY row, blanks it
+' (typed cells only, formulas kept) and returns True, meaning "already dealt
+' with - do not delete". A table taken to zero rows has no row left for Excel to
+' copy formatting from, so the next ListRows.Add produces a row dressed like the
+' header (navy fill, white bold text, header height) - found 2026-10-15 on the
+' Consumables sheet, and the same on every catalogue sheet and the job tables.
+' The blank row this leaves is the state AddCatalogRow/AddPrintJob already reuse
+' (Count = 1 And IsBlankRow) and RowCount reports as zero rows, exactly as
+' Clear table / Clear All leave it.
+Public Function BlankSoleRow(ByVal lo As ListObject) As Boolean
+    If lo.ListRows.Count <> 1 Then Exit Function
+    ClearTypedCells lo.ListRows(1).Range
+    lo.ListRows(1).Range.EntireRow.OutlineLevel = 1    ' a pass row's level goes with its data
+    lo.ListRows(1).Range.EntireRow.Hidden = False
+    BlankSoleRow = True
+End Function
 
 ' ------------------------------------------------------------------- names ---
 Public Function LocRange(ByVal ws As Worksheet, ByVal RefName As String) As Range

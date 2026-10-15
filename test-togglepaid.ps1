@@ -70,7 +70,7 @@ try {
     }
     function SpillCount { Invoke-ComRetry -Attempts 5 { [int]$rep.Range('H11').SpillingToRange.Rows.Count } }
     function SpillIntact { ([string]$rep.Range('H11').Text -notlike '#SPILL*') -and ((SpillCount) -eq $n) }
-    $filterCells = @('B4','B5','B7','B8','B10','B11','B12','F4','F5','F7','F8','F9','F10','B14','F14','I7','K7')
+    $filterCells = @('B4','B5','B8','B9','B11','B12','B13','E4','E5','E7','E10','E11','E12','B15','E15','I7','K7')
     function FilterState { ($filterCells | ForEach-Object { '{0}={1}' -f $_, [string]$rep.Range($_).Value2 }) -join ';' }
     function AuditActions {
         $aud = $wb.Worksheets('_Audit').ListObjects('tblAudit')
@@ -212,7 +212,7 @@ try {
     # ---------------------------------- bulk buttons still fine afterwards
     Write-Host ''
     Write-Host '=== Mark all as... still works ==='
-    $rep.Range('F7').Value2 = 'Epson SureColor P9500'
+    $rep.Range('E7').Value2 = 'Epson SureColor P9500'
     $xl.CalculateFullRebuild()
     $rng = $rep.Range('H11').SpillingToRange
     $nn = $rng.Rows.Count

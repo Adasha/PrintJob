@@ -35,11 +35,11 @@ try {
 
     # --------------------------------------------------------------- schema
     Write-Host '=== Schema version bumped ==='
-    # 1.3 since the paper family removal dropped the S_Family snapshot column
+    # 1.4 since multi-pass costing (0.11.0); 1.3 was the paper family removal
     # (1.2 was the Sheet size job-row column; modUtils.SCHEMA_VER) - Paid itself is still what
     # bumped it from 1.0 to 1.1 originally, unaffected by this test.
     $schema = [string]$wb.Names.Item('SET_SCHEMA').RefersToRange.Text
-    Check ($schema -eq '1.3') "SET_SCHEMA reads 1.3 (got '$schema')"
+    Check ($schema -eq '1.4') "SET_SCHEMA reads 1.4 (got '$schema')"
 
     # ----------------------------------------------------------- column exists
     Write-Host ''
@@ -95,9 +95,9 @@ try {
     Write-Host ''
     Write-Host '=== Reports "Matching" totals split by paid status and reconcile ==='
     $rep = $wb.Worksheets('Reports')
-    $rChargeable = [double]$rep.Range('M9').Value2
-    $rPaid = [double]$rep.Range('U9').Value2
-    $rUnpaid = [double]$rep.Range('V9').Value2
+    $rChargeable = [double]$rep.Range('N9').Value2
+    $rPaid = [double]$rep.Range('W9').Value2
+    $rUnpaid = [double]$rep.Range('X9').Value2
     Check ([Math]::Abs(($rPaid + $rUnpaid) - $rChargeable) -lt 0.01) "Paid + Unpaid reconciles to Chargeable on Reports ($rPaid + $rUnpaid = $($rPaid+$rUnpaid), Chargeable=$rChargeable)"
 
     # ------------------------------------------------------- cost visibility

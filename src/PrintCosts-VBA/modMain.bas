@@ -17,7 +17,7 @@ Public Sub btnAddPrintJob()
     AddPrintJob ActiveSheet
     Exit Sub
 Fail:
-    ReportError "Add Print Job"
+    ReportError "New print job"
 End Sub
 
 ' Summary page: add the job planned in the box at the top to the chosen print room.
@@ -44,7 +44,52 @@ Public Sub btnRepeatJob()
     RepeatJob ActiveSheet
     Exit Sub
 Fail:
-    ReportError "Repeat Job"
+    ReportError "Repeat print job"
+End Sub
+
+' Multi-pass costing (0.11.0) - modPasses.
+Public Sub btnAddPass()
+    On Error GoTo Fail
+    If Not RequireLocation Then Exit Sub
+    AddPass ActiveSheet
+    Exit Sub
+Fail:
+    ReportError "Add pass"
+End Sub
+
+Public Sub btnRemovePass()
+    On Error GoTo Fail
+    If Not RequireLocation Then Exit Sub
+    RemovePass ActiveSheet
+    Exit Sub
+Fail:
+    ReportError "Remove pass"
+End Sub
+
+Public Sub btnTogglePasses()
+    On Error GoTo Fail
+    If Not RequireLocation Then Exit Sub
+    TogglePasses ActiveSheet
+    Exit Sub
+Fail:
+    ReportError "Toggle passes"
+End Sub
+
+Public Sub btnToggleAllPasses()
+    On Error GoTo Fail
+    If Not RequireLocation Then Exit Sub
+    ToggleAllPasses ActiveSheet
+    Exit Sub
+Fail:
+    ReportError "Toggle all passes"
+End Sub
+
+Public Sub btnToggleMultiPass()
+    On Error GoTo Fail
+    ToggleMultiPassColumns
+    Exit Sub
+Fail:
+    ReportError "Hide/Show pass columns"
 End Sub
 
 Public Sub btnRemoveRow()
@@ -53,7 +98,12 @@ Public Sub btnRemoveRow()
     RemoveRow ActiveSheet
     Exit Sub
 Fail:
-    ReportError "Remove Row"
+    ReportError "Delete print job"
+End Sub
+
+' The location toolbar panels' OnAction: a click on a panel (not on a button) runs this
+' and does nothing, rather than selecting the shape where it could be dragged or deleted.
+Public Sub btnPanelNoop()
 End Sub
 
 Public Sub btnExport()
@@ -334,6 +384,30 @@ Public Sub btnRemoveRowTechnicians()
     Exit Sub
 Fail:
     ReportError "Remove row"
+End Sub
+
+Public Sub btnAddRowColours()
+    On Error GoTo Fail
+    AddCatalogRow "tblColours"
+    Exit Sub
+Fail:
+    ReportError "Add row"
+End Sub
+
+Public Sub btnRemoveRowColours()
+    On Error GoTo Fail
+    RemoveCatalogRow "tblColours"
+    Exit Sub
+Fail:
+    ReportError "Remove row"
+End Sub
+
+Public Sub btnClearColours()
+    On Error GoTo Fail
+    ClearCatalogTable "tblColours"
+    Exit Sub
+Fail:
+    ReportError "Clear table"
 End Sub
 
 Public Sub btnAddRowDepartments()

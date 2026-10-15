@@ -42,7 +42,7 @@ try {
     # -------------------------------------------------- error: Summary ---
     Write-Host '=== Error state: Summary Type conditional formatting ==='
     $sum = $wb.Worksheets('Summary')
-    $errRng = $sum.Range("D${SUM_FIRST_ROW}:D2000")
+    $errRng = $sum.Range("E${SUM_FIRST_ROW}:E2000")
     $n = $errRng.FormatConditions.Count
     Check ($n -ge 1) "Summary Type column has a conditional format (count $n)"
     if ($n -ge 1) {
@@ -65,7 +65,7 @@ try {
     Write-Host ''
     Write-Host '=== Currency wiring: SET_CURRENCY -> NumberFormat ==='
     $rep = $wb.Worksheets('Reports')
-    $repAddr = 'M9'   # Matching: Chargeable total (modReports.REP_MATCH_VAL_ROW)
+    $repAddr = 'N9'   # Matching: Chargeable total (modReports.REP_MATCH_VAL_ROW)
     $wb.Names.Item('SET_CURRENCY').RefersToRange.Value = '$'
     # InitialiseWorkbook ends with a summary dialog (Say) - quiet mode avoids
     # hanging on it with the Excel window invisible.
@@ -99,7 +99,7 @@ try {
     # Re-running InitialiseWorkbook must not have stacked duplicate rules.
     Write-Host ''
     Write-Host '=== Idempotency: re-run does not stack rules ==='
-    $n2 = $sum.Range("D${SUM_FIRST_ROW}:D2000").FormatConditions.Count
+    $n2 = $sum.Range("E${SUM_FIRST_ROW}:E2000").FormatConditions.Count
     Check ($n2 -eq 1) "Summary Type rule count after a second InitialiseWorkbook: $n2 (expected 1)"
 }
 finally {

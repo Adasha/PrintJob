@@ -34,7 +34,9 @@ Private Const XLSX_FORMAT As Long = 51      ' xlOpenXMLWorkbook
 ' request, both being read-only/derived state rather than day-to-day input.
 ' RefreshExportStatus's own Offset(0, -1) write for the "Export" label
 ' follows this automatically, onto AL6.
-Private Const EXPORT_CELL As String = "$AM$6"
+' 0.11.0: the whole settings block moved from AL:AM to AW:AX (the job table grew to
+' 45 columns and now runs to AS), so this is $AX$6.
+Private Const EXPORT_CELL As String = "$AX$6"
 
 ' Student names in the job-level CSV (design 10.4, O7). Export asks; a quiet
 ' (unattended) run cannot, so it includes names, as the backup and the tests
@@ -61,14 +63,19 @@ Private Const NAME_PLACEHOLDER As String = "----------"
 ' Everything else is present, calculated columns included - they cost nothing
 ' and make the file readable by a person rather than only by a machine.
 Private Function ExportColumns() As Variant
+    ' 0.11.0 (schema 1.4): Row Type / Parent / Pass follow Job ID, Passes follows
+    ' Printer with Colour beside it, Set-up Cost follows Consumable Cost, and the two
+    ' new snapshot columns end the S_ block. A colour pass is a row of its own in this
+    ' same file (one table, one CSV): Row Type "Pass", the job's ID in Parent, and
+    ' only the pass's own fields filled in (multi-pass design decisions 18, 21).
     ExportColumns = Array( _
-        "Job ID", "Date/Time", "Student Name", "Student No", "Technician", _
-        "Printer", "Paper Stock", "Unit", "Qty", "Print Width mm", "Sheet size", _
+        "Job ID", "Row Type", "Parent", "Pass", "Date/Time", "Student Name", "Student No", "Technician", _
+        "Printer", "Passes", "Colour", "Paper Stock", "Unit", "Qty", "Print Width mm", "Sheet size", _
         "Disregard Paper", "Disregard Consumable", "Area m2", _
-        "Paper Cost", "Consumable Cost", "Gross Cost", "Disregarded", _
+        "Paper Cost", "Consumable Cost", "Set-up Cost", "Gross Cost", "Disregarded", _
         "Chargeable Cost", "Paid", "Notes", "Status", _
         "S_PrinterID", "S_StockID", "S_TechID", "S_Measure", _
-        "S_UnitCost", "S_StockWidth_mm", "S_SheetHeight_mm", "S_ConsRate", _
+        "S_UnitCost", "S_StockWidth_mm", "S_SheetHeight_mm", "S_ConsRate", "S_SetupCost", "S_ColourID", _
         "S_StampedAt", "S_StampedBy", "S_SchemaVer")
 End Function
 
@@ -503,7 +510,7 @@ End Function
 ' FormatSnapshotColumns already currency-formats, minus nothing: every money
 ' column in the results table gets a total, not a curated subset.
 Private Function MoneyHeaders() As Variant
-    MoneyHeaders = Array("Paper cost", "Consumable cost", "Gross", "Disregarded", "Chargeable")
+    MoneyHeaders = Array("Paper cost", "Consumable cost", "Set-up cost", "Gross", "Disregarded", "Chargeable")
 End Function
 
 Private Function IsMoneyHeader(ByVal Header As String, ByVal candidates As Variant) As Boolean
@@ -705,7 +712,7 @@ Private Function SnapshotFooterBlock() As Variant
     SnapshotFooterBlock = a
 End Function
 
-' The From/To filter boxes (B7/B8) name the range the user actually asked
+' The From/To filter boxes (B8/B9) name the range the user actually asked
 ' for, so they win when set - even a one-sided filter ("From 01/01/2026,
 ' no end") is more informative than a min/max over whatever happened to
 ' match. Only once neither is set does this fall back to the actual spread
@@ -713,8 +720,8 @@ End Function
 Private Function DateRangeText(ByVal repWs As Worksheet, ByVal rng As Range) As String
     Dim fromD As Variant, toD As Variant, minD As Double, maxD As Double
 
-    fromD = repWs.Range("B7").Value
-    toD = repWs.Range("B8").Value
+    fromD = repWs.Range("B8").Value
+    toD = repWs.Range("B9").Value
     If IsDate(fromD) Or IsDate(toD) Then
         If IsDate(fromD) And IsDate(toD) Then
             DateRangeText = Format$(CDate(fromD), "dd/mm/yyyy") & " to " & Format$(CDate(toD), "dd/mm/yyyy")
@@ -991,6 +998,10 @@ Private Function CellOut(ByVal lo As ListObject, ByVal RowNo As Long, ByVal Head
     End If
 
     CellOut = c.Value2
+    ' A row that predates Row Type is a job; say so in the file.
+    If StrComp(Header, "Row Type", vbTextCompare) = 0 Then
+        If Len(Trim$(CStr(CellOut))) = 0 Then CellOut = ROW_JOB
+    End If
     Exit Function
 Missing:
     CellOut = ""

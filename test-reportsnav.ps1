@@ -55,7 +55,7 @@ try {
     function Jobs { $xl.CalculateFullRebuild(); [int]$rep.Range('I9').Text }
     function SpillOk { [string]$rep.Cells($FIRST, 8).Text -notlike '#SPILL*' }
     function Clear-AllBoxes {
-        foreach ($a in 'B4','B5','B7','B8','B10','B11','B12','F4','F5','F7','F8','F9','F10','B14','F14','I7','K7') { $rep.Range($a).ClearContents() | Out-Null }
+        foreach ($a in 'B4','B5','B8','B9','B11','B12','B13','E4','E5','E7','E10','E11','E12','B15','E15','I7','K7') { $rep.Range($a).ClearContents() | Out-Null }
         $xl.CalculateFullRebuild()
     }
     function Shape([string]$macro) {
@@ -76,11 +76,11 @@ try {
     $notesMain.Cells(1, 1).Value2 = 'check this one'
     $notesMain.Cells(2, 1).Value2 = '   '            # spaces only: counts as no notes
     $total = Jobs
-    $rep.Range('F14').Value2 = 'Yes'
+    $rep.Range('E15').Value2 = 'Yes'
     Check ((Jobs) -eq 1) 'Has notes = Yes shows only the record with real notes (spaces-only is not a note)'
-    $rep.Range('F14').Value2 = 'No'
+    $rep.Range('E15').Value2 = 'No'
     Check ((Jobs) -eq ($total - 1)) 'Has notes = No shows every other record'
-    $rep.Range('F14').ClearContents() | Out-Null
+    $rep.Range('E15').ClearContents() | Out-Null
     Check ((Jobs) -eq $total) 'Has notes blank shows everything'
     $notesCol = RepCol 'Notes'
     if ($notesCol -gt 0) {
@@ -99,19 +99,19 @@ try {
     $vals = @(); for ($r = 1; $r -le $sp.Rows.Count; $r++) { $vals += [math]::Round([double]$sp.Cells($r, $cc - 7).Value2, 4) }
     $sorted = $vals | Sort-Object
     $mid = [math]::Round([double]$sorted[[int]($sorted.Count / 2)], 4)
-    $rep.Range('B10').Value2 = $mid
+    $rep.Range('B11').Value2 = $mid
     $expMin = @($vals | Where-Object { $_ -ge $mid }).Count
     Check ((Jobs) -eq $expMin) "Min cost $mid shows $expMin records (>=, inclusive)"
-    $rep.Range('B10').ClearContents() | Out-Null
-    $rep.Range('B11').Value2 = $mid
+    $rep.Range('B11').ClearContents() | Out-Null
+    $rep.Range('B12').Value2 = $mid
     $expMax = @($vals | Where-Object { $_ -le $mid }).Count
     Check ((Jobs) -eq $expMax) "Max cost $mid shows $expMax records (<=, inclusive)"
-    $rep.Range('B10').Value2 = $mid
+    $rep.Range('B11').Value2 = $mid
     $expBoth = @($vals | Where-Object { $_ -eq $mid }).Count
     Check ((Jobs) -eq $expBoth) "Min = Max = $mid shows the $expBoth records at exactly that cost"
     Check ([bool]$xl.Run('HasActiveFilter', $rep)) 'a cost range counts as a filter'
     Clear-AllBoxes
-    $rep.Range('B10').Value2 = 'abc'
+    $rep.Range('B11').Value2 = 'abc'
     Check ((Jobs) -eq $total) 'non-numeric Min cost is ignored'
     Check (-not [bool]$xl.Run('HasActiveFilter', $rep)) 'non-numeric Min cost is not a filter'
     Clear-AllBoxes
@@ -120,23 +120,23 @@ try {
     Write-Host ''
     Write-Host '=== Clear all filters ==='
     $rep.Range('B4').Value2 = 'Patel'
-    $rep.Range('F7').Value2 = 'Epson SureColor P9500'
-    $rep.Range('B10').Value2 = 1
-    $rep.Range('B11').Value2 = 9999
-    $rep.Range('F14').Value2 = 'No'
-    $rep.Range('B12').Value2 = 'No'
-    $rep.Range('B7').Value2 = [double](Get-Date '2020-01-01').ToOADate()
+    $rep.Range('E7').Value2 = 'Epson SureColor P9500'
+    $rep.Range('B11').Value2 = 1
+    $rep.Range('B12').Value2 = 9999
+    $rep.Range('E15').Value2 = 'No'
+    $rep.Range('B13').Value2 = 'No'
+    $rep.Range('B8').Value2 = [double](Get-Date '2020-01-01').ToOADate()
     $rep.Range('I7').Value2 = 'Qty'
     $rep.Range('K7').Value2 = 'Descending'
     $xl.Run('btnClearFilters')
     $left = @()
-    foreach ($a in 'B4','B5','B7','B8','B10','B11','B12','F4','F5','F7','F8','F9','F10','B14','F14') {
+    foreach ($a in 'B4','B5','B8','B9','B11','B12','B13','E4','E5','E7','E10','E11','E12','B15','E15') {
         if ([string]$rep.Range($a).Formula -ne '') { $left += $a }
     }
     Check ($left.Count -eq 0) "every filter box is empty afterwards (still set: $($left -join ', '))"
     Check (([string]$rep.Range('I7').Value2 -eq 'Qty') -and ([string]$rep.Range('K7').Value2 -eq 'Descending')) 'Sort by / Sort direction are left alone'
     Check ((Jobs) -eq $total) 'all records are back'
-    Check ($rep.Range('F7').Validation.Type -eq 3) 'a cleared box keeps its dropdown'
+    Check ($rep.Range('E7').Validation.Type -eq 3) 'a cleared box keeps its dropdown'
     Clear-AllBoxes
 
     # ---------------------------------------------------------- go to record
@@ -244,7 +244,7 @@ try {
     $paidCol = RepCol 'Paid'
     Clear-AllBoxes
     foreach ($lo in @($loMain, $loAnnexe)) { $lo.ListColumns('Paid').DataBodyRange.Value2 = 'No' }
-    $rep.Range('B12').Value2 = 'No'
+    $rep.Range('B13').Value2 = 'No'
     $unpaid = Jobs
     Check ($unpaid -ge 5) "filtered to Paid = No: $unpaid records"
     $rep.Activate()

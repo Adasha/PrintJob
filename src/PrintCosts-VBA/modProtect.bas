@@ -27,9 +27,14 @@ Public Sub ProtectAll()
 End Sub
 
 Public Sub ProtectSheet(ByVal ws As Worksheet)
+    Dim allowSortFilter As Boolean
     On Error Resume Next
+    ' A location sheet is neither sorted nor filtered (multi-pass design decision
+    ' 12): rows stay in the order they were added, and a sort would scatter a
+    ' job's colour passes from the job. Reports is the place for both.
+    allowSortFilter = Not IsLocation(ws)
     ws.Unprotect
-    ws.Protect UserInterfaceOnly:=True, DrawingObjects:=False, Contents:=True, Scenarios:=False, AllowFiltering:=True, AllowSorting:=True, AllowFormattingCells:=False, AllowFormattingColumns:=True, AllowFormattingRows:=True
+    ws.Protect UserInterfaceOnly:=True, DrawingObjects:=False, Contents:=True, Scenarios:=False, AllowFiltering:=allowSortFilter, AllowSorting:=allowSortFilter, AllowFormattingCells:=False, AllowFormattingColumns:=True, AllowFormattingRows:=True
     ws.EnableOutlining = True
     On Error GoTo 0
 End Sub

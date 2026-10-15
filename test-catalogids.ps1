@@ -126,7 +126,7 @@ try {
 
     [void]$xl.Run('BackupAll')
     $csvs = Get-ChildItem $workDir -Filter 'PrintCosts-*-CATALOG-*.csv'
-    Check ($csvs.Count -eq 8) "backup wrote 8 catalogue CSVs (got $($csvs.Count))"
+    Check ($csvs.Count -eq 9) "backup wrote 9 catalogue CSVs (got $($csvs.Count))"
 
     # Turn the backup into "another site's": same names, different site prefix.
     $latin1 = [Text.Encoding]::GetEncoding(28591)

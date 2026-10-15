@@ -16,11 +16,20 @@ Public Sub StampRow(ByVal ws As Worksheet, ByVal RowNo As Long)
     Set lo = JobsTable(ws)
     If lo Is Nothing Then Exit Sub
 
+    ' A pass row has no printer, paper or technician of its own: re-stamping it
+    ' means its colour rate and set-up cost (modPasses).
+    If IsPassRow(lo, RowNo) Then
+        RestampPassRow ws, lo, RowNo
+        Exit Sub
+    End If
+
     Set p = Prn(CStr(CellIn(lo, RowNo, "Printer").Value))
     Set s = Stock(CStr(CellIn(lo, RowNo, "Paper Stock").Value))
 
     CellIn(lo, RowNo, "S_PrinterID").Value = p.PrinterID
-    CellIn(lo, RowNo, "S_ConsRate").Value = IIf(p.Found, p.RatePerM2, Empty)
+    ' A multi-pass printer's ink is costed pass by pass from the colours (the
+    ' job row sums its passes), so the job row itself carries no flat rate.
+    CellIn(lo, RowNo, "S_ConsRate").Value = IIf(p.Found And Not p.MultiPass, p.RatePerM2, Empty)
 
     CellIn(lo, RowNo, "S_StockID").Value = s.StockID
     CellIn(lo, RowNo, "S_Measure").Value = s.Measure
@@ -65,7 +74,7 @@ Public Sub ReStampAll()
         If IsLocation(ws) Then
             Set lo = JobsTable(ws)
             If Not lo Is Nothing Then
-                n = n + RowCount(lo)
+                n = n + JobRowCount(lo)     ' jobs; their pass rows are re-stamped with them
                 rooms = rooms + 1
             End If
         End If
@@ -78,6 +87,16 @@ Public Sub ReStampAll()
 
     If Not Ask("Re-stamp all " & n & " record" & IIf(n = 1, "", "s") & " across " & rooms & " print room" & IIf(rooms = 1, "", "s") & " at today's configured prices?" & vbCrLf & vbCrLf & "Every historical cost will be recalculated at current rates. Do this " & "only if a price was originally entered wrongly - otherwise it " & "rewrites history that was correct." & vbCrLf & vbCrLf & "This cannot be undone.", "Re-stamp prices") Then Exit Sub
 
+    ReStampAllConfirmed n
+End Sub
+
+' The unprompted re-stamp (a test reaches it past the confirmation, as it does
+' Reports' delete). Job rows are re-stamped from the Printers and Papers sheets;
+' pass rows from the Consumables sheet and the job's printer (set-up cost, ink
+' rate) - a pass whose colour cannot be found is left as it is (multi-pass design
+' decisions 25 and 31).
+Public Sub ReStampAllConfirmed(ByVal n As Long)
+    Dim ws As Worksheet, lo As ListObject, i As Long
     AppOff
     For Each ws In ThisWorkbook.Worksheets
         If IsLocation(ws) Then
@@ -92,7 +111,7 @@ Public Sub ReStampAll()
     AppOn
 
     LogAudit "Re-stamp", "(all print rooms)", n & " records re-stamped at current prices"
-    Say n & " record" & IIf(n = 1, "", "s") & " re-stamped.", "Their costs now reflect the prices currently set on the Papers and Printers sheets.", "Check a few rows against what you expected before relying on the figures."
+    Say n & " record" & IIf(n = 1, "", "s") & " re-stamped.", "Their costs now reflect the prices currently set on the Papers, Printers and Consumables sheets.", "Check a few rows against what you expected before relying on the figures."
 End Sub
 
 ' Append-only record of destructive acts. VBA clears Excel's undo stack, so

@@ -110,7 +110,7 @@ try {
 
     Write-Host '=== Follows the filters ==='
     SetPct 0.5
-    $rep.Range('F7').Value2 = 'Epson SureColor P9500'
+    $rep.Range('E7').Value2 = 'Epson SureColor P9500'
     $xl.CalculateFullRebuild()
     $filtered = & $chg
     Check ($filtered -gt 0 -and $filtered -lt $full) "the filter narrows Chargeable ($filtered of $full)"

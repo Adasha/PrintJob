@@ -9,7 +9,7 @@
 #     SET_LOC_MINIMAL_COLUMNS. Both lists are editable settings.
 #   - A permanently-hidden column (H_Issues) is never touched.
 #   - The view buttons slide off any hidden column; the old toggle is gone from
-#     the side panel and the remaining seven buttons stay on column 36.
+#     the side panel and the remaining seven buttons stay on column 47.
 #   - Add Print Job / Now / etc. keep their width and relocate off hidden columns.
 #
 # Drives a COPY in %TEMP%, never src\PrintJob.xlsm itself. Closes WITHOUT
@@ -124,9 +124,9 @@ try {
     Check ($null -eq (FindButton $main 'pcb_btnViewReduced')) 'old Reduced button is gone'
     Check ($null -eq (FindButton $main 'pcb_btnViewMinimal')) 'old Minimal button is gone'
     Check ($null -eq (FindButton $main 'pcb_btnToggleReducedView')) 'old Reduce clutter button is gone'
-    $sidePanel = 'pcb_btnSelectPrinters', 'pcb_btnCheckSheet', 'pcb_btnRemoveRow', 'pcb_btnClearAll', 'pcb_btnExport', 'pcb_btnImportLocation'
+    $sidePanel = 'pcb_btnSelectPrinters', 'pcb_btnCheckSheet', 'pcb_btnClearAll', 'pcb_btnExport', 'pcb_btnImportLocation'
     foreach ($p in $sidePanel) {
-        Check ((ButtonColumn $main $p) -eq 36) "$p sits in the side panel (column 36)"
+        Check ((ButtonColumn $main $p) -eq 47) "$p sits in the side panel (column 47)"
     }
     # Stack is packed from the top: first button at the sheet top, no gap where the toggle was.
     $tops = $sidePanel | ForEach-Object { [double](FindButton $main $_).Top }
@@ -252,34 +252,37 @@ try {
     # --------------------------- button width survives repeated view changes
     Write-Host ''
     Write-Host '=== In-table buttons keep their width across repeated view changes ==='
-    $atRisk = 'pcb_btnAddPrintJob', 'pcb_btnRepeatJob', 'pcb_btnNow', 'pcb_btnClearDefaults'
+    # The toolbar buttons (0.11.0 refinement) are laid out from fixed widths, not anchored to columns;
+    # btnClearDefaults is still in the table's span and relocates.
+    $widths = [ordered]@{ pcb_btnAddPrintJob = 56; pcb_btnRepeatJob = 64; pcb_btnRemoveRow = 56; pcb_btnAddPass = 56; pcb_btnRemovePass = 66
+                          pcb_btnTogglePasses = 96; pcb_btnToggleAllPasses = 116; pcb_btnNow = 60; pcb_btnClearDefaults = 110 }
     for ($cycle = 1; $cycle -le 2; $cycle++) {
         [void]$xl.Run('SetViewMode', 'Minimal'); Start-Sleep -Milliseconds 300
         [void]$xl.Run('SetViewMode', 'All'); Start-Sleep -Milliseconds 300
-        foreach ($p in $atRisk) {
+        foreach ($p in $widths.Keys) {
             $b = FindButton $main $p
             # Excel snaps shape widths to the screen pixel grid, so 110pt reads back as 109.875 at some display scalings; allow a point of slack.
-        Check ([math]::Abs([double]$b.Width - 110) -lt 1) "$p is still 110pt wide after cycle $cycle (width $($b.Width))"
+            Check ([math]::Abs([double]$b.Width - $widths[$p]) -lt 1) "$p is still $($widths[$p])pt wide after cycle $cycle (width $($b.Width))"
             Check ([int]$b.Placement -eq 3) "$p is xlFreeFloating after cycle $cycle"
         }
     }
 
-    # ---------------------------------- side panel tracks column 36 through views
+    # ---------------------------------- side panel tracks column 47 through views
     Write-Host ''
-    Write-Host '=== Side panel stays pinned to column 36 through a Minimal/All cycle ==='
-    $col36Before = [double]$main.Cells(1, 36).Left
+    Write-Host '=== Side panel stays pinned to column 47 through a Minimal/All cycle ==='
+    $col36Before = [double]$main.Cells(1, 47).Left
     foreach ($p in $sidePanel) {
-        Check ([double](FindButton $main $p).Left -eq $col36Before) "$p sits on column 36 before hiding"
+        Check ([double](FindButton $main $p).Left -eq $col36Before) "$p sits on column 47 before hiding"
     }
     [void]$xl.Run('SetViewMode', 'Minimal'); Start-Sleep -Milliseconds 300
-    $col36Hidden = [double]$main.Cells(1, 36).Left
-    Check ($col36Hidden -ne $col36Before) 'Minimal actually moved column 36 (otherwise this proves nothing)'
+    $col36Hidden = [double]$main.Cells(1, 47).Left
+    Check ($col36Hidden -ne $col36Before) 'Minimal actually moved column 47 (otherwise this proves nothing)'
     foreach ($p in $sidePanel) {
-        Check ([double](FindButton $main $p).Left -eq $col36Hidden) "$p followed column 36 while hidden"
+        Check ([double](FindButton $main $p).Left -eq $col36Hidden) "$p followed column 47 while hidden"
     }
     [void]$xl.Run('SetViewMode', 'All'); Start-Sleep -Milliseconds 300
     foreach ($p in $sidePanel) {
-        Check ([double](FindButton $main $p).Left -eq $col36Before) "$p back on column 36 after revealing"
+        Check ([double](FindButton $main $p).Left -eq $col36Before) "$p back on column 47 after revealing"
     }
 
     $xl.Run('SetQuiet', $false)
