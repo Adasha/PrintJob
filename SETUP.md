@@ -279,7 +279,7 @@ job IDs already carry it.
 | `test-backup.ps1`, `test-clearcatalog.ps1`, `test-newpaperrow.ps1` | Backup/Restore workbook, Clear table on the catalogue sheets, and Add row on Papers |
 | `test-restorerooms.ps1` | Restore creating a print room the backup has and the workbook lacks (code, name, department, job records), and a second restore not creating another |
 | `test-restoreworkbook.ps1` | Restore workbook from an older copy of the workbook: room, settings and records carried over, the older file read without its macros running, left untouched, no temporary copy left behind, a non-Print-Cost workbook refused |
-| `prune-backups.ps1` | Keeps the N most recent `*.bak.xlsm` and removes the rest. `run-tests.ps1` calls it with `-Keep 1` after a full, all-green run (`build.ps1` no longer prunes) |
+| `prune-backups.ps1` | Keeps the N most recent `*.bak.xlsm` and removes the rest. `run-tests.ps1` calls it with `-Keep 1` after a full, all-green run (`build.ps1` only caps them at the newest 10, with `-Keep 10`) |
 
 **The tests are non-destructive by construction, not by care.** `test-validation.ps1`
 reads the Clear All confirmation by putting the workbook in quiet mode first:

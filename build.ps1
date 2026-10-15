@@ -224,9 +224,13 @@ finally {
     if (Test-Path $work) { Remove-Item $work -Force -ErrorAction SilentlyContinue }
 }
 
-# Backups are NOT pruned here. The backup just taken is the way back if this
-# build turns out bad, so it stays until run-tests.ps1 has passed a full run
-# against the new build; that script then calls prune-backups.ps1.
+# Backups are only trimmed to a safety cap here. The backup just taken is the way
+# back if this build turns out bad, so the real pruning (down to one) waits for
+# run-tests.ps1 to pass a full run against the new build and then call
+# prune-backups.ps1. That run is not always green, though, and every build adds a
+# backup, so without a cap they pile up - 28 in one working copy. Ten is far more
+# history than a bad build needs.
+& (Join-Path $PSScriptRoot 'prune-backups.ps1') -Keep 10
 
 # A regression guard for the bug that destroyed the source once already. The
 # build must leave the .xlsx exactly as it found it; if that ever stops being

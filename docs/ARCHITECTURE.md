@@ -1041,7 +1041,7 @@ Requires **Trust access to the VBA project object model**, once. Windows only. T
 
 **Excel also saves to `%TEMP%`, and the result is copied into place** — saving a few-hundred-KB workbook directly into an actively-syncing OneDrive folder was refused every time with an error that reads like a missing method rather than a contested destination.
 
-**Backups are pruned after the tests pass.** They are build outputs, regenerable from the `.xlsx` plus the VBA source, but the one `build.ps1` just took is the way back from a bad build, so `build.ps1` leaves them alone. After a full `run-tests.ps1` run in which every script passes, `prune-backups.ps1 -Keep 1` removes the rest (`-KeepBackups N` overrides). A partial (`-Only`) or failing run prunes nothing, and several builds in a row without a test run accumulate backups until the next green run.
+**Backups are pruned after the tests pass.** They are build outputs, regenerable from the `.xlsx` plus the VBA source, but the one `build.ps1` just took is the way back from a bad build, so `build.ps1` does not prune them (beyond the cap described below). After a full `run-tests.ps1` run in which every script passes, `prune-backups.ps1 -Keep 1` removes the rest (`-KeepBackups N` overrides). A partial (`-Only`) or failing run prunes nothing, and several builds in a row without a test run accumulate backups until the next green run. `build.ps1` also trims them to the newest ten (a safety cap, via `prune-backups.ps1 -Keep 10`), because a full run is not always green and every build adds one - 28 had piled up in one working copy.
 
 Two things the automation buys beyond convenience: a **compile check** (running a macro over COM forces the whole project to compile, so a syntax error fails the build rather than surfacing on a user's first click), and **safe testability** (quiet mode makes the test scripts non-destructive by construction, not by care).
 
@@ -1068,7 +1068,7 @@ Two things the automation buys beyond convenience: a **compile check** (running 
 | `test-catalogids.ps1` | Site-prefixed catalogue IDs: every named row has a unique well-formed ID; Add row and typed rows are allocated the next number and a deleted ID is never reissued; restoring another site's catalogue adds rows (renaming clashing names to `Name (SITE)`), overwrites nothing, is idempotent, and does not wind the counters back |
 | `test-import.ps1` | Export All Locations, and Import restoring into origin and into a different room |
 | `test-deletereports.ps1` | Export report (the static-value `.xlsx` snapshot) and the Reports-page bulk delete, including the audit log entry |
-| `prune-backups.ps1` | Keeps the N most recent backups; called by `run-tests.ps1` after a green full run |
+| `prune-backups.ps1` | Keeps the N most recent backups; called by `run-tests.ps1` after a green full run (`-Keep 1`) and by `build.ps1` as a cap (`-Keep 10`) |
 
 **Every test script drives a copy in `%TEMP%`, never `src\PrintCosts.xlsm` directly** — required because `Workbook_Open` does real work on every open (`ProtectAll`, `Invalidate`, `HealButtons`), and because this file is held through a **cloud-backed handle**: AutoSave commits those changes immediately, so `$wb.Saved` reads `True` on the line right after `Open` despite every sheet having just been modified, and the bytes land at `Close`/`Quit` regardless of `Close($false)` or a late `AutoSaveOn = $false`. This is not the sync client — it reproduces with syncing paused and settled. `probe.ps1` and `verify.ps1` sidestep it entirely by opening **read-only**.
 
