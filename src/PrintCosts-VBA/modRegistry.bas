@@ -863,6 +863,37 @@ Fail:
     ReportError "Add print room"
 End Function
 
+' Restore workbook, for a room the backup brings in under the code of the
+' shipped sample room (the sample is "MAIN", so an older workbook whose real
+' room kept that code collides with it): rather than leave the restored jobs
+' under the sample's name and settings, the sample's sheet is reset exactly as
+' CreatePrintRoom resets a duplicate - jobs, defaults, permitted printers and
+' roll unit cleared - and given the backup room's name, department and code.
+' The caller has already decided the sheet really is the untouched sample.
+Public Function RecyclePrintRoom(ByVal ws As Worksheet, ByVal RoomName As String, Optional ByVal Dept As String = "", Optional ByVal Code As String = "") As Boolean
+    Dim oldName As String
+
+    On Error GoTo Fail
+    RoomName = Trim$(RoomName)
+    If Len(RoomName) = 0 Then Exit Function
+    oldName = LocValue(ws, "LOC_Name")
+
+    AppOff
+    UnlockSheet ws
+    ResetPrintRoom ws, RoomName, Dept, CleanCode(Code, CODE_MAX)
+    RelockSheet ws
+    If StrComp(ws.Name, SanitiseSheetName(RoomName), vbTextCompare) <> 0 Then ws.Name = UniqueSheetName(SanitiseSheetName(RoomName))
+    AppOn
+
+    RefreshLocations
+    LogAudit "Restore workbook", RoomName, "Reused the sample room '" & oldName & "' for a restored room with its code"
+    RecyclePrintRoom = True
+    Exit Function
+Fail:
+    AppReset
+    ReportError "Restore workbook"
+End Function
+
 ' Any location sheet will do - they are structurally interchangeable by
 ' construction (self-healing InitialiseWorkbook/RefreshLocations) - so this
 ' just takes the first one found in workbook order, deterministically.

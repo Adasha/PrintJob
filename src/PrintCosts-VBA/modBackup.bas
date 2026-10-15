@@ -712,6 +712,24 @@ Private Function ExampleRoomToRemove(ByVal Rooms As Collection) As Worksheet
     If HoldsOnlySampleJobs(ws) Then Set ExampleRoomToRemove = ws
 End Function
 
+' The sample room's sheet when Room is the backup's own room under the sample's
+' code - an older workbook whose real room kept "MAIN" - and the sample is still
+' untouched. Such a room must not be restored INTO the sample (it would keep the
+' sample's name, defaults and permitted printers), so PrepareRoom reuses the sheet
+' for it. That includes a backup whose room is itself still called Example Print
+' Room: a site that kept the sample and added its own data to it (and its own
+' permitted printers) - an unrenamed sample is the sample's sheet, not the user's.
+Private Function SampleRoomToReuse(ByVal Room As clsRestoreRoom) As Worksheet
+    Dim ws As Worksheet
+
+    If StrComp(Room.Code, EXAMPLE_ROOM_CODE, vbTextCompare) <> 0 Then Exit Function
+    If Len(Room.RoomName) = 0 Then Exit Function
+    Set ws = SheetForCode(EXAMPLE_ROOM_CODE)
+    If ws Is Nothing Then Exit Function
+    If StrComp(LocValue(ws, "LOC_Name"), EXAMPLE_ROOM_NAME, vbTextCompare) <> 0 Then Exit Function
+    If HoldsOnlySampleJobs(ws) Then Set SampleRoomToReuse = ws
+End Function
+
 Private Function HoldsOnlySampleJobs(ByVal Ws As Worksheet) As Boolean
     Dim lo As ListObject, c As Range, id As String
 
@@ -769,7 +787,7 @@ End Sub
 ' the 6 characters a typed one is capped at, and truncating it would stop the
 ' next restore of the same backup from finding the room it created.
 Private Sub PrepareRoom(ByVal Room As clsRestoreRoom, ByRef Summary As String, ByRef Made As Long)
-    Dim wasQuiet As Boolean, nm As String
+    Dim wasQuiet As Boolean, nm As String, sample As Worksheet, ok As Boolean
 
     If Len(Room.Code) = 0 Then
         Summary = Summary & "- (unknown location): skipped - the file does not say which print room it belongs to." & vbCrLf
@@ -777,7 +795,25 @@ Private Sub PrepareRoom(ByVal Room As clsRestoreRoom, ByRef Summary As String, B
     End If
 
     Set Room.Sheet = SheetForCode(Room.Code)
-    If Not Room.Sheet Is Nothing Then Exit Sub
+    If Not Room.Sheet Is Nothing Then
+        Set sample = SampleRoomToReuse(Room)
+        If sample Is Nothing Then Exit Sub
+
+        ' The backup's room carries the sample's code: take over the sample's sheet.
+        wasQuiet = gQuiet
+        gQuiet = True
+        ok = RecyclePrintRoom(sample, Room.RoomName, Room.Dept, Room.Code)
+        gQuiet = wasQuiet
+        If Not ok Then
+            Set Room.Sheet = Nothing
+            Summary = Summary & "- " & Room.Code & ": skipped - the sample print room could not be reused." & vbCrLf
+            Exit Sub
+        End If
+        Room.Created = True
+        Made = Made + 1
+        ApplyRoomSettings Room.Sheet, Room.Settings
+        Exit Sub
+    End If
 
     nm = Room.RoomName
     If Len(nm) = 0 Then nm = Room.Code
@@ -839,7 +875,25 @@ Private Sub ApplyRoomSettings(ByVal Ws As Worksheet, ByVal Settings As clsDict)
     RelockSheet Ws
     RefreshQtyValidation Ws
     BindColumns Ws
+    ClearBindAutofill Ws
     AppOn
+End Sub
+
+' A room with a single permitted printer has it filled into the table's one
+' empty row by BindColumns (and that row stamped with its prices), which
+' stops Import recognising the row as empty - the first job would be added
+' beneath it and a phantom, dateless row left on top. The room is brand new,
+' so its only row holds nothing worth keeping: blank it again.
+Private Sub ClearBindAutofill(ByVal Ws As Worksheet)
+    Dim lo As ListObject
+
+    Set lo = JobsTable(Ws)
+    If lo Is Nothing Then Exit Sub
+    If lo.ListRows.Count <> 1 Then Exit Sub
+    If IsBlankRow(lo, 1) Then Exit Sub
+    UnlockSheet Ws
+    ClearTypedCells lo.ListRows(1).Range
+    RelockSheet Ws
 End Sub
 
 ' Writes one catalogue/Settings row back by its stable key (CatalogKeyHeader):
