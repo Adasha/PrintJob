@@ -1803,6 +1803,11 @@ End Function
 ' stopped by Workbook_SheetDeactivate and Workbook_BeforeClose (a timer left
 ' pending would reopen the workbook after it was closed).
 Public Sub StartStripWatch()
+    ' Not in a quiet (unattended test) run: nothing there looks at the strip, the
+    ' tick's own macro run made Excel reject COM calls from the test script
+    ' (RPC_E_CALL_REJECTED, flaking test-markpaid / test-deletereports), and a
+    ' timer outliving a killed test reopened a deleted temp workbook.
+    If gQuiet Then Exit Sub
     StopStripWatch
     mStripWatchAt = Now + TimeSerial(0, 0, 1)
     On Error Resume Next

@@ -75,7 +75,8 @@ try {
     }
     $filterCells = @('B4','B5','B8','B9','B11','B12','B13','E4','E5','E7','E10','E11','E12','B15','E15','I7','K7')
     function FilterState { ($filterCells | ForEach-Object { '{0}={1}' -f $_, [string]$rep.Range($_).Value2 }) -join ';' }
-    function ClearFilters { foreach ($a in @('B4','B5','B8','B9','B11','B12','B13','E4','E5','E7','E10','E11','E12','B15','E15')) { $rep.Range($a).ClearContents() | Out-Null }; $xl.CalculateFullRebuild() }
+    # Each step retries: Excel is still recalculating the spilled results after a filter changes and rejects the next COM call.
+    function ClearFilters { foreach ($a in @('B4','B5','B8','B9','B11','B12','B13','E4','E5','E7','E10','E11','E12','B15','E15')) { $addr = $a; Invoke-ComRetry -Attempts 5 { $rep.Range($addr).ClearContents() } | Out-Null }; Invoke-ComRetry -Attempts 5 { $xl.CalculateFullRebuild() } | Out-Null }
 
     # ------------------------------------------------------------ the cluster
     Write-Host '=== The cluster on the Reports header ==='
