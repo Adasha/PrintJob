@@ -105,11 +105,25 @@ End Sub
 ' whenever it is actually looked at.
 Private Sub Workbook_SheetActivate(ByVal Sh As Object)
     On Error Resume Next
+    ' Just after a job delete, a switch to another sheet is not the user's: go back
+    ' (modJobs.StayOnSheet has the story).
+    Dim stay As String
+    stay = SheetToStayOn()
+    If Len(stay) > 0 Then
+        If StrComp(Sh.Name, stay, vbTextCompare) <> 0 Then
+            Application.EnableEvents = False
+            ThisWorkbook.Worksheets(stay).Activate
+            Application.EnableEvents = True
+            LogAudit "Delete moved view", stay, "Excel switched to '" & Sh.Name & "' just after a delete; returned to this sheet."
+            Exit Sub
+        End If
+    End If
     HideIfLeft Sh
     If TypeOf Sh Is Worksheet Then
         If Sh.Name = "Reports" Then
             RefreshReportFilterLists Sh
             RepositionReportsButtons Sh
+            StartStripWatch
         End If
         ' Prices or print rooms may have changed since the planner was last looked at.
         If Sh.Name = "Summary" Then RefreshPlanner Sh
@@ -118,6 +132,12 @@ Private Sub Workbook_SheetActivate(ByVal Sh As Object)
         ' - see modInit.RepositionLocationButtons' own comment.
         If IsLocation(Sh) Then RepositionLocationButtons Sh
     End If
+End Sub
+
+' A timer still pending when the workbook closes would reopen it.
+Private Sub Workbook_BeforeClose(Cancel As Boolean)
+    On Error Resume Next
+    StopStripWatch
 End Sub
 
 ' Rebinds every print room's Printer/Paper Stock/Technician dropdown the
@@ -130,6 +150,8 @@ End Sub
 Private Sub Workbook_SheetDeactivate(ByVal Sh As Object)
     On Error GoTo Fail
     If Not TypeOf Sh Is Worksheet Then Exit Sub
+    ' Reports' collapse watcher (modReports.StartStripWatch) only runs while it is the active sheet.
+    If StrComp(Sh.Name, "Reports", vbTextCompare) = 0 Then StopStripWatch
     If Not CatalogDirty() Then Exit Sub
 
     Select Case Sh.Name
