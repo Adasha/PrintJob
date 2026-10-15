@@ -205,15 +205,18 @@ try {
     Check ($open -ge ($rep.Range('H1').Left - 1)) "expanded: the strip starts at column H (Left $([int]$open), H at $([int]$rep.Range('H1').Left))"
     $lefts0 = $macros | ForEach-Object { BtnLeft $_ }
 
-    # Collapsing the filters leaves the strip at the expanded position: it must never be left over
-    # the filter boxes, and it re-settles to the same place on the next click.
+    # Collapsing the filters carries the strip left with the table; expanding puts it back, clear of
+    # the filter boxes. Excel raises no event for the +/-, so the one-second watcher
+    # (modReports.StartStripWatch) does it; the test calls the same re-settle directly.
     $rep.Outline.ShowLevels(0, 1) | Out-Null
     Check ([bool]$rep.Columns('A').Hidden -and [bool]$rep.Columns('F').Hidden -and -not [bool]$rep.Columns('G').Hidden) 'collapsed: A:F hidden, the gap column G stays'
-    Check ([math]::Abs((BtnLeft 'btnClearFilters') - $open) -lt 1.5) 'collapsed: the strip has not jumped'
     [void]$xl.Run('RepositionReportsButtons', $rep)
-    Check ([math]::Abs((BtnLeft 'btnClearFilters') - $open) -lt 1.5) 'collapsed, re-settled: the strip stays at its expanded position'
+    $shut = BtnLeft 'btnClearFilters'
+    Check ([math]::Abs($shut - $rep.Range('H1').Left) -lt 1.5) "collapsed: the strip follows the table to column H (Left $([int]$shut))"
+    Check ($shut -lt $open - 1) 'collapsed: the strip has moved left of its expanded position'
     $rep.Outline.ShowLevels(0, 2) | Out-Null
-    Check ([math]::Abs((BtnLeft 'btnClearFilters') - $open) -lt 1.5) 'expanded again: the strip is where it was, clear of the filter boxes'
+    [void]$xl.Run('RepositionReportsButtons', $rep)
+    Check ([math]::Abs((BtnLeft 'btnClearFilters') - $open) -lt 1.5) 'expanded again: the strip is back where it was, clear of the filter boxes'
     Check ((BtnLeft 'btnClearFilters') -ge ($rep.Range('G1').Left + $rep.Columns('G').Width - 1)) 'the strip starts right of the filter columns'
 
     # Resizing a results column under the strip moves none of it.

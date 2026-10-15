@@ -94,9 +94,7 @@ Private Const REP_SEL_W As Double = 78      ' Selected record: Toggle Paid / Go 
 Private Const REP_MARK_W As Double = 68     ' Mark all as...: Paid / Unpaid
 Private Const REP_EXPORT_W As Double = 140  ' Export report / Delete visible records
 Private Const REP_LBL_H As Double = 13
-' Workbook name (hidden) that remembers where the strip starts when the filter
-' columns are expanded - see ReportStripLeft.
-Private Const REP_STRIP_NAME As String = "REP_STRIP_LEFT"
+Private mStripWatchAt As Date               ' when the pending collapse-watcher tick fires (0 = none)
 Private Const REP_LBL_SEL As String = "lblSelected"
 Private Const REP_LBL_MARK As String = "lblMarkAll"
 Private Const REP_SEL_LABEL As String = "Selected record:"
@@ -1741,12 +1739,11 @@ End Sub
 ' (ThisWorkbook), touching only a shape that is actually out of place. Excel
 ' raises no event for a hide, a width change or for the filter group's +/-.
 '
-' The strip is anchored where the first results column is with the filter columns
-' EXPANDED (ReportStripLeft), not where it is right now. Collapsing the filters
-' leaves the strip where it was, with a gap to its left, instead of following the
-' table; the other way round, a strip left behind by an expand that raised no
-' event would sit on top of the filter boxes in rows 4-5 and swallow clicks meant
-' for them.
+' The strip is anchored at the first visible results column (ReportStripLeft), so
+' it follows the table when the filter group is collapsed or expanded. Excel
+' raises no event for the +/-, so the collapse watcher (StartStripWatch) re-settles
+' it within a second; without that, an expand would leave the strip over the
+' filter boxes in rows 4-5, swallowing clicks meant for them.
 '
 ' Every Reports button name must stay within 31 characters and hold its macro
 ' ("pcb_<macro>_<row>_<col>"): modRegistry.HealButtons falls back on the name
@@ -1790,47 +1787,48 @@ Public Sub RepositionReportsButtons(ByVal ws As Worksheet)
     PlaceReportLabel ws, REP_LBL_MARK, markLeft, REP_MARK_W
 End Sub
 
-' Where the strip starts: the left edge of column Col (the first visible results
-' column) with the filter columns expanded. While they are expanded that is just
-' Cells(1, C).Left, and it is remembered; while they are collapsed (column A
-' hidden) the remembered value is used, shifted by however far Col is from the
-' first results column. With nothing remembered yet the current edge is used.
+' Where the strip starts: the left edge of column Col, the first visible results
+' column - so it follows the table when the filter columns are collapsed or
+' expanded.
 Private Function ReportStripLeft(ByVal ws As Worksheet, ByVal Col As Long) As Double
-    Dim here As Double, expanded As Double
-    here = ws.Cells(1, Col).Left
-    If Not ws.Columns(1).Hidden Then
-        RememberStripLeft ws.Cells(1, REP_STRIP_COL).Left
-        ReportStripLeft = here
-        Exit Function
-    End If
-    expanded = RememberedStripLeft()
-    If expanded <= 0 Then
-        ReportStripLeft = here
-    Else
-        ReportStripLeft = expanded + (here - ws.Cells(1, REP_STRIP_COL).Left)
-    End If
+    ReportStripLeft = ws.Cells(1, Col).Left
 End Function
 
-Private Sub RememberStripLeft(ByVal L As Double)
-    Dim nm As Name
-    If Abs(RememberedStripLeft() - L) < 0.5 Then Exit Sub
+' ----------------------------------------------------- collapse watcher ---
+' Excel raises no event for the filter group's +/-, and the strip follows the
+' table, so after an expand it would sit over the filter boxes (rows 4-5) until
+' the next click. While Reports is the active sheet a one-second timer re-settles
+' the strip; RepositionReportsButtons only touches a shape that is out of place,
+' so an idle tick is a handful of reads. Started by Workbook_SheetActivate,
+' stopped by Workbook_SheetDeactivate and Workbook_BeforeClose (a timer left
+' pending would reopen the workbook after it was closed).
+Public Sub StartStripWatch()
+    StopStripWatch
+    mStripWatchAt = Now + TimeSerial(0, 0, 1)
     On Error Resume Next
-    Set nm = ThisWorkbook.Names(REP_STRIP_NAME)
-    If nm Is Nothing Then
-        ThisWorkbook.Names.Add Name:=REP_STRIP_NAME, RefersTo:="=" & Trim$(Str$(L)), Visible:=False
-    Else
-        nm.RefersTo = "=" & Trim$(Str$(L))
-    End If
+    Application.OnTime mStripWatchAt, "'" & ThisWorkbook.Name & "'!StripWatchTick"
     On Error GoTo 0
 End Sub
 
-Private Function RememberedStripLeft() As Double
-    Dim t As String
+Public Sub StopStripWatch()
+    If mStripWatchAt = 0 Then Exit Sub
     On Error Resume Next
-    t = ThisWorkbook.Names(REP_STRIP_NAME).RefersTo
+    Application.OnTime mStripWatchAt, "'" & ThisWorkbook.Name & "'!StripWatchTick", , False
     On Error GoTo 0
-    If Len(t) > 1 Then RememberedStripLeft = Val(Mid$(t, 2))
-End Function
+    mStripWatchAt = 0
+End Sub
+
+Public Sub StripWatchTick()
+    Dim ws As Worksheet
+    mStripWatchAt = 0
+    On Error Resume Next
+    Set ws = ThisWorkbook.ActiveSheet
+    If ws Is Nothing Then Exit Sub
+    If StrComp(ws.Name, SHEET_REPORTS, vbTextCompare) <> 0 Then Exit Sub
+    RepositionReportsButtons ws
+    On Error GoTo 0
+    StartStripWatch
+End Sub
 
 ' The first column from StartCol on that is not hidden and whose left edge is
 ' at or past MinLeft. 0 if there is none within reach.
@@ -1863,7 +1861,7 @@ Private Sub PlaceReportButton(ByVal ws As Worksheet, ByVal Macro As String, ByVa
     Set b = ReportButton(ws, Macro)
     If b Is Nothing Then Exit Sub
     ' Free-floating, so a column resize cannot move some of the strip and not
-    ' the rest - see the header comment above and ReportStripLeft.
+    ' the rest - see the header comment above.
     If b.Placement <> xlFreeFloating Then b.Placement = xlFreeFloating
     If Abs(b.Left - L) > 0.5 Then b.Left = L
     If Abs(b.Top - T) > 0.5 Then b.Top = T

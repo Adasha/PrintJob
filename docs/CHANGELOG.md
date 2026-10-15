@@ -37,7 +37,7 @@ Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module
     panel. Reports: right-hand filter inputs moved from F to E, Printer is Printer model,
     Pass type is Printer type (under Printer model), gaps after Printer type and
     Department, Disregarded gains Neither, and the button strip is free-floating so a
-    column resize cannot pull it apart (it no longer follows a collapsed filter group).
+    column resize cannot pull it apart (it follows the table when the filter group is collapsed or expanded).
     See docs/ARCHITECTURE.md section 17.4.
     Repeat job copies the group. Location sheets can no longer be sorted or
     filtered (rows stay in the order added; use Reports).

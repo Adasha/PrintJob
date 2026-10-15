@@ -6,6 +6,9 @@ Option Explicit
 
 ' Adding, stamping, removing and clearing print jobs.
 
+Private mDeleteSheet As String   ' the print room a delete last ran on (see SheetToStayOn)
+Private mDeleteDone As Date      ' when that delete finished
+
 Public Sub AddPrintJob(ByVal ws As Worksheet)
     Dim lo As ListObject, r As ListRow, n As Long
     Set lo = JobsTable(ws)
@@ -260,6 +263,9 @@ Public Sub RemoveRow(ByVal ws As Worksheet)
     If Not Ask("Delete this print job?" & vbCrLf & vbCrLf & detail & vbCrLf & vbCrLf & "This cannot be undone.", "Delete print job") Then Exit Sub
 
     DeleteJobGroup ws, lo, grp, detail
+    ' Only the button path opens the window: a test (DeleteJobGroupAt) moves between sheets at once.
+    mDeleteSheet = ws.Name
+    mDeleteDone = Now
 End Sub
 
 ' The unprompted delete behind Remove Row: a job and its colour passes (Group is
@@ -270,7 +276,10 @@ Public Sub DeleteJobGroupAt(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal
 End Sub
 
 Public Sub DeleteJobGroup(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal Group As Collection, ByVal Detail As String)
-    Dim i As Long
+    Dim i As Long, selAddr As String
+    On Error Resume Next
+    If ws Is ActiveSheet Then selAddr = ActiveCell.Address
+    On Error GoTo 0
     AppOff
     LogAudit "Remove row", LocValue(ws, "LOC_Name"), Detail
     UnlockSheet ws
@@ -279,8 +288,34 @@ Public Sub DeleteJobGroup(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal G
         If Not BlankSoleRow(lo) Then lo.ListRows(CLng(Group(i))).Range.EntireRow.Delete
     Next i
     RelockSheet ws
+    StayOnSheet ws, selAddr
     AppOn
 End Sub
+
+' A delete must leave the user on the print room they deleted from. Users have
+' been taken to the Settings sheet after confirming a delete, without a message,
+' and the cause has not been found, so this puts them back and says so in the
+' audit log. Two places: here, for a switch made while the delete ran, and
+' ThisWorkbook.Workbook_SheetActivate (via SheetToStayOn), for one that lands just
+' after a delete made with the Delete button.
+Private Sub StayOnSheet(ByVal ws As Worksheet, ByVal SelAddr As String)
+    Dim landed As String
+    On Error Resume Next
+    If ws Is ActiveSheet Then Exit Sub
+    landed = ActiveSheet.Name
+    ws.Activate
+    If Len(SelAddr) > 0 Then ws.Range(SelAddr).Select
+    On Error GoTo 0
+    LogAudit "Delete moved view", LocValue(ws, "LOC_Name"), "Excel switched to '" & landed & "' during a delete; returned to this sheet."
+End Sub
+
+' The print room a delete has just finished on, for the two seconds after it
+' ends; "" otherwise. Workbook_SheetActivate sends a switch to any other sheet
+' in that window back here.
+Public Function SheetToStayOn() As String
+    If Len(mDeleteSheet) = 0 Then Exit Function
+    If (Now - mDeleteDone) * 86400# < 2 Then SheetToStayOn = mDeleteSheet
+End Function
 
 Public Sub ClearAll(ByVal ws As Worksheet)
     Dim lo As ListObject, n As Long, i As Long
