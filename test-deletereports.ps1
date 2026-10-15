@@ -52,7 +52,10 @@ try {
     if (-not $xlsx) { Write-Host 'FAIL: no report .xlsx was produced'; exit 1 }
     Write-Host ("  OK: {0} ({1} bytes)" -f $xlsx.Name, $xlsx.Length)
 
-    $sigAfterExport = [string]$rep.Range('AN1').Value2
+    # Excel is still busy for a moment after the export macro: Range('AN1').Value2 read straight away
+    # returns '' (the signature IS stamped - .Value() and a later Value2 both return it) and a Run is
+    # rejected. Read through the product's own accessor, retrying while Excel settles.
+    $sigAfterExport = [string](Invoke-ComRetry -Attempts 5 { $xl.Run('ReportsExportSig', $rep) })
     Write-Host ("  stamped signature: '{0}'" -f $sigAfterExport)
     if ([string]::IsNullOrEmpty($sigAfterExport)) { Write-Host 'FAIL: ReportsExportSig was not stamped'; exit 1 }
 
