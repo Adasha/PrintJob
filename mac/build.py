@@ -109,6 +109,24 @@ def module_source(path):
     return name, kind, lines[start:]
 
 
+def declarations_after_procedures(path):
+    """Module-level Dim/Private/Public/Const lines after the first procedure:
+    VBA's "Only comments may appear after End Sub", which the build itself does
+    not hit - VBA compiles on demand, and a later macro run stops on a modal
+    compile-error dialog instead. Caught here, before Excel is involved."""
+    bad, seen_proc, depth = [], False, 0
+    with open(path, encoding='utf-8') as f:
+        for n, ln in enumerate(f.read().splitlines(), 1):
+            s = ln.strip()
+            if re.match(r'^(Public |Private |Friend )?(Static )?(Sub|Function|Property (Get|Let|Set)) ', s):
+                seen_proc, depth = True, depth + 1
+            elif re.match(r'^End (Sub|Function|Property)\b', s):
+                depth -= 1
+            elif seen_proc and depth == 0 and re.match(r'^(Public|Private|Dim|Const|Global)\b(?!.*\b(Sub|Function|Property)\b)', s):
+                bad.append(f'{os.path.basename(path)}:{n}: {s}')
+    return bad
+
+
 def send(builder, wb_name, mod, lines):
     """A whole module, in pieces into Builder's buffer, then one commit
     (modBuilder.bas, BuilderBuffer, says why it has to be one)."""
@@ -146,6 +164,12 @@ for p in (SRC, BUILDER, BUILDER_BAS):
 clash = [n for n in open_workbook_names() if n.lower().startswith(('printjob', 'printcosts', 'builder'))]
 if clash:
     die(f'Close these in Excel and run this again: {", ".join(clash)}')
+
+misplaced = [b for p in sorted(glob.glob(os.path.join(VBA, '*.bas')) + glob.glob(os.path.join(VBA, '*.cls')))
+             for b in declarations_after_procedures(p)]
+if misplaced:
+    die('Module-level declarations after a procedure (VBA will not compile these; move them to the top):\n  '
+        + '\n  '.join(misplaced))
 
 with zipfile.ZipFile(SRC) as z:
     if 'xl/vbaProject.bin' in z.namelist():

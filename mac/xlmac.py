@@ -58,18 +58,18 @@ WB_NAME = 'PrintJob.xlsm'
 # an empty file - unless the folder is granted. mac/grant-access.py grants
 # these two once.
 #
-# /tmp is a link to /private/tmp, Excel reports a workbook opened from there
-# as being in /tmp, and a grant only matches the path as written - a
-# /private/tmp grant did not cover writes to /tmp/... - so grant-access.py
-# asks for both spellings (GRANT_PATHS).
+# /Users/Shared because nothing in its path is a link. Under /tmp (a link to
+# /private/tmp) Excel reports the workbook's folder as /tmp/..., and from the
+# sandbox VBA cannot then read back a file it wrote there - so every "did the
+# file get written" check failed. Not $TMPDIR (a sandbox prompt on every
+# open), not the Office group container (macOS stops a terminal writing into
+# another app's container).
 #
-# Not /Users/Shared: there an export came out empty AND Excel deleted the
-# open copy when it closed. Not $TMPDIR (a sandbox prompt on every open), not
-# the Office group container (macOS stops a terminal writing into another
-# app's container).
-WORK_ROOT = '/private/tmp/PrintCostsTest'
-BUILD_ROOT = '/private/tmp/PrintCostsBuild'
-GRANT_PATHS = [WORK_ROOT, BUILD_ROOT, '/tmp/PrintCostsTest', '/tmp/PrintCostsBuild']
+# (An empty export and a deleted workbook, first seen here, turned out to be
+# Excel's ScreenUpdating bug - modUtils.NewScratchBook - not this folder.)
+WORK_ROOT = '/Users/Shared/PrintCostsTest'
+BUILD_ROOT = '/Users/Shared/PrintCostsBuild'
+GRANT_PATHS = [WORK_ROOT, BUILD_ROOT]
 
 _any_fail = False
 
@@ -609,14 +609,6 @@ class open_copy:
             if time.time() > deadline:
                 raise ExcelError('workbook opened but VersionString never answered - are macros disabled?')
             time.sleep(0.5)
-        # Exports, backups and Export report go to ExportFolder(), which is
-        # the workbook's own folder AS EXCEL REPORTS IT (/tmp/...). Saving a
-        # file there from VBA leaves it empty, still reports success, and
-        # Excel then deletes the open copy when it closes - seen in /tmp and
-        # in /Users/Shared alike. The same folder spelled /private/tmp/...
-        # works, so every copy's EXPORT_FOLDER is set to that. No test checks
-        # EXPORT_FOLDER itself.
-        self.wb.run('SetSetting', 'EXPORT_FOLDER', self.dir)
         return self.wb
 
     def __exit__(self, *exc):

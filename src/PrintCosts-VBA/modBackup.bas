@@ -169,18 +169,18 @@ End Function
 Private Function WriteBlockCsv(ByRef block As Variant, ByVal path As String) As Boolean
     Dim wbOut As Workbook
     On Error GoTo Failed
-    Set wbOut = Application.Workbooks.Add
+    Set wbOut = NewScratchBook()   ' not Workbooks.Add - see modUtils.NewScratchBook
     With wbOut.Worksheets(1)
         .Cells.NumberFormat = "@"
         .Range(.Cells(1, 1), .Cells(UBound(block, 1), UBound(block, 2))).Value = block
     End With
     wbOut.SaveAs path, CSV_UTF8
-    wbOut.Close False
-    WriteBlockCsv = FileExists(path)
+    CloseScratchBook wbOut
+    WriteBlockCsv = FileWritten(path)
     Exit Function
 Failed:
     On Error Resume Next
-    If Not wbOut Is Nothing Then wbOut.Close False
+    If Not wbOut Is Nothing Then CloseScratchBook wbOut
     WriteBlockCsv = False
 End Function
 

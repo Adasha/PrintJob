@@ -24,7 +24,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from xlmac import Workbook, REPO, WORK_ROOT, BUILD_ROOT, GRANT_PATHS, open_in_excel, osa, ExcelError  # noqa: E402
 
-FOLDERS = GRANT_PATHS   # xlmac says why both /tmp spellings
+FOLDERS = GRANT_PATHS
 STAGE = os.path.join(BUILD_ROOT, 'grant')
 
 CODE = '''Public Function GrantTestFolders(ByVal Paths As String) As String

@@ -3,6 +3,28 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+Unreleased - Fix: on a Mac, Export could empty the file and delete the workbook.
+  - Excel for Mac (16.114) saves a workbook that was created while screen
+    updating is off as an EMPTY file, raises no error, and then deletes the
+    file of the workbook that created it when that workbook is closed - not
+    to the Trash. Export, Export report and Backup workbook all build their
+    file in a new workbook inside AppOff (screen updating off), so on a Mac,
+    from a workbook in an ordinary folder (Documents, Desktop), each reported
+    success, left an empty file, and the workbook was gone on close.
+    Reproduced on throwaway copies in Documents. OneDrive workbooks were not
+    hit in testing: their path comes back as a web link, mapped to the local
+    folder by a different route.
+  - Fixed in one place: modUtils.NewScratchBook / CloseScratchBook, which the
+    three writers now use instead of Workbooks.Add, turn screen updating on
+    from before the scratch workbook is created until it is closed (on for the
+    save alone is not enough). New modUtils.FileWritten: the after-save check
+    now also requires the file to have content, so an empty file is reported
+    as a failure, not an export.
+  - New mac/test-macsave.py runs all three into the workbook's own folder and
+    checks every file has content and the workbook survives its close.
+  - mac/build.py now refuses to build when a module has a declaration after
+    its first procedure, which VBA rejects only later, as a dialog.
+
 Unreleased - Building and testing on a Mac.
   - mac/build.py builds src/PrintJob.xlsm on a Mac, the same steps as build.ps1,
     through mac/Builder.xlsm (made by hand once; see SETUP.md).

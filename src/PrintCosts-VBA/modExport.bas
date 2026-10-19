@@ -229,7 +229,7 @@ Private Function ExportOne(ByVal ws As Worksheet, ByRef n As Long, ByRef path As
     End If
 
     AppOff
-    Set wbOut = Application.Workbooks.Add
+    Set wbOut = NewScratchBook()   ' not Workbooks.Add - see modUtils.NewScratchBook
     With wbOut.Worksheets(1)
         ' Everything goes in as TEXT. Without this Excel re-parses what we
         ' carefully formatted: an ISO "2026-09-15 10:12:00" becomes a date
@@ -246,7 +246,7 @@ Private Function ExportOne(ByVal ws As Worksheet, ByRef n As Long, ByRef path As
     ' name right. VBA's Print # writes in the system codepage and mangles
     ' both; ADODB.Stream would, but does not exist on Mac.
     wbOut.SaveAs path, CSV_UTF8
-    wbOut.Close False
+    CloseScratchBook wbOut
     AppOn
 
     ' Confirm the file is actually there before claiming anything. SaveAs to a
@@ -254,8 +254,9 @@ Private Function ExportOne(ByVal ws As Worksheet, ByRef n As Long, ByRef path As
     ' path the CSV prompt was cancelled on - returns without raising, and the
     ' two lines below would then stamp the location as exported and tell the
     ' caller its records were safe. This status is what stands between a sheet
-    ' deletion and the records, so it must never be optimistic.
-    If Not FileExists(path) Then
+    ' deletion and the records, so it must never be optimistic. FileWritten,
+    ' not FileExists: an empty file is not an export.
+    If Not FileWritten(path) Then
         ExportOne = "NOFILE"
         Exit Function
     End If
@@ -365,7 +366,7 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
     End If
 
     AppOff
-    Set wbOut = Application.Workbooks.Add
+    Set wbOut = NewScratchBook()   ' not Workbooks.Add - see modUtils.NewScratchBook
     ' Written as values, then styled and given its print setup (A4 landscape,
     ' one page wide, header row repeating) - see FormatReportForPrint.
     With wbOut.Worksheets(1)
@@ -373,10 +374,10 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
     End With
     printSetOk = FormatReportForPrint(wbOut.Worksheets(1), block, tableHeaderRow, footerStartRow, UBound(footer, 1), UBound(full, 1))
     wbOut.SaveAs path, XLSX_FORMAT
-    wbOut.Close False
+    CloseScratchBook wbOut
     AppOn
 
-    If Not FileExists(path) Then
+    If Not FileWritten(path) Then
         Say "The export did not produce a file.", _
             "Excel accepted the save but nothing was written to:" & vbCrLf & path, _
             "Nothing has been marked as exported. Check you can write to that folder, then try again."
