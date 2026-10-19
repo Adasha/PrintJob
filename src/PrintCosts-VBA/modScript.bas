@@ -102,7 +102,9 @@ Public Function ScriptProp(ByVal Handle As String, ByVal Prop As String) As Stri
     On Error GoTo Fail
     Resolve Handle, v
     p = Split(Prop, " ")
-    If IsArray(v) Then
+    ' IsObject first: IsArray on a multi-cell Range is True (it looks through
+    ' to the Range's Value), which would send a range down the array branch.
+    If Not IsObject(v) And IsArray(v) Then
         Select Case p(0)
             Case "ubound": ScriptProp = "ok:" & UBound(v, 1)
             Case "item"

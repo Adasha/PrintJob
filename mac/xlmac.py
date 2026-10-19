@@ -34,6 +34,8 @@
 #   - Inside VBA, Application.Run on a macro name that does not exist also
 #     CRASHES Excel for Mac (Windows raises 1004). modScript.ScriptRun checks
 #     the name exists first, so a typo in call() is an error, not a crash.
+#   - A Boolean a macro returns through run() arrives as AppleScript's
+#     'true'/'false'; through call() it is VBA's CStr, 'True'/'False'.
 #   - Only text, numbers and booleans cross over. For a macro that takes a
 #     Worksheet, Range or ListObject, use call() with sheet()/table()/rng()/
 #     spill() tokens: the workbook's modScript.ScriptRun turns them into the
@@ -330,6 +332,50 @@ return {c, italic of font object of rg, b as text, locked of rg}''', sheet, a1, 
         r, g, b = (int(x) for x in rgb)
         return {'color': r + g * 256 + b * 65536, 'italic': italic, 'left_border': border, 'locked': locked}
 
+    def row_top_height(self, sheet, row):
+        """(Rows(row).Top, Rows(row).Height)."""
+        v = self._do('''set r to row ((item 3 of argv) as integer) of worksheet (item 2 of argv) of wb
+return {top of r, height of r}''', sheet, row, literal=True)
+        return float(v[0]), float(v[1])
+
+    def column_outline_level(self, sheet, col):
+        return int(self._do('return outline level of entire column of range (item 3 of argv) of worksheet (item 2 of argv) of wb',
+                            sheet, addr(1, col)))
+
+    def dropdown_names(self, sheet):
+        """Names of the Form Controls drop-downs on a sheet ($ws.DropDowns())."""
+        v = self._do('return name of every dropdown of worksheet (item 2 of argv) of wb', sheet, literal=True)
+        if v is None or v == '':
+            return []
+        return [str(n) for n in v] if isinstance(v, list) else [str(v)]
+
+    def format_conditions(self, sheet, a1):
+        """[(Formula1, Font.Color as COM's BGR integer)] of a range's FormatConditions."""
+        v = self._do('''set rg to range (item 3 of argv) of worksheet (item 2 of argv) of wb
+set out to {}
+repeat with i from 1 to (count of format conditions of rg)
+  set fc to format condition i of rg
+  set end of out to {formula 1 of fc, color of font object of fc}
+end repeat
+return out''', sheet, a1, literal=True)
+        out = []
+        for f1, rgb in v:
+            r, g, b = (int(x) for x in rgb) if isinstance(rgb, list) else (0, 0, 0)
+            out.append((f1, r + g * 256 + b * 65536))
+        return out
+
+    def number_format(self, sheet, a1):
+        return self._do('return number format of range (item 3 of argv) of worksheet (item 2 of argv) of wb', sheet, a1)
+
+    def validation_formula1(self, sheet, a1):
+        """Range.Validation.Formula1 ('' if the cell has none)."""
+        try:
+            out = self._do('return formula1 of (validation of range (item 3 of argv) of worksheet (item 2 of argv) of wb)',
+                           sheet, a1)
+        except ExcelError:
+            return ''
+        return '' if out == 'missing value' else out
+
     def buttons(self, sheet):
         """Every Form Controls button on a sheet: name, on_action, left, top,
         width, height, text - one call for the lot."""
@@ -410,6 +456,16 @@ return 0''', sheet, table, header)
 set rg to range object of lo
 return (first row index of rg) + (count of rows of rg) - 1''', sheet, table)
         return int(out)
+
+    def table_headers(self, sheet, table):
+        """Every ListColumn name, in order - one call."""
+        v = self._do('''set lo to list object (item 3 of argv) of worksheet (item 2 of argv) of wb
+set out to {}
+repeat with i from 1 to (count of list columns of lo)
+  set end of out to name of list column i of lo
+end repeat
+return out''', sheet, table, literal=True)
+        return [str(n) for n in v]
 
     def table_column_texts(self, sheet, table, header):
         """Text of every data cell in one table column, top to bottom
