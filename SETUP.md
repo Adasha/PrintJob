@@ -330,6 +330,26 @@ powershell -ExecutionPolicy Bypass -File test-reports.ps1
 
 It should print `True`.
 
+### Running the tests on a Mac
+
+The `.ps1` tests need Windows: they drive Excel through COM, which macOS does
+not have. The `mac/` folder holds Python ports that drive Excel for Mac
+through AppleScript instead, one per `.ps1` with the same checks and messages,
+on top of `mac/xlmac.py` (the Mac counterpart of `TestCommon.ps1`). So far
+only `test-defaults` is ported.
+
+```
+python3 mac/test-defaults.py
+```
+
+Close any open PrintJob workbook first. The script refuses to run beside one,
+because AppleScript runs macros by bare name and could hit the wrong file. It
+copies `src/PrintJob.xlsm` to `/private/tmp/PrintCostsTest` and drives that
+copy. `$TMPDIR` cannot be used: Excel's sandbox stops at a file prompt for it
+and the script hangs. The first run asks for permission to control Excel;
+allow it. The things that catch people out (`run VB Macro` with a capital M,
+silent results for missing macros) are listed at the top of `mac/xlmac.py`.
+
 ## Exporting a print room
 
 Each print room sheet has an **Export…** button. It writes
