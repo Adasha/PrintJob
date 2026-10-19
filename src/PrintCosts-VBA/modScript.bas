@@ -121,21 +121,19 @@ Public Function ScriptProp(ByVal Handle As String, ByVal Prop As String) As Stri
         End Select
         Exit Function
     End If
-    ' Any property by name, read with CallByName: a dotted chain walks objects
-    ' ("Rows.Count"), and a number after a space indexes the last one
-    ' ("List 2" is DropDown.List(2)). Scalars only - the last step must not
-    ' return an object.
+    ' Any property by name, read with CallByName. A dotted chain walks objects
+    ' ("Rows.Count"); a step can carry one number in brackets
+    ' ("FormatConditions.Item(1).Interior.Color"); a number after a space
+    ' indexes the last step ("List 2" is DropDown.List(2)). A name that is a
+    ' method rather than a property ("Comment.Text") is called instead.
+    ' Scalars only - the last step must not return an object.
     chain = Split(p(0), ".")
     Set o = v
     For i = LBound(chain) To UBound(chain) - 1
-        Set o = CallByName(o, chain(i), VbGet)
+        Set o = Member(o, chain(i), "")
     Next i
-    last = chain(UBound(chain))
-    If UBound(p) >= 1 Then
-        r = CallByName(o, last, VbGet, CLng(p(1)))
-    Else
-        r = CallByName(o, last, VbGet)
-    End If
+    If UBound(p) >= 1 Then last = p(1) Else last = ""
+    Keep r, Member(o, chain(UBound(chain)), last)
     ScriptProp = "ok:" & CStr(r)
     Exit Function
 Fail:
@@ -258,6 +256,31 @@ Private Function AddHandle(ByVal v As Variant) As String
     If mHandles Is Nothing Then Set mHandles = New Collection
     mHandles.Add v
     AddHandle = TOK & "h:" & mHandles.Count
+End Function
+
+' One step of ScriptProp's chain: Name or Name(n), with Extra (the number
+' after a space) as the index when the step has none of its own. Read as a
+' property first; called as a method when that fails (Comment.Text,
+' FormatConditions.Item).
+Private Function Member(ByVal o As Object, ByVal StepName As String, ByVal Extra As String) As Variant
+    Dim nm As String, arg As String, k As Long, res As Variant
+    k = InStr(StepName, "(")
+    If k > 0 Then
+        nm = Left$(StepName, k - 1)
+        arg = Mid$(StepName, k + 1, Len(StepName) - k - 1)
+    Else
+        nm = StepName
+        arg = Extra
+    End If
+    On Error Resume Next
+    If Len(arg) > 0 Then Keep res, CallByName(o, nm, VbGet, CLng(arg)) Else Keep res, CallByName(o, nm, VbGet)
+    If Err.Number <> 0 Then
+        Err.Clear
+        On Error GoTo 0
+        If Len(arg) > 0 Then Keep res, CallByName(o, nm, VbMethod, CLng(arg)) Else Keep res, CallByName(o, nm, VbMethod)
+    End If
+    On Error GoTo 0
+    If IsObject(res) Then Set Member = res Else Member = res
 End Function
 
 ' Dst = Src, by Set for an object. Src is a ByVal Variant so an object

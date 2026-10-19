@@ -431,6 +431,38 @@ return out''', sheet, a1, literal=True)
             out.append((f1, r + g * 256 + b * 65536))
         return out
 
+    def active_sheet(self):
+        """$wb.ActiveSheet.Name."""
+        return self._do('return name of active sheet')
+
+    def selection(self):
+        """(first row, first column, row count) of Excel's Selection."""
+        v = self._do('''set s to selection
+return {first row index of s, first column index of s, count of rows of s}''', literal=True)
+        return int(v[0]), int(v[1]), int(v[2])
+
+    def visible_rows(self):
+        """(first row, row count) of ActiveWindow.VisibleRange."""
+        v = self._do('''set vr to visible range of active window
+return {first row index of vr, count of rows of vr}''', literal=True)
+        return int(v[0]), int(v[1])
+
+    def formula(self, sheet, a1):
+        return self._do('return formula of range (item 3 of argv) of worksheet (item 2 of argv) of wb', sheet, a1)
+
+    def set_on_action(self, sheet, button, macro):
+        self._do('set on action of button (item 3 of argv) of worksheet (item 2 of argv) of wb to (item 4 of argv)',
+                 sheet, button, macro)
+
+    def has_formula(self, sheet, a1):
+        return self._do('return has formula of range (item 3 of argv) of worksheet (item 2 of argv) of wb',
+                        sheet, a1) == 'true'
+
+    def column_width(self, sheet, col):
+        """Columns(col).ColumnWidth, in characters."""
+        return float(self._do('return column width of range (item 3 of argv) of worksheet (item 2 of argv) of wb',
+                              sheet, addr(1, col)))
+
     def number_format(self, sheet, a1):
         return self._do('return number format of range (item 3 of argv) of worksheet (item 2 of argv) of wb', sheet, a1)
 
