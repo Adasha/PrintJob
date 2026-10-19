@@ -277,6 +277,16 @@ class Workbook:
             v = [v]
         return [['' if c is None else str(c) for c in row] for row in v]
 
+    def values(self, sheet, a1):
+        """Range.Value2 of a block, as rows of float / str / None - one call."""
+        v = self._do('return value2 of range (item 3 of argv) of worksheet (item 2 of argv) of wb',
+                     sheet, a1, literal=True)
+        if not isinstance(v, list):
+            v = [[v]]
+        elif v and not isinstance(v[0], list):
+            v = [v]
+        return [[None if c == '' else c for c in row] for row in v]
+
     def value(self, sheet, a1):
         """Range.Value2 of one cell: float for a number, str for text, None if empty."""
         v = self._do('return value2 of range (item 3 of argv) of worksheet (item 2 of argv) of wb',
@@ -497,6 +507,11 @@ return out''', sheet, table, literal=True)
         c = col_letters(col)
         return [r[0] for r in self.texts(sheet, f'{c}{first}:{c}{last}')]
 
+    def table_row_count(self, sheet, table):
+        """$lo.ListRows.Count (0 for an emptied table)."""
+        return int(self._do('return count of list rows of list object (item 3 of argv) of worksheet (item 2 of argv) of wb',
+                            sheet, table))
+
     def table_first_row(self, sheet, table):
         """Worksheet row of the table's header ($lo.Range.Row)."""
         return int(self._do('return first row index of (range object of list object (item 3 of argv) of worksheet (item 2 of argv) of wb)',
@@ -563,8 +578,11 @@ class open_copy:
     """with open_copy() as wb: ... drives a COPY of src/PrintJob.xlsm in a temp
     folder, never the deliverable itself, and closes it WITHOUT saving."""
 
-    def __init__(self, deliverable=DELIVERABLE):
+    def __init__(self, deliverable=DELIVERABLE, clean=True):
+        """clean=False keeps earlier runs' folders - for a test that drives a
+        second copy from files the first one wrote (test-backup)."""
         self.deliverable = deliverable
+        self.clean = clean
         self.dir = None
         self.wb = None
 
@@ -587,7 +605,7 @@ class open_copy:
         # earlier runs are cleared first (no PrintJob workbook is open - just
         # checked).
         os.makedirs(WORK_ROOT, exist_ok=True)
-        for old in os.listdir(WORK_ROOT):
+        for old in (os.listdir(WORK_ROOT) if self.clean else []):
             if old.startswith('run-') or old == 'work':
                 shutil.rmtree(os.path.join(WORK_ROOT, old), ignore_errors=True)
         self.dir = tempfile.mkdtemp(prefix='run-', dir=WORK_ROOT)
