@@ -32,7 +32,7 @@ import sys
 import zipfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from xlmac import osa, ExcelError, Workbook, REPO, BUILD_ROOT, open_workbook_names, open_in_excel  # noqa: E402
+from xlmac import osa, ExcelError, Workbook, REPO, BUILD_ROOT, open_workbook_names, open_in_excel, unquarantine  # noqa: E402
 
 ROOT = os.path.join(REPO, 'src')
 VBA = os.path.join(ROOT, 'PrintCosts-VBA')
@@ -50,7 +50,7 @@ def die(msg):
 
 
 def open_wb(path):
-    open_in_excel(path, timeout=120)   # xlmac says why not AppleScript's open
+    open_in_excel(path)   # xlmac.open_in_excel: how, and why it waits so long
 
 
 def close_wb(name):
@@ -273,11 +273,13 @@ save workbook as wb filename (item 2 of argv) file format macro enabled XML file
     close_wb(wb_name)
     opened.clear()
     shutil.copy2(work_dst, DST)
+    unquarantine(DST)   # Excel's save flags it; xlmac.unquarantine says why that matters
 
     with open(os.path.join(VBA, 'modVersion.bas'), encoding='utf-8') as f:
         ver = re.search(r'APP_VERSION As String = "([^"]+)"', f.read()).group(1)
     ver_name = f'PrintJob-v{ver}-{stamp:%Y%m%d-%H%M}{git_suffix()}.xlsm'
     shutil.copy2(DST, os.path.join(ROOT, ver_name))
+    unquarantine(os.path.join(ROOT, ver_name))
     print(f'versioned copy -> {ver_name}')
     keep_newest(os.path.join(ROOT, 'PrintJob-v*.xlsm'), 5)
     print()

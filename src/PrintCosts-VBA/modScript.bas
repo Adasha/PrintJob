@@ -17,6 +17,8 @@ Option Explicit
 '   @@table:Name           the ListObject called Name, on whichever sheet
 '   @@range:Sheet!A1:B2    that range (the sheet name unquoted)
 '   @@spill:Sheet!H11      that cell's SpillingToRange
+'   @@shape:Sheet!Name     the Form Controls object behind that shape (a
+'                          Button, a DropDown), for ScriptProp
 '   @@h:3                  an object or array an earlier call returned
 '
 ' Anything else is passed through as it came. The result comes back as
@@ -94,11 +96,13 @@ Public Function ScriptReset() As String
     ScriptReset = "ok:"
 End Function
 
-' The value of something a handle holds, for a script that needs to look
-' inside it: Prop is a property name (Name, Address, Count, Rows.Count,
-' Column, Row) or, for an array, "item r c" / "item r" / "ubound".
+' The value of something a handle or token holds, for a script that needs to
+' look inside it: Prop is a property name - dotted ("Rows.Count") and
+' indexed ("List 2") both work - or, for an array, "item r c" / "item r" /
+' "ubound".
 Public Function ScriptProp(ByVal Handle As String, ByVal Prop As String) As String
     Dim v As Variant, p() As String
+    Dim chain() As String, o As Object, i As Long, last As String, r As Variant
     On Error GoTo Fail
     Resolve Handle, v
     p = Split(Prop, " ")
@@ -117,15 +121,22 @@ Public Function ScriptProp(ByVal Handle As String, ByVal Prop As String) As Stri
         End Select
         Exit Function
     End If
-    Select Case Prop
-        Case "Name": ScriptProp = "ok:" & v.Name
-        Case "Address": ScriptProp = "ok:" & v.Address(False, False)
-        Case "Count": ScriptProp = "ok:" & v.Count
-        Case "Rows.Count": ScriptProp = "ok:" & v.Rows.Count
-        Case "Column": ScriptProp = "ok:" & v.Column
-        Case "Row": ScriptProp = "ok:" & v.Row
-        Case Else: Err.Raise vbObjectError + 1, "ScriptProp", "Unknown property '" & Prop & "'."
-    End Select
+    ' Any property by name, read with CallByName: a dotted chain walks objects
+    ' ("Rows.Count"), and a number after a space indexes the last one
+    ' ("List 2" is DropDown.List(2)). Scalars only - the last step must not
+    ' return an object.
+    chain = Split(p(0), ".")
+    Set o = v
+    For i = LBound(chain) To UBound(chain) - 1
+        Set o = CallByName(o, chain(i), VbGet)
+    Next i
+    last = chain(UBound(chain))
+    If UBound(p) >= 1 Then
+        r = CallByName(o, last, VbGet, CLng(p(1)))
+    Else
+        r = CallByName(o, last, VbGet)
+    End If
+    ScriptProp = "ok:" & CStr(r)
     Exit Function
 Fail:
     ScriptProp = "ERROR " & Err.Number & ": " & Err.Description
@@ -231,6 +242,10 @@ Private Sub Resolve(ByVal v As Variant, ByRef Dst As Variant)
             Else
                 Set Dst = ThisWorkbook.Worksheets(Left$(arg, k - 1)).Range(Mid$(arg, k + 1)).SpillingToRange
             End If
+        Case "shape"
+            k = InStrRev(arg, "!")
+            If k = 0 Then Err.Raise vbObjectError + 3, "ScriptRun", "'" & arg & "' needs Sheet!ShapeName."
+            Set Dst = ThisWorkbook.Worksheets(Left$(arg, k - 1)).Shapes(Mid$(arg, k + 1)).OLEFormat.Object
         Case "h"
             If mHandles Is Nothing Then Err.Raise vbObjectError + 4, "ScriptRun", "No handle " & arg & " (none kept)."
             Keep Dst, mHandles(CLng(arg))

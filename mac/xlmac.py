@@ -194,6 +194,10 @@ def spill(sheet_name, a1):
     return f'@@spill:{sheet_name}!{a1}'
 
 
+def shape(sheet_name, name):
+    return f'@@shape:{sheet_name}!{name}'
+
+
 def _parse_ref(ref):
     """'='Example Print Room'!$B$4' -> (4, 2). Top-left cell of the range."""
     cell = ref.split('!')[-1].split(':')[0].replace('$', '')
@@ -319,6 +323,10 @@ class Workbook:
         """$xl.Calculate()."""
         self._do('calculate')
 
+    def set_enable_events(self, on):
+        """$xl.EnableEvents = on."""
+        self._do(f'set enable events to {"true" if on else "false"}')
+
     def clear_contents(self, sheet, a1):
         self._do('clear contents range (item 3 of argv) of worksheet (item 2 of argv) of wb', sheet, a1)
 
@@ -335,6 +343,16 @@ repeat with c from 1 to ((item 3 of argv) as integer)
 end repeat
 return out''', sheet, last_col, literal=True)
         return [float(x) for x in v]
+
+    def columns_hidden(self, sheet, last_col):
+        """[Columns(c).Hidden for c in 1..last_col], index 0 = column 1."""
+        v = self._do('''set ws to worksheet (item 2 of argv) of wb
+set out to {}
+repeat with c from 1 to ((item 3 of argv) as integer)
+  set end of out to hidden of (column c of ws)
+end repeat
+return out''', sheet, last_col, literal=True)
+        return [bool(x) for x in v]
 
     def select(self, sheet, a1):
         """Range.Select, on the active sheet - fires Workbook_SheetSelectionChange."""
@@ -379,6 +397,25 @@ return {top of r, height of r}''', sheet, row, literal=True)
             return []
         return [str(n) for n in v] if isinstance(v, list) else [str(v)]
 
+    def dropdowns(self, sheet):
+        """Every Form Controls drop-down on a sheet: name, left, top, width,
+        list_index, list_count. Its items are not in the AppleScript
+        dictionary - read them with prop(shape(sheet, name), 'List i')."""
+        v = self._do('''set ws to worksheet (item 2 of argv) of wb
+set out to {}
+repeat with i from 1 to (count of dropdowns of ws)
+  set d to dropdown i of ws
+  set end of out to {name of d, left position of d, top of d, width of d, list index of d, number of items in list of d}
+end repeat
+return out''', sheet, literal=True)
+        keys = ('name', 'left', 'top', 'width', 'list_index', 'list_count')
+        return [dict(zip(keys, d)) for d in v]
+
+    def set_dropdown_index(self, sheet, name, index):
+        """DropDown.ListIndex = index (what picking an item does, without its OnAction)."""
+        self._do('set list index of dropdown (item 3 of argv) of worksheet (item 2 of argv) of wb to ((item 4 of argv) as integer)',
+                 sheet, name, index)
+
     def format_conditions(self, sheet, a1):
         """[(Formula1, Font.Color as COM's BGR integer)] of a range's FormatConditions."""
         v = self._do('''set rg to range (item 3 of argv) of worksheet (item 2 of argv) of wb
@@ -408,15 +445,16 @@ return out''', sheet, a1, literal=True)
 
     def buttons(self, sheet):
         """Every Form Controls button on a sheet: name, on_action, left, top,
-        width, height, text - one call for the lot."""
+        width, height, text, placement ('placement free floating' is COM's 3)
+        - one call for the lot."""
         v = self._do('''set ws to worksheet (item 2 of argv) of wb
 set out to {}
 repeat with i from 1 to (count of buttons of ws)
   set bt to button i of ws
-  set end of out to {name of bt, on action of bt, left position of bt, top of bt, width of bt, height of bt, caption of bt}
+  set end of out to {name of bt, on action of bt, left position of bt, top of bt, width of bt, height of bt, caption of bt, (placement of bt) as text}
 end repeat
 return out''', sheet, literal=True)
-        keys = ('name', 'on_action', 'left', 'top', 'width', 'height', 'text')
+        keys = ('name', 'on_action', 'left', 'top', 'width', 'height', 'text', 'placement')
         return [dict(zip(keys, b)) for b in v]
 
     def set_value(self, sheet, a1, value):
@@ -487,6 +525,17 @@ set rg to range object of lo
 return (first row index of rg) + (count of rows of rg) - 1''', sheet, table)
         return int(out)
 
+    def table_names(self, sheet):
+        """Names of the ListObjects on a sheet."""
+        v = self._do('return name of every list object of worksheet (item 2 of argv) of wb', sheet, literal=True)
+        if v is None or v == '':
+            return []
+        return [str(n) for n in v] if isinstance(v, list) else [str(v)]
+
+    def sheet_names(self):
+        v = self._do('return name of every worksheet of wb', literal=True)
+        return [str(n) for n in v] if isinstance(v, list) else [str(v)]
+
     def table_headers(self, sheet, table):
         """Every ListColumn name, in order - one call."""
         v = self._do('''set lo to list object (item 3 of argv) of worksheet (item 2 of argv) of wb
@@ -525,36 +574,48 @@ SUM_TOT_ROW, SUM_HDR_ROW, SUM_FIRST_ROW = 24, 27, 28
 
 
 # ------------------------------------------------------------------ copies
-def open_in_excel(path, timeout=90):
-    """Open a workbook the way Finder does, and wait until Excel has it.
+def unquarantine(path):
+    """Clear macOS's quarantine flag from a workbook we made ourselves.
 
-    Not AppleScript's 'open POSIX file': Excel is sandboxed, and a file named
-    that way does not always carry permission to read it - after Excel had
-    crashed and relaunched it put up Grant File Access for every copy, and
-    the open AppleEvent hung behind the prompt. 'open -a' goes through
-    Launch Services, which hands Excel access to the file with the request,
-    as a double-click does."""
+    Excel is sandboxed, and macOS flags every file a sandboxed app creates as
+    quarantined - the mark a download carries. A Mac build's PrintJob.xlsm
+    has it (Builder.xlsm and the .xlsx, made otherwise, do not), copies keep
+    it, and Excel then asks "Enable macros?" every time one is opened, which
+    an unattended run cannot answer."""
+    subprocess.run(['xattr', '-d', 'com.apple.quarantine', path], capture_output=True)
+
+
+# How long an open waits. Long on purpose: Excel can stop on a prompt (macros,
+# file access) that someone has to answer, and they may not be at the screen.
+OPEN_TIMEOUT = 1800
+
+
+def open_in_excel(path, timeout=OPEN_TIMEOUT):
+    """Open a workbook and wait until Excel has it.
+
+    AppleScript's 'open', sent without waiting for the reply, then polled.
+    Not 'open -a' (Launch Services, as a Finder double-click): that makes
+    Excel ask "Enable macros?" for every copy, which an unattended run cannot
+    answer. AppleScript's open does not ask - but Excel is sandboxed, and it
+    can only open this way from a folder it has been granted, which is what
+    mac/grant-access.py is for (WORK_ROOT and BUILD_ROOT). Not waiting for
+    the reply means a prompt, if one ever appears, cannot hang the call; the
+    timeout below reports it instead."""
     name = os.path.basename(path)
-    lock = os.path.join(os.path.dirname(path), '~$' + name)
-    for attempt in (1, 2):
-        subprocess.run(['open', '-a', 'Microsoft Excel', path], check=True)
-        # Excel writes its ~$ lock file the moment it starts opening. If 20s
-        # pass with neither that nor the workbook, Excel has ignored the
-        # request outright - seen after a failed AppleScript sheet copy,
-        # with nothing on screen - and only a restart clears it. Done only
-        # when Excel has nothing else open, so nothing can be lost.
-        if attempt == 1:
-            t20 = time.time() + 20
-            while time.time() < t20 and not os.path.exists(lock) and name not in open_workbook_names():
-                time.sleep(0.5)
-            if not os.path.exists(lock) and name not in open_workbook_names() and not open_workbook_names():
-                print('  (Excel ignored the open; restarting it)', flush=True)
-                osa('tell application "Microsoft Excel" to quit saving no')
-                time.sleep(4)
-                continue
-        break
+    osa('''on run argv
+tell application "Microsoft Excel"
+ignoring application responses
+open POSIX file (item 1 of argv)
+end ignoring
+end tell
+end run''', path)
     deadline = time.time() + timeout
+    nagged = False
     while name not in open_workbook_names():
+        if not nagged and time.time() > deadline - timeout + 30:
+            print(f'  (waiting for Excel to open {name} - answer any prompt it shows; '
+                  f'waiting up to {timeout // 60} min)', flush=True)
+            nagged = True
         if time.time() > deadline:
             raise ExcelError(f'{name} did not open within {timeout}s - Excel is probably showing a prompt '
                              '(Grant File Access, or a recovery dialog). Answer it, then run this again.')
@@ -605,19 +666,26 @@ class open_copy:
         # earlier runs are cleared first (no PrintJob workbook is open - just
         # checked).
         os.makedirs(WORK_ROOT, exist_ok=True)
+        # Only folders over an hour old: Excel may still be opening (or about
+        # to recover) a copy from a run that has just stopped, and a deleted
+        # one leaves it on a Grant File Access prompt for a file that is gone.
         for old in (os.listdir(WORK_ROOT) if self.clean else []):
-            if old.startswith('run-') or old == 'work':
-                shutil.rmtree(os.path.join(WORK_ROOT, old), ignore_errors=True)
+            p = os.path.join(WORK_ROOT, old)
+            if (old.startswith('run-') or old == 'work') and time.time() - os.path.getmtime(p) > 3600:
+                shutil.rmtree(p, ignore_errors=True)
         self.dir = tempfile.mkdtemp(prefix='run-', dir=WORK_ROOT)
         path = os.path.join(self.dir, WB_NAME)
         shutil.copy2(self.deliverable, path)
+        unquarantine(path)
         # From here on __exit__ has to close the workbook: even if this open
         # times out (a prompt on screen), Excel finishes opening it later.
         self.wb = Workbook(WB_NAME)
         open_in_excel(path)
         # Workbook_Open does real work (ProtectAll, HealButtons, ...). Wait for
         # a function call to come back, which also proves macros are enabled.
-        deadline = time.time() + 60
+        # Long for the same reason as OPEN_TIMEOUT: a macro prompt may still
+        # be waiting for an answer after the workbook appears.
+        deadline = time.time() + OPEN_TIMEOUT
         while True:
             try:
                 if self.wb.run('VersionString'):
