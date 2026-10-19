@@ -29,17 +29,27 @@ NAME = 'Annexe'
 def add_annexe_fixture(wb):
     """Add-AnnexeFixture. Returns the same kind of report the .ps1's does;
     raises ExcelError where that one throws."""
-    # The copy's table is auto-renamed by Excel until Refresh Locations names
-    # it tblJobs_ANNEX, so it is counted as the sheet's first table, as the
-    # .ps1's ws.ListObjects(1) does.
+    # The copy is found as the one sheet name that was not there before. Not
+    # by 'active sheet', as the .ps1's ActiveSheet does: over AppleScript the
+    # copy is not reliably made active, and once the fixture renamed Settings
+    # instead. The copy's table is auto-renamed by Excel until Refresh
+    # Locations names it tblJobs_ANNEX, so it is counted as the sheet's first
+    # table, as the .ps1's ws.ListObjects(1) does.
     out = wb._do('''set src to worksheet (item 2 of argv) of wb
+set oldNames to name of every worksheet of wb
 copy worksheet src after src
-set ws to active sheet
+set newNames to name of every worksheet of wb
+set ws to missing value
+repeat with n in newNames
+  if oldNames does not contain (n as text) then set ws to worksheet (n as text) of wb
+end repeat
+if ws is missing value then return "|0"
 set name of ws to (item 3 of argv)
+set ws to worksheet (item 3 of argv) of wb -- the old reference was by the old name
 return (name of ws) & "|" & (count of list rows of list object 1 of ws)''', SRC, NAME)
     new, _, rows = out.rpartition('|')
     if new != NAME:
-        raise ExcelError(f"Add-AnnexeFixture failed: the copy is named '{new}', not '{NAME}'")
+        raise ExcelError(f"Add-AnnexeFixture failed: no new sheet found after copying '{SRC}' (got '{out}')")
     r = f"created '{NAME}' by duplicating '{SRC}' ({rows} rows carried over)\n"
 
     wb.unprotect(NAME)

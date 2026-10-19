@@ -45,18 +45,31 @@
 import os
 import shutil
 import subprocess
+import tempfile
 import sys
 import time
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DELIVERABLE = os.path.join(REPO, 'src', 'PrintJob.xlsm')
 WB_NAME = 'PrintJob.xlsm'
-# Excel for Mac is sandboxed. Opening a copy from the usual $TMPDIR (under
-# /var/folders) hung the open AppleEvent for two minutes with nothing opened -
-# most likely a Grant File Access prompt. The Office group container would
-# avoid that, but macOS stops a terminal writing into another app's
-# container. /private/tmp opens without a prompt, so the copies go there.
+# Where the throwaway copies (and mac/build.py's work) live. Excel for Mac is
+# sandboxed: it can only write where it has been granted access, and VBA
+# writing beside a copy (an export, a backup) fails silently - Save As leaves
+# an empty file - unless the folder is granted. mac/grant-access.py grants
+# these two once.
+#
+# /tmp is a link to /private/tmp, Excel reports a workbook opened from there
+# as being in /tmp, and a grant only matches the path as written - a
+# /private/tmp grant did not cover writes to /tmp/... - so grant-access.py
+# asks for both spellings (GRANT_PATHS).
+#
+# Not /Users/Shared: there an export came out empty AND Excel deleted the
+# open copy when it closed. Not $TMPDIR (a sandbox prompt on every open), not
+# the Office group container (macOS stops a terminal writing into another
+# app's container).
 WORK_ROOT = '/private/tmp/PrintCostsTest'
+BUILD_ROOT = '/private/tmp/PrintCostsBuild'
+GRANT_PATHS = [WORK_ROOT, BUILD_ROOT, '/tmp/PrintCostsTest', '/tmp/PrintCostsBuild']
 
 _any_fail = False
 
@@ -507,7 +520,24 @@ def open_in_excel(path, timeout=90):
     Launch Services, which hands Excel access to the file with the request,
     as a double-click does."""
     name = os.path.basename(path)
-    subprocess.run(['open', '-a', 'Microsoft Excel', path], check=True)
+    lock = os.path.join(os.path.dirname(path), '~$' + name)
+    for attempt in (1, 2):
+        subprocess.run(['open', '-a', 'Microsoft Excel', path], check=True)
+        # Excel writes its ~$ lock file the moment it starts opening. If 20s
+        # pass with neither that nor the workbook, Excel has ignored the
+        # request outright - seen after a failed AppleScript sheet copy,
+        # with nothing on screen - and only a restart clears it. Done only
+        # when Excel has nothing else open, so nothing can be lost.
+        if attempt == 1:
+            t20 = time.time() + 20
+            while time.time() < t20 and not os.path.exists(lock) and name not in open_workbook_names():
+                time.sleep(0.5)
+            if not os.path.exists(lock) and name not in open_workbook_names() and not open_workbook_names():
+                print('  (Excel ignored the open; restarting it)', flush=True)
+                osa('tell application "Microsoft Excel" to quit saving no')
+                time.sleep(4)
+                continue
+        break
     deadline = time.time() + timeout
     while name not in open_workbook_names():
         if time.time() > deadline:
@@ -550,15 +580,18 @@ class open_copy:
         if clash:
             raise ExcelError(f'close these first - Excel cannot open a second workbook of the same name: {", ".join(clash)}')
 
-        # One fixed folder, reused by every run, not a fresh random one: the
-        # sandbox's file-access grant is per folder, so a Grant File Access
-        # prompt, if Excel ever shows one for it, is answered once and stays
-        # answered. Emptied of the last run's copy first.
-        self.dir = os.path.join(WORK_ROOT, 'work')
-        os.makedirs(self.dir, exist_ok=True)
+        # A fresh folder per run. Reusing one fixed path made Excel say the
+        # workbook was locked and offer it read-only - it remembers the
+        # document at that path from the run before. open_in_excel grants
+        # access per file, so a new folder costs no prompt. Folders from
+        # earlier runs are cleared first (no PrintJob workbook is open - just
+        # checked).
+        os.makedirs(WORK_ROOT, exist_ok=True)
+        for old in os.listdir(WORK_ROOT):
+            if old.startswith('run-') or old == 'work':
+                shutil.rmtree(os.path.join(WORK_ROOT, old), ignore_errors=True)
+        self.dir = tempfile.mkdtemp(prefix='run-', dir=WORK_ROOT)
         path = os.path.join(self.dir, WB_NAME)
-        if os.path.exists(path):
-            os.remove(path)
         shutil.copy2(self.deliverable, path)
         # From here on __exit__ has to close the workbook: even if this open
         # times out (a prompt on screen), Excel finishes opening it later.
@@ -576,6 +609,14 @@ class open_copy:
             if time.time() > deadline:
                 raise ExcelError('workbook opened but VersionString never answered - are macros disabled?')
             time.sleep(0.5)
+        # Exports, backups and Export report go to ExportFolder(), which is
+        # the workbook's own folder AS EXCEL REPORTS IT (/tmp/...). Saving a
+        # file there from VBA leaves it empty, still reports success, and
+        # Excel then deletes the open copy when it closes - seen in /tmp and
+        # in /Users/Shared alike. The same folder spelled /private/tmp/...
+        # works, so every copy's EXPORT_FOLDER is set to that. No test checks
+        # EXPORT_FOLDER itself.
+        self.wb.run('SetSetting', 'EXPORT_FOLDER', self.dir)
         return self.wb
 
     def __exit__(self, *exc):

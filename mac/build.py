@@ -32,7 +32,7 @@ import sys
 import zipfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from xlmac import osa, ExcelError, Workbook, REPO, open_workbook_names, open_in_excel  # noqa: E402
+from xlmac import osa, ExcelError, Workbook, REPO, BUILD_ROOT, open_workbook_names, open_in_excel  # noqa: E402
 
 ROOT = os.path.join(REPO, 'src')
 VBA = os.path.join(ROOT, 'PrintCosts-VBA')
@@ -40,7 +40,6 @@ SRC = os.path.join(ROOT, 'PrintCosts.xlsx')
 DST = os.path.join(ROOT, 'PrintJob.xlsm')
 BUILDER = os.path.join(REPO, 'mac', 'Builder.xlsm')
 BUILDER_BAS = os.path.join(REPO, 'mac', 'modBuilder.bas')
-BUILD_ROOT = '/private/tmp/PrintCostsBuild'   # xlmac.WORK_ROOT explains why not $TMPDIR
 
 CHUNK_LINES = 300   # lines per BuilderAppend call; keeps each AppleEvent small
 

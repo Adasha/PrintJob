@@ -26,6 +26,8 @@ import sys
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+from xlmac import WORK_ROOT  # noqa: E402
 FAIL_RE = re.compile(r'\bFAIL\b|Traceback|Error:')
 
 ap = argparse.ArgumentParser()
@@ -33,7 +35,7 @@ ap.add_argument('--only', nargs='+')
 ap.add_argument('--label', default=time.strftime('%H%M%S'))
 opts = ap.parse_args()
 
-log_dir = f'/private/tmp/PrintCostsTest/testrun-{opts.label}'
+log_dir = os.path.join(WORK_ROOT, f'testrun-{opts.label}')
 os.makedirs(log_dir, exist_ok=True)
 
 tests = sorted(p for p in glob.glob(os.path.join(HERE, 'test-*.py'))
