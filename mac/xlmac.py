@@ -53,13 +53,74 @@ class ExcelError(RuntimeError):
     pass
 
 
-def osa(script, *args, timeout=600):
-    """Run an AppleScript whose 'on run argv' takes args as text. Returns stdout."""
-    p = subprocess.run(['osascript', '-', *[str(a) for a in args]],
-                       input=script, capture_output=True, text=True, timeout=timeout)
+def osa(script, *args, timeout=600, literal=False):
+    """Run an AppleScript whose 'on run argv' takes args as text. Returns stdout,
+    or with literal=True the result parsed back into Python (lists, str, float,
+    bool, None) - plain output flattens a list to 'a, b, c', which a cell
+    containing a comma would corrupt."""
+    cmd = ['osascript', *(['-ss'] if literal else []), '-', *[str(a) for a in args]]
+    p = subprocess.run(cmd, input=script, capture_output=True, text=True, timeout=timeout)
     if p.returncode != 0:
         raise ExcelError(p.stderr.strip())
-    return p.stdout.rstrip('\n')
+    out = p.stdout.rstrip('\n')
+    return _parse_literal(out) if literal else out
+
+
+def _parse_literal(s):
+    """Parse osascript -ss output: {..} lists, "..." strings, numbers,
+    true/false, missing value."""
+    pos = 0
+
+    def ws():
+        nonlocal pos
+        while pos < len(s) and s[pos] in ' \t\r\n':
+            pos += 1
+
+    def val():
+        nonlocal pos
+        ws()
+        c = s[pos]
+        if c == '{':
+            pos += 1
+            items = []
+            ws()
+            if s[pos] == '}':
+                pos += 1
+                return items
+            while True:
+                items.append(val())
+                ws()
+                if s[pos] == ',':
+                    pos += 1
+                    continue
+                pos += 1   # '}'
+                return items
+        if c == '"':
+            pos += 1
+            buf = []
+            while s[pos] != '"':
+                if s[pos] == '\\':
+                    pos += 1
+                    buf.append({'n': '\n', 'r': '\r', 't': '\t'}.get(s[pos], s[pos]))
+                else:
+                    buf.append(s[pos])
+                pos += 1
+            pos += 1
+            return ''.join(buf)
+        for word, v in (('missing value', None), ('true', True), ('false', False)):
+            if s.startswith(word, pos):
+                pos += len(word)
+                return v
+        start = pos
+        while pos < len(s) and s[pos] not in ',}':
+            pos += 1
+        tok = s[start:pos].strip()
+        try:
+            return float(tok)
+        except ValueError:
+            return tok   # an enum or anything else unquoted, e.g. validate list
+
+    return val()
 
 
 # Every per-workbook script starts the same way. argv item 1 is always the
@@ -103,8 +164,8 @@ class Workbook:
     def __init__(self, name):
         self.name = name
 
-    def _do(self, body, *args):
-        return osa(_PRE + body + _POST, self.name, *args)
+    def _do(self, body, *args, literal=False):
+        return osa(_PRE + body + _POST, self.name, *args, literal=literal)
 
     # ------------------------------------------------------------- macros
     def run(self, macro, *args):
@@ -128,6 +189,45 @@ class Workbook:
 
     def cell_text(self, sheet, row, col):
         return self.text(sheet, addr(row, col))
+
+    def texts(self, sheet, a1):
+        """Range.Text of every cell in a block, as a list of rows of str - one
+        call however big the block, where per-cell text() is one each."""
+        v = self._do('return string value of range (item 3 of argv) of worksheet (item 2 of argv) of wb',
+                     sheet, a1, literal=True)
+        if not isinstance(v, list):
+            return [['' if v is None else str(v)]]
+        if v and not isinstance(v[0], list):
+            v = [v]
+        return [['' if c is None else str(c) for c in row] for row in v]
+
+    def value(self, sheet, a1):
+        """Range.Value2 of one cell: float for a number, str for text, None if empty."""
+        v = self._do('return value2 of range (item 3 of argv) of worksheet (item 2 of argv) of wb',
+                     sheet, a1, literal=True)
+        return None if v == '' else v
+
+    def number(self, sheet, a1):
+        """[double]$range.Value2 - an empty cell is 0, as PowerShell's cast makes it."""
+        v = self.value(sheet, a1)
+        return 0.0 if v is None else float(v)
+
+    def validation_type(self, sheet, a1):
+        """Range.Validation.Type as Excel's enum name ('validate list' is COM's 3)."""
+        try:
+            out = self._do('return validation type of (validation of range (item 3 of argv) of worksheet (item 2 of argv) of wb)',
+                           sheet, a1)
+        except ExcelError:
+            return ''
+        return '' if out == 'missing value' else out   # no validation on the cell
+
+    def column_hidden(self, sheet, col):
+        out = self._do('return hidden of entire column of range (item 3 of argv) of worksheet (item 2 of argv) of wb',
+                       sheet, addr(1, col))
+        return out == 'true'
+
+    def calculate_full_rebuild(self):
+        self._do('calculate full rebuild')
 
     def set_value(self, sheet, a1, value):
         """Range.Value2 = value. Fires Worksheet_Change like the COM write does."""
@@ -155,6 +255,21 @@ class Workbook:
         r = self.name_ref(sheet, name)
         return addr(*r) if r else None
 
+    def wb_name(self, name):
+        """(sheet, A1) a workbook-level name refers to, or None if it is missing."""
+        try:
+            ref = self._do('return references of named item (item 2 of argv) of wb', name)
+        except ExcelError:
+            return None
+        sheet, _, cell = ref.lstrip('=').rpartition('!')
+        sheet = sheet.strip("'").replace("''", "'")
+        return sheet, cell.split(':')[0].replace('$', '')
+
+    def wb_name_text(self, name):
+        """$wb.Names.Item(name).RefersToRange.Text."""
+        r = self.wb_name(name)
+        return self.text(*r) if r else None
+
     # ------------------------------------------------------------- tables
     def table_col(self, sheet, table, header):
         """Worksheet column number of a ListObject column, or 0 if absent
@@ -173,6 +288,17 @@ return 0''', sheet, table, header)
 set rg to range object of lo
 return (first row index of rg) + (count of rows of rg) - 1''', sheet, table)
         return int(out)
+
+    def table_first_row(self, sheet, table):
+        """Worksheet row of the table's header ($lo.Range.Row)."""
+        return int(self._do('return first row index of (range object of list object (item 3 of argv) of worksheet (item 2 of argv) of wb)',
+                            sheet, table))
+
+
+# Summary table position (modReports SUM_*), as in TestCommon.ps1: the job
+# planner box sits above it since 0.10.29. Row of the totals values, of the
+# table header, of its first row.
+SUM_TOT_ROW, SUM_HDR_ROW, SUM_FIRST_ROW = 24, 27, 28
 
 
 # ------------------------------------------------------------------ copies

@@ -335,12 +335,18 @@ It should print `True`.
 The `.ps1` tests need Windows: they drive Excel through COM, which macOS does
 not have. The `mac/` folder holds Python ports that drive Excel for Mac
 through AppleScript instead, one per `.ps1` with the same checks and messages,
-on top of `mac/xlmac.py` (the Mac counterpart of `TestCommon.ps1`). So far
-only `test-defaults` is ported.
+on top of `mac/xlmac.py` (the Mac counterpart of `TestCommon.ps1`). Not every
+test is ported yet: `ls mac/test-*.py` shows which are.
 
 ```
-python3 mac/test-defaults.py
+python3 mac/run-tests.py                  all ported tests, one line each
+python3 mac/run-tests.py --only paid      name fragments
+python3 mac/test-defaults.py              one test, full output
 ```
+
+Logs land in `/private/tmp/PrintCostsTest/testrun-<label>`. Unlike
+`run-tests.ps1`, a green run does not prune backups, because it does not yet
+cover the whole suite.
 
 Close any open PrintJob workbook first. The script refuses to run beside one,
 because AppleScript runs macros by bare name and could hit the wrong file. It
