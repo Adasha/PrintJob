@@ -21,7 +21,32 @@ it puts the workbook in quiet mode first (`modUtils.SetQuiet`) - an unattended
 run has nobody to click OK. Quiet mode also makes `Ask` answer No, so a script
 can never confirm a destructive operation on your behalf.
 
-The manual route below still works, and is the only route on Mac.
+The manual route below still works.
+
+## The short way on a Mac
+
+From the `PrintJob` folder:
+
+```
+python3 mac/build.py
+```
+
+This takes the same steps as `build.ps1`, in the same order, and writes the
+same files: the backup, `src/PrintJob.xlsm`, and the versioned copy. Close any
+PrintJob workbook in Excel first. It needs two things once:
+
+- **Excel → Preferences → Security → Trust access to the VBA project object
+  model**, ticked.
+- **`mac/Builder.xlsm`**, which is committed. If it is ever lost, make it
+  again: in Excel, **File → New Blank Workbook**, **Tools → Macro → Visual Basic
+  Editor**, **File → Import File…** `mac/modBuilder.bas`, then save it as an
+  Excel Macro-Enabled Workbook named `Builder` in `mac/`.
+
+It needs a builder workbook because only VBA running inside Excel can reach a
+VBA project on a Mac. AppleScript cannot, and there is no COM. Builder.xlsm
+never needs remaking when `modBuilder.bas` changes: each build loads the
+current file into its own throwaway copy. If the imported code does not
+compile, Excel shows the compile error in a dialog and the build waits on it.
 
 ---
 
@@ -39,7 +64,9 @@ once.
 tick **Trust access to the VBA project object model**. Untick it afterwards if
 you prefer; it is only needed for the import.
 
-On Mac there is no equivalent setting and nothing to change.
+Importing by hand on a Mac needs nothing changed. The Mac's own version of
+this setting (**Excel → Preferences → Security**) is only needed by
+`mac/build.py`.
 
 ## 2. Import the modules
 
@@ -81,9 +108,9 @@ does not matter.
 | `modBackup.bas` | Backup workbook / Restore workbook (the catalogue and settings CSVs); Restore creates any print room the backup has and this workbook lacks, and can read an older copy of the workbook instead of the CSVs |
 | `modVersion.bas` | Version identity, the About popup, file properties |
 
-If you are on a Mac this list is the whole build, so a missing module is not a
-documentation slip - it is a project that will not compile at step 3. Check you
-imported twenty-four.
+If you are building by hand on a Mac this list is the whole build, so a missing
+module is not a documentation slip - it is a project that will not compile at
+step 3. Check you imported twenty-four.
 
 `ThisWorkbook.cls` is the exception: it **cannot be imported**, because every
 workbook already has a `ThisWorkbook` object. Open `ThisWorkbook.cls` in a text
@@ -348,8 +375,9 @@ Logs land in `/private/tmp/PrintCostsTest/testrun-<label>`. Unlike
 `run-tests.ps1`, a green run does not prune backups, because it does not yet
 cover the whole suite.
 
-Close any open PrintJob workbook first. The script refuses to run beside one,
-because AppleScript runs macros by bare name and could hit the wrong file. It
+Build first (`python3 mac/build.py`): the tests drive `src/PrintJob.xlsm`, so
+without a build they test whatever was built last. Close any open PrintJob
+workbook first; the script refuses to run beside one. It
 copies `src/PrintJob.xlsm` to `/private/tmp/PrintCostsTest` and drives that
 copy. `$TMPDIR` cannot be used: Excel's sandbox stops at a file prompt for it
 and the script hangs. The first run asks for permission to control Excel;

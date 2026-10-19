@@ -21,10 +21,11 @@
 #   - A macro that does not exist ALSO returns empty text with no error. A Sub
 #     returns empty text too, so an empty result proves nothing; assert on what
 #     the macro did, never on the call succeeding.
-#   - Macro names are bare ("btnAddPrintJob") or module-qualified
-#     ("modJobs.ClearDefaults"). Workbook-qualified ("Book.xlsm!Proc") is
-#     silently not found. Bare names resolve against whatever is open, which is
-#     why open_copy refuses to run beside another PrintJob workbook.
+#   - A bare macro name ("btnAddPrintJob") resolves against the ACTIVE
+#     workbook only - open a second workbook and the same call silently finds
+#     nothing. Workbook.run therefore always qualifies it, quoted:
+#     'PrintJob.xlsm'!btnAddPrintJob. The quotes are not optional: unquoted, a
+#     name with a hyphen in it (PrintJob-spike.xlsm!Proc) is not found either.
 #   - Only text, numbers and booleans cross over. A Sub taking a Worksheet
 #     (ClearDefaults) cannot be called; call its button wrapper, which uses
 #     ActiveSheet, after activate().
@@ -169,7 +170,9 @@ class Workbook:
 
     # ------------------------------------------------------------- macros
     def run(self, macro, *args):
-        """xl.Run(macro, args...). Args are str, int, float or bool."""
+        """xl.Run(macro, args...), always in this workbook. Args are str, int,
+        float or bool."""
+        macro = "'" + self.name.replace("'", "''") + "'!" + macro
         parts = []
         for i, a in enumerate(args, start=1):
             if isinstance(a, bool):
