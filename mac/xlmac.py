@@ -292,6 +292,13 @@ class Workbook:
     def calculate_full_rebuild(self):
         self._do('calculate full rebuild')
 
+    def calculate(self):
+        """$xl.Calculate()."""
+        self._do('calculate')
+
+    def clear_contents(self, sheet, a1):
+        self._do('clear contents range (item 3 of argv) of worksheet (item 2 of argv) of wb', sheet, a1)
+
     def set_column_hidden(self, sheet, col, hidden):
         self._do(f'set hidden of entire column of range (item 3 of argv) of worksheet (item 2 of argv) of wb to {"true" if hidden else "false"}',
                  sheet, addr(1, col))
