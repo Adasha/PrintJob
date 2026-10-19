@@ -75,7 +75,7 @@ Open `PrintCosts.xlsx`, then open the VBA editor:
 - Windows: **Alt + F11**
 - Mac: **Tools → Macro → Visual Basic Editor**
 
-In the editor, **File → Import File…**, and import these twenty-seven files. Order
+In the editor, **File → Import File…**, and import these twenty-eight files. Order
 does not matter.
 
 | File | What it is |
@@ -107,10 +107,11 @@ does not matter.
 | `modImport.bas` | Restores or merges an exported file into a print room's job table |
 | `modBackup.bas` | Backup workbook / Restore workbook (the catalogue and settings CSVs); Restore creates any print room the backup has and this workbook lacks, and can read an older copy of the workbook instead of the CSVs |
 | `modVersion.bas` | Version identity, the About popup, file properties |
+| `modScript.bas` | A text-only way for a script to call macros that take a sheet, range or table (used by the Mac tests); nothing in the workbook calls it |
 
 If you are building by hand on a Mac this list is the whole build, so a missing
 module is not a documentation slip - it is a project that will not compile at
-step 3. Check you imported twenty-four.
+step 3. Check you imported twenty-eight.
 
 `ThisWorkbook.cls` is the exception: it **cannot be imported**, because every
 workbook already has a `ThisWorkbook` object. Open `ThisWorkbook.cls` in a text

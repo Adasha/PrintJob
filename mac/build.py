@@ -33,7 +33,7 @@ import tempfile
 import zipfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from xlmac import osa, ExcelError, Workbook, REPO  # noqa: E402
+from xlmac import osa, ExcelError, Workbook, REPO, open_workbook_names  # noqa: E402
 
 ROOT = os.path.join(REPO, 'src')
 VBA = os.path.join(ROOT, 'PrintCosts-VBA')
@@ -49,18 +49,6 @@ CHUNK_LINES = 300   # lines per BuilderAppend call; keeps each AppleEvent small
 def die(msg):
     print(msg, file=sys.stderr)
     sys.exit(1)
-
-
-def open_names():
-    return osa('''on run argv
-tell application "Microsoft Excel"
-set out to ""
-repeat with w in workbooks
-  set out to out & (name of w) & linefeed
-end repeat
-return out
-end tell
-end run''').splitlines()
 
 
 def open_wb(path):
@@ -163,7 +151,7 @@ for p in (SRC, BUILDER, BUILDER_BAS):
 # Excel for Mac takes no write lock a script can test for, so the check is
 # by name: a build that copies over an open PrintJob.xlsm leaves Excel
 # holding a file that is not there any more.
-clash = [n for n in open_names() if n.lower().startswith(('printjob', 'printcosts', 'builder'))]
+clash = [n for n in open_workbook_names() if n.lower().startswith(('printjob', 'printcosts', 'builder'))]
 if clash:
     die(f'Close these in Excel and run this again: {", ".join(clash)}')
 

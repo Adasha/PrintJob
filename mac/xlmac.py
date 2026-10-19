@@ -26,9 +26,19 @@
 #     nothing. Workbook.run therefore always qualifies it, quoted:
 #     'PrintJob.xlsm'!btnAddPrintJob. The quotes are not optional: unquoted, a
 #     name with a hyphen in it (PrintJob-spike.xlsm!Proc) is not found either.
-#   - Only text, numbers and booleans cross over. A Sub taking a Worksheet
-#     (ClearDefaults) cannot be called; call its button wrapper, which uses
-#     ActiveSheet, after activate().
+#   - Calling a function that has several Optional parameters, and leaving
+#     some out, CRASHES Excel (EXC_BAD_ACCESS in the VBA engine) - two
+#     optional parameters left out were fine, eight were not. run() is for
+#     macros whose parameters are all given; anything with Optional
+#     parameters goes through call(), whose ScriptRun has none.
+#   - Inside VBA, Application.Run on a macro name that does not exist also
+#     CRASHES Excel for Mac (Windows raises 1004). modScript.ScriptRun checks
+#     the name exists first, so a typo in call() is an error, not a crash.
+#   - Only text, numbers and booleans cross over. For a macro that takes a
+#     Worksheet, Range or ListObject, use call() with sheet()/table()/rng()/
+#     spill() tokens: the workbook's modScript.ScriptRun turns them into the
+#     objects. An object a call returns comes back as a handle token that a
+#     later call can pass in.
 
 import os
 import shutil
@@ -150,6 +160,26 @@ def addr(row, col):
     return f'{col_letters(col)}{row}'
 
 
+# Object tokens for Workbook.call - modScript.bas has the list.
+WB = '@@wb'
+
+
+def sheet(name):
+    return f'@@sheet:{name}'
+
+
+def table(name):
+    return f'@@table:{name}'
+
+
+def rng(sheet_name, a1):
+    return f'@@range:{sheet_name}!{a1}'
+
+
+def spill(sheet_name, a1):
+    return f'@@spill:{sheet_name}!{a1}'
+
+
 def _parse_ref(ref):
     """'='Example Print Room'!$B$4' -> (4, 2). Top-left cell of the range."""
     cell = ref.split('!')[-1].split(':')[0].replace('$', '')
@@ -183,6 +213,35 @@ class Workbook:
                 parts.append(f'arg{i} (item {i + 2} of argv)')
         body = f'return (run VB Macro (item 2 of argv) {" ".join(parts)})'
         return self._do(body, macro, *['' if isinstance(a, bool) else a for a in args])
+
+    def call(self, macro, *args):
+        """$xl.Run(macro, args...) where args may be objects: pass sheet(),
+        table(), rng(), spill() or a handle an earlier call() returned.
+        Returns the macro's result as text ('' for a Sub), or a handle token
+        for an object or array. Raises on an error, and on an empty answer,
+        which means ScriptRun itself was not found (a build without modScript)."""
+        packed = []
+        for a in args:
+            if isinstance(a, bool):
+                packed.append('b1' if a else 'b0')
+            elif isinstance(a, (int, float)):
+                packed.append('n' + repr(a))
+            else:
+                packed.append('s' + str(a))
+        out = self.run('ScriptRun', macro, '\x1f'.join(packed))
+        if not out:
+            raise ExcelError('ScriptRun did not answer - is modScript in this build?')
+        if not out.startswith('ok:'):
+            raise ExcelError(f'{macro}: {out}')
+        return out[3:]
+
+    def prop(self, handle, prop):
+        """A property of a handle's object (Name, Address, Count, Rows.Count,
+        Column, Row), or of a handle's array ('ubound', 'item r c')."""
+        out = self.run('ScriptProp', handle, prop)
+        if not out.startswith('ok:'):
+            raise ExcelError(f'{handle} {prop}: {out or "ScriptProp did not answer"}')
+        return out[3:]
 
     # -------------------------------------------------------------- cells
     def text(self, sheet, a1):
@@ -313,6 +372,16 @@ SUM_TOT_ROW, SUM_HDR_ROW, SUM_FIRST_ROW = 24, 27, 28
 
 
 # ------------------------------------------------------------------ copies
+def open_workbook_names():
+    """Names of the workbooks open in Excel. Asked for as one list: walking
+    'repeat with w in workbooks' fails with "Parameter error" when Excel has
+    reopened after a crash with an unsaved Book1."""
+    v = osa('tell application "Microsoft Excel" to return name of every workbook', literal=True)
+    if v is None:
+        return []
+    return [str(n) for n in v] if isinstance(v, list) else [str(v)]
+
+
 class open_copy:
     """with open_copy() as wb: ... drives a COPY of src/PrintJob.xlsm in a temp
     folder, never the deliverable itself, and closes it WITHOUT saving."""
@@ -330,18 +399,9 @@ class open_copy:
             raise
 
     def _open(self):
-        open_names = osa('''on run argv
-tell application "Microsoft Excel"
-set out to ""
-repeat with w in workbooks
-  set out to out & (name of w) & linefeed
-end repeat
-return out
-end tell
-end run''').splitlines()
-        clash = [n for n in open_names if n.lower().startswith('printjob')]
+        clash = [n for n in open_workbook_names() if n.lower().startswith('printjob')]
         if clash:
-            raise ExcelError(f'close these first - macro names would resolve against them: {", ".join(clash)}')
+            raise ExcelError(f'close these first - Excel cannot open a second workbook of the same name: {", ".join(clash)}')
 
         os.makedirs(WORK_ROOT, exist_ok=True)
         self.dir = tempfile.mkdtemp(dir=WORK_ROOT)
@@ -370,17 +430,25 @@ end run''', path)
         return self.wb
 
     def __exit__(self, *exc):
+        closed = True
         if self.wb:
             try:
                 osa('''on run argv
 tell application "Microsoft Excel" to close workbook (item 1 of argv) saving no
 end run''', self.wb.name)
             except ExcelError as e:
+                closed = False
                 print(f'  (close failed: {e})')
         print()
         print('closed without saving')
-        if self.dir:
+        # A close that fails almost always means Excel crashed. Its recovery
+        # then reopens the copy on the next launch - and if the copy has been
+        # deleted, sits on a Grant File Access prompt for a file that is not
+        # there, hanging every script after it. So it is left in place.
+        if self.dir and closed:
             shutil.rmtree(self.dir, ignore_errors=True)
+        elif self.dir:
+            print(f'  (left {self.dir} for Excel to recover; delete it once Excel is closed)')
         return False
 
 

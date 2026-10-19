@@ -3,6 +3,14 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+Unreleased - Building and testing on a Mac.
+  - mac/build.py builds src/PrintJob.xlsm on a Mac, the same steps as build.ps1,
+    through mac/Builder.xlsm (made by hand once; see SETUP.md).
+  - mac/ holds Python ports of the test-*.ps1 scripts, driving Excel for Mac
+    through AppleScript, and mac/run-tests.py to run them.
+  - New module modScript (ScriptRun): a text-only way for those scripts to call
+    macros that take a sheet, range or table. Nothing in the workbook calls it.
+
 0.11.0 - Multi-pass (per-colour) costing: RISO-style jobs with a set-up cost per colour. Schema 1.4.
   Design: docs/multipass-costing-design.md (36 decisions), docs/column-view-presets-design.md,
   summary and reconciliation in docs/ARCHITECTURE.md section 17.
