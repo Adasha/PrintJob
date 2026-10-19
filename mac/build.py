@@ -29,11 +29,10 @@ import re
 import shutil
 import subprocess
 import sys
-import tempfile
 import zipfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from xlmac import osa, ExcelError, Workbook, REPO, open_workbook_names  # noqa: E402
+from xlmac import osa, ExcelError, Workbook, REPO, open_workbook_names, open_in_excel  # noqa: E402
 
 ROOT = os.path.join(REPO, 'src')
 VBA = os.path.join(ROOT, 'PrintCosts-VBA')
@@ -52,13 +51,7 @@ def die(msg):
 
 
 def open_wb(path):
-    osa('''on run argv
-tell application "Microsoft Excel"
-with timeout of 120 seconds
-open POSIX file (item 1 of argv)
-end timeout
-end tell
-end run''', path)
+    open_in_excel(path, timeout=120)   # xlmac says why not AppleScript's open
 
 
 def close_wb(name):
@@ -172,7 +165,11 @@ if os.path.exists(DST):
 # A build must never mutate its own input: everything Excel opens is a copy
 # outside OneDrive (build.ps1 has the history).
 os.makedirs(BUILD_ROOT, exist_ok=True)
-work_dir = tempfile.mkdtemp(dir=BUILD_ROOT)
+# One fixed folder, reused by every build, for the same reason as
+# xlmac.open_copy's: the sandbox's file-access grant is per folder.
+work_dir = os.path.join(BUILD_ROOT, 'work')
+shutil.rmtree(work_dir, ignore_errors=True)
+os.makedirs(work_dir)
 work = os.path.join(work_dir, 'PrintCostsBuild.xlsx')
 work_dst = os.path.join(work_dir, 'PrintCostsBuild.xlsm')
 shutil.copy2(SRC, work)
@@ -266,7 +263,6 @@ save workbook as wb filename (item 2 of argv) file format macro enabled XML file
 finally:
     for n in opened:
         close_wb(n)
-    shutil.rmtree(work_dir, ignore_errors=True)
 
 # Same safety cap as build.ps1's prune-backups.ps1 -Keep 10.
 keep_newest(os.path.join(ROOT, '*.bak.xlsm'), 10)

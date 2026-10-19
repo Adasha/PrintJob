@@ -44,7 +44,6 @@ import os
 import shutil
 import subprocess
 import sys
-import tempfile
 import time
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -291,6 +290,59 @@ class Workbook:
     def calculate_full_rebuild(self):
         self._do('calculate full rebuild')
 
+    def set_column_hidden(self, sheet, col, hidden):
+        self._do(f'set hidden of entire column of range (item 3 of argv) of worksheet (item 2 of argv) of wb to {"true" if hidden else "false"}',
+                 sheet, addr(1, col))
+
+    def column_lefts(self, sheet, last_col):
+        """[Cells(1, c).Left for c in 1..last_col], index 0 = column 1."""
+        v = self._do('''set ws to worksheet (item 2 of argv) of wb
+set out to {}
+repeat with c from 1 to ((item 3 of argv) as integer)
+  set end of out to left position of (cell 1 of column c of ws)
+end repeat
+return out''', sheet, last_col, literal=True)
+        return [float(x) for x in v]
+
+    def select(self, sheet, a1):
+        """Range.Select, on the active sheet - fires Workbook_SheetSelectionChange."""
+        self._do('select range (item 3 of argv) of worksheet (item 2 of argv) of wb', sheet, a1)
+
+    def protect(self, sheet):
+        """$ws.Protect() with no arguments."""
+        self._do('protect worksheet worksheet (item 2 of argv) of wb', sheet)
+
+    def delete_table_row(self, sheet, table, n):
+        """$lo.ListRows(n).Delete() - on an unprotected sheet, as COM needs too."""
+        self._do('delete list row ((item 4 of argv) as integer) of list object (item 3 of argv) of worksheet (item 2 of argv) of wb',
+                 sheet, table, n)
+
+    def cell_format(self, sheet, a1):
+        """The formatting a .ps1 reads off one cell, in COM's terms:
+        color = Interior.Color (BGR integer), italic = Font.Italic,
+        left_border = Borders(7).LineStyle as Excel's enum name
+        ('line style none' is COM's -4142, 'continuous' its 1), locked."""
+        v = self._do('''set rg to range (item 3 of argv) of worksheet (item 2 of argv) of wb
+set c to color of interior object of rg
+set b to line style of (get border rg which border edge left)
+return {c, italic of font object of rg, b as text, locked of rg}''', sheet, a1, literal=True)
+        rgb, italic, border, locked = v
+        r, g, b = (int(x) for x in rgb)
+        return {'color': r + g * 256 + b * 65536, 'italic': italic, 'left_border': border, 'locked': locked}
+
+    def buttons(self, sheet):
+        """Every Form Controls button on a sheet: name, on_action, left, top,
+        width, height, text - one call for the lot."""
+        v = self._do('''set ws to worksheet (item 2 of argv) of wb
+set out to {}
+repeat with i from 1 to (count of buttons of ws)
+  set bt to button i of ws
+  set end of out to {name of bt, on action of bt, left position of bt, top of bt, width of bt, height of bt, caption of bt}
+end repeat
+return out''', sheet, literal=True)
+        keys = ('name', 'on_action', 'left', 'top', 'width', 'height', 'text')
+        return [dict(zip(keys, b)) for b in v]
+
     def set_value(self, sheet, a1, value):
         """Range.Value2 = value. Fires Worksheet_Change like the COM write does."""
         if isinstance(value, (int, float)) and not isinstance(value, bool):
@@ -359,6 +411,16 @@ set rg to range object of lo
 return (first row index of rg) + (count of rows of rg) - 1''', sheet, table)
         return int(out)
 
+    def table_column_texts(self, sheet, table, header):
+        """Text of every data cell in one table column, top to bottom
+        (each $lo.DataBodyRange.Cells(i, col)) - one call."""
+        col = self.table_col(sheet, table, header)
+        first, last = self.table_first_row(sheet, table) + 1, self.table_last_row(sheet, table)
+        if col == 0 or last < first:
+            return []
+        c = col_letters(col)
+        return [r[0] for r in self.texts(sheet, f'{c}{first}:{c}{last}')]
+
     def table_first_row(self, sheet, table):
         """Worksheet row of the table's header ($lo.Range.Row)."""
         return int(self._do('return first row index of (range object of list object (item 3 of argv) of worksheet (item 2 of argv) of wb)',
@@ -372,11 +434,33 @@ SUM_TOT_ROW, SUM_HDR_ROW, SUM_FIRST_ROW = 24, 27, 28
 
 
 # ------------------------------------------------------------------ copies
+def open_in_excel(path, timeout=90):
+    """Open a workbook the way Finder does, and wait until Excel has it.
+
+    Not AppleScript's 'open POSIX file': Excel is sandboxed, and a file named
+    that way does not always carry permission to read it - after Excel had
+    crashed and relaunched it put up Grant File Access for every copy, and
+    the open AppleEvent hung behind the prompt. 'open -a' goes through
+    Launch Services, which hands Excel access to the file with the request,
+    as a double-click does."""
+    name = os.path.basename(path)
+    subprocess.run(['open', '-a', 'Microsoft Excel', path], check=True)
+    deadline = time.time() + timeout
+    while name not in open_workbook_names():
+        if time.time() > deadline:
+            raise ExcelError(f'{name} did not open within {timeout}s - Excel is probably showing a prompt '
+                             '(Grant File Access, or a recovery dialog). Answer it, then run this again.')
+        time.sleep(0.5)
+
+
 def open_workbook_names():
     """Names of the workbooks open in Excel. Asked for as one list: walking
     'repeat with w in workbooks' fails with "Parameter error" when Excel has
     reopened after a crash with an unsaved Book1."""
-    v = osa('tell application "Microsoft Excel" to return name of every workbook', literal=True)
+    try:
+        v = osa('tell application "Microsoft Excel" to return name of every workbook', literal=True)
+    except ExcelError:
+        return []   # "Can't get name of every workbook" - none open
     if v is None:
         return []
     return [str(n) for n in v] if isinstance(v, list) else [str(v)]
@@ -403,18 +487,20 @@ class open_copy:
         if clash:
             raise ExcelError(f'close these first - Excel cannot open a second workbook of the same name: {", ".join(clash)}')
 
-        os.makedirs(WORK_ROOT, exist_ok=True)
-        self.dir = tempfile.mkdtemp(dir=WORK_ROOT)
+        # One fixed folder, reused by every run, not a fresh random one: the
+        # sandbox's file-access grant is per folder, so a Grant File Access
+        # prompt, if Excel ever shows one for it, is answered once and stays
+        # answered. Emptied of the last run's copy first.
+        self.dir = os.path.join(WORK_ROOT, 'work')
+        os.makedirs(self.dir, exist_ok=True)
         path = os.path.join(self.dir, WB_NAME)
+        if os.path.exists(path):
+            os.remove(path)
         shutil.copy2(self.deliverable, path)
-        osa('''on run argv
-tell application "Microsoft Excel"
-with timeout of 60 seconds
-open POSIX file (item 1 of argv)
-end timeout
-end tell
-end run''', path)
+        # From here on __exit__ has to close the workbook: even if this open
+        # times out (a prompt on screen), Excel finishes opening it later.
         self.wb = Workbook(WB_NAME)
+        open_in_excel(path)
         # Workbook_Open does real work (ProtectAll, HealButtons, ...). Wait for
         # a function call to come back, which also proves macros are enabled.
         deadline = time.time() + 60
@@ -441,14 +527,13 @@ end run''', self.wb.name)
                 print(f'  (close failed: {e})')
         print()
         print('closed without saving')
-        # A close that fails almost always means Excel crashed. Its recovery
-        # then reopens the copy on the next launch - and if the copy has been
-        # deleted, sits on a Grant File Access prompt for a file that is not
-        # there, hanging every script after it. So it is left in place.
-        if self.dir and closed:
-            shutil.rmtree(self.dir, ignore_errors=True)
-        elif self.dir:
-            print(f'  (left {self.dir} for Excel to recover; delete it once Excel is closed)')
+        # The copy stays on disk either way; the next run replaces it. A close
+        # that fails almost always means Excel crashed or is behind a prompt,
+        # and Excel will then reopen the copy by itself - if it had been
+        # deleted, it would sit on a Grant File Access prompt for a file that
+        # is not there, hanging every script after it.
+        if not closed:
+            print(f'  (Excel may reopen {self.dir}/{WB_NAME}: close it without saving)')
         return False
 
 
