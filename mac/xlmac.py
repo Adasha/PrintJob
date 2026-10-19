@@ -241,6 +241,14 @@ class Workbook:
     def activate(self, sheet):
         self._do('activate object worksheet (item 2 of argv) of wb', sheet)
 
+    def protected(self, sheet):
+        """Worksheet.ProtectContents."""
+        return self._do('return protect contents of worksheet (item 2 of argv) of wb', sheet) == 'true'
+
+    def unprotect(self, sheet):
+        """Sheets are protected with no password (modProtect), so this needs none."""
+        self._do('unprotect worksheet (item 2 of argv) of wb', sheet)
+
     # -------------------------------------------------------------- names
     def name_ref(self, sheet, name):
         """(row, col) a sheet-level defined name refers to, or None if it is missing."""
