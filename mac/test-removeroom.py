@@ -56,5 +56,3 @@ with open_copy() as wb:
     except ExcelError as e:
         r += f'ERROR {e}\n'
     print(r)
-
-print('closed without saving')
