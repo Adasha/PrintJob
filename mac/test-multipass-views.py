@@ -253,7 +253,13 @@ with builder_helper(HELPER) as helper, open_copy() as wb:
     section('Location toolbar: Print jobs | Colour passes | pass toggles | Now')
 
     def btn(macro):
-        b = next((b for b in wb.buttons(MAIN) if b['name'].startswith(f'pcb_{macro}_')), None)
+        # Right after RepositionLocationButtons a button's name can read back as missing value; one re-read settles it.
+        for _ in range(2):
+            found = wb.buttons(MAIN)
+            if all(b['name'] for b in found):
+                break
+            time.sleep(1)
+        b = next((b for b in found if (b['name'] or '').startswith(f'pcb_{macro}_')), None)
         if b is None:
             raise ExcelError(f'button {macro} not found')
         return {k: (float(v) if k in ('left', 'top', 'width', 'height') else v) for k, v in b.items()}
