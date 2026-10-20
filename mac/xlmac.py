@@ -745,20 +745,46 @@ class builder_helper:
         return False
 
 
-# Excel's sandbox reads back only files Excel itself wrote (a copy or rename
-# made from here is refused) - but a file Excel copied with VBA's FileCopy, or
-# one Excel wrote whose contents are then rewritten in place, it does read.
-# A test that needs its own variant of an export copies it with this, then
-# rewrites the copy.
-FILECOPY_HELPER = '''Option Explicit
-Public Function CopyFile(ByVal Src As String, ByVal Dst As String) As String
+# Excel's sandbox reads back only files Excel itself wrote: a copy or rename
+# made from here is refused, and so is an Excel FileCopy rewritten from here,
+# and so is a file VBA wrote with Open/Put. What it does read is a workbook
+# it saved with SaveAs, as modExport writes its CSVs - but only saved the way
+# modExport does it: with DisplayAlerts left on and no Dir$/Kill on the path
+# first, either of which left the saved file unreadable (2026-10-20 probes).
+# The path must be new. A test that needs a CSV of its own making has Excel
+# save one: write_csv(helper, path, rows) with this helper loaded.
+WRITECSV_HELPER = '''Option Explicit
+Public Function WriteCsv(ByVal Path As String, ByVal Packed As String) As String
+    Dim nb As Workbook, lines() As String, f() As String, r As Long, c As Long
     On Error GoTo Fail
-    FileCopy Src, Dst
-    CopyFile = "ok"
+    lines = Split(Packed, Chr(30))
+    Set nb = Workbooks.Add
+    nb.Worksheets(1).Cells.NumberFormat = "@"
+    For r = 0 To UBound(lines)
+        f = Split(lines(r), Chr(31))
+        For c = 0 To UBound(f)
+            If Len(f(c)) > 0 Then nb.Worksheets(1).Cells(r + 1, c + 1).Value = f(c)
+        Next c
+    Next r
+    nb.SaveAs Path, 62
+    nb.Close False
+    If FileLen(Path) = 0 Then WriteCsv = "ERROR: saved empty": Exit Function
+    WriteCsv = "ok"
     Exit Function
 Fail:
-    CopyFile = "ERROR " & Err.Number & ": " & Err.Description
+    WriteCsv = "ERROR " & Err.Number & ": " & Err.Description
+    If Not nb Is Nothing Then nb.Close False
 End Function'''
+
+
+def write_csv(helper, path, rows):
+    """Excel saves rows (lists of str) as a UTF-8 CSV at path, the way
+    modExport does, so Excel will read it back.
+    helper: a builder_helper(WRITECSV_HELPER)."""
+    packed = '\x1e'.join('\x1f'.join(r) for r in rows)
+    out = helper.run('modTestHelp.WriteCsv', path, packed)
+    if out != 'ok':
+        raise ExcelError(f'WriteCsv: {out or "did not run"}')
 
 
 class open_copy:
