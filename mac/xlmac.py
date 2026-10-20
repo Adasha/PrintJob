@@ -698,6 +698,10 @@ end run''', path)
             raise ExcelError(f'{name} did not open within {timeout}s - Excel is probably showing a prompt '
                              '(Grant File Access, or a recovery dialog). Answer it, then run this again.')
         time.sleep(0.5)
+    took = time.time() - (deadline - timeout)
+    if took > 5:
+        # run-tests.py lists these at the end: which files still prompt.
+        print(f'  (slow open: {path} took {took:.0f}s - a prompt?)', flush=True)
 
 
 def open_workbook_names():

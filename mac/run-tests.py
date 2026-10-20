@@ -33,6 +33,8 @@ FAIL_RE = re.compile(r'\bFAIL\b|Traceback|Error:')
 ap = argparse.ArgumentParser()
 ap.add_argument('--only', nargs='+')
 ap.add_argument('--label', default=time.strftime('%H%M%S'))
+ap.add_argument('--no-retry', action='store_true', help='run each test once: a retry can mean a second round of prompts')
+ap.add_argument('--stop-by', metavar='HH:MM', help='start no new test after this time of day')
 opts = ap.parse_args()
 
 log_dir = os.path.join(WORK_ROOT, f'testrun-{opts.label}')
@@ -78,11 +80,15 @@ def run_one(path, log):
 results = []
 for path in tests:
     name = os.path.basename(path)
+    if opts.stop_by and time.strftime('%H:%M') >= opts.stop_by:
+        print(f'stopped at {time.strftime("%H:%M")} (--stop-by {opts.stop_by}); not run: '
+              + ', '.join(os.path.basename(p) for p in tests[len(results):]), flush=True)
+        break
     log = os.path.join(log_dir, name[:-3] + '.log')
     t0 = time.time()
     time.sleep(2)   # let the previous test's close settle; back-to-back opens can flake
     status = run_one(path, log)
-    if status != 'pass':   # AppleEvent timing flakes pass on a clean second attempt; real failures fail twice
+    if status != 'pass' and not opts.no_retry:   # AppleEvent timing flakes pass on a clean second attempt; real failures fail twice
         time.sleep(5)
         status = run_one(path, log)
         if status == 'pass':
@@ -92,4 +98,12 @@ for path in tests:
 
 bad = sum(1 for s in results if not s.startswith('pass'))
 print(f'\n{len(results) - bad} of {len(results)} passed. Logs: {log_dir}')
+# open_in_excel notes every open that stalled - nearly always a prompt on screen.
+slow = []
+for lg in sorted(glob.glob(os.path.join(log_dir, '*.log'))):
+    with open(lg, encoding='utf-8') as f:
+        slow += [f'  {os.path.basename(lg)[:-4]}: {ln.strip()}' for ln in f if ln.lstrip().startswith('(slow open')]
+if slow:
+    print(f'\n{len(slow)} slow open(s) - probably a prompt each:')
+    print('\n'.join(slow))
 sys.exit(bad)
