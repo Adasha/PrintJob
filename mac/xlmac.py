@@ -361,6 +361,10 @@ return out''', sheet, last_col, literal=True)
         return self._do('return hidden of (row ((item 3 of argv) as integer) of worksheet (item 2 of argv) of wb)',
                         sheet, row) == 'true'
 
+    def set_row_hidden(self, sheet, row, hidden):
+        self._do(f'set hidden of (row ((item 3 of argv) as integer) of worksheet (item 2 of argv) of wb) to {"true" if hidden else "false"}',
+                 sheet, row)
+
     def row_outline_level(self, sheet, row):
         return int(self._do('return outline level of (row ((item 3 of argv) as integer) of worksheet (item 2 of argv) of wb)',
                             sheet, row))
@@ -661,7 +665,7 @@ def unquarantine(path):
 
 # How long an open waits. Long on purpose: Excel can stop on a prompt (macros,
 # file access) that someone has to answer, and they may not be at the screen.
-OPEN_TIMEOUT = 1800
+OPEN_TIMEOUT = 3600
 
 
 def open_in_excel(path, timeout=OPEN_TIMEOUT):
@@ -707,6 +711,54 @@ def open_workbook_names():
     if v is None:
         return []
     return [str(n) for n in v] if isinstance(v, list) else [str(v)]
+
+
+class builder_helper:
+    """with builder_helper(code) as b: ... opens a throwaway copy of
+    mac/Builder.xlsm with a test's own VBA module (modTestHelp) in it, for
+    the few things only VBA can do - edit another workbook's VBA project,
+    SaveCopyAs, make a file Excel will read back - and closes it unsaved.
+    Call its functions as b.run('modTestHelp.Name', ...). code must have no
+    " _" continuations (modBuilder.BuilderAppend inserts line by line)."""
+
+    def __init__(self, code):
+        self.code = code
+        self.stage = None
+
+    def __enter__(self):
+        self.stage = tempfile.mkdtemp(prefix='run-builder-', dir=WORK_ROOT)
+        shutil.copy2(os.path.join(REPO, 'mac', 'Builder.xlsm'), self.stage)
+        b = Workbook('Builder.xlsm')
+        open_in_excel(os.path.join(self.stage, 'Builder.xlsm'))
+        for m, a in (('modBuilder.BuilderAdd', ('Builder.xlsm', 'modTestHelp', 1)),
+                     ('modBuilder.BuilderAppend', ('Builder.xlsm', 'modTestHelp', self.code))):
+            out = b.run(m, *a)
+            if not out or out.startswith('ERROR'):
+                raise ExcelError(f'{m}: {out or "did not run"}')
+        return b
+
+    def __exit__(self, *exc):
+        try:
+            osa('tell application "Microsoft Excel" to close workbook "Builder.xlsm" saving no')
+        except ExcelError:
+            pass
+        return False
+
+
+# Excel's sandbox reads back only files Excel itself wrote (a copy or rename
+# made from here is refused) - but a file Excel copied with VBA's FileCopy, or
+# one Excel wrote whose contents are then rewritten in place, it does read.
+# A test that needs its own variant of an export copies it with this, then
+# rewrites the copy.
+FILECOPY_HELPER = '''Option Explicit
+Public Function CopyFile(ByVal Src As String, ByVal Dst As String) As String
+    On Error GoTo Fail
+    FileCopy Src, Dst
+    CopyFile = "ok"
+    Exit Function
+Fail:
+    CopyFile = "ERROR " & Err.Number & ": " & Err.Description
+End Function'''
 
 
 class open_copy:
