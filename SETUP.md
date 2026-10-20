@@ -372,23 +372,26 @@ python3 mac/run-tests.py --only paid      name fragments
 python3 mac/test-defaults.py              one test, full output
 ```
 
-Logs land in `/Users/Shared/PrintCostsTest/testrun-<label>`. Unlike
+Logs land in `~/Library/Containers/com.microsoft.Excel/Data/PrintCostsTest/testrun-<label>`. Unlike
 `run-tests.ps1`, a green run does not prune backups, because it does not yet
 cover the whole suite.
 
 Build first (`python3 mac/build.py`): the tests drive `src/PrintJob.xlsm`, so
 without a build they test whatever was built last. Close any open PrintJob
 workbook first; the script refuses to run beside one. It
-copies `src/PrintJob.xlsm` to a new folder under `/Users/Shared/PrintCostsTest`
+copies `src/PrintJob.xlsm` to a new folder under Excel's own sandbox
+container (`~/Library/Containers/com.microsoft.Excel/Data/PrintCostsTest`)
 and drives that copy. The first run asks for permission to control Excel;
 allow it.
 
-Once, before the first run, `python3 mac/grant-access.py`, and click **Grant
-Access** when Excel asks. Excel is sandboxed, and without that grant anything
-the workbook writes beside the copy (an export, a backup) silently comes out
-empty, so every test that reads or writes a file fails. The grant covers the
-test and build folders and Excel remembers it. Why those folders is at the
-top of `mac/xlmac.py`. The things that catch people out (`run VB Macro` with a capital M,
+Excel is sandboxed. Inside its own container it needs no permission for
+anything, so a run asks for no Grant File Access at all; anywhere else
+it asks for every new workbook and CSV. Why that folder is at the top of
+`mac/xlmac.py`.
+
+Set Excel's macro security to enable all macros for the length of a run
+(Excel > Preferences > Security) and put it back afterwards: otherwise
+every workbook the run opens asks whether to enable macros. The things that catch people out (`run VB Macro` with a capital M,
 silent results for missing macros) are listed at the top of `mac/xlmac.py`.
 
 ## Exporting a print room

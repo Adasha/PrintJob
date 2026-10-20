@@ -9,7 +9,7 @@
 #   python3 mac/run-tests.py --only paid groups  name fragments; runs matching scripts
 #   python3 mac/run-tests.py --label baseline    log folder suffix
 #
-# Logs land in /Users/Shared/PrintCostsTest/testrun-<label>.
+# Logs land in WORK_ROOT/testrun-<label> (inside Excel's container; see xlmac).
 #
 # Unlike run-tests.ps1 this does not prune src/*.bak.xlsm after a green run:
 # that is only safe once the whole suite is ported, and a green run here does

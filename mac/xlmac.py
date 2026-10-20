@@ -53,23 +53,20 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DELIVERABLE = os.path.join(REPO, 'src', 'PrintJob.xlsm')
 WB_NAME = 'PrintJob.xlsm'
 # Where the throwaway copies (and mac/build.py's work) live. Excel for Mac is
-# sandboxed: it can only write where it has been granted access, and VBA
-# writing beside a copy (an export, a backup) fails silently - Save As leaves
-# an empty file - unless the folder is granted. mac/grant-access.py grants
-# these two once.
-#
-# /Users/Shared because nothing in its path is a link. Under /tmp (a link to
-# /private/tmp) Excel reports the workbook's folder as /tmp/..., and from the
-# sandbox VBA cannot then read back a file it wrote there - so every "did the
-# file get written" check failed. Not $TMPDIR (a sandbox prompt on every
-# open), not the Office group container (macOS stops a terminal writing into
-# another app's container).
-#
-# (An empty export and a deleted workbook, first seen here, turned out to be
-# Excel's ScreenUpdating bug - modUtils.NewScratchBook - not this folder.)
-WORK_ROOT = '/Users/Shared/PrintCostsTest'
-BUILD_ROOT = '/Users/Shared/PrintCostsBuild'
-GRANT_PATHS = [WORK_ROOT, BUILD_ROOT]
+# sandboxed: outside a granted place, VBA writing beside a copy (an export, a
+# backup) fails or prompts.
+# Inside Excel's own sandbox container, where Excel needs no grant to open,
+# read or write anything - so no Grant File Access prompt for a workbook
+# copy, a Builder copy or a CSV, and Excel even reads files this side wrote
+# (outside it, it refuses them: 1004 "cannot access"). The terminal can
+# write here; it cannot write into the Office group container. Until
+# 2026-10-20 these were /Users/Shared/PrintCosts{Test,Build}, granted once
+# with GrantAccessToMultipleFiles - and Excel still asked for every new file.
+# No link in the path: under /tmp (a link to /private/tmp) Excel reports the
+# workbook's folder as /tmp/... and VBA could not read back what it wrote.
+EXCEL_DATA = os.path.expanduser('~/Library/Containers/com.microsoft.Excel/Data')
+WORK_ROOT = os.path.join(EXCEL_DATA, 'PrintCostsTest')
+BUILD_ROOT = os.path.join(EXCEL_DATA, 'PrintCostsBuild')
 
 _any_fail = False
 
@@ -674,9 +671,9 @@ def open_in_excel(path, timeout=OPEN_TIMEOUT):
     AppleScript's 'open', sent without waiting for the reply, then polled.
     Not 'open -a' (Launch Services, as a Finder double-click): that makes
     Excel ask "Enable macros?" for every copy, which an unattended run cannot
-    answer. AppleScript's open does not ask - but Excel is sandboxed, and it
-    can only open this way from a folder it has been granted, which is what
-    mac/grant-access.py is for (WORK_ROOT and BUILD_ROOT). Not waiting for
+    answer. AppleScript's open does not ask - but Excel is sandboxed, and
+    outside its own container (WORK_ROOT, BUILD_ROOT) every new file asks
+    for Grant File Access. Not waiting for
     the reply means a prompt, if one ever appears, cannot hang the call; the
     timeout below reports it instead."""
     name = os.path.basename(path)
