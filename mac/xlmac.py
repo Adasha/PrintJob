@@ -357,6 +357,31 @@ end repeat
 return out''', sheet, last_col, literal=True)
         return [float(x) for x in v]
 
+    def row_hidden(self, sheet, row):
+        return self._do('return hidden of (row ((item 3 of argv) as integer) of worksheet (item 2 of argv) of wb)',
+                        sheet, row) == 'true'
+
+    def row_outline_level(self, sheet, row):
+        return int(self._do('return outline level of (row ((item 3 of argv) as integer) of worksheet (item 2 of argv) of wb)',
+                            sheet, row))
+
+    def show_levels(self, sheet, row_levels, column_levels):
+        """$ws.Outline.ShowLevels(row_levels, column_levels); 0 leaves that axis alone."""
+        self._do('''show levels (outline object of worksheet (item 2 of argv) of wb) row levels ((item 3 of argv) as integer) column levels ((item 4 of argv) as integer)''',
+                 sheet, row_levels, column_levels)
+
+    def freeze_panes(self):
+        """ActiveWindow.FreezePanes."""
+        return self._do('return freeze panes of active window') == 'true'
+
+    def scroll_to(self, row, col):
+        """ActiveWindow.ScrollRow / ScrollColumn."""
+        self._do(f'set scroll row of active window to {int(row)}\nset scroll column of active window to {int(col)}')
+
+    def set_column_width(self, sheet, col, width):
+        self._do('set column width of range (item 3 of argv) of worksheet (item 2 of argv) of wb to ((item 4 of argv) as number)',
+                 sheet, addr(1, col), width)
+
     def columns_hidden(self, sheet, last_col):
         """[Columns(c).Hidden for c in 1..last_col], index 0 = column 1."""
         v = self._do('''set ws to worksheet (item 2 of argv) of wb
