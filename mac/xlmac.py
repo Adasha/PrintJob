@@ -511,6 +511,10 @@ return out''', sheet, literal=True)
         self._do(f'set value2 of range (item 3 of argv) of worksheet (item 2 of argv) of wb to {v}',
                  sheet, a1, value)
 
+    def save(self):
+        """$wb.Save()."""
+        self._do('save wb')
+
     def activate(self, sheet):
         self._do('activate object worksheet (item 2 of argv) of wb', sheet)
 
@@ -684,11 +688,13 @@ class open_copy:
     """with open_copy() as wb: ... drives a COPY of src/PrintJob.xlsm in a temp
     folder, never the deliverable itself, and closes it WITHOUT saving."""
 
-    def __init__(self, deliverable=DELIVERABLE, clean=True):
+    def __init__(self, deliverable=DELIVERABLE, clean=True, name=WB_NAME):
         """clean=False keeps earlier runs' folders - for a test that drives a
-        second copy from files the first one wrote (test-backup)."""
+        second copy from files the first one wrote (test-backup). name is the
+        copy's file name (test-restorereuse's older workbook is Old.xlsm)."""
         self.deliverable = deliverable
         self.clean = clean
+        self.name = name
         self.dir = None
         self.wb = None
 
@@ -719,12 +725,12 @@ class open_copy:
             if (old.startswith('run-') or old == 'work') and time.time() - os.path.getmtime(p) > 3600:
                 shutil.rmtree(p, ignore_errors=True)
         self.dir = tempfile.mkdtemp(prefix='run-', dir=WORK_ROOT)
-        path = os.path.join(self.dir, WB_NAME)
+        path = os.path.join(self.dir, self.name)
         shutil.copy2(self.deliverable, path)
         unquarantine(path)
         # From here on __exit__ has to close the workbook: even if this open
         # times out (a prompt on screen), Excel finishes opening it later.
-        self.wb = Workbook(WB_NAME, guarded=True)
+        self.wb = Workbook(self.name, guarded=True)
         open_in_excel(path)
         # Workbook_Open does real work (ProtectAll, HealButtons, ...). Wait for
         # a function call to come back, which also proves macros are enabled.
@@ -760,7 +766,7 @@ end run''', self.wb.name)
         # deleted, it would sit on a Grant File Access prompt for a file that
         # is not there, hanging every script after it.
         if not closed:
-            print(f'  (Excel may reopen {self.dir}/{WB_NAME}: close it without saving)')
+            print(f'  (Excel may reopen {self.dir}/{self.name}: close it without saving)')
         return False
 
 
