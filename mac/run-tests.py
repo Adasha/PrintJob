@@ -27,7 +27,7 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from xlmac import WORK_ROOT  # noqa: E402
+from xlmac import WORK_ROOT, open_workbook_names, osa, ExcelError  # noqa: E402
 FAIL_RE = re.compile(r'\bFAIL\b|Traceback|Error:')
 
 ap = argparse.ArgumentParser()
@@ -44,7 +44,27 @@ if opts.only:
     tests = [p for p in tests if any(f in os.path.basename(p) for f in opts.only)]
 
 
+def fresh_excel():
+    """Quit Excel before a test, so each one starts in a new Excel. Long
+    sessions in one Excel crashed it several times; a fresh one costs a few
+    seconds. Only when Excel has nothing open - a workbook of the user's is
+    never closed."""
+    if subprocess.run(['pgrep', '-x', 'Microsoft Excel'], capture_output=True).returncode != 0:
+        return
+    if open_workbook_names():
+        return
+    try:
+        osa('tell application "Microsoft Excel" to quit saving no', timeout=60)
+    except (ExcelError, subprocess.TimeoutExpired):
+        return
+    for _ in range(30):
+        if subprocess.run(['pgrep', '-x', 'Microsoft Excel'], capture_output=True).returncode != 0:
+            return
+        time.sleep(0.5)
+
+
 def run_one(path, log):
+    fresh_excel()
     p = subprocess.run([sys.executable, '-I', path], capture_output=True, text=True)
     out = p.stdout + p.stderr
     with open(log, 'w', encoding='utf-8') as f:

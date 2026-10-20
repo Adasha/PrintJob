@@ -210,8 +210,14 @@ def _parse_ref(ref):
 
 
 class Workbook:
-    def __init__(self, name):
+    def __init__(self, name, guarded=False):
+        """guarded=True for a PrintJob copy: run() then goes through the
+        workbook's own modScript.ScriptRun, whose error handler turns a VBA
+        runtime error into an ExcelError here instead of a modal dialog that
+        someone has to dismiss. Off for workbooks without modScript (Builder,
+        an exported report)."""
         self.name = name
+        self.guarded = guarded
 
     def _do(self, body, *args, literal=False):
         return osa(_PRE + body + _POST, self.name, *args, literal=literal)
@@ -219,7 +225,14 @@ class Workbook:
     # ------------------------------------------------------------- macros
     def run(self, macro, *args):
         """xl.Run(macro, args...), always in this workbook. Args are str, int,
-        float or bool."""
+        float or bool. Returns the result as text ('' for a Sub). On a guarded
+        workbook this is call() - see __init__ - and a Boolean comes back as
+        VBA's 'True'/'False'; otherwise AppleScript's 'true'/'false'."""
+        if self.guarded:
+            return self.call(macro, *args)
+        return self._run_direct(macro, *args)
+
+    def _run_direct(self, macro, *args):
         macro = "'" + self.name.replace("'", "''") + "'!" + macro
         parts = []
         for i, a in enumerate(args, start=1):
@@ -246,7 +259,7 @@ class Workbook:
                 packed.append('n' + repr(a))
             else:
                 packed.append('s' + str(a))
-        out = self.run('ScriptRun', macro, '\x1f'.join(packed))
+        out = self._run_direct('ScriptRun', macro, '\x1f'.join(packed))
         if not out:
             raise ExcelError('ScriptRun did not answer - is modScript in this build?')
         if not out.startswith('ok:'):
@@ -256,7 +269,7 @@ class Workbook:
     def prop(self, handle, prop):
         """A property of a handle's object (Name, Address, Count, Rows.Count,
         Column, Row), or of a handle's array ('ubound', 'item r c')."""
-        out = self.run('ScriptProp', handle, prop)
+        out = self._run_direct('ScriptProp', handle, prop)
         if not out.startswith('ok:'):
             raise ExcelError(f'{handle} {prop}: {out or "ScriptProp did not answer"}')
         return out[3:]
@@ -711,7 +724,7 @@ class open_copy:
         unquarantine(path)
         # From here on __exit__ has to close the workbook: even if this open
         # times out (a prompt on screen), Excel finishes opening it later.
-        self.wb = Workbook(WB_NAME)
+        self.wb = Workbook(WB_NAME, guarded=True)
         open_in_excel(path)
         # Workbook_Open does real work (ProtectAll, HealButtons, ...). Wait for
         # a function call to come back, which also proves macros are enabled.

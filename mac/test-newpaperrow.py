@@ -76,7 +76,7 @@ with open_copy() as wb:
         return wb.table_last_row(MAIN, JTBL), wb.table_col(MAIN, JTBL, 'Paper Stock')
 
     def compatible(model, desc):
-        # A Boolean through AppleScript comes back as 'true'/'false'.
+        # 'True' through ScriptRun, 'true' straight from AppleScript.
         return wb.run('Compatible', model, desc).lower() == 'true'
 
     # ------------------------------------------------ standard-size sheet stock
