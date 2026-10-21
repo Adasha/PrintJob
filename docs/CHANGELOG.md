@@ -36,6 +36,21 @@ Unreleased - Restore's Mac macro notice stays quiet in test runs.
     The older workbook's Workbook_Open does not run (test-restoreworkbook).
     Windows is unchanged: the notice is Mac-only.
 
+Unreleased - Fix: a backup that crossed a minute was only half restored.
+  - Backup workbook wrote the print-room job files first, each stamped with
+    the minute it was written, then took a new stamp for the catalogue
+    files. A backup running across a minute boundary (09:19 / 09:20) came
+    out as two sets. Restore collects the files sharing the stamp of the one
+    it is pointed at, so it read back only one set - the catalogue without
+    the print rooms, or the reverse - and still reported "Workbook restore
+    complete". Windows and Mac alike; found by mac/test-restorerooms.py.
+  - Backup now takes one stamp before writing anything and every file uses
+    it; Export all print rooms likewise uses one stamp per batch. New
+    modExport.FileStamp is the one place the "yyyymmdd-hhnn" is made.
+    Filenames are otherwise unchanged.
+  - test-backup (.ps1 and mac/.py) now starts its backup at second 57 of a
+    minute and checks every file carries one stamp.
+
 Unreleased - Building and testing on a Mac.
   - mac/build.py builds src/PrintJob.xlsm on a Mac, the same steps as build.ps1,
     through mac/Builder.xlsm (made by hand once; see SETUP.md).

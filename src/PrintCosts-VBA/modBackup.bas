@@ -78,13 +78,18 @@ Public Sub BackupAll()
         Exit Sub
     End If
 
+    ' One stamp for the whole backup, taken before anything is written: job
+    ' files and catalogue files must share it, or a backup that crosses a
+    ' minute splits in two and Restore reads back only half (it collects
+    ' the files with the stamp of the one it is pointed at).
+    ts = FileStamp()
+
     ' Job records first, using the existing per-location export unchanged -
     ' its own summary dialog covers those. Catalogue tables get a second,
     ' separate summary below rather than trying to suppress and re-merge
     ' ExportAllLocations' own Say() call.
-    ExportAllLocations False
+    ExportAllLocations False, ts
 
-    ts = Format$(Now, "yyyymmdd-hhnn")
     names = CatalogTableNames()
 
     AppOff

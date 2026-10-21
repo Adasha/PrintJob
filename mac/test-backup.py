@@ -10,6 +10,7 @@
 
 import glob
 import os
+import re
 import sys
 import time
 
@@ -29,6 +30,10 @@ with a as wb:
     orig_annexe_jobs = wb.table_row_count('Annexe', 'tblJobs_ANNEX')
     print(f'  original counts: Printers={orig_printer_count} Papers={orig_paper_count} Annexe jobs={orig_annexe_jobs}')
 
+    # Start just before a minute turns: a backup that stamped each file as it
+    # wrote it split across the minute, and Restore read back only half.
+    while time.localtime().tm_sec != 57:
+        time.sleep(0.2)
     wb.run('BackupAll')
     print(wb.run('QuietLog'))
 
@@ -41,6 +46,8 @@ check(printers_csv is not None, 'tblPrinters backup CSV found')
 
 location_csvs = [p for p in glob.glob(os.path.join(a.dir, 'PrintCosts-*.csv')) if '-CATALOG-' not in p]
 check(len(location_csvs) == 2, f'2 location job CSVs produced (got {len(location_csvs)})')
+stamps = sorted({re.search(r'-(\d{8}-\d{4})\.csv$', p).group(1) for p in catalog_csvs + location_csvs})
+check(len(stamps) == 1, f"every file of the backup carries one timestamp, though it crossed a minute (got {', '.join(stamps)})")
 
 section("Corrupt copy B, then restore it from copy A's backup")
 with open_copy(clean=False) as wb:

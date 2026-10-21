@@ -116,8 +116,12 @@ End Sub
 ' AppOff/AppOn bracket for the whole batch (no recalculation thrash between
 ' locations) and one summary dialog instead of N.
 ' AskNames is False only for Backup, which is a recovery record and always
-' keeps names.
-Public Sub ExportAllLocations(Optional ByVal AskNames As Boolean = True)
+' keeps names. Every file in the batch carries one timestamp - Stamp when
+' given (Backup passes its own, so its catalogue files match), otherwise
+' taken once here. Each file taking its own Now split a batch that crossed
+' a minute into two sets, and Restore - which collects the files sharing
+' one stamp - then silently read back only one of them.
+Public Sub ExportAllLocations(Optional ByVal AskNames As Boolean = True, Optional ByVal Stamp As String = "")
     Dim ws As Worksheet, n As Long, path As String, status As String
     Dim done As Long, skipped As Long, detail As String, failed As String, why As String
     Dim names As VbMsgBoxResult
@@ -126,9 +130,10 @@ Public Sub ExportAllLocations(Optional ByVal AskNames As Boolean = True)
     names = vbYes
     If AskNames Then names = AskIncludeNames()
     If names = vbCancel Then Exit Sub
+    If Len(Stamp) = 0 Then Stamp = FileStamp()
     AppOff
     For Each ws In LocationSheets()
-        status = ExportOne(ws, n, path, (names = vbYes))
+        status = ExportOne(ws, n, path, (names = vbYes), Stamp)
         Select Case status
             Case ""
                 done = done + 1
@@ -205,7 +210,7 @@ End Sub
 ' ExportAllLocations can each decide how to tell the user, one dialog at a
 ' time or rolled into a single summary.
 Private Function ExportOne(ByVal ws As Worksheet, ByRef n As Long, ByRef path As String, _
-                           Optional ByVal IncludeNames As Boolean = True) As String
+                           Optional ByVal IncludeNames As Boolean = True, Optional ByVal Stamp As String = "") As String
     Dim lo As ListObject, cols As Variant, block As Variant, wbOut As Workbook
 
     Set lo = JobsTable(ws)
@@ -222,7 +227,7 @@ Private Function ExportOne(ByVal ws As Worksheet, ByRef n As Long, ByRef path As
     cols = ExportColumns
     block = BuildBlock(ws, lo, n, cols, IncludeNames)
 
-    path = ExportPath(ws)
+    path = ExportPath(ws, Stamp)
     If Len(path) = 0 Then
         ExportOne = "NOPATH"
         Exit Function
@@ -936,7 +941,7 @@ Private Function ReportSnapshotPath() As String
     Dim folder As String, base As String
     folder = ExportFolder()
     If Len(folder) = 0 Then Exit Function
-    base = "PrintCosts-Report-" & SettingText("SITE_ID", "SITE") & "-" & Format$(Now, "yyyymmdd-hhnn") & ".xlsx"
+    base = "PrintCosts-Report-" & SettingText("SITE_ID", "SITE") & "-" & FileStamp() & ".xlsx"
     ReportSnapshotPath = folder & Application.PathSeparator & base
 End Function
 
@@ -1008,13 +1013,20 @@ Missing:
     CellOut = ""
 End Function
 
-Private Function ExportPath(ByVal ws As Worksheet) As String
+' The "yyyymmdd-hhnn" every export and backup filename ends in. Restore
+' treats files with the same stamp in one folder as one backup.
+Public Function FileStamp() As String
+    FileStamp = Format$(Now, "yyyymmdd-hhnn")
+End Function
+
+Private Function ExportPath(ByVal ws As Worksheet, Optional ByVal Stamp As String = "") As String
     Dim base As String, folder As String
     folder = ExportFolder()
     If Len(folder) = 0 Then Exit Function
 
+    If Len(Stamp) = 0 Then Stamp = FileStamp()
     base = "PrintCosts-" & SettingText("SITE_ID", "SITE") & "-" & _
-           LocValue(ws, "LOC_Code") & "-" & Format$(Now, "yyyymmdd-hhnn") & ".csv"
+           LocValue(ws, "LOC_Code") & "-" & Stamp & ".csv"
     ' Beside the workbook. No file dialog: Application.FileDialog does not
     ' exist on Mac, and a path the user already has open is one the Mac
     ' sandbox already permits.
