@@ -25,6 +25,17 @@ Unreleased - Fix: on a Mac, Export could empty the file and delete the workbook.
   - mac/build.py now refuses to build when a module has a declaration after
     its first procedure, which VBA rejects only later, as a dialog.
 
+Unreleased - Restore's Mac macro notice stays quiet in test runs.
+  - On a Mac, restoring from an older workbook first says "Excel may now ask
+    whether to enable macros ... Choose Disable Macros". It was a bare
+    MsgBox, so it stopped every unattended test run; it now goes through
+    Say, which logs it in quiet mode and shows it as before otherwise.
+  - Checked 2026-10-21 with Excel for Mac 16.114 on its default macro
+    setting: Excel does ask about the older workbook's macros even with
+    AutomationSecurity set to force-disable, so the notice is still needed.
+    The older workbook's Workbook_Open does not run (test-restoreworkbook).
+    Windows is unchanged: the notice is Mac-only.
+
 Unreleased - Building and testing on a Mac.
   - mac/build.py builds src/PrintJob.xlsm on a Mac, the same steps as build.ps1,
     through mac/Builder.xlsm (made by hand once; see SETUP.md).
