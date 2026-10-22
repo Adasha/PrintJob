@@ -30,9 +30,13 @@ def restore_case(label, room_name, sheet_expected, code='EXAMPLE', first=False):
         models = wb.table_column_texts('Printers', 'tblPrinters', 'Model')
         printers = f'{models[0]};{models[1]}'
         wb.call('UnlockSheet', sheet(WS))
+        # Events off: an older workbook's room name need not match its tab, and
+        # a name edit would now rename the tab (modRegistry.RenameRoomSheet).
+        wb.set_enable_events(False)
         for nm, v in (('LOC_Name', room_name), ('LOC_Dept', 'Photography'),
                       ('LOC_Printers', printers), ('LOC_DefPrinter', models[0])):
             wb.set_value(WS, wb.name_addr(WS, nm), v)
+        wb.set_enable_events(True)
         wb.call('RelockSheet', sheet(WS))
         if code != 'EXAMPLE':
             # An older workbook that shipped the sample as MAIN.

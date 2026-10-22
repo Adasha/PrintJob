@@ -1714,15 +1714,17 @@ End Sub
 ' 3; the first row-2 button starts ~94pt further right, at ~733pt).
 '
 ' Nothing here depends on cell contents. The buttons and both captions are
-' free-floating form controls, and RepositionReportsButtons lays the whole
+' free-floating shapes, and RepositionReportsButtons lays the whole
 ' strip out from one anchor - the first visible column from N - packing the
 ' blocks one after another by fixed widths and gaps, so a column hide or width
 ' change moves the strip as one piece and the captions can never be left
 ' behind. (The "Mark all as..." caption used to be cell text at O1, which
-' stayed put when its buttons moved.) The captions are Forms labels rather
-' than text boxes: a label runs no macro and is not selected by a click, so it
-' needs no OnAction for HealButtons to repair after a file rename and cannot
-' replace the cell selection Toggle Paid reads.
+' stayed put when its buttons moved.) The captions are text boxes (2026-10-22):
+' they were Forms labels, but Excel for Mac refuses to set a label's font
+' (1004), so on a Mac they showed at 13pt, wrapped, and the buttons hid the
+' second line. Like the location toolbar's panels, each runs btnPanelNoop, so a
+' click does not select it - that would replace the cell selection Toggle Paid
+' reads - and HealButtons repairs that macro after a file rename.
 '
 ' The strip fits the first screenful (every Left <= 900pt, test-reports.ps1):
 ' with the default columns the blocks start at ~639, 733, 815 and 887pt (the
@@ -1874,35 +1876,45 @@ Private Sub PlaceReportButton(ByVal ws As Worksheet, ByVal Macro As String, ByVa
     If Abs(b.Height - H) > 0.5 Then b.Height = H
 End Sub
 
-' A caption above a block of buttons: a Forms label, free-floating like the
-' buttons, bottom-aligned in row 1 so it sits directly over the block's first
-' button (row 2). Any earlier label of the same name is deleted first, so a
-' rebuild never leaves two. 8pt bold, which fits both captions inside their
-' block's width on one line - a label wraps rather than overflows, and a
-' wrapped caption would lose its second line to the fixed height.
+' A caption above a block of buttons: a text box with no fill or border,
+' free-floating like the buttons, bottom-aligned in row 3 so it sits directly
+' over the block's first button (row 4). Any earlier caption of the same name
+' (an older build's Forms label included) is deleted first, so a rebuild never
+' leaves two. 8pt bold with no margins, which fits both captions inside their
+' block's width on one line; word wrap is off, so a longer caption would run on
+' rather than lose a second line to the fixed height.
 Private Sub DrawReportLabel(ByVal ws As Worksheet, ByVal Nm As String, ByVal Caption As String, ByVal W As Double)
-    Dim lbl As Excel.Label, i As Long
-    For i = ws.Labels.Count To 1 Step -1
-        If StrComp(ws.Labels(i).Name, REP_BTN_TAG & Nm, vbBinaryCompare) = 0 Then ws.Labels(i).Delete
+    Dim s As Shape, i As Long
+    For i = ws.Shapes.Count To 1 Step -1
+        If StrComp(ws.Shapes(i).Name, REP_BTN_TAG & Nm, vbBinaryCompare) = 0 Then ws.Shapes(i).Delete
     Next i
-    Set lbl = ws.Labels.Add(ws.Cells(1, REP_STRIP_COL).Left, ws.Rows(REP_LBL_ROW).Top, W, REP_LBL_H)
-    lbl.Name = REP_BTN_TAG & Nm
-    lbl.Placement = xlFreeFloating ' see modInit.DrawOne's comment
-    lbl.Caption = Caption
-    ' Cosmetic only: a failure here must not stop the build.
-    On Error Resume Next
-    lbl.Characters.Font.Size = 8
-    lbl.Characters.Font.Bold = True
-    On Error GoTo 0
+    Set s = ws.Shapes.AddTextbox(1, ws.Cells(1, REP_STRIP_COL).Left, ws.Rows(REP_LBL_ROW).Top, W, REP_LBL_H) ' 1 = msoTextOrientationHorizontal
+    s.Name = REP_BTN_TAG & Nm
+    s.Placement = xlFreeFloating ' see modInit.DrawOne's comment
+    s.OnAction = "btnPanelNoop"  ' see the header comment above DrawReportsButtons
+    s.Fill.Visible = 0           ' msoFalse
+    s.Line.Visible = 0
+    With s.TextFrame2
+        .WordWrap = 0
+        .VerticalAnchor = 4      ' msoAnchorBottom
+        .MarginLeft = 0
+        .MarginRight = 0
+        .MarginTop = 0
+        .MarginBottom = 0
+        .TextRange.Text = Caption
+        .TextRange.Font.Size = 8
+        .TextRange.Font.Bold = -1 ' msoTrue
+        .TextRange.Font.Fill.ForeColor.RGB = RGB(0, 0, 0)
+    End With
 End Sub
 
-' Moves a caption to L, at the bottom of row 1. Only touches a property that is
+' Moves a caption to L, at the bottom of row 3. Only touches a property that is
 ' actually out of place, so the call is cheap on every selection change.
 Private Sub PlaceReportLabel(ByVal ws As Worksheet, ByVal Nm As String, ByVal L As Double, ByVal W As Double)
-    Dim lbl As Excel.Label, i As Long, T As Double
-    For i = 1 To ws.Labels.Count
-        If StrComp(ws.Labels(i).Name, REP_BTN_TAG & Nm, vbBinaryCompare) = 0 Then
-            Set lbl = ws.Labels(i)
+    Dim lbl As Shape, i As Long, T As Double
+    For i = 1 To ws.Shapes.Count
+        If StrComp(ws.Shapes(i).Name, REP_BTN_TAG & Nm, vbBinaryCompare) = 0 Then
+            Set lbl = ws.Shapes(i)
             Exit For
         End If
     Next i

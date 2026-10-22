@@ -419,7 +419,9 @@ Public Sub RebuildGroups(ByVal ws As Worksheet)
     RelockSheet ws
 End Sub
 
-' A light shade over every pass row so a group reads as one job and its colours.
+' A light shade over every pass row so a group reads as one job and its colours -
+' the fill of the toolbar's "Colour passes" panel (modInit.DrawToolbar), so the
+' rows and the buttons that add and remove them read as one family.
 ' A conditional format rather than direct formatting, so a row added below a pass
 ' (which copies its look) never inherits the shade. Written with INDEX(..., ROW())
 ' on the whole Row Type column, so it does not depend on the active cell. Replaces
@@ -441,7 +443,7 @@ Public Sub ApplyPassFormat(ByVal ws As Worksheet)
     Next i
     rtCol = lo.ListColumns("Row Type").Range.Cells(1, 1).EntireColumn.Address(True, True)
     Set fc = body.FormatConditions.Add(Type:=xlExpression, Formula1:="=INDEX(" & rtCol & ",ROW())=""" & PASS_CF_MARK & """")
-    fc.Interior.Color = RGB(236, 242, 250)
+    fc.Interior.Color = RGB(252, 232, 206)
     RelockSheet ws
 End Sub
 

@@ -6,7 +6,7 @@
 #
 #   - "Buttons only" is the sheet's Form Controls buttons (xlmac.buttons), the
 #     set the .ps1 picks out of Shapes by Type 8 / FormControlType 0.
-#   - The two captions are Form Controls labels, found through a shape token.
+#   - The two captions are text boxes, found through a shape token.
 #
 # Drives a COPY in a temp folder, never src/PrintJob.xlsm itself. Closes
 # WITHOUT saving.
