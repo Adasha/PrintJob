@@ -652,6 +652,7 @@ Settings keeps its own copies deliberately: it is where someone lands when confi
 | `modSettings` | Typed accessors for settings and named ranges | Built |
 | `modProtect` | Protect/unprotect wrappers, re-applied on open, **no default password** | Built |
 | `modUtils` | Application state, messaging, quiet mode, table and name access, ID generation, schema version constant | Built |
+| `modScript` | `ScriptRun`: lets a script that can only pass text (AppleScript, the Mac tests in `mac/`) call a Public macro that takes a Worksheet, Range or ListObject, by naming it with a token (`@@sheet:Name`, `@@table:Name`, `@@range:Sheet!A1`, `@@spill:Sheet!H11`), and hands objects it returns back as handles. Arguments arrive packed into one string, and the macro's existence is checked before `Application.Run`, because on Excel for Mac both several left-out optional parameters and a missing macro name crash Excel. Nothing in the workbook calls it; it reaches nothing a COM caller cannot | Built |
 
 | Class | Responsibility | State |
 |---|---|---|

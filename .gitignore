@@ -20,3 +20,6 @@ src/*.bak.xlsx
 # Claude Code worktrees (full repo copies)
 .claude/worktrees/
 .DS_Store
+
+# Python bytecode from the mac/ test scripts
+__pycache__/

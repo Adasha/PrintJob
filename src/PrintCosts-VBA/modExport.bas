@@ -116,8 +116,12 @@ End Sub
 ' AppOff/AppOn bracket for the whole batch (no recalculation thrash between
 ' locations) and one summary dialog instead of N.
 ' AskNames is False only for Backup, which is a recovery record and always
-' keeps names.
-Public Sub ExportAllLocations(Optional ByVal AskNames As Boolean = True)
+' keeps names. Every file in the batch carries one timestamp - Stamp when
+' given (Backup passes its own, so its catalogue files match), otherwise
+' taken once here. Each file taking its own Now split a batch that crossed
+' a minute into two sets, and Restore - which collects the files sharing
+' one stamp - then silently read back only one of them.
+Public Sub ExportAllLocations(Optional ByVal AskNames As Boolean = True, Optional ByVal Stamp As String = "")
     Dim ws As Worksheet, n As Long, path As String, status As String
     Dim done As Long, skipped As Long, detail As String, failed As String, why As String
     Dim names As VbMsgBoxResult
@@ -126,9 +130,10 @@ Public Sub ExportAllLocations(Optional ByVal AskNames As Boolean = True)
     names = vbYes
     If AskNames Then names = AskIncludeNames()
     If names = vbCancel Then Exit Sub
+    If Len(Stamp) = 0 Then Stamp = FileStamp()
     AppOff
     For Each ws In LocationSheets()
-        status = ExportOne(ws, n, path, (names = vbYes))
+        status = ExportOne(ws, n, path, (names = vbYes), Stamp)
         Select Case status
             Case ""
                 done = done + 1
@@ -205,7 +210,7 @@ End Sub
 ' ExportAllLocations can each decide how to tell the user, one dialog at a
 ' time or rolled into a single summary.
 Private Function ExportOne(ByVal ws As Worksheet, ByRef n As Long, ByRef path As String, _
-                           Optional ByVal IncludeNames As Boolean = True) As String
+                           Optional ByVal IncludeNames As Boolean = True, Optional ByVal Stamp As String = "") As String
     Dim lo As ListObject, cols As Variant, block As Variant, wbOut As Workbook
 
     Set lo = JobsTable(ws)
@@ -222,14 +227,14 @@ Private Function ExportOne(ByVal ws As Worksheet, ByRef n As Long, ByRef path As
     cols = ExportColumns
     block = BuildBlock(ws, lo, n, cols, IncludeNames)
 
-    path = ExportPath(ws)
+    path = ExportPath(ws, Stamp)
     If Len(path) = 0 Then
         ExportOne = "NOPATH"
         Exit Function
     End If
 
     AppOff
-    Set wbOut = Application.Workbooks.Add
+    Set wbOut = NewScratchBook()   ' not Workbooks.Add - see modUtils.NewScratchBook
     With wbOut.Worksheets(1)
         ' Everything goes in as TEXT. Without this Excel re-parses what we
         ' carefully formatted: an ISO "2026-09-15 10:12:00" becomes a date
@@ -246,7 +251,7 @@ Private Function ExportOne(ByVal ws As Worksheet, ByRef n As Long, ByRef path As
     ' name right. VBA's Print # writes in the system codepage and mangles
     ' both; ADODB.Stream would, but does not exist on Mac.
     wbOut.SaveAs path, CSV_UTF8
-    wbOut.Close False
+    CloseScratchBook wbOut
     AppOn
 
     ' Confirm the file is actually there before claiming anything. SaveAs to a
@@ -254,8 +259,9 @@ Private Function ExportOne(ByVal ws As Worksheet, ByRef n As Long, ByRef path As
     ' path the CSV prompt was cancelled on - returns without raising, and the
     ' two lines below would then stamp the location as exported and tell the
     ' caller its records were safe. This status is what stands between a sheet
-    ' deletion and the records, so it must never be optimistic.
-    If Not FileExists(path) Then
+    ' deletion and the records, so it must never be optimistic. FileWritten,
+    ' not FileExists: an empty file is not an export.
+    If Not FileWritten(path) Then
         ExportOne = "NOFILE"
         Exit Function
     End If
@@ -365,7 +371,7 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
     End If
 
     AppOff
-    Set wbOut = Application.Workbooks.Add
+    Set wbOut = NewScratchBook()   ' not Workbooks.Add - see modUtils.NewScratchBook
     ' Written as values, then styled and given its print setup (A4 landscape,
     ' one page wide, header row repeating) - see FormatReportForPrint.
     With wbOut.Worksheets(1)
@@ -373,10 +379,10 @@ Public Sub ExportReportSnapshot(ByVal repWs As Worksheet)
     End With
     printSetOk = FormatReportForPrint(wbOut.Worksheets(1), block, tableHeaderRow, footerStartRow, UBound(footer, 1), UBound(full, 1))
     wbOut.SaveAs path, XLSX_FORMAT
-    wbOut.Close False
+    CloseScratchBook wbOut
     AppOn
 
-    If Not FileExists(path) Then
+    If Not FileWritten(path) Then
         Say "The export did not produce a file.", _
             "Excel accepted the save but nothing was written to:" & vbCrLf & path, _
             "Nothing has been marked as exported. Check you can write to that folder, then try again."
@@ -935,7 +941,7 @@ Private Function ReportSnapshotPath() As String
     Dim folder As String, base As String
     folder = ExportFolder()
     If Len(folder) = 0 Then Exit Function
-    base = "PrintCosts-Report-" & SettingText("SITE_ID", "SITE") & "-" & Format$(Now, "yyyymmdd-hhnn") & ".xlsx"
+    base = "PrintCosts-Report-" & SettingText("SITE_ID", "SITE") & "-" & FileStamp() & ".xlsx"
     ReportSnapshotPath = folder & Application.PathSeparator & base
 End Function
 
@@ -1007,13 +1013,20 @@ Missing:
     CellOut = ""
 End Function
 
-Private Function ExportPath(ByVal ws As Worksheet) As String
+' The "yyyymmdd-hhnn" every export and backup filename ends in. Restore
+' treats files with the same stamp in one folder as one backup.
+Public Function FileStamp() As String
+    FileStamp = Format$(Now, "yyyymmdd-hhnn")
+End Function
+
+Private Function ExportPath(ByVal ws As Worksheet, Optional ByVal Stamp As String = "") As String
     Dim base As String, folder As String
     folder = ExportFolder()
     If Len(folder) = 0 Then Exit Function
 
+    If Len(Stamp) = 0 Then Stamp = FileStamp()
     base = "PrintCosts-" & SettingText("SITE_ID", "SITE") & "-" & _
-           LocValue(ws, "LOC_Code") & "-" & Format$(Now, "yyyymmdd-hhnn") & ".csv"
+           LocValue(ws, "LOC_Code") & "-" & Stamp & ".csv"
     ' Beside the workbook. No file dialog: Application.FileDialog does not
     ' exist on Mac, and a path the user already has open is one the Mac
     ' sandbox already permits.

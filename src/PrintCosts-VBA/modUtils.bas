@@ -30,6 +30,7 @@ Public Const LIST_SEP As String = ";"
 
 Private mCalc As XlCalculation
 Private mDepth As Long
+Private mScreenBefore As Boolean   ' NewScratchBook / CloseScratchBook
 
 ' Quiet mode. When a build script or an automated test drives the workbook
 ' over COM there is nobody to dismiss a dialog, and a single MsgBox would hang
@@ -67,6 +68,33 @@ Public Sub AppReset()
     Application.Calculation = xlCalculationAutomatic
     Application.EnableEvents = True
     Application.ScreenUpdating = True
+End Sub
+
+' --------------------------------------------------------- scratch books ---
+' Every file this workbook writes (an export, the Export report, a backup CSV)
+' goes through a new scratch workbook that is filled, saved and closed. Create
+' and close it with these two, never Workbooks.Add on its own.
+'
+' Excel for Mac (16.114; found 2026-10-19): a workbook created while
+' ScreenUpdating is False saves as an EMPTY file - SaveAs raises nothing, so
+' the file is there and looks written - and the next time THIS workbook is
+' closed, Excel deletes its file from disk. Not in the Trash. Every caller runs
+' inside AppOff, which turns ScreenUpdating off, so a user exporting from a
+' workbook in an ordinary folder (Documents, Desktop) lost the workbook.
+' Isolated on throwaway copies: ScreenUpdating alone does it (EnableEvents and
+' manual calculation do not); turning it back on for just the SaveAs is not
+' enough; on from before Workbooks.Add until the close is. Hence the pair.
+' Harmless on Windows: the scratch book shows for a moment. mScreenBefore is
+' declared at the top of the module, with the other module state.
+Public Function NewScratchBook() As Workbook
+    mScreenBefore = Application.ScreenUpdating
+    Application.ScreenUpdating = True
+    Set NewScratchBook = Application.Workbooks.Add
+End Function
+
+Public Sub CloseScratchBook(ByVal wb As Workbook)
+    wb.Close False
+    Application.ScreenUpdating = mScreenBefore
 End Sub
 
 ' --------------------------------------------------------------- messaging ---
@@ -425,4 +453,16 @@ Public Function FileExists(ByVal p As String) As Boolean
     Exit Function
 No:
     FileExists = False
+End Function
+
+' What a writer checks after a SaveAs: the file is there AND has something in
+' it. FileExists alone passed the empty files the Mac ScreenUpdating bug (see
+' NewScratchBook) left behind, so the export reported success.
+Public Function FileWritten(ByVal p As String) As Boolean
+    On Error GoTo No
+    FileWritten = FileExists(p)
+    If FileWritten Then FileWritten = (FileLen(p) > 0)
+    Exit Function
+No:
+    FileWritten = False
 End Function

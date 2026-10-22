@@ -78,13 +78,18 @@ Public Sub BackupAll()
         Exit Sub
     End If
 
+    ' One stamp for the whole backup, taken before anything is written: job
+    ' files and catalogue files must share it, or a backup that crosses a
+    ' minute splits in two and Restore reads back only half (it collects
+    ' the files with the stamp of the one it is pointed at).
+    ts = FileStamp()
+
     ' Job records first, using the existing per-location export unchanged -
     ' its own summary dialog covers those. Catalogue tables get a second,
     ' separate summary below rather than trying to suppress and re-merge
     ' ExportAllLocations' own Say() call.
-    ExportAllLocations False
+    ExportAllLocations False, ts
 
-    ts = Format$(Now, "yyyymmdd-hhnn")
     names = CatalogTableNames()
 
     AppOff
@@ -169,18 +174,18 @@ End Function
 Private Function WriteBlockCsv(ByRef block As Variant, ByVal path As String) As Boolean
     Dim wbOut As Workbook
     On Error GoTo Failed
-    Set wbOut = Application.Workbooks.Add
+    Set wbOut = NewScratchBook()   ' not Workbooks.Add - see modUtils.NewScratchBook
     With wbOut.Worksheets(1)
         .Cells.NumberFormat = "@"
         .Range(.Cells(1, 1), .Cells(UBound(block, 1), UBound(block, 2))).Value = block
     End With
     wbOut.SaveAs path, CSV_UTF8
-    wbOut.Close False
-    WriteBlockCsv = FileExists(path)
+    CloseScratchBook wbOut
+    WriteBlockCsv = FileWritten(path)
     Exit Function
 Failed:
     On Error Resume Next
-    If Not wbOut Is Nothing Then wbOut.Close False
+    If Not wbOut Is Nothing Then CloseScratchBook wbOut
     WriteBlockCsv = False
 End Function
 
@@ -431,11 +436,12 @@ Private Function OpenSourceWorkbook(ByVal Path As String, ByRef TempPath As Stri
 
     ' Mac Excel: whether AutomationSecurity is honoured there is unverified,
     ' so the older file's macro prompt may still appear. Say so up front
-    ' rather than leaving the user wondering (0.10.25 test note 3).
+    ' rather than leaving the user wondering (0.10.25 test note 3). Through
+    ' Say, so quiet mode (a test run) logs it instead of stopping on it.
     If InStr(1, Application.OperatingSystem, "Mac", vbTextCompare) > 0 Then
-        MsgBox "Excel may now ask whether to enable macros for the older workbook." & vbLf & vbLf & _
-               "Choose Disable Macros: they are not needed, and the data is read without them.", _
-               vbInformation, "Importing from an older workbook"
+        Say "Excel may now ask whether to enable macros for the older workbook.", "", _
+            "Choose Disable Macros: they are not needed, and the data is read without them.", _
+            "Importing from an older workbook"
     End If
 
     prevEvents = Application.EnableEvents

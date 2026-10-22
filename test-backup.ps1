@@ -44,6 +44,9 @@ try {
     $origAnnexeJobs = $wbA.Worksheets('Annexe').ListObjects('tblJobs_ANNEX').ListRows.Count
     Write-Host "  original counts: Printers=$origPrinterCount Papers=$origPaperCount Annexe jobs=$origAnnexeJobs"
 
+    # Start just before a minute turns: a backup that stamped each file as it
+    # wrote it split across the minute, and Restore read back only half.
+    while ((Get-Date).Second -ne 57) { Start-Sleep -Milliseconds 200 }
     $xlA.Run('BackupAll')
     Write-Host $xlA.Run('QuietLog')
 
@@ -62,6 +65,8 @@ Check ($null -ne $printersCsv) "tblPrinters backup CSV found"
 
 $locationCsvs = Get-ChildItem $workDirA -Filter 'PrintCosts-*.csv' | Where-Object { $_.Name -notlike '*-CATALOG-*' }
 Check ($locationCsvs.Count -eq 2) "2 location job CSVs produced (got $($locationCsvs.Count))"
+$stamps = @(@($catalogCsvs) + @($locationCsvs) | ForEach-Object { if ($_.Name -match '-(\d{8}-\d{4})\.csv$') { $Matches[1] } } | Sort-Object -Unique)
+Check ($stamps.Count -eq 1) "every file of the backup carries one timestamp, though it crossed a minute (got $($stamps -join ', '))"
 
 Write-Host ''
 Write-Host '=== Corrupt copy B, then restore it from copy A''s backup ==='

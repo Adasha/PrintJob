@@ -21,7 +21,32 @@ it puts the workbook in quiet mode first (`modUtils.SetQuiet`) - an unattended
 run has nobody to click OK. Quiet mode also makes `Ask` answer No, so a script
 can never confirm a destructive operation on your behalf.
 
-The manual route below still works, and is the only route on Mac.
+The manual route below still works.
+
+## The short way on a Mac
+
+From the `PrintJob` folder:
+
+```
+python3 mac/build.py
+```
+
+This takes the same steps as `build.ps1`, in the same order, and writes the
+same files: the backup, `src/PrintJob.xlsm`, and the versioned copy. Close any
+PrintJob workbook in Excel first. It needs two things once:
+
+- **Excel → Preferences → Security → Trust access to the VBA project object
+  model**, ticked.
+- **`mac/Builder.xlsm`**, which is committed. If it is ever lost, make it
+  again: in Excel, **File → New Blank Workbook**, **Tools → Macro → Visual Basic
+  Editor**, **File → Import File…** `mac/modBuilder.bas`, then save it as an
+  Excel Macro-Enabled Workbook named `Builder` in `mac/`.
+
+It needs a builder workbook because only VBA running inside Excel can reach a
+VBA project on a Mac. AppleScript cannot, and there is no COM. Builder.xlsm
+never needs remaking when `modBuilder.bas` changes: each build loads the
+current file into its own throwaway copy. If the imported code does not
+compile, Excel shows the compile error in a dialog and the build waits on it.
 
 ---
 
@@ -39,7 +64,9 @@ once.
 tick **Trust access to the VBA project object model**. Untick it afterwards if
 you prefer; it is only needed for the import.
 
-On Mac there is no equivalent setting and nothing to change.
+Importing by hand on a Mac needs nothing changed. The Mac's own version of
+this setting (**Excel → Preferences → Security**) is only needed by
+`mac/build.py`.
 
 ## 2. Import the modules
 
@@ -48,7 +75,7 @@ Open `PrintCosts.xlsx`, then open the VBA editor:
 - Windows: **Alt + F11**
 - Mac: **Tools → Macro → Visual Basic Editor**
 
-In the editor, **File → Import File…**, and import these twenty-seven files. Order
+In the editor, **File → Import File…**, and import these twenty-eight files. Order
 does not matter.
 
 | File | What it is |
@@ -80,10 +107,11 @@ does not matter.
 | `modImport.bas` | Restores or merges an exported file into a print room's job table |
 | `modBackup.bas` | Backup workbook / Restore workbook (the catalogue and settings CSVs); Restore creates any print room the backup has and this workbook lacks, and can read an older copy of the workbook instead of the CSVs |
 | `modVersion.bas` | Version identity, the About popup, file properties |
+| `modScript.bas` | A text-only way for a script to call macros that take a sheet, range or table (used by the Mac tests); nothing in the workbook calls it |
 
-If you are on a Mac this list is the whole build, so a missing module is not a
-documentation slip - it is a project that will not compile at step 3. Check you
-imported twenty-four.
+If you are building by hand on a Mac this list is the whole build, so a missing
+module is not a documentation slip - it is a project that will not compile at
+step 3. Check you imported twenty-eight.
 
 `ThisWorkbook.cls` is the exception: it **cannot be imported**, because every
 workbook already has a `ThisWorkbook` object. Open `ThisWorkbook.cls` in a text
@@ -329,6 +357,42 @@ powershell -ExecutionPolicy Bypass -File test-reports.ps1
 ```
 
 It should print `True`.
+
+### Running the tests on a Mac
+
+The `.ps1` tests need Windows: they drive Excel through COM, which macOS does
+not have. The `mac/` folder holds Python ports that drive Excel for Mac
+through AppleScript instead, one per `.ps1` with the same checks and messages,
+on top of `mac/xlmac.py` (the Mac counterpart of `TestCommon.ps1`). Not every
+test is ported yet: `ls mac/test-*.py` shows which are.
+
+```
+python3 mac/run-tests.py                  all ported tests, one line each
+python3 mac/run-tests.py --only paid      name fragments
+python3 mac/test-defaults.py              one test, full output
+```
+
+Logs land in `~/Library/Containers/com.microsoft.Excel/Data/PrintCostsTest/testrun-<label>`. Unlike
+`run-tests.ps1`, a green run does not prune backups, because it does not yet
+cover the whole suite.
+
+Build first (`python3 mac/build.py`): the tests drive `src/PrintJob.xlsm`, so
+without a build they test whatever was built last. Close any open PrintJob
+workbook first; the script refuses to run beside one. It
+copies `src/PrintJob.xlsm` to a new folder under Excel's own sandbox
+container (`~/Library/Containers/com.microsoft.Excel/Data/PrintCostsTest`)
+and drives that copy. The first run asks for permission to control Excel;
+allow it.
+
+Excel is sandboxed. Inside its own container it needs no permission for
+anything, so a run asks for no Grant File Access at all; anywhere else
+it asks for every new workbook and CSV. Why that folder is at the top of
+`mac/xlmac.py`.
+
+Set Excel's macro security to enable all macros for the length of a run
+(Excel > Preferences > Security) and put it back afterwards: otherwise
+every workbook the run opens asks whether to enable macros. The things that catch people out (`run VB Macro` with a capital M,
+silent results for missing macros) are listed at the top of `mac/xlmac.py`.
 
 ## Exporting a print room
 
