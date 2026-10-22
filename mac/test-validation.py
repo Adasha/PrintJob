@@ -31,7 +31,7 @@ with open_copy() as wb:
     after = wb.table_row_count(MAIN, TBL)
     verdict = 'NOT DELETED - Ask returned False as designed' if before == after else 'DELETED - BUG'
     print(f'  rows before={before} after={after}  {verdict}')
-    for need in ('Example Print Room', '5 print job', '15/09/2026', '17/09/2026', 'cannot be undone'):
+    for need in ('Example Print Room', f'{before} print job', '15/09/2026', '19/09/2026', 'cannot be undone'):
         print(f"  contains '{need:<18}' {'yes' if need in log else 'NO'}")
 
     # ---------------------------------------------------------------- AT-11

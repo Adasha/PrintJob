@@ -75,7 +75,7 @@ try {
     $after = $lo.ListRows.Count
     Write-Host ("  rows before={0} after={1}  {2}" -f $before, $after,
         $(if ($before -eq $after) { 'NOT DELETED - Ask returned False as designed' } else { 'DELETED - BUG' }))
-    foreach ($need in 'Example Print Room', '5 print job', '15/09/2026', '17/09/2026', 'cannot be undone') {
+    foreach ($need in 'Example Print Room', "$before print job", '15/09/2026', '19/09/2026', 'cannot be undone') {
         Write-Host ("  contains '{0,-18}' {1}" -f $need, $(if ($log -like "*$need*") { 'yes' } else { 'NO' }))
     }
 

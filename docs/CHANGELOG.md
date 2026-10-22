@@ -3,7 +3,24 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
-Unreleased - Fix: on a Mac, Export could empty the file and delete the workbook.
+0.11.1 - Fixes for Backup and Export found by the Mac test suite; building and testing on a Mac. Schema unchanged (1.4).
+
+  Fix: a backup that crossed a minute was only half restored (Windows and Mac).
+  - Backup workbook wrote the print-room job files first, each stamped with
+    the minute it was written, then took a new stamp for the catalogue
+    files. A backup running across a minute boundary (09:19 / 09:20) came
+    out as two sets. Restore collects the files sharing the stamp of the one
+    it is pointed at, so it read back only one set - the catalogue without
+    the print rooms, or the reverse - and still reported "Workbook restore
+    complete". Found by mac/test-restorerooms.py.
+  - Backup now takes one stamp before writing anything and every file uses
+    it; Export all print rooms likewise uses one stamp per batch. New
+    modExport.FileStamp is the one place the "yyyymmdd-hhnn" is made (Export
+    report uses it too). Filenames are otherwise unchanged.
+  - test-backup (.ps1 and mac/.py) now starts its backup at second 57 of a
+    minute and checks every file carries one stamp.
+
+  Fix: on a Mac, Export could empty the file and delete the workbook.
   - Excel for Mac (16.114) saves a workbook that was created while screen
     updating is off as an EMPTY file, raises no error, and then deletes the
     file of the workbook that created it when that workbook is closed - not
@@ -19,13 +36,12 @@ Unreleased - Fix: on a Mac, Export could empty the file and delete the workbook.
     from before the scratch workbook is created until it is closed (on for the
     save alone is not enough). New modUtils.FileWritten: the after-save check
     now also requires the file to have content, so an empty file is reported
-    as a failure, not an export.
+    as a failure, not an export. On Windows the only visible difference may
+    be a brief flicker.
   - New mac/test-macsave.py runs all three into the workbook's own folder and
     checks every file has content and the workbook survives its close.
-  - mac/build.py now refuses to build when a module has a declaration after
-    its first procedure, which VBA rejects only later, as a dialog.
 
-Unreleased - Restore's Mac macro notice stays quiet in test runs.
+  Restore's Mac macro notice.
   - On a Mac, restoring from an older workbook first says "Excel may now ask
     whether to enable macros ... Choose Disable Macros". It was a bare
     MsgBox, so it stopped every unattended test run; it now goes through
@@ -34,30 +50,22 @@ Unreleased - Restore's Mac macro notice stays quiet in test runs.
     setting: Excel does ask about the older workbook's macros even with
     AutomationSecurity set to force-disable, so the notice is still needed.
     The older workbook's Workbook_Open does not run (test-restoreworkbook).
-    Windows is unchanged: the notice is Mac-only.
+  - Not shown for an .xlsx, which has no macros for Excel to ask about.
+  - Windows is unchanged: the notice is Mac-only.
 
-Unreleased - Fix: a backup that crossed a minute was only half restored.
-  - Backup workbook wrote the print-room job files first, each stamped with
-    the minute it was written, then took a new stamp for the catalogue
-    files. A backup running across a minute boundary (09:19 / 09:20) came
-    out as two sets. Restore collects the files sharing the stamp of the one
-    it is pointed at, so it read back only one set - the catalogue without
-    the print rooms, or the reverse - and still reported "Workbook restore
-    complete". Windows and Mac alike; found by mac/test-restorerooms.py.
-  - Backup now takes one stamp before writing anything and every file uses
-    it; Export all print rooms likewise uses one stamp per batch. New
-    modExport.FileStamp is the one place the "yyyymmdd-hhnn" is made.
-    Filenames are otherwise unchanged.
-  - test-backup (.ps1 and mac/.py) now starts its backup at second 57 of a
-    minute and checks every file carries one stamp.
-
-Unreleased - Building and testing on a Mac.
+  Building and testing on a Mac.
   - mac/build.py builds src/PrintJob.xlsm on a Mac, the same steps as build.ps1,
-    through mac/Builder.xlsm (made by hand once; see SETUP.md).
-  - mac/ holds Python ports of the test-*.ps1 scripts, driving Excel for Mac
-    through AppleScript, and mac/run-tests.py to run them.
+    through mac/Builder.xlsm (made by hand once; see SETUP.md). It refuses to
+    build when a module has a declaration after its first procedure, which
+    VBA rejects only later, as a dialog.
+  - mac/ holds Python ports of every test-*.ps1 script, driving Excel for Mac
+    through AppleScript, and mac/run-tests.py to run them (47 of 47 pass).
+    Tests and builds run inside Excel's own sandbox container, where it asks
+    for no file access.
   - New module modScript (ScriptRun): a text-only way for those scripts to call
     macros that take a sheet, range or table. Nothing in the workbook calls it.
+  - test-validation (.ps1 and mac/.py): the Clear All message checks look for
+    the sample's real job count and last date, not the old 5 jobs / 17/09.
 
 0.11.0 - Multi-pass (per-colour) costing: RISO-style jobs with a set-up cost per colour. Schema 1.4.
   Design: docs/multipass-costing-design.md (36 decisions), docs/column-view-presets-design.md,
