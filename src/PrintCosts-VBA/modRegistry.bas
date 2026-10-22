@@ -266,9 +266,10 @@ Public Sub HealButtons()
                 End If
             End If
         Next i
-        ' The location toolbar's panels (modInit.DrawPanel) carry btnPanelNoop.
+        ' The location toolbar's panels (modInit.DrawPanel) and the Reports
+        ' captions (modReports.DrawReportLabel) carry btnPanelNoop.
         For i = 1 To ws.Shapes.Count
-            If Left$(ws.Shapes(i).Name, 4) = "pcp_" Then
+            If Left$(ws.Shapes(i).Name, 4) = "pcp_" Or Left$(ws.Shapes(i).Name, 7) = "pcb_lbl" Then
                 cur = CStr(ws.Shapes(i).OnAction)
                 If InStr(cur, "!") > 0 Then
                     If InStr(1, cur, mine, vbTextCompare) <> 1 Then ws.Shapes(i).OnAction = "btnPanelNoop"
@@ -893,6 +894,44 @@ Fail:
     AppReset
     ReportError "Restore workbook"
 End Function
+
+' An edit to a room's name (B1) renames its sheet tab to match (2026-10-22,
+' direct user request). The registry row is re-keyed to the new tab name first:
+' the export stamp and the Job ID high-water mark are both looked up by sheet
+' name, and without this the room would read as never exported (see
+' WriteRegistry). A blank name leaves the tab alone; a name another sheet holds
+' gets a " 2" suffix, as Add print room does.
+Public Sub RenameRoomSheet(ByVal ws As Worksheet)
+    Dim want As String, oldName As String, lo As ListObject, i As Long
+
+    On Error GoTo Fail
+    If Len(Trim$(LocValue(ws, "LOC_Name"))) = 0 Then Exit Sub
+    want = SanitiseSheetName(LocValue(ws, "LOC_Name"))
+    If StrComp(ws.Name, want, vbBinaryCompare) = 0 Then Exit Sub
+    ' Only the case differs: the sheet already holds this name.
+    If StrComp(ws.Name, want, vbTextCompare) <> 0 Then want = UniqueSheetName(want)
+    oldName = ws.Name
+
+    AppOff
+    Set lo = Tbl(REG_TABLE)
+    If Not lo Is Nothing Then
+        i = RegRowFor(lo, oldName)
+        If i > 0 Then
+            UnlockSheet lo.Parent
+            CellIn(lo, i, "SheetName").Value = want
+            RelockSheet lo.Parent
+        End If
+    End If
+    ws.Name = want
+    AppOn
+
+    RefreshLocations
+    LogAudit "Rename print room", LocValue(ws, "LOC_Name"), "Sheet tab was '" & oldName & "'"
+    Exit Sub
+Fail:
+    AppReset
+    ReportError "renaming the print room"
+End Sub
 
 ' Gives a room's sheet the name its LOC_Name asks for once that name is free -
 ' a restored room called like the sample room is created while the sample still

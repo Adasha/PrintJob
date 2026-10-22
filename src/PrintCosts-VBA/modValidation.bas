@@ -20,6 +20,16 @@ Public Function OnCellChanged(ByVal ws As Worksheet, ByVal Target As Range) As B
     ' bidirectional rebind as a table row's own Printer/Paper Stock (spec 1a).
     If OnDefaultCellChanged(ws, Target) Then Exit Function
 
+    ' Room name (B1): the sheet tab follows it.
+    If Target.Cells.Count = 1 Then
+        If Not LocRange(ws, "LOC_Name") Is Nothing Then
+            If Not Application.Intersect(Target, LocRange(ws, "LOC_Name")) Is Nothing Then
+                RenameRoomSheet ws
+                Exit Function
+            End If
+        End If
+    End If
+
     ' Roll length unit (A6/B6): rescale the table's existing roll lengths.
     If Target.Cells.Count = 1 Then
         If Not LocRange(ws, "LOC_RollUnit") Is Nothing Then

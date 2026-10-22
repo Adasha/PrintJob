@@ -36,10 +36,14 @@ function Restore-Case([string]$label, [string]$roomName, [string]$sheetExpected,
         $c = $lo.ListColumns('Model').DataBodyRange
         $printers = ([string]$c.Cells(1, 1).Value2) + ';' + ([string]$c.Cells(2, 1).Value2)
         Invoke-ComRetry { $xlA.Run('UnlockSheet', $ws) } | Out-Null
+        # Events off: an older workbook's room name need not match its tab, and
+        # a name edit would now rename the tab (modRegistry.RenameRoomSheet).
+        $xlA.EnableEvents = $false
         $ws.Names.Item('LOC_Name').RefersToRange.Value2 = $roomName
         $ws.Names.Item('LOC_Dept').RefersToRange.Value2 = 'Photography'
         $ws.Names.Item('LOC_Printers').RefersToRange.Value2 = $printers
         $ws.Names.Item('LOC_DefPrinter').RefersToRange.Value2 = ([string]$c.Cells(1, 1).Value2)
+        $xlA.EnableEvents = $true
         Invoke-ComRetry { $xlA.Run('RelockSheet', $ws) } | Out-Null
         if ($code -ne 'EXAMPLE') {
             # An older workbook that shipped the sample as MAIN.

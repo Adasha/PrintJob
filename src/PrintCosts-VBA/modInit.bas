@@ -649,11 +649,11 @@ End Sub
 Public Sub EnsureJobDefaults(ByVal ws As Worksheet)
     UnlockSheet ws
 
-    ' Room name and department are fixed once set (Add print room asks for
-    ' both up front); a blank one stays editable so it can still be filled in.
-    With ws.Cells(ROW_NAME, 2)
-        .Locked = (Len(Trim$(CStr(.Value))) > 0)
-    End With
+    ' The department is fixed once set (Add print room asks for it up front); a
+    ' blank one stays editable so it can still be filled in. The room name is
+    ' always editable (2026-10-22, direct user request): an edit renames the
+    ' sheet tab to match (modRegistry.RenameRoomSheet).
+    ws.Cells(ROW_NAME, 2).Locked = False
     With ws.Cells(ROW_DEPT, 2)
         .Locked = (Len(Trim$(CStr(.Value))) > 0)
     End With

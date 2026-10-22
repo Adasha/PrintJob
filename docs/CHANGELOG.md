@@ -3,6 +3,31 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+Unreleased - snags (2026-10-22, direct user requests).
+
+  Renaming a print room renames its sheet tab.
+  - The room name cell (B1) is no longer locked once set (the department
+    still is). Typing a new name renames the tab to match
+    (modRegistry.RenameRoomSheet, from modValidation.OnCellChanged); a name
+    another sheet holds gets a " 2" suffix, a blank name leaves the tab
+    alone. The registry row is re-keyed to the new tab first, so the room
+    keeps its export stamp and Job ID high-water mark, then Refresh
+    Locations runs and the rename is audited. New test-renameroom (.ps1 and
+    mac/.py). test-restorereuse now writes its older workbook's room name
+    with events off, as that workbook's name and tab differ on purpose.
+
+  Colour pass rows are shaded with the "Colour passes" toolbar panel's fill
+  (252, 232, 206) instead of a pale blue, so rows and buttons read as one.
+
+  Fix: on a Mac the Reports captions ("Selected record:", "Mark all as...")
+  were too large and half hidden by the buttons.
+  - Excel for Mac will not set a Forms label's font (1004, probed), so they
+    showed at 13pt and wrapped. They are now text boxes, 8pt bold, no fill or
+    border, on both platforms, with the same names (pcb_lblSelected,
+    pcb_lblMarkAll). Like the location toolbar panels they run btnPanelNoop,
+    so a click does not select them, and HealButtons re-points it after a
+    file rename.
+
 0.11.1 - Fixes for Backup and Export found by the Mac test suite; building and testing on a Mac. Schema unchanged (1.4).
 
   Fix: a backup that crossed a minute was only half restored (Windows and Mac).
