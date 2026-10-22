@@ -434,11 +434,14 @@ Private Function OpenSourceWorkbook(ByVal Path As String, ByRef TempPath As Stri
         openPath = Path
     End If
 
-    ' Mac Excel: whether AutomationSecurity is honoured there is unverified,
-    ' so the older file's macro prompt may still appear. Say so up front
-    ' rather than leaving the user wondering (0.10.25 test note 3). Through
-    ' Say, so quiet mode (a test run) logs it instead of stopping on it.
-    If InStr(1, Application.OperatingSystem, "Mac", vbTextCompare) > 0 Then
+    ' Mac Excel asks whether to enable the older file's macros even with
+    ' AutomationSecurity force-disabled (checked on 16.114, 0.11.1), though
+    ' they do not run either way. Say so up front rather than leaving the
+    ' user wondering (0.10.25 test note 3). Not for an .xlsx, which has no
+    ' macros to ask about. Through Say, so quiet mode (a test run) logs it
+    ' instead of stopping on it.
+    If InStr(1, Application.OperatingSystem, "Mac", vbTextCompare) > 0 _
+       And StrComp(Right$(Path, 5), ".xlsx", vbTextCompare) <> 0 Then
         Say "Excel may now ask whether to enable macros for the older workbook.", "", _
             "Choose Disable Macros: they are not needed, and the data is read without them.", _
             "Importing from an older workbook"

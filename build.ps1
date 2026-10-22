@@ -60,7 +60,7 @@ if (Test-Path $dst) {
 #
 # This is not tidiness. The source lives in OneDrive, where AutoSave is on by
 # default, and the build necessarily leaves the open workbook heavily modified
-# - fifteen imported modules, setup run, version stamped - for the whole time
+# - every module imported, setup run, version stamped - for the whole time
 # between Open and SaveAs. AutoSave wrote all of that back over the source,
 # and DisplayAlerts=$false silently swallowed the "you can't save macros in a
 # macro-free workbook" prompt that would have stopped it. The result was a
