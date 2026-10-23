@@ -895,11 +895,63 @@ Fail:
     ReportError "Restore workbook"
 End Function
 
+' ---------------------------------------------------------- rename a room ---
+' The Settings button's command (2026-10-23, direct user request): pick a room,
+' type its new name. The name cell (B1) is locked once set, so this is the
+' deliberate route - a stray keystroke on the sheet can no longer rename a room.
+' Split like Add/Remove: a prompting wrapper and a core (ChangeRoomName) a test
+' script can call directly.
+Public Sub RenamePrintRoom()
+    Dim ws As Worksheet, oldName As String, answer As Variant, NewName As String
+
+    Set ws = PickRoom("Which print room should be renamed? Type its code.", "Rename print room - choose a room")
+    If ws Is Nothing Then Exit Sub
+    oldName = LocValue(ws, "LOC_Name")
+
+    Do
+        answer = Application.InputBox("New name for '" & oldName & "' (its sheet tab follows).", "Rename print room", oldName, Type:=2)
+        If VarType(answer) = vbBoolean Then Exit Sub   ' Cancel
+        NewName = Trim$(CStr(answer))
+        If Len(NewName) > 0 Then Exit Do
+        Say "A name is required.", "Every print room needs a name people will recognise on its sheet tab.", "Type a name, or Cancel to stop."
+    Loop
+    If StrComp(NewName, oldName, vbBinaryCompare) = 0 Then Exit Sub
+
+    ChangeRoomName ws, NewName
+End Sub
+
+' The testable core: writes the new name into B1 (events off, so the change
+' handler does not rename a second time) and renames the tab to match. A blank
+' name does nothing. The job-ID code is left alone: job IDs already handed out
+' carry it.
+Public Sub ChangeRoomName(ByVal ws As Worksheet, ByVal NewName As String)
+    Dim c As Range
+
+    On Error GoTo Fail
+    NewName = Trim$(NewName)
+    If Len(NewName) = 0 Then Exit Sub
+    Set c = LocRange(ws, "LOC_Name")
+    If c Is Nothing Then Exit Sub
+
+    AppOff
+    UnlockSheet ws
+    c.Value = NewName
+    RelockSheet ws
+    AppOn
+
+    RenameRoomSheet ws
+    Exit Sub
+Fail:
+    AppReset
+    ReportError "Rename print room"
+End Sub
+
 ' An edit to a room's name (B1) renames its sheet tab to match (2026-10-22,
-' direct user request). The registry row is re-keyed to the new tab name first:
-' the export stamp and the Job ID high-water mark are both looked up by sheet
-' name, and without this the room would read as never exported (see
-' WriteRegistry). A blank name leaves the tab alone; a name another sheet holds
+' direct user request). B1 is locked once set, so this now runs from Rename
+' print room, or from an edit on an unprotected sheet. The registry row is
+' re-keyed to the new tab name first: the export stamp and the Job ID
+' high-water mark are both looked up by sheet name, and without this the room
+' would read as never exported (see WriteRegistry). A blank name leaves the tab alone; a name another sheet holds
 ' gets a " 2" suffix, as Add print room does.
 Public Sub RenameRoomSheet(ByVal ws As Worksheet)
     Dim want As String, oldName As String, lo As ListObject, i As Long
@@ -1082,7 +1134,7 @@ End Function
 Public Sub RemovePrintRoom()
     Dim ws As Worksheet, detail As String
 
-    Set ws = PickRoomToRemove()
+    Set ws = PickRoom("Which print room should be removed? Type its code.", "Remove print room - choose a room")
     If ws Is Nothing Then Exit Sub
 
     If LocationSheets().Count <= 1 Then
@@ -1103,7 +1155,9 @@ Public Sub RemovePrintRoom()
     DeletePrintRoom ws
 End Sub
 
-Private Function PickRoomToRemove() As Worksheet
+' Shared by Rename and Remove print room: lists every room's code and name and
+' asks for a code back.
+Private Function PickRoom(ByVal Prompt As String, ByVal Title As String) As Worksheet
     Dim ws As Worksheet, list As String, code As String, answer As Variant
 
     For Each ws In LocationSheets()
@@ -1115,15 +1169,13 @@ Private Function PickRoomToRemove() As Worksheet
     End If
 
     Do
-        answer = Application.InputBox( _
-            "Which print room should be removed? Type its code." & vbCrLf & vbCrLf & list, _
-            "Remove print room - choose a room", Type:=2)
+        answer = Application.InputBox(Prompt & vbCrLf & vbCrLf & list, Title, Type:=2)
         If VarType(answer) = vbBoolean Then Exit Function   ' Cancel
         code = Trim$(CStr(answer))
         If Len(code) > 0 Then
             Set ws = SheetForCode(code)
             If Not ws Is Nothing Then
-                Set PickRoomToRemove = ws
+                Set PickRoom = ws
                 Exit Function
             End If
             Say "'" & code & "' is not one of the print rooms listed.", "", "Check the code and try again."

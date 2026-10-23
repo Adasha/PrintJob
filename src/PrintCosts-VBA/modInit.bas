@@ -220,7 +220,7 @@ Public Sub InitialiseWorkbook()
             ' packed left to right from column B with a small fixed gap
             ' (SETTINGS_BTN_GAP) rather than anchored three columns apart,
             ' which spread four buttons across the whole sheet:
-            '   Print rooms - Add / Remove print room, Refresh Locations
+            '   Print rooms - Add / Rename / Remove print room, Refresh Locations
             '   Data        - Export All, Import, Backup, Restore
             '   Workbook    - Check workbook, Re-stamp prices, About
             ' EnsureSettingsButtonBand writes the labels and row heights; the
@@ -230,8 +230,9 @@ Public Sub InitialiseWorkbook()
             bandRow = SETTINGS_BAND_FIRST_ROW
             bandLeft = ws.Cells(1, 2).Left
             DrawBandButton ws, bandRow, bandLeft, 0, "Add print room...", "btnAddPrintRoom"
-            DrawBandButton ws, bandRow, bandLeft, 1, "Remove print room...", "btnRemovePrintRoom"
-            DrawBandButton ws, bandRow, bandLeft, 2, "Refresh Locations", "btnRefreshLocations"
+            DrawBandButton ws, bandRow, bandLeft, 1, "Rename print room...", "btnRenamePrintRoom"
+            DrawBandButton ws, bandRow, bandLeft, 2, "Remove print room...", "btnRemovePrintRoom"
+            DrawBandButton ws, bandRow, bandLeft, 3, "Refresh Locations", "btnRefreshLocations"
 
             DrawBandButton ws, bandRow + 1, bandLeft, 0, "Export All Locations...", "btnExportAll"
             DrawBandButton ws, bandRow + 1, bandLeft, 1, "Import (choose room)...", "btnImportGlobal"
@@ -649,11 +650,14 @@ End Sub
 Public Sub EnsureJobDefaults(ByVal ws As Worksheet)
     UnlockSheet ws
 
-    ' The department is fixed once set (Add print room asks for it up front); a
-    ' blank one stays editable so it can still be filled in. The room name is
-    ' always editable (2026-10-22, direct user request): an edit renames the
-    ' sheet tab to match (modRegistry.RenameRoomSheet).
-    ws.Cells(ROW_NAME, 2).Locked = False
+    ' Room name and department are fixed once set (Add print room asks for
+    ' both up front); a blank one stays editable so it can still be filled in.
+    ' A room is renamed with Rename print room (2026-10-23), so a stray edit
+    ' cannot rename it; an edit made on an unprotected sheet still renames the
+    ' tab to match (modRegistry.RenameRoomSheet).
+    With ws.Cells(ROW_NAME, 2)
+        .Locked = (Len(Trim$(CStr(.Value))) > 0)
+    End With
     With ws.Cells(ROW_DEPT, 2)
         .Locked = (Len(Trim$(CStr(.Value))) > 0)
     End With

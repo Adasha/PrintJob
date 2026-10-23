@@ -27,7 +27,7 @@ $f = Join-Path $workDir 'PrintJob.xlsm'
 Copy-Item $deliverable $f
 
 $groups = [ordered]@{
-    'Print rooms' = 'btnAddPrintRoom', 'btnRemovePrintRoom', 'btnRefreshLocations'
+    'Print rooms' = 'btnAddPrintRoom', 'btnRenamePrintRoom', 'btnRemovePrintRoom', 'btnRefreshLocations'
     'Data'        = 'btnExportAll', 'btnImportGlobal', 'btnBackupWorkbook', 'btnRestoreWorkbook'
     'Workbook'    = 'btnCheckWorkbook', 'btnReStamp', 'btnAbout'
 }
