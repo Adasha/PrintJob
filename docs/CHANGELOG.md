@@ -24,7 +24,8 @@ Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module
   Fix: a new print job's Unit (and Area, Paper Cost) stayed blank when its
   Paper Stock came from the room's default. Events are off while the row is
   added, so the stock never reached OnStockChanged; AddPrintJob now stamps
-  the row, as Repeat job does.
+  the row, as Repeat job does, and recalculates it before turning
+  calculation back on (on a Mac the Unit sometimes still read 0).
 
   Fix: on a Mac, Remove print room skipped its typed confirmation and then
   said the name didn't match.

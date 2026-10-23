@@ -7,6 +7,10 @@
 # explained here.
 #
 #   python3 mac/build.py
+#   python3 mac/build.py --dist     # also writes dist/PrintJob-v<version>.xlsm
+#
+# --dist is for a release: it refuses an uncommitted tree, and its copy is
+# committed (dist/README.md).
 #
 # Needs mac/Builder.xlsm (made by hand once - SETUP.md, "Building on a Mac")
 # and Excel > Preferences > Security > "Trust access to the VBA project
@@ -154,6 +158,10 @@ def keep_newest(pattern, n):
 
 
 # --------------------------------------------------------------- checks
+DIST = '--dist' in sys.argv[1:]
+if DIST and git_suffix().endswith('+'):
+    die('--dist builds only from a committed tree: commit or stash your changes first.')
+
 for p in (SRC, BUILDER, BUILDER_BAS):
     if not os.path.exists(p):
         die(f'Not found: {p}' + (' - see SETUP.md, "Building on a Mac"' if p == BUILDER else ''))
@@ -282,6 +290,12 @@ save workbook as wb filename (item 2 of argv) file format macro enabled XML file
     unquarantine(os.path.join(ROOT, ver_name))
     print(f'versioned copy -> {ver_name}')
     keep_newest(os.path.join(ROOT, 'PrintJob-v*.xlsm'), 5)
+    if DIST:
+        os.makedirs(os.path.join(REPO, 'dist'), exist_ok=True)
+        dist = os.path.join(REPO, 'dist', f'PrintJob-v{ver}.xlsm')
+        shutil.copy2(DST, dist)
+        unquarantine(dist)
+        print(f'release copy  -> dist/{os.path.basename(dist)}')
     print()
     print(f'wrote {DST}')
     print(f'       {stamped}')
