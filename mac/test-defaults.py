@@ -77,6 +77,8 @@ with open_copy() as wb:
     check(got_tech == 'A. Shailer', f"new job's Technician pre-filled (got '{got_tech}')")
     check(got_prn == 'Xerox Versant 180', f"new job's Printer pre-filled (got '{got_prn}')")
     check(got_stk == 'Gloss 200gsm SRA3 sheet', f"new job's Paper Stock pre-filled (got '{got_stk}')")
+    got_unit = wb.cell_text(MAIN, r1, wb.table_col(MAIN, TBL, 'Unit'))
+    check(got_unit == 'sheets', f"new job's Unit fills from the pre-filled Paper Stock (got '{got_unit}')")
 
     r2 = new_row()
     got_tech2 = wb.cell_text(MAIN, r2, tech_col)
