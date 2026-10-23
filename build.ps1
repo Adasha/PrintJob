@@ -7,6 +7,12 @@
 # "Trust access to the VBA project object model" ticked in the Trust Center.
 #
 #   powershell -ExecutionPolicy Bypass -File build.ps1
+#   powershell -ExecutionPolicy Bypass -File build.ps1 -Dist   # also writes dist\PrintJob-v<version>.xlsm
+#
+# -Dist is for a release: it refuses an uncommitted tree, and its copy is
+# committed (dist\README.md).
+
+param([switch]$Dist)
 
 $ErrorActionPreference = 'Stop'
 
@@ -16,6 +22,9 @@ $src  = Join-Path $root 'PrintCosts.xlsx'
 $dst  = Join-Path $root 'PrintJob.xlsm'
 
 if (-not (Test-Path $src)) { throw "Not found: $src" }
+if ($Dist -and (& git -C $PSScriptRoot status --porcelain 2>$null)) {
+    throw '-Dist builds only from a committed tree: commit or stash your changes first.'
+}
 
 # Checked before anything else happens. Excel holds a write lock on an open
 # workbook, and without this the build imports every module, runs setup and
@@ -213,6 +222,12 @@ try {
     # Keep the newest five; they are regenerable build output.
     Get-ChildItem $root -Filter 'PrintJob-v*.xlsm' | Sort-Object LastWriteTime -Descending |
         Select-Object -Skip 5 | Remove-Item -Force -ErrorAction SilentlyContinue
+    if ($Dist) {
+        $distDir = Join-Path $PSScriptRoot 'dist'
+        New-Item -ItemType Directory -Path $distDir -Force | Out-Null
+        Copy-Item $dst (Join-Path $distDir "PrintJob-v$ver.xlsm") -Force
+        Write-Host "release copy  -> dist\PrintJob-v$ver.xlsm"
+    }
     Write-Host ''
     Write-Host "wrote $dst"
     Write-Host "       $stamped"
