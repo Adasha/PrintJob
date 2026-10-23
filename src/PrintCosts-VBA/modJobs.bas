@@ -78,6 +78,9 @@ Public Sub AddPrintJob(ByVal ws As Worksheet)
     ' stamp here, as RepeatJob does, or the row has no S_Measure and so no
     ' Unit, Area or Paper Cost (found 2026-10-23).
     StampRow ws, n
+    ' Calculation is manual here too, and switching it back on did not
+    ' recalculate the new row on a Mac: Unit read 0 (test-defaults, 2026-10-23).
+    r.Range.Calculate
     AppOn
 
     CellIn(lo, n, "Student Name").Select
