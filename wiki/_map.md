@@ -156,7 +156,7 @@ Things that happen when a cell on a print room's job table is edited
 | B12 | | Printers at this location (from `LOC_Printers`) | Setup-Print-Rooms |
 | AX2 | `LOC_Code` | Location code (side panel) | Setup-Print-Rooms |
 | AX6 | `LOC_Status` | Sheet status (side panel) | Jobs-Validation-and-Status |
-| AX6 | `LOC_Export` | Export (side panel); see finding 1 | Data-Export-Room |
+| AX8 | `LOC_Export` | Export (side panel; at AX6 over Sheet status before 0.11.3, finding 1) | Data-Export-Room |
 | AX9 | `LOC_Printers` | Permitted printers (raw list) | Setup-Print-Rooms |
 
 ## Settings keys
@@ -200,13 +200,12 @@ are locked and skipped by Restore.
 
 ## Findings from the inventory
 
-1. **Sheet status is never shown.** The template puts Sheet status at AX6
-   and Export at AX8, but `modExport.EXPORT_CELL` is `$AX$6`. Every refresh
-   writes the export text and an "Export" label over Sheet status, so
-   `LOC_Status` and `LOC_Export` share a cell and AX8 keeps a stale copy of the
-   export line. ARCHITECTURE.md §4.1 records this as a known quirk. A fix is a
-   one-line constant change plus a version bump; Jobs-Validation-and-Status
-   should wait for it.
+1. **Sheet status was never shown (fixed in 0.11.3).** The template puts
+   Sheet status at AX6 and Export at AX8, but `modExport.EXPORT_CELL` was
+   `$AX$6`, so every refresh wrote the export line and an "Export" label over
+   Sheet status. 0.11.3 writes Export to AX8 (branch `fix/sheet-status-cell`,
+   checked by test-statusnotes). Jobs-Validation-and-Status documents the
+   0.11.3 behaviour.
 2. **No test** for Now, the double-click stamp, Select printers..., Re-stamp
    prices..., About or Remove row on a catalogue sheet. They are short, but
    phase 1 should look at them by hand.
