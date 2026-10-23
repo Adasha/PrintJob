@@ -27,6 +27,8 @@ Public Const MARKER_CELL As String = "AZ1"
 Public Const SCHEMA_VER As String = "1.4"
 Public Const JOBS_PREFIX As String = "tblJobs_"
 Public Const LIST_SEP As String = ";"
+' Longest prompt InputText passes to Application.InputBox (see InputText).
+Public Const INPUT_PROMPT_MAX As Long = 250
 
 Private mCalc As XlCalculation
 Private mDepth As Long
@@ -120,6 +122,18 @@ Public Function Ask(ByVal Prompt As String, Optional ByVal Title As String = "Pl
         Exit Function
     End If
     Ask = (MsgBox(Prompt, vbExclamation + vbYesNo + vbDefaultButton2, Title) = vbYes)
+End Function
+
+' Every typed answer goes through here. Excel for Mac shows no box at all when
+' an Application.InputBox prompt is too long - it returns Error 2015 at once
+' (a 300-character prompt, probed on 16.114, 2026-10-23), which Remove print
+' room read as a wrong answer to its confirmation. So the prompt is cut to
+' INPUT_PROMPT_MAX (the exact limit was not probed; 255 is Excel's usual
+' string-argument cap), and an error comes back as False, the same as Cancel. Callers keep their prompts short; the cut is a backstop.
+Public Function InputText(ByVal Prompt As String, ByVal Title As String, Optional ByVal DefaultText As String = "") As Variant
+    If Len(Prompt) > INPUT_PROMPT_MAX Then Prompt = Left$(Prompt, INPUT_PROMPT_MAX - 3) & "..."
+    InputText = Application.InputBox(Prompt, Title, DefaultText, Type:=2)
+    If VarType(InputText) = vbError Then InputText = False
 End Function
 
 Public Sub ReportError(ByVal Where As String)

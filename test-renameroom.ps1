@@ -100,6 +100,15 @@ try {
     Check (($names -contains $typed) -and -not ($names -contains "$taken 2")) "the tab now reads '$typed' (sheets: $($names -join ', '))"
     Check ([bool]$wb.Worksheets($typed).ProtectContents) 'the sheet is protected again'
 
+    # ---------------------------------------------------------- picker list
+    # The pickers' InputBox is never shown on a Mac when its prompt is too long.
+    Write-Host ''
+    Write-Host '=== The room picker list fits its budget ==='
+    $full = [string]$xl.Run('RoomPickList', 1000)
+    Check ($full.Contains("- RENAME  ($typed)") -and $full.Contains('- EXAMPLE  (Example Print Room)')) "a roomy budget lists code and name ($full)"
+    $short = [string]$xl.Run('RoomPickList', 20)
+    Check ($short.StartsWith('Codes: ') -and $short.Contains('RENAME') -and $short.Contains('EXAMPLE') -and -not $short.Contains('(')) "a tight budget lists the codes alone ($short)"
+
     $xl.Run('SetQuiet', $false)
 }
 finally {

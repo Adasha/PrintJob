@@ -26,6 +26,19 @@ Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module
   added, so the stock never reached OnStockChanged; AddPrintJob now stamps
   the row, as Repeat job does.
 
+  Fix: on a Mac, Remove print room skipped its typed confirmation and then
+  said the name didn't match.
+  - Excel for Mac shows no InputBox at all when the prompt is too long (300
+    characters, probed): it returns Error 2015 at once. The confirmation
+    carried the room's details and warning and ran past that.
+  - The details, the warning and any unexported-changes warning are now one
+    Yes/No box; the typed confirmation only asks for the name.
+  - Every typed answer goes through modUtils.InputText, which cuts an
+    over-long prompt (INPUT_PROMPT_MAX, 250) and reads an error as Cancel.
+    The room pickers (Import, Rename, Remove) list codes alone when the
+    code-and-name list would not fit (modRegistry.RoomPickList);
+    test-renameroom checks that list.
+
   Colour pass rows are shaded with the "Colour passes" toolbar panel's fill
   (252, 232, 206) instead of a pale blue, so rows and buttons read as one.
 
