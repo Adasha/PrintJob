@@ -146,8 +146,8 @@ as `.xlsx` silently discards all the code.
 
 ## Afterwards
 
-**Use the Settings sheet's Add print room... and Remove print room... buttons
-to change the set of rooms** (see "Adding a print room" below). If you add a
+**Use the Settings sheet's Add print room..., Rename print room... and Remove
+print room... buttons to change the set of rooms** (see "Adding a print room" below). If you add a
 room by hand instead, click **Refresh Locations** afterwards.
 
 **To upgrade to a new version, open the new workbook, click Restore
@@ -241,12 +241,17 @@ oversized job.
 
 ## Adding a print room
 
-Click **Add print room...** at the bottom of the Settings sheet. It asks for a
+Click **Add print room...** at the top of the Settings sheet. It asks for a
 room name, an optional department and a short code for the room's job IDs
 (for example `PHOTO` gives `UNI-PHOTO-00001`), then makes a clean copy of an
 existing room and refreshes the registry. The new room starts empty, in
 Metres, with no printers selected, so pick its printers with **Select
 printers...** afterwards.
+
+**Rename print room...** asks which room (by its code) and its new name, and
+renames the sheet tab to match. The room keeps its code, its job IDs and its
+export status. A room's name cell is locked once set, so use this button
+rather than typing over the name.
 
 **Remove print room...**, next to it, deletes a room on purpose. It refuses to
 remove the last room, tells you how many records and which dates would be lost
@@ -293,7 +298,7 @@ job IDs already carry it.
 | `test-deletereports.ps1` | Export report (a static-value `.xlsx` snapshot) and the Reports-page bulk delete, including the audit log entry |
 | `test-suppliedstock.ps1` | Printer/paper compatibility rework: "Supplied by student" paper stock — zero Paper Cost with normal Consumable Cost, Print Width mm/Sheet size required-field enforcement, and rejection when an entered width/size exceeds the chosen printer's capacity |
 | `run-tests.ps1` | Runs every `test-*.ps1` in turn and prints one line per script; `-Only` takes name fragments. Logs land in `%TEMP%\testrun-<Label>` |
-| `test-addroom.ps1`, `test-removeroom.ps1` | The Add print room and Remove print room commands |
+| `test-addroom.ps1`, `test-renameroom.ps1`, `test-removeroom.ps1` | The Add, Rename and Remove print room commands |
 | `test-reducedview.ps1`, `test-costcolumns.ps1` | The All / Reduced / Minimal column views and the Hide/Show cost detail toggle |
 | `test-viewedge.ps1` | Column views meeting Refresh Locations, setup, Add print room, Import and bad Settings lists |
 | `test-rollunit.ps1` | The per-room roll length unit (cm or metres) |

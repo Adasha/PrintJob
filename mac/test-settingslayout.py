@@ -16,7 +16,7 @@ from xlmac import open_copy, check, finish  # noqa: E402
 
 SET = 'Settings'
 GROUPS = {
-    'Print rooms': ['btnAddPrintRoom', 'btnRemovePrintRoom', 'btnRefreshLocations'],
+    'Print rooms': ['btnAddPrintRoom', 'btnRenamePrintRoom', 'btnRemovePrintRoom', 'btnRefreshLocations'],
     'Data': ['btnExportAll', 'btnImportGlobal', 'btnBackupWorkbook', 'btnRestoreWorkbook'],
     'Workbook': ['btnCheckWorkbook', 'btnReStamp', 'btnAbout'],
 }

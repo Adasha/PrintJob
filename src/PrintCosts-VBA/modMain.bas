@@ -224,6 +224,14 @@ Fail:
     ReportError "Add print room"
 End Sub
 
+Public Sub btnRenamePrintRoom()
+    On Error GoTo Fail
+    RenamePrintRoom
+    Exit Sub
+Fail:
+    ReportError "Rename print room"
+End Sub
+
 Public Sub btnRemovePrintRoom()
     On Error GoTo Fail
     RemovePrintRoom

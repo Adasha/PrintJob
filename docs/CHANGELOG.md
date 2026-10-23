@@ -3,18 +3,28 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
-Unreleased - snags (2026-10-22, direct user requests).
+0.11.2 - Rename print room; snags (2026-10-22/23, direct user requests). Schema unchanged (1.4).
 
-  Renaming a print room renames its sheet tab.
-  - The room name cell (B1) is no longer locked once set (the department
-    still is). Typing a new name renames the tab to match
-    (modRegistry.RenameRoomSheet, from modValidation.OnCellChanged); a name
-    another sheet holds gets a " 2" suffix, a blank name leaves the tab
-    alone. The registry row is re-keyed to the new tab first, so the room
-    keeps its export stamp and Job ID high-water mark, then Refresh
-    Locations runs and the rename is audited. New test-renameroom (.ps1 and
-    mac/.py). test-restorereuse now writes its older workbook's room name
+  Rename print room.
+  - New "Rename print room..." button on Settings, between Add and Remove
+    (modRegistry.RenamePrintRoom; core ChangeRoomName). It asks which room
+    (by code, the same picker as Remove) and the new name, and renames the
+    sheet tab to match (modRegistry.RenameRoomSheet). A name another sheet
+    holds gets a " 2" suffix. The registry row is re-keyed to the new tab
+    first, so the room keeps its export stamp and Job ID high-water mark,
+    then Refresh Locations runs and the rename is audited. The job-ID code
+    does not change.
+  - The room name cell (B1) stays locked once set, as the department does,
+    so a stray edit cannot rename a room. An edit made on an unprotected
+    sheet still renames the tab (modValidation.OnCellChanged).
+  - New test-renameroom (.ps1 and mac/.py); test-settingslayout expects the
+    new button. test-restorereuse now writes its older workbook's room name
     with events off, as that workbook's name and tab differ on purpose.
+
+  Fix: a new print job's Unit (and Area, Paper Cost) stayed blank when its
+  Paper Stock came from the room's default. Events are off while the row is
+  added, so the stock never reached OnStockChanged; AddPrintJob now stamps
+  the row, as Repeat job does.
 
   Colour pass rows are shaded with the "Colour passes" toolbar panel's fill
   (252, 232, 206) instead of a pale blue, so rows and buttons read as one.
