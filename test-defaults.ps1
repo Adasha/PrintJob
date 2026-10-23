@@ -95,6 +95,8 @@ try {
     Check ($gotTech -eq 'A. Shailer') "new job's Technician pre-filled (got '$gotTech')"
     Check ($gotPrn -eq 'Xerox Versant 180') "new job's Printer pre-filled (got '$gotPrn')"
     Check ($gotStk -eq 'Gloss 200gsm SRA3 sheet') "new job's Paper Stock pre-filled (got '$gotStk')"
+    $gotUnit = [string]$main.Cells($r1, $lo.Range.Column + (Col $lo 'Unit') - 1).Text
+    Check ($gotUnit -eq 'sheets') "new job's Unit fills from the pre-filled Paper Stock (got '$gotUnit')"
 
     $r2 = New-Row
     $gotTech2 = [string]$main.Cells($r2, $techCol).Text

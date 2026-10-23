@@ -73,6 +73,11 @@ Public Sub AddPrintJob(ByVal ws As Worksheet)
     RelockSheet ws
     BindStockCell ws, lo, n
     BindPrinterCell ws, lo, n
+    ' Events are off (AppOff), so a printer/paper copied in from the defaults
+    ' - or auto-filled by the binds just above - never reaches OnStockChanged:
+    ' stamp here, as RepeatJob does, or the row has no S_Measure and so no
+    ' Unit, Area or Paper Cost (found 2026-10-23).
+    StampRow ws, n
     AppOn
 
     CellIn(lo, n, "Student Name").Select
