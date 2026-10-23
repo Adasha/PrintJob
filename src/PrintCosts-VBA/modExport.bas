@@ -36,7 +36,9 @@ Private Const XLSX_FORMAT As Long = 51      ' xlOpenXMLWorkbook
 ' follows this automatically, onto AL6.
 ' 0.11.0: the whole settings block moved from AL:AM to AW:AX (the job table grew to
 ' 45 columns and now runs to AS), so this is $AX$6.
-Private Const EXPORT_CELL As String = "$AX$6"
+' 0.11.3: $AX$8, where the template's Export row is. $AX$6 is Sheet status
+' (LOC_Status), and writing there hid it behind the export line.
+Private Const EXPORT_CELL As String = "$AX$8"
 
 ' Student names in the job-level CSV (design 10.4, O7). Export asks; a quiet
 ' (unattended) run cannot, so it includes names, as the backup and the tests

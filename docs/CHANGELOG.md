@@ -3,6 +3,19 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.11.3 - Fix: Sheet status was hidden by the export line (2026-10-23). Schema
+unchanged (1.4).
+
+  - A print room's side panel has Sheet status at AX6 and Export at AX8, but
+    the export status was written to AX6 (modExport.EXPORT_CELL), so the
+    "Export" label and line covered Sheet status and Check this sheet's
+    result never showed. LOC_Export now points at AX8.
+  - test-statusnotes (.ps1 and mac/.py) checks that the two cells are apart,
+    keep their labels, and that Check this sheet and Refresh Locations each
+    write only their own.
+  - Docs: none yet (the wiki is in progress; Jobs-Validation-and-Status will
+    describe Sheet status).
+
 0.11.2 - Rename print room; snags (2026-10-22/23, direct user requests). Schema unchanged (1.4).
 
   Rename print room.
