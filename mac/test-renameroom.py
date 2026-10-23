@@ -81,6 +81,14 @@ with open_copy() as wb:
     check(TYPED in names and f'{TAKEN} 2' not in names, f"the tab now reads '{TYPED}' (sheets: {', '.join(names)})")
     check(wb.protected(TYPED), 'the sheet is protected again')
 
+    # ------------------------------------------------------- picker list
+    # The pickers' InputBox is never shown on a Mac when its prompt is too long.
+    section('The room picker list fits its budget')
+    full = wb.call('RoomPickList', 1000)
+    check(f'- RENAME  ({TYPED})' in full and '- EXAMPLE  (Example Print Room)' in full, f'a roomy budget lists code and name ({full!r})')
+    short = wb.call('RoomPickList', 20)
+    check(short.startswith('Codes: ') and 'RENAME' in short and 'EXAMPLE' in short and '(' not in short, f'a tight budget lists the codes alone ({short!r})')
+
     wb.run('SetQuiet', False)
 
 finish()

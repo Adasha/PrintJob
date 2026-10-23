@@ -83,20 +83,17 @@ Fail:
 End Sub
 
 Private Function PickTargetLocation() As Worksheet
-    Dim ws As Worksheet, list As String, code As String, answer As Variant
+    Dim ws As Worksheet, question As String, code As String, answer As Variant
 
-    For Each ws In LocationSheets()
-        list = list & "- " & LocValue(ws, "LOC_Code") & "  (" & LocValue(ws, "LOC_Name") & ")" & vbCrLf
-    Next ws
-    If Len(list) = 0 Then
+    If LocationSheets().Count = 0 Then
         Say "No print rooms were found.", "Run Refresh Locations first."
         Exit Function
     End If
+    question = "Which print room should this import go into? Type its code."
+    question = question & vbCrLf & vbCrLf & RoomPickList(INPUT_PROMPT_MAX - Len(question) - 4)
 
     Do
-        answer = Application.InputBox( _
-            "Which print room should this import go into? Type its code." & vbCrLf & vbCrLf & list, _
-            "Import - choose a print room", Type:=2)
+        answer = InputText(question, "Import - choose a print room")
         If VarType(answer) = vbBoolean Then
             If answer = False Then Exit Function   ' Cancel
         End If

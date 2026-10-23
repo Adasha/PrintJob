@@ -774,7 +774,7 @@ End Sub
 Private Function PromptText(ByVal Prompt As String, ByVal Title As String, Optional ByVal AllowBlank As Boolean = False) As String
     Dim answer As Variant, s As String
     Do
-        answer = Application.InputBox(Prompt, Title, Type:=2)
+        answer = InputText(Prompt, Title)
         If VarType(answer) = vbBoolean Then Exit Function   ' Cancel
         s = Trim$(CStr(answer))
         If Len(s) > 0 Or AllowBlank Then
@@ -800,10 +800,10 @@ Private Function PromptCode(ByVal RoomName As String) As String
     Dim answer As Variant, s As String, suggestion As String
     suggestion = CleanCode(RoomName, SHORT_CODE_MAX)
     Do
-        answer = Application.InputBox( _
+        answer = InputText( _
             "Short code for this room's job IDs, e.g. PHOTO for job IDs reading UNI-PHOTO-00001." & vbCrLf & _
             "Up to " & SHORT_CODE_MAX & " letters/numbers - always stored in capitals.", _
-            "Add print room", suggestion, Type:=2)
+            "Add print room", suggestion)
         If VarType(answer) = vbBoolean Then Exit Function   ' Cancel
         s = CleanCode(CStr(answer), SHORT_CODE_MAX)
         If Len(s) > 0 Then
@@ -909,7 +909,7 @@ Public Sub RenamePrintRoom()
     oldName = LocValue(ws, "LOC_Name")
 
     Do
-        answer = Application.InputBox("New name for '" & oldName & "' (its sheet tab follows).", "Rename print room", oldName, Type:=2)
+        answer = InputText("New name for '" & oldName & "' (its sheet tab follows).", "Rename print room", oldName)
         If VarType(answer) = vbBoolean Then Exit Sub   ' Cancel
         NewName = Trim$(CStr(answer))
         If Len(NewName) > 0 Then Exit Do
@@ -1132,7 +1132,7 @@ End Function
 ' has to drive DeletePrintRoom directly, same reasoning as ApplyImport's own
 ' split.
 Public Sub RemovePrintRoom()
-    Dim ws As Worksheet, detail As String
+    Dim ws As Worksheet, detail As String, boxTitle As String
 
     Set ws = PickRoom("Which print room should be removed? Type its code.", "Remove print room - choose a room")
     If ws Is Nothing Then Exit Sub
@@ -1144,32 +1144,50 @@ Public Sub RemovePrintRoom()
         Exit Sub
     End If
 
-    detail = RoomRemovalSummary(ws)
-
+    ' The details and warnings go in this Yes/No box, not in the typed
+    ' confirmation after it: an InputBox prompt that long is never shown on a
+    ' Mac (modUtils.InputText).
+    detail = RoomRemovalSummary(ws) & vbCrLf & vbCrLf & _
+        "This permanently deletes the sheet and every record on it. It cannot be undone."
     If NeedsExport(ws) Then
-        If Not Ask(detail & vbCrLf & vbCrLf & "This room has unexported changes - they will be lost for good, not just removed from this sheet. Export it first unless that is acceptable." & vbCrLf & vbCrLf & "Continue to the final confirmation?", "Remove print room - unexported changes") Then Exit Sub
+        detail = detail & vbCrLf & vbCrLf & "This room has unexported changes - they will be lost for good, not just removed from this sheet. Export it first unless that is acceptable."
+        boxTitle = "Remove print room - unexported changes"
+    Else
+        boxTitle = "Remove print room"
     End If
+    If Not Ask(detail & vbCrLf & vbCrLf & "Continue to the final confirmation?", boxTitle) Then Exit Sub
 
-    If Not ConfirmRoomRemoval(ws, detail) Then Exit Sub
+    If Not ConfirmRoomRemoval(ws) Then Exit Sub
 
     DeletePrintRoom ws
 End Sub
 
+' The room list a picker shows (Import, Rename and Remove print room), in at
+' most Budget characters so the box still appears (modUtils.InputText): one
+' "- CODE  (Name)" line per room, or the codes alone when that is too long.
+Public Function RoomPickList(ByVal Budget As Long) As String
+    Dim ws As Worksheet, lines As String, codes As String
+
+    For Each ws In LocationSheets()
+        lines = lines & "- " & LocValue(ws, "LOC_Code") & "  (" & LocValue(ws, "LOC_Name") & ")" & vbCrLf
+        codes = codes & IIf(Len(codes) > 0, ", ", "") & LocValue(ws, "LOC_Code")
+    Next ws
+    If Len(lines) <= Budget Then RoomPickList = lines Else RoomPickList = "Codes: " & codes
+End Function
+
 ' Shared by Rename and Remove print room: lists every room's code and name and
 ' asks for a code back.
 Private Function PickRoom(ByVal Prompt As String, ByVal Title As String) As Worksheet
-    Dim ws As Worksheet, list As String, code As String, answer As Variant
+    Dim ws As Worksheet, code As String, answer As Variant
 
-    For Each ws In LocationSheets()
-        list = list & "- " & LocValue(ws, "LOC_Code") & "  (" & LocValue(ws, "LOC_Name") & ")" & vbCrLf
-    Next ws
-    If Len(list) = 0 Then
+    If LocationSheets().Count = 0 Then
         Say "No print rooms were found.", "Run Refresh Locations first."
         Exit Function
     End If
+    Prompt = Prompt & vbCrLf & vbCrLf & RoomPickList(INPUT_PROMPT_MAX - Len(Prompt) - 4)
 
     Do
-        answer = Application.InputBox(Prompt & vbCrLf & vbCrLf & list, Title, Type:=2)
+        answer = InputText(Prompt, Title)
         If VarType(answer) = vbBoolean Then Exit Function   ' Cancel
         code = Trim$(CStr(answer))
         If Len(code) > 0 Then
@@ -1198,14 +1216,10 @@ Private Function RoomRemovalSummary(ByVal ws As Worksheet) As String
         ExportStatusText(ws)
 End Function
 
-Private Function ConfirmRoomRemoval(ByVal ws As Worksheet, ByVal Detail As String) As Boolean
+Private Function ConfirmRoomRemoval(ByVal ws As Worksheet) As Boolean
     Dim answer As Variant, roomName As String
     roomName = LocValue(ws, "LOC_Name")
-    answer = Application.InputBox( _
-        Detail & vbCrLf & vbCrLf & _
-        "This permanently deletes the sheet and every record on it. It cannot be undone." & vbCrLf & vbCrLf & _
-        "Type the room's name exactly to confirm: " & roomName, _
-        "Remove print room", Type:=2)
+    answer = InputText("Type the room's name exactly to remove it for good:" & vbCrLf & vbCrLf & roomName, "Remove print room")
     If VarType(answer) = vbBoolean Then Exit Function   ' Cancel
 
     If StrComp(Trim$(CStr(answer)), roomName, vbTextCompare) = 0 Then
