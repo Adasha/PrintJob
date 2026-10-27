@@ -122,6 +122,7 @@ End Sub
 Public Sub BindColumns(ByVal ws As Worksheet)
     Dim lo As ListObject, i As Long, model As String, stk As String
     Dim stockGroups As clsDict, printerGroups As clsDict, k As Variant, rowTypes As Variant
+    Dim stockBlank As clsDict, printerBlank As clsDict, jobIds As Variant
 
     Set lo = JobsTable(ws)
     If lo Is Nothing Then Exit Sub
@@ -145,16 +146,29 @@ Public Sub BindColumns(ByVal ws As Worksheet)
     ' field's value so each distinct list is written once, not once per row -
     ' the same reasoning the single-direction version this replaces used for
     ' Paper Stock alone.
+    ' A row with no Job ID is not a job yet - the blank row an empty table
+    ' keeps - so it gets the lists but not the one-choice auto-fill: a room
+    ' with a single printer had it written into that row, which then counted
+    ' as a job ("1 print job - never exported") and New could not reuse it
+    ' (0.11.4).
     Set stockGroups = New clsDict
     Set printerGroups = New clsDict
+    Set stockBlank = New clsDict
+    Set printerBlank = New clsDict
     rowTypes = ColArr(lo, "Row Type")
+    jobIds = ColArr(lo, "Job ID")
     For i = 1 To lo.ListRows.Count
         ' A pass row has no printer or paper of its own (it takes a colour).
         If StrComp(TextOf(rowTypes(i, 1)), ROW_PASS, vbTextCompare) <> 0 Then
             model = Trim$(CStr(CellIn(lo, i, "Printer").Value))
             stk = Trim$(CStr(CellIn(lo, i, "Paper Stock").Value))
-            GroupCell stockGroups, model, CellIn(lo, i, "Paper Stock")
-            GroupCell printerGroups, stk, CellIn(lo, i, "Printer")
+            If Len(TextOf(jobIds(i, 1))) = 0 Then
+                GroupCell stockBlank, model, CellIn(lo, i, "Paper Stock")
+                GroupCell printerBlank, stk, CellIn(lo, i, "Printer")
+            Else
+                GroupCell stockGroups, model, CellIn(lo, i, "Paper Stock")
+                GroupCell printerGroups, stk, CellIn(lo, i, "Printer")
+            End If
         End If
     Next i
 
@@ -163,6 +177,12 @@ Public Sub BindColumns(ByVal ws As Worksheet)
     Next k
     For Each k In printerGroups.Keys
         BindPrinterRange ws, printerGroups.Obj(CStr(k)), CStr(k)
+    Next k
+    For Each k In stockBlank.Keys
+        BindStockRange ws, stockBlank.Obj(CStr(k)), CStr(k), FillSingle:=False
+    Next k
+    For Each k In printerBlank.Keys
+        BindPrinterRange ws, printerBlank.Obj(CStr(k)), CStr(k), FillSingle:=False
     Next k
 
     ' Each pass row's Colour dropdown (multi-pass costing, modPasses).
@@ -212,7 +232,7 @@ End Sub
 ' Auto-fill still uses the narrowed (compatible-only) set, unaffected by
 ' what the dropdown displays. Never locked - the cell stays reachable either
 ' way, unlike the old one-directional version.
-Private Sub BindStockRange(ByVal ws As Worksheet, ByVal target As Range, ByVal Model As String)
+Private Sub BindStockRange(ByVal ws As Worksheet, ByVal target As Range, ByVal Model As String, Optional ByVal FillSingle As Boolean = True)
     Dim full As Collection, compat As Collection, marked As Collection
     Dim Tag As String, Msg As String
     If target Is Nothing Then Exit Sub
@@ -228,7 +248,7 @@ Private Sub BindStockRange(ByVal ws As Worksheet, ByVal target As Range, ByVal M
         Msg = "Every active stock compatible with a printer at this print room. Stocks marked '" & Trim$(UNAVAILABLE_SUFFIX) & "' are not ones " & Model & " can take - picking one clears the printer instead."
     End If
 
-    AutoFillIfSingle target, compat
+    If FillSingle Then AutoFillIfSingle target, compat
     Set marked = MarkStocks(full, Model)
     If marked.Count = 0 Then
         Set marked = New Collection
@@ -243,7 +263,7 @@ End Sub
 ' Printer choices: the mirror of BindStockRange - every active printer
 ' permitted at this location, always listed; once Paper Stock is chosen,
 ' printers that don't support it are suffixed rather than removed.
-Private Sub BindPrinterRange(ByVal ws As Worksheet, ByVal target As Range, ByVal Description As String)
+Private Sub BindPrinterRange(ByVal ws As Worksheet, ByVal target As Range, ByVal Description As String, Optional ByVal FillSingle As Boolean = True)
     Dim full As Collection, compat As Collection, marked As Collection
     Dim Tag As String, Msg As String
     If target Is Nothing Then Exit Sub
@@ -259,7 +279,7 @@ Private Sub BindPrinterRange(ByVal ws As Worksheet, ByVal target As Range, ByVal
         Msg = "Every active printer permitted at this print room. Printers marked '" & Trim$(UNAVAILABLE_SUFFIX) & "' don't support '" & Description & "' - picking one clears the paper stock instead."
     End If
 
-    AutoFillIfSingle target, compat
+    If FillSingle Then AutoFillIfSingle target, compat
     Set marked = MarkPrinters(full, Description)
     If marked.Count = 0 Then
         Set marked = New Collection
