@@ -227,9 +227,10 @@ recorded against it - every job snapshots the price it was costed at.
 will be deleted) so a bureau can start that list afresh; the other sheets are
 not touched and it cannot be undone, so use Backup workbook first if unsure. The
 smaller lookup tables on the Settings sheet (paper types,
-standard sizes, consumables) don't have their own buttons; their cells are
-unlocked, so a row added the normal Excel Table way (Tab at the last cell,
-or right-click > Insert > Table Rows) keeps its formatting and validation.
+standard sizes, consumables) have compact **+** and **-** buttons instead;
+their cells are also unlocked, so a row added the normal Excel Table way (Tab
+at the last cell, or right-click > Insert > Table Rows) keeps its formatting
+and validation.
 
 **Review Printers' Max roll width mm / Max sheet size after upgrading from
 before the printer/paper compatibility rework (`docs/HISTORY.md`
@@ -246,7 +247,8 @@ oversized job.
 
 Click **Add print room...** at the top of the Settings sheet. It asks for a
 room name, an optional department and a short code for the room's job IDs
-(for example `PHOTO` gives `UNI-PHOTO-00001`), then makes a clean copy of an
+(for example `PHOTO` gives `UNI-PHOTO-00001`; a code another room has is
+refused), then makes a clean copy of an
 existing room and refreshes the registry. The new room starts empty, in
 Metres, with no printers selected, so pick its printers with **Select
 printers...** afterwards.

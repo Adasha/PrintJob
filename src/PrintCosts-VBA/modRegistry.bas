@@ -81,10 +81,29 @@ Public Sub RefreshLocations()
     ' original, so the original is reached first and keeps the code. The copy
     ' is the one that gets a new one, which is what you want - the original's
     ' job IDs already carry it.
+    ' Codes are claimed in two passes: rooms already in the registry first,
+    ' then newcomers. A new room is inserted right after the first one, so in
+    ' plain workbook order a newcomer repeating a later room's code would take
+    ' it, and that room would be renumbered while its job IDs still carry the
+    ' old code - and the newcomer would hand out the same IDs again (0.11.4).
+    For Each v In sheets
+        Set ws = v
+        If wasThere.Exists(ws.Name) Then
+            UnlockSheet ws
+            problems = problems & AssignCode(ws, codes)
+        End If
+    Next v
+    For Each v In sheets
+        Set ws = v
+        If Not wasThere.Exists(ws.Name) Then
+            UnlockSheet ws
+            problems = problems & AssignCode(ws, codes)
+        End If
+    Next v
+
     For Each v In sheets
         Set ws = v
         UnlockSheet ws
-        problems = problems & AssignCode(ws, codes)
         NameJobTable ws, CStr(codes.Item("#" & ws.Name))
         FixButtons ws
         EnsureJobDefaults ws
@@ -806,12 +825,53 @@ Private Function PromptCode(ByVal RoomName As String) As String
             "Add print room", suggestion)
         If VarType(answer) = vbBoolean Then Exit Function   ' Cancel
         s = CleanCode(CStr(answer), SHORT_CODE_MAX)
-        If Len(s) > 0 Then
+        If Len(s) = 0 Then
+            Say "A code is required.", "It becomes this room's job ID prefix (e.g. UNI-PHOTO-00001) and needs at least one letter or number.", "Type a short code, or Cancel to stop."
+        ElseIf Len(RoomUsingCode(s)) > 0 Then
+            ' Two rooms on one code would hand out the same job IDs (0.11.4).
+            Say "'" & s & "' is already the code of '" & RoomUsingCode(s) & "'.", "Each print room needs its own code, because its job IDs carry it.", "Type a different code, or Cancel to stop."
+            suggestion = FreeCode(s)
+        Else
             PromptCode = s
             Exit Function
         End If
-        Say "A code is required.", "It becomes this room's job ID prefix (e.g. UNI-PHOTO-00001) and needs at least one letter or number.", "Type a short code, or Cancel to stop."
     Loop
+End Function
+
+' The name of the print room whose code is Code (cleaned and compared the
+' way AssignCode compares them), or "" when no room uses it.
+Public Function RoomUsingCode(ByVal Code As String) As String
+    Dim v As Variant, ws As Worksheet, want As String
+    want = CleanCode(Code)
+    If Len(want) = 0 Then Exit Function
+    For Each v In LocationSheets()
+        Set ws = v
+        If StrComp(CleanCode(LocValue(ws, "LOC_Code")), want, vbBinaryCompare) = 0 Then
+            RoomUsingCode = LocValue(ws, "LOC_Name")
+            If Len(RoomUsingCode) = 0 Then RoomUsingCode = ws.Name
+            Exit Function
+        End If
+    Next v
+End Function
+
+' A code no print room uses, made from Code by adding a number (PHOTO ->
+' PHOTO2), within the typed-code length - the suggestion offered after a
+' clash.
+Public Function FreeCode(ByVal Code As String) As String
+    Dim stem As String, n As Long, try As String
+    stem = CleanCode(Code, SHORT_CODE_MAX)
+    If Len(stem) = 0 Then stem = "ROOM"
+    If Len(RoomUsingCode(stem)) = 0 Then
+        FreeCode = stem
+        Exit Function
+    End If
+    For n = 2 To 99
+        try = Left$(stem, SHORT_CODE_MAX - Len(CStr(n))) & CStr(n)
+        If Len(RoomUsingCode(try)) = 0 Then
+            FreeCode = try
+            Exit Function
+        End If
+    Next n
 End Function
 
 ' The testable core. Duplicates the first registered location sheet, blanks
