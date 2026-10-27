@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from xlmac import open_copy, check, finish  # noqa: E402
 
 SET = 'Settings'
+URL = 'https://github.com/Adasha/PrintJob'
 GROUPS = {
     'Print rooms': ['btnAddPrintRoom', 'btnRenamePrintRoom', 'btnRemovePrintRoom', 'btnRefreshLocations'],
     'Data': ['btnExportAll', 'btnImportGlobal', 'btnBackupWorkbook', 'btnRestoreWorkbook'],
@@ -71,6 +72,14 @@ def check_layout(wb, tag):
     all_macros = [m for ms in GROUPS.values() for m in ms] + SMALL
     extra = len([b for b in buttons if b['name'].startswith('pcb_')]) - len(all_macros)
     check(extra == 0, f'{tag}: no stray buttons on Settings (extra: {extra})')
+
+    bottom = max(wb.table_last_row(SET, t) for t in wb.table_names(SET))
+    col_a = [r[0] for r in wb.texts(SET, f'A1:A{bottom + 40}')]
+    rows = [i + 1 for i, t in enumerate(col_a) if t == 'PrintJob on GitHub']
+    check(rows == [bottom + 2], f'{tag}: one project link, two rows below the lowest table (row {bottom + 2}; found {rows})')
+    if len(rows) == 1:
+        f = wb.formula(SET, f'A{rows[0]}')
+        check(f.startswith('=HYPERLINK(') and f'"{URL}"' in f, f'{tag}: the link is a HYPERLINK to {URL} (got {f!r})')
 
 
 with open_copy() as wb:
