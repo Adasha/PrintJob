@@ -11,7 +11,7 @@ round.
 - **The workbook file**, named like `PrintJob-v0.11.3.xlsm`. Ask whoever looks
   after the workbook for your bureau. Released versions are also in the
   `dist` folder of the project on GitHub.
-- **A place to keep it.** A folder on your computer or in OneDrive both work.
+- **A place to keep it.** A folder on your computer or in OneDrive both work. Using a OneDrive location is recommended as Excel will autosave as print jobs are added.
   Keep one copy per bureau; each workbook is one site.
 
 ## Open the workbook
