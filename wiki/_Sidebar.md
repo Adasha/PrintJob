@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD041 MD036 -->
+<!-- GitHub wiki sidebar and footer: bold labels, no heading. -->
 **[Home](Home)**
 
 **Start**
