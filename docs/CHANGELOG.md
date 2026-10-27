@@ -3,6 +3,24 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```
+0.11.4 - Fix: a new print room could take another room's code (2026-10-27).
+Schema unchanged (1.4).
+
+  - Add print room's code prompt now refuses a code another room has and
+    asks again, suggesting a free one (PHOTO -> PHOTO2)
+    (modRegistry.RoomUsingCode, FreeCode).
+  - Refresh Locations lets rooms already in the registry keep their codes,
+    then gives newcomers theirs. Before, codes went in sheet order, and Add
+    print room puts the new sheet right after the first room: a typed code
+    repeating a later room's took it, that room became PHOTO2 while its
+    jobs kept PHOTO IDs, and the new room handed out UNI-PHOTO-00001 again.
+  - Template: the sample jobs' snapshot IDs follow the catalogue model
+    (PRN-003 -> UNI-PRN-0003, STK-006 -> UNI-STK-0006, TEC-001 ->
+    UNI-TCH-0001), via mac/apply-sample-ids-template.py.
+  - New test-roomcode (.ps1 and mac/.py). SETUP.md: the code rule, and the
+    Settings lookup tables' + and - buttons.
+  - Docs: Setup-Print-Rooms (each room needs its own code).
+
 0.11.3 - Fix: Sheet status was hidden by the export line (2026-10-23). Schema
 unchanged (1.4).
 
