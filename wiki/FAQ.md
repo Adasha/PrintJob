@@ -35,7 +35,7 @@ Locations...**, then import each file into one copy of the workbook. See
 
 ## Can I export a report as a PDF?
 
-Not directly. Export the report, open the file, and print it to PDF. See
+Not directly yet. Export the report, open the file, and print it to PDF. See
 [Exporting a report](Reports-Export).
 
 ## Is student data protected?
