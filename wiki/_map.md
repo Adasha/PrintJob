@@ -12,8 +12,13 @@ work.
 
 **Platform column.** `Same` = checked on both, no difference. `Mac:` or
 `Windows:` = a known difference, described. `Check` = not yet looked at by a
-person (the phase 1 Mac checks below). Nothing has been run on Windows since
+person (the phase 1 Mac checks below). `Mac OK` = looked at on a Mac (date and
+build given below), Windows still to do. Nothing has been run on Windows since
 0.11.1, so no row is `Same` yet.
+
+Mac session 1, 2026-10-27, Excel for Mac 16.114 on the 0.11.4 build: the rows
+marked `Mac OK`. It found one bug (a one-printer room's blank row counted as a
+job, fixed in 0.11.4) and one doc error (Delete visible records asks once).
 
 **Tests column.** The Mac test (`mac/test-<name>.py`) and its Windows twin
 (`test-<name>.ps1`) that cover the feature. Blank = no automated test.
@@ -39,22 +44,22 @@ person (the phase 1 Mac checks below). Nothing has been run on Windows since
 
 | Control | Macro | Code | Page | Dialogs | Tests | Platform |
 | --- | --- | --- | --- | --- | --- | --- |
-| **New** (Print jobs panel) | `btnAddPrintJob` | `modJobs.AddPrintJob` | Jobs-Recording | none | defaults, newpaperrow | Check |
+| **New** (Print jobs panel) | `btnAddPrintJob` | `modJobs.AddPrintJob` | Jobs-Recording | none | defaults, newpaperrow | Mac OK |
 | **Repeat** | `btnRepeatJob` | `modJobs.RepeatJob` | Jobs-Recording | none | multipass | Check |
-| **Delete** | `btnRemoveRow` | `modJobs.RemoveRow` | Jobs-Recording | Yes/No | nextid, removelastrow | Check |
+| **Delete** | `btnRemoveRow` | `modJobs.RemoveRow` | Jobs-Recording | Yes/No | nextid, removelastrow | Mac OK |
 | **Add** (Colour passes panel) | `btnAddPass` | `modPasses.AddPass` | Jobs-Colour-Passes | none | multipass | Check |
 | **Remove** (Colour passes panel) | `btnRemovePass` | `modPasses.RemovePass` | Jobs-Colour-Passes | Yes/No | multipass | Check |
 | **Toggle passes** | `btnTogglePasses` | `modPasses.TogglePasses` | Jobs-Colour-Passes | none | multipass | Check |
 | **Toggle all passes** | `btnToggleAllPasses` | `modPasses.ToggleAllPasses` | Jobs-Colour-Passes | none | multipass | Check |
-| **Now** | `btnNow` | `modJobs.StampNow` | Jobs-Recording | none | | Check |
-| Double-click a blank Date/Time cell | event | `ThisWorkbook.Workbook_SheetBeforeDoubleClick` | Jobs-Recording | none | | Check |
-| **Show columns:** drop-down (All, Reduced, Minimal) | `ddViewMode` | `modInit.ViewDropDownChanged` | Jobs-Views-and-Units | none | reducedview, viewedge, manualhide | Check |
-| **Hide cost detail** / **Show cost detail** | `btnToggleCostColumns` | `modInit.ToggleCostColumns` | Jobs-Views-and-Units | none | costcolumns | Check |
+| **Now** | `btnNow` | `modJobs.StampNow` | Jobs-Recording | none | | Mac OK |
+| Double-click a blank Date/Time cell | event | `ThisWorkbook.Workbook_SheetBeforeDoubleClick` | Jobs-Recording | none | | Mac OK |
+| **Show columns:** drop-down (All, Reduced, Minimal) | `ddViewMode` | `modInit.ViewDropDownChanged` | Jobs-Views-and-Units | none | reducedview, viewedge, manualhide | Mac OK |
+| **Hide cost detail** / **Show cost detail** | `btnToggleCostColumns` | `modInit.ToggleCostColumns` | Jobs-Views-and-Units | none | costcolumns | Mac OK |
 | **Hide pass columns** / **Show pass columns** | `btnToggleMultiPass` | `modPasses.ToggleMultiPassColumns` | Jobs-Colour-Passes | none | multipass-views | Check |
 | **Clear defaults** | `btnClearDefaults` | `modJobs.ClearDefaults` | Jobs-Recording | none | defaults | Check |
-| **Select printers...** | `btnSelectPrinters` | `modPicker.PickPrinters` | Setup-Print-Rooms | picker sheet (OK, Cancel) | | Check |
+| **Select printers...** | `btnSelectPrinters` | `modPicker.PickPrinters` | Setup-Print-Rooms | picker sheet (OK, Cancel) | | Mac OK |
 | **Check this sheet** | `btnCheckSheet` | `modCatalog.LoadCatalog`, `modValidation` | Jobs-Validation-and-Status | message | validation, jobvalidation, statusnotes | Check |
-| **Clear All** | `btnClearAll` | `modJobs.ClearAll` | Data-Deleting-and-Clearing | Yes/No | clearformulas | Check |
+| **Clear All** | `btnClearAll` | `modJobs.ClearAll` | Data-Deleting-and-Clearing | Yes/No | clearformulas | Mac OK |
 | **Export...** | `btnExport` | `modExport.ExportLocation` | Data-Export-Room | names Yes/No | export, exportnames, macsave | Mac: writes beside the workbook; a OneDrive workbook reports a URL (plan, known differences) |
 | **Import...** | `btnImportLocation` | `modImport.ImportIntoLocation` | Data-Import | file picker, Yes/No | import, importunits | Mac: the picker falls back through several methods (`modUtils.PickCsvFile`) |
 
@@ -75,11 +80,11 @@ person (the phase 1 Mac checks below). Nothing has been run on Windows since
 | --- | --- | --- | --- | --- | --- | --- |
 | Filters (see below) | cell edits | live formulas over `_Data` | Reports-Filtering | none | reportsfilters | Check |
 | **Clear all filters** | `btnClearFilters` | `modReports.ClearReportFilters` | Reports-Filtering | none | reportsfilters | Check |
-| **Toggle Paid** (Selected record) | `btnTogglePaid` | `modReports.TogglePaidSelected` | Jobs-Paid-Tracking | Yes/No | togglepaid | Check |
+| **Toggle Paid** (Selected record) | `btnTogglePaid` | `modReports.TogglePaidSelected` | Jobs-Paid-Tracking | Yes/No | togglepaid | Mac OK |
 | **Go to record** (Selected record) | `btnGoToRecord` | `modReports.GoToReportRecord` | Reports-Filtering | none | reportsnav | Check |
-| **Paid** / **Unpaid** (Mark all as...) | `btnMarkPaid`, `btnMarkUnpaid` | `modReports.MarkVisibleReports` | Jobs-Paid-Tracking | Yes/No | markpaid | Check |
+| **Paid** / **Unpaid** (Mark all as...) | `btnMarkPaid`, `btnMarkUnpaid` | `modReports.MarkVisibleReports` | Jobs-Paid-Tracking | Yes/No | markpaid | Mac OK |
 | **Export report...** | `btnExportReport` | `modExport.ExportReportSnapshot` | Reports-Export | names Yes/No | export, exportnames | Mac: as Export... above |
-| **Delete visible records...** | `btnDeleteVisible` | `modReports.DeleteVisibleReports` | Data-Deleting-and-Clearing | Yes/No | deletereports | Check |
+| **Delete visible records...** | `btnDeleteVisible` | `modReports.DeleteVisibleReports` | Data-Deleting-and-Clearing | Yes/No | deletereports | Mac OK |
 | Paid column (Yes/No drop-down, read-only otherwise) | cell edit | `modReports` | Jobs-Paid-Tracking | none | paid | Check |
 | Captions **Selected record:**, **Mark all as...** | text boxes | `modReports` | Reports-Filtering | none | | Same since 0.11.2 snags (plan) |
 
@@ -95,18 +100,18 @@ stock, By department.
 
 | Control | Macro | Code | Page | Dialogs | Tests | Platform |
 | --- | --- | --- | --- | --- | --- | --- |
-| **Add print room...** | `btnAddPrintRoom` | `modRegistry.AddPrintRoom` | Setup-Print-Rooms | typed name, code | addroom, duplicate | Check |
-| **Rename print room...** | `btnRenamePrintRoom` | `modRegistry.RenamePrintRoom` | Setup-Print-Rooms | typed code, name | renameroom | Check |
-| **Remove print room...** | `btnRemovePrintRoom` | `modRegistry.RemovePrintRoom` | Setup-Print-Rooms | typed code, Yes/No, typed name | removeroom | Mac: prompts kept under 255 characters since 0.11.2 |
+| **Add print room...** | `btnAddPrintRoom` | `modRegistry.AddPrintRoom` | Setup-Print-Rooms | typed name, code | addroom, duplicate | Mac OK |
+| **Rename print room...** | `btnRenamePrintRoom` | `modRegistry.RenamePrintRoom` | Setup-Print-Rooms | typed code, name | renameroom | Mac OK |
+| **Remove print room...** | `btnRemovePrintRoom` | `modRegistry.RemovePrintRoom` | Setup-Print-Rooms | typed code, Yes/No, typed name | removeroom | Mac: prompts kept under 255 characters since 0.11.2; Mac OK |
 | **Refresh Locations** | `btnRefreshLocations` | `modRegistry.RefreshLocations` | Setup-Print-Rooms | message | duplicate, nextid | Check |
 | **Export All Locations...** | `btnExportAll` | `modExport.ExportAllLocations` | Data-Export-Room | names Yes/No | export | Mac: as Export... above |
 | **Import (choose room)...** | `btnImportGlobal` | `modImport.ImportGlobal` | Data-Import | file picker, typed code, Yes/No | import | Mac: as Import... above |
 | **Backup workbook...** | `btnBackupWorkbook` | `modBackup.BackupAll` | Data-Backup-and-Restore | message | backup, macsave | Mac: before 0.11.1 could delete the workbook (fixed) |
 | **Restore workbook...** | `btnRestoreWorkbook` | `modBackup.RestoreWorkbook` | Data-Backup-and-Restore, Admin-Upgrading | file picker, Yes/No | restoreworkbook, restoreexample, restorerooms, restorereuse | Mac: Excel asks about the older workbook's macros; choose Disable Macros |
 | **Check workbook** | `btnCheckWorkbook` | `modValidation.CheckWorkbook` | Jobs-Validation-and-Status | message | validation | Check |
-| **Re-stamp prices...** | `btnReStamp` | `modSnapshot.ReStampAll` | Setup-Settings | Yes/No | | Check |
-| **About** | `btnAbout` | `modVersion.ShowAbout` | Getting-Started | message | | Check |
-| **+** / **-** beside Paper stock types | `btnAddRowPaperTypes`, `btnRemoveRowPaperTypes` | `modCatalog.AddCatalogRow`, `RemoveCatalogRow` | Setup-Lookup-Lists | Yes/No on remove | settingsrows | Check |
+| **Re-stamp prices...** | `btnReStamp` | `modSnapshot.ReStampAll` | Setup-Settings | Yes/No | | Mac OK |
+| **About** | `btnAbout` | `modVersion.ShowAbout` | Getting-Started | message | | Mac OK |
+| **+** / **-** beside Paper stock types | `btnAddRowPaperTypes`, `btnRemoveRowPaperTypes` | `modCatalog.AddCatalogRow`, `RemoveCatalogRow` | Setup-Lookup-Lists | Yes/No on remove | settingsrows | Mac OK |
 | **+** / **-** beside Standard paper sizes | `btnAddRowSize`, `btnRemoveRowSize` | as above | Setup-Lookup-Lists | Yes/No on remove | settingsrows | Check |
 | **+** / **-** beside Consumable types | `btnAddRowConsumable`, `btnRemoveRowConsumable` | as above | Setup-Lookup-Lists | Yes/No on remove | settingsrows | Check |
 | Layout of the button rows (Print rooms, Data, Workbook) | | `modInit` | Setup-Settings | | settingslayout | Check |
@@ -119,8 +124,8 @@ same three buttons at row 4, calling `modCatalog` with their table name.
 | Control | Macro (per sheet) | Code | Page | Dialogs | Tests | Platform |
 | --- | --- | --- | --- | --- | --- | --- |
 | **Add row** | `btnAddRow<Table>` | `modCatalog.AddCatalogRow` | the sheet's Setup page | none | catalogids, newpaperrow | Check |
-| **Remove row** | `btnRemoveRow<Table>` | `modCatalog.RemoveCatalogRow` | the sheet's Setup page | Yes/No | | Check |
-| **Clear table** | `btnClear<Table>` | `modCatalog.ClearCatalogTable` | Data-Deleting-and-Clearing | Yes/No | clearcatalog | Check |
+| **Remove row** | `btnRemoveRow<Table>` | `modCatalog.RemoveCatalogRow` | the sheet's Setup page | Yes/No | | Mac OK |
+| **Clear table** | `btnClear<Table>` | `modCatalog.ClearCatalogTable` | Data-Deleting-and-Clearing | Yes/No | clearcatalog | Mac OK |
 | Typing a row under the table (gets its ID) | cell edit | `modCatalog.OnCatalogEdited`, `OnPaperEdited`, `modDepartments.OnDepartmentEdited`, `modConsumables.OnColourEdited` | the sheet's Setup page | duplicate-name warning | catalogids, departments | Check |
 | Papers: Std. size fills Width and Height | cell edit | `modCatalog.OnPaperEdited` | Setup-Papers | none | suppliedstock | Check |
 
@@ -216,12 +221,12 @@ What the test suite cannot see: anything a person reads or clicks. Each check
 fills in the Platform column above. Run on Excel for Mac 16.114 with the
 built workbook in Excel's container, macros enabled.
 
-- [ ] Every prompt above appears, reads correctly, and Cancel leaves nothing changed (Delete, Remove pass, Clear All, Remove row, Clear table, Re-stamp, Toggle Paid, Mark all as, Delete visible records, Restore)
-- [ ] Typed prompts: Add, Rename and Remove print room, Import (choose room)
+- [ ] Every prompt above appears, reads correctly, and Cancel leaves nothing changed. Done in session 1: Delete, Clear All, Remove row, Clear table, Re-stamp, Toggle Paid, Mark all as, Delete visible records. Still to do: Remove pass, Restore
+- [ ] Typed prompts: Add, Rename and Remove print room (done, session 1), Import (choose room)
 - [ ] Add to print room: the room drop-down, and the messages when the plan is incomplete
 - [ ] File pickers: Import..., Import (choose room)..., Restore workbook... (CSV and older workbook)
 - [ ] Export, Export All, Export report and Backup: where the files land, and the message shown
-- [ ] Select printers... picker sheet: OK and Cancel
-- [ ] Layout: room sheet panels and side panel at All, Reduced and Minimal; Reports with the filter group collapsed and expanded; Settings button rows
-- [ ] About text and version
-- [ ] Double-click Date/Time and the Now button
+- [x] Select printers... picker sheet: OK and Cancel (session 1)
+- [ ] Layout: room sheet panels and side panel at All, Reduced and Minimal; Reports with the filter group collapsed and expanded (both done, session 1); Settings button rows
+- [x] About text and version (session 1)
+- [x] Double-click Date/Time and the Now button (session 1)
