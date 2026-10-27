@@ -79,7 +79,7 @@ person (the phase 1 Mac checks below). Nothing has been run on Windows since
 | **Go to record** (Selected record) | `btnGoToRecord` | `modReports.GoToReportRecord` | Reports-Filtering | none | reportsnav | Check |
 | **Paid** / **Unpaid** (Mark all as...) | `btnMarkPaid`, `btnMarkUnpaid` | `modReports.MarkVisibleReports` | Jobs-Paid-Tracking | Yes/No | markpaid | Check |
 | **Export report...** | `btnExportReport` | `modExport.ExportReportSnapshot` | Reports-Export | names Yes/No | export, exportnames | Mac: as Export... above |
-| **Delete visible records...** | `btnDeleteVisible` | `modReports.DeleteVisibleReports` | Data-Deleting-and-Clearing | two Yes/No | deletereports | Check |
+| **Delete visible records...** | `btnDeleteVisible` | `modReports.DeleteVisibleReports` | Data-Deleting-and-Clearing | Yes/No | deletereports | Check |
 | Paid column (Yes/No drop-down, read-only otherwise) | cell edit | `modReports` | Jobs-Paid-Tracking | none | paid | Check |
 | Captions **Selected record:**, **Mark all as...** | text boxes | `modReports` | Reports-Filtering | none | | Same since 0.11.2 snags (plan) |
 

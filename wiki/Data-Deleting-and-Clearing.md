@@ -30,7 +30,7 @@ The room keeps its settings, printers and code. Other rooms are not touched.
 
 1. On **Reports**, set filters so the list shows exactly the jobs to delete.
 2. Click **Delete visible records...**.
-3. Read the count for each room, then confirm twice.
+3. Read the count for each room and click **Yes**.
 
 It will not run without at least one filter set. If no report of these jobs
 has been exported, it says so: use **Export report...** first if you need a
