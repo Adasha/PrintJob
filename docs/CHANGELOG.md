@@ -30,6 +30,9 @@ Schema unchanged (1.4).
     as deleting a job did before its guard. Remove pass now uses the same
     guard (modJobs.StayOnSheet, HoldViewAfterDelete). Both found in the
     2026-10-27 Mac checks.
+  - Settings: a "PrintJob on GitHub" link two rows below the lowest table
+    (modInit.EnsureSettingsLinks, modVersion.PROJECT_URL). A HYPERLINK
+    formula, redrawn with the buttons; test-settingslayout checks it.
   - Template: the sample jobs' snapshot IDs follow the catalogue model
     (PRN-003 -> UNI-PRN-0003, STK-006 -> UNI-STK-0006, TEC-001 ->
     UNI-TCH-0001), via mac/apply-sample-ids-template.py.

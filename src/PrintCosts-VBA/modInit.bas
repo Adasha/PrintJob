@@ -263,6 +263,7 @@ Public Sub InitialiseWorkbook()
             DrawSmall ws, smallRow, 10, "-", "btnRemoveRowSize", 24
             DrawSmall ws, smallRow, 13, "+", "btnAddRowConsumable", 24
             DrawSmall ws, smallRow, 14, "-", "btnRemoveRowConsumable", 24
+            EnsureSettingsLinks ws
             SetFreeze ws, ""
         ElseIf StrComp(ws.Name, "Reports", vbTextCompare) = 0 Then
             ' Rows 1-3, column T (2026-09-26, moved from F): F sat directly
@@ -1163,6 +1164,30 @@ Private Sub EnsureSettingsButtonBand(ByVal ws As Worksheet)
             .VerticalAlignment = xlCenter
         End With
     Next i
+    RelockSheet ws
+End Sub
+
+' The project link at the foot of the Settings sheet, two rows below the
+' lowest of its tables. A HYPERLINK formula, not a Hyperlinks.Add object, so
+' it is an ordinary cell on both platforms. The sheet-scoped name
+' SET_ProjectLink remembers the cell, so a redraw after a table has grown
+' clears the old one instead of leaving a second link behind.
+Private Sub EnsureSettingsLinks(ByVal ws As Worksheet)
+    Dim lo As ListObject, lastRow As Long, old As Range, c As Range
+    UnlockSheet ws
+    On Error Resume Next
+    Set old = ws.Names("SET_ProjectLink").RefersToRange
+    ws.Names("SET_ProjectLink").Delete
+    On Error GoTo 0
+    If Not old Is Nothing Then old.Clear
+    For Each lo In ws.ListObjects
+        If lo.Range.Row + lo.Range.Rows.Count - 1 > lastRow Then lastRow = lo.Range.Row + lo.Range.Rows.Count - 1
+    Next lo
+    Set c = ws.Cells(lastRow + 2, 1)
+    c.Formula = "=HYPERLINK(""" & PROJECT_URL & """,""PrintJob on GitHub"")"
+    c.Font.Underline = xlUnderlineStyleSingle
+    c.Font.Color = RGB(5, 99, 193)
+    ws.Names.Add Name:="SET_ProjectLink", RefersTo:="='" & ws.Name & "'!" & c.Address, Visible:=False
     RelockSheet ws
 End Sub
 

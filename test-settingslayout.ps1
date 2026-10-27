@@ -13,7 +13,8 @@
 # group is on its own row, in order, with the right label; buttons in a row are
 # close together (small gap, no overlap) and inside the width of columns A:D;
 # the +/- buttons sit just above the lookup tables; the stale "Commands" note is
-# gone; and running setup again changes nothing (the rows ship in the template, so
+# gone; one "PrintJob on GitHub" link sits two rows below the lowest table; and
+# running setup again changes nothing (the rows ship in the template, so
 # setup never inserts any).
 #
 # Drives a COPY in %TEMP%, never src\PrintJob.xlsm itself. Closes WITHOUT saving.
@@ -31,6 +32,7 @@ $groups = [ordered]@{
     'Data'        = 'btnExportAll', 'btnImportGlobal', 'btnBackupWorkbook', 'btnRestoreWorkbook'
     'Workbook'    = 'btnCheckWorkbook', 'btnReStamp', 'btnAbout'
 }
+$url = 'https://github.com/Adasha/PrintJob'
 $small = 'btnAddRowPaperTypes', 'btnRemoveRowPaperTypes', 'btnAddRowSize', 'btnRemoveRowSize', 'btnAddRowConsumable', 'btnRemoveRowConsumable'
 
 function SettingsButtons($ws) {
@@ -93,6 +95,15 @@ function CheckLayout($wb, $tag) {
     $all = @($groups.Values | ForEach-Object { $_ }) + $small
     $extra = @($buttons | Where-Object { $_.Name -like 'pcb_*' }).Count - $all.Count
     Check ($extra -eq 0) "$tag`: no stray buttons on Settings (extra: $extra)"
+
+    $bottom = 0
+    foreach ($lo in $ws.ListObjects) { $r = $lo.Range.Row + $lo.Range.Rows.Count - 1; if ($r -gt $bottom) { $bottom = $r } }
+    $rows = @(for ($r = 1; $r -le $bottom + 40; $r++) { if ([string]$ws.Cells($r, 1).Text -eq 'PrintJob on GitHub') { $r } })
+    Check (($rows -join ',') -eq [string]($bottom + 2)) "$tag`: one project link, two rows below the lowest table (row $($bottom + 2); found $($rows -join ','))"
+    if ($rows.Count -eq 1) {
+        $f = [string]$ws.Cells($rows[0], 1).Formula
+        Check ($f.StartsWith('=HYPERLINK(') -and $f.Contains('"' + $url + '"')) "$tag`: the link is a HYPERLINK to $url (got '$f')"
+    }
 }
 
 $xl = New-Object -ComObject Excel.Application
