@@ -3,7 +3,7 @@
 #
 # Mac port of test-statusnotes.ps1 - same checks, same output lines (it
 # reports with OK:/FAIL: lines, not Check); see that script for the Status
-# hover notes and warning fill it guards. A cell's note, its displayed fill
+# hover notes, warning fill and Sheet status/Export cells it guards. A cell's note, its displayed fill
 # and a conditional format's fill are not in Excel's AppleScript dictionary,
 # so they are read through modScript.ScriptProp on a range token.
 #
@@ -75,6 +75,45 @@ with open_copy() as wb:
     wb.run('btnRefreshLocations')
     b, _ = check_notes('after refresh')
     failed += b
+
+    # ---- 0.11.3: Sheet status and Export are separate side-panel cells
+    print()
+    print('=== Sheet status and Export ===')
+    st, ex = wb.name_ref(WS, 'LOC_Status'), wb.name_ref(WS, 'LOC_Export')
+    if st is None or ex is None or st == ex:
+        print(f'FAIL: LOC_Status {st} and LOC_Export {ex} must be two cells')
+        failed += 1
+    else:
+        def side_panel(label):
+            bad = 0
+            for (r, c), want in ((st, 'Sheet status'), (ex, 'Export')):
+                got = wb.cell_text(WS, r, c - 1)
+                if got != want:
+                    print(f"FAIL ({label}): label beside {addr(r, c)} is '{got}', expected '{want}'")
+                    bad += 1
+            s, e = wb.cell_text(WS, *st), wb.cell_text(WS, *ex)
+            if 'export' in s.lower():
+                print(f"FAIL ({label}): Sheet status reads '{s}'")
+                bad += 1
+            if 'export' not in e.lower():
+                print(f"FAIL ({label}): Export reads '{e}'")
+                bad += 1
+            if bad == 0:
+                print(f"OK ({label}): Sheet status '{s}', Export '{e}'")
+            return bad, s
+
+        wb.run('btnCheckSheet')
+        b, checked = side_panel('after Check this sheet')
+        failed += b
+        if not (checked.startswith('Checked') or checked.startswith('Problems found')):
+            print(f"FAIL: Check this sheet left Sheet status as '{checked}'")
+            failed += 1
+        wb.run('btnRefreshLocations')
+        b, after = side_panel('after Refresh Locations')
+        failed += b
+        if after != checked:
+            print(f"FAIL: Refresh Locations changed Sheet status to '{after}'")
+            failed += 1
 
     # ---- warning fill: every non-"OK" Status cell, on every location sheet
     print()
