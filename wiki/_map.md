@@ -203,7 +203,7 @@ are locked and skipped by Restore.
 1. **Sheet status was never shown (fixed in 0.11.3).** The template puts
    Sheet status at AX6 and Export at AX8, but `modExport.EXPORT_CELL` was
    `$AX$6`, so every refresh wrote the export line and an "Export" label over
-   Sheet status. 0.11.3 writes Export to AX8 (branch `fix/sheet-status-cell`,
+   Sheet status. 0.11.3 writes Export to AX8 (PR #62,
    checked by test-statusnotes). Jobs-Validation-and-Status documents the
    0.11.3 behaviour.
 2. **No test** for Now, the double-click stamp, Select printers..., Re-stamp
