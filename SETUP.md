@@ -187,9 +187,10 @@ button. Row `UNI-EXAMPLE-00012` is deliberately invalid, to show the Status colu
 working.
 
 **Sheets are protected without a password.** That stops accidental edits to
-locked cells, not determined ones. Set a password by hand in Excel (Review >
-Protect Sheet) on a particular workbook if you need one - nothing in
-`modProtect` generates one by default any more.
+locked cells, not determined ones. **A password is not supported** (decided
+2026-10-27): `modProtect` unprotects and reprotects sheets without one, on
+every open and around every write, so a password set by hand would stop the
+buttons writing to the sheet.
 
 **Exports write beside the workbook by default.** Set the "Export folder"
 value on the Settings sheet to send CSV exports and report snapshots
