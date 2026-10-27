@@ -25,7 +25,7 @@ is in `docs/CHANGELOG.md`.
 - Nothing has been verified on Windows since the Mac work (0.11.1 onward);
   say so whenever a change is only tested on the Mac.
 - The wiki plan is the Claude Doc "PrintJob Wiki Plan"
-  (https://claude.ai/artifact/Xkwezyp5wbB7eUDrPU9Da3). Keep its status and
+  (<https://claude.ai/artifact/Xkwezyp5wbB7eUDrPU9Da3>). Keep its status and
   baseline current as work lands.
 
 ## Excel test runs on the Mac

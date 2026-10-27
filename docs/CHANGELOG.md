@@ -2,7 +2,7 @@
 
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
-```
+```text
 0.11.4 - Fix: a new print room could take another room's code; a one-printer
 room's blank row counted as a job (2026-10-27).
 Schema unchanged (1.4).
