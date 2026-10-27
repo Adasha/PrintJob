@@ -22,6 +22,14 @@ Schema unchanged (1.4).
     BindColumns now leaves rows with no Job ID out of the one-choice
     auto-fill; a real job still gets the printer filled in. Found in the
     2026-10-27 Mac checks. New test-placeholderrow (.ps1 and mac/.py).
+  - Fix: a job's Passes and a pass's Pass number could be typed over,
+    replacing their formula or numbering; the template shipped both
+    unlocked. PreparePassSheet (every Refresh Locations and setup) now
+    locks them. test-multipass checks it.
+  - Fix: removing a colour pass could leave the user on the Settings sheet,
+    as deleting a job did before its guard. Remove pass now uses the same
+    guard (modJobs.StayOnSheet, HoldViewAfterDelete). Both found in the
+    2026-10-27 Mac checks.
   - Template: the sample jobs' snapshot IDs follow the catalogue model
     (PRN-003 -> UNI-PRN-0003, STK-006 -> UNI-STK-0006, TEC-001 ->
     UNI-TCH-0001), via mac/apply-sample-ids-template.py.

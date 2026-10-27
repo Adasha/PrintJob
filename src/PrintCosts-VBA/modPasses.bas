@@ -243,6 +243,7 @@ Public Sub RemovePass(ByVal ws As Worksheet)
     If Not Ask("Remove this pass?" & vbCrLf & vbCrLf & detail & vbCrLf & vbCrLf & "This cannot be undone.", "Remove pass") Then Exit Sub
 
     DeletePass ws, lo, jr, target, detail
+    HoldViewAfterDelete ws
 End Sub
 
 ' The unprompted delete (the routine a test or a future caller reaches directly,
@@ -250,12 +251,19 @@ End Sub
 ' renumber.
 Public Sub DeletePass(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal JobRow As Long, _
                       ByVal PassRow As Long, ByVal Detail As String)
+    Dim keepAddr As String
+    On Error Resume Next
+    If ws Is ActiveSheet Then keepAddr = ActiveCell.Address
+    On Error GoTo 0
     AppOff
     LogAudit "Remove pass", LocValue(ws, "LOC_Name"), Detail
     UnlockSheet ws
     lo.ListRows(PassRow).Range.EntireRow.Delete
     RenumberPasses lo, JobRow
     RelockSheet ws
+    ' Removing a pass has dropped people on the Settings sheet, as deleting a
+    ' job did (modJobs.StayOnSheet). Only when they were on this sheet.
+    If Len(keepAddr) > 0 Then StayOnSheet ws, keepAddr
     AppOn
 End Sub
 
@@ -459,6 +467,12 @@ Public Sub PreparePassSheet(ByVal ws As Worksheet)
     UnlockSheet ws
     On Error Resume Next
     If lo.ShowAutoFilter Then lo.ShowAutoFilter = False
+    ' Passes (a count of the job's passes) and Pass (renumbered by
+    ' RenumberPasses) are the workbook's to write, like every other calculated
+    ' column; the template shipped both unlocked, so a typed value replaced
+    ' the formula (0.11.4, found in the Mac checks).
+    lo.ListColumns("Passes").DataBodyRange.Locked = True
+    lo.ListColumns("Pass").DataBodyRange.Locked = True
     On Error GoTo 0
     RelockSheet ws
     RebuildGroups ws
