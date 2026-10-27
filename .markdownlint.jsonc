@@ -1,0 +1,8 @@
+// markdownlint settings for the VS Code extension (and markdownlint-cli2).
+{
+  "default": true,
+  // Tables are written |---|---| without padding; GitHub renders them the same.
+  "MD060": false,
+  // Long lines are fine: ARCHITECTURE and the wiki wrap freely.
+  "MD013": false
+}

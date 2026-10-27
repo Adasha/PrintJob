@@ -63,7 +63,7 @@ An Excel `.xlsm` (Microsoft 365 only, Windows and Mac) for logging print jobs pe
 
 ### 3.1 Entities and relationships
 
-```
+```text
 Settings (global key/value)
 PaperType ──┐
             ├──< PaperStock (Measure: Sheet/Roll)
@@ -182,7 +182,7 @@ The schema version is load-bearing: it is what an importer or aggregator checks 
 
 ### 4.1 Layout
 
-```
+```text
 Rows 1–11   Configuration block, columns A/B only (see the 2026-09-25
             rework below): room name, department, the three per-job
             default selectors, the two disregard-cost defaults (rows 6–7,
@@ -208,6 +208,7 @@ Row 16+     tblJobs_<CODE> body
 | B9 | `LOC_RollUnit` | Roll-stock `Qty` entry unit, Metres/Centimetres (default Metres) — always converted to and stored as metres, see below (was B6 until 2026-09-29) |
 | B10 | — | Permitted-printers display, `"N printers (comma, separated, list)"` — a read-only `LET` formula over `LOC_Printers` (below), not the named range itself (2026-09-25, swapped with Sheet status/Export, see below) |
 | B11 | — | Live count of jobs on the sheet, `=ROWS(tblJobs_<CODE>)` — a genuine formula, re-written whenever the table is renamed so it never goes stale |
+
 > **0.11.0:** the job table grew to 45 columns (A:AS), so the side panel moved from column 36 to 47 and the `LOC_*` settings block from `AL:AM` to `AW:AX` (the names followed; the cell addresses in the rows below are the AX ones). The `AZ1` marker did not move. Until 0.11.3 the code wrote the export status to row 6, where the template has Sheet status, so the Export text hid it; `modExport.EXPORT_CELL` is now `$AX$8`, the template's Export row (checked by `test-statusnotes`).
 
 | AX2 | `LOC_Code` | Location code (auto-assigned, read-only) — side panel |
@@ -299,6 +300,7 @@ Any location with unexported changes is named in the refresh message. `Last expo
 **A guarded in-app remove command — Settings sheet, "Remove print room..." button (2026-09-27, direct user request), `modRegistry.RemovePrintRoom`/`DeletePrintRoom`.** Sits right next to "Add print room..." (§4.4), and answers the question §4.4's addendum and §16.3 had both left open: what a deliberate, in-app *remove* command should do. The manual route (right-click the tab → *Delete*) is untouched and still fully supported — this is an additional guarded route, not a replacement, built on top of the same self-healing this section already documents rather than replacing any of it.
 
 Because Excel raises no delete event, the safety has to be entirely up front, before anything happens, not after:
+
 1. **Pick the room** — a list of every registered room's code and name, typed back (same "type its code" shape as `modImport.PickTargetLocation`, the Import — choose a room picker).
 2. **Refuse the last room outright**, not just warn about it. *Add print room* works by duplicating an existing room (`TemplateLocationSheet`), so removing the last one would break the button sitting right next to this one — a real structural dependency, not a soft preference, so it is a hard stop rather than an `Ask()`.
 3. **Name what will be lost** — room name and code, record count, date span, and export status (`modExport.ExportStatusText`, the same line *Check workbook*/*Refresh Locations* already surface) — before any confirmation is asked.
@@ -332,6 +334,7 @@ Split the same way `AddPrintRoom`/`CreatePrintRoom` and `modImport.ApplyImport`/
 **`PrintCosts.xlsx` itself reordered to match, 2026-09-26.** The shipped `.xlsx` had never been updated to reflect the move above — it still had Status/Job ID as columns 1-2, so opening it directly to edit a design element (a column's width, its input styling, a validation rule) meant mentally translating through `ReorderJobColumns` to know where that column would actually end up in the built `.xlsm`. Fixed by physically cutting Status and Job ID to just after Chargeable Cost in both `tblJobs_MAIN` and `tblJobs_ANNEX` (via Excel COM automation, not hand-edited XML — see the note below on why). `Paid` and the `Quantity`→`Qty` rename stay VBA-only exactly as before (§3.3/§3.5's "build it in VBA, not by hand" reasoning) — this touched order only, so `EnsurePaidColumn` still inserts Paid right after Chargeable Cost (landing exactly between it and Status, matching the table above) and `EnsureQtyColumnName`/`ReorderJobColumns` both remain no-ops against a freshly-setup copy of this file.
 
 **Cut/insert reordering corrupts two column-indexed properties that don't travel with the moved cells — found and fixed doing the above, worth knowing before ever reordering table columns by hand again.** `Range.Cut` + `Range.Insert Shift:=xlToRight`, run repeatedly to walk ~19 columns into place, moves cell content and per-cell formatting correctly (confirmed: calculated-column formulas, the `Status`/date dxf styling, and every data value all followed their column intact), but two things are keyed by column *index* rather than by the cell content that moved:
+
 - **Data validation ranges.** Each single-column rule (Technician, Printer, Paper Stock, Qty, Print Width, the two Yes/No lists, Date/Time) got smeared across the *entire* current data-row span on every column the repeated inserts passed through — e.g. Technician's rule ended up on `D13:Q17` instead of `D13:D2000`. This is the exact `EnsureJobColumnValidation` bug already documented in `modInit.bas` for the `.xlsm` case; it just has no VBA to self-heal it in the `.xlsx`, so it was fixed by hand (delete, then re-add each rule as a clean single-column range at its new column letter).
 - **Column width.** `<cols>` width entries are addressed by column index and don't move with a cut at all — after the reorder, column A (now Date/Time) still carried Status's old 30-character width, and so on down the line. Fixed by remapping each column's width to follow its content to its new position.
 
@@ -379,7 +382,7 @@ Both **Summary** and **Reports** split their Chargeable total by paid status (Su
 
 ### 5.1 Formulas
 
-```
+```text
 Unit             =IF([@S_Measure]="Sheet","sheets","metres")
 
 Area m2          =IF([@Qty]="","",
@@ -489,7 +492,7 @@ Two report sheets: **Summary** (at-a-glance totals) and **Reports** (filterable 
 
 `Refresh Locations` writes one formula to `_Data!A10`:
 
-```
+```text
 =LET(raw,
   VSTACK(
     HSTACK(IF(SEQUENCE(ROWS(tblJobs_MAIN[Date/Time]))>0,"MAIN"),  tblJobs_MAIN[[Date/Time]:[Notes]]),
@@ -570,7 +573,6 @@ A live `FILTER`+`SORTBY` driven by criteria cells; results update as criteria ar
 Layout convention (snag item 2, resolved): **label → input → hint → gap**, input immediately to the right of its label, with an unused trailing column separating the two filter groups — replacing the earlier NAME | gap | INPUT | hint arrangement.
 
 **Export names — now a prompt (2026-10-02, direct user request; was a Yes/No toggle at `O12`, before that `O10`, snag 2a) — data protection.** The toggle is gone from the sheet. **Export report** (`modExport.ExportReportSnapshot`) asks a Yes / No / Cancel question once it has established there is something to export (default button No; a quiet run answers Yes unless a test calls `modExport.SetExportNames`, the same switch the room export uses). **Yes** includes names. **No** replaces every non-empty Student name with `----------` (10 hyphens, `NAME_PLACEHOLDER`) so a withheld name reads as data present rather than as an omission; a row with no name stays empty. **Student no is never redacted.** `RedactNameColumn` does the work on the snapshot block before `RemoveExcludedColumns`/`PromoteUniformColumns`, and `PromoteUniformColumns` is told (`KeepNameColumn`) to leave the redacted name column in the table — an all-hyphen column is uniform, and promoting it to the header would read as "every row has this one name". A names-free report is not a complete record, so it is **not stamped as exported** (`StampReportsExport` only on Yes) and the delete-visible-records warning stays on, matching the room export. Cancel exports nothing. The **live Reports results always show names** (the results formula never referenced the toggle after 2026-09-29). Tests: `test-reports.ps1` (no label/dropdown at `N12:O12`; live view shows names; export answered No → every name is the placeholder, Student no kept; answered Yes → names present).
-
 
 History of the removed toggle: it originally sat at `E9`/`F9` (row 9, the same row as the disjoint-criteria warning at `A9`), moved to `N10`/`O10` (labelled "Show student/department name/no", alongside Sort by/Sort direction) once the missing-label bug below was traced to its real cause: `modReports.ApplyReportsMinimumColumns` hides entire **columns** by results-header name — reaching every row on the sheet, not just the results table — and `E` (`"Printer"`) was one of the hidden ones while `F` (`"Paper stock"`) wasn't, so the label sat in a column that vanished under the default view while its dropdown, one column over, stayed visible with nothing beside it. `N`/`O` (`"Chargeable"`/`"Paid"`) are both permanently kept, so label and dropdown now survive the default view together. `E10`/`G10` (Sort direction's own label/hint) have this identical latent bug and were deliberately left as found — flagged for a general fix rather than patched column-by-column, since the underlying tension (row-level chrome sharing columns with a results-only hide) is still being decided.
 
@@ -799,6 +801,7 @@ A header block — schema version, site ID, location code and name, generated-at
 **Student names — asked at export (0.10.17, 2026-10-02).** *Export* and *Export All Locations* open a Yes / No / Cancel prompt, "Include student names in this export?" (default button No). **No blanks `Student Name` only**; `Student No` and every other column stay, so a master built from these files can still total by student. The column itself is kept, because the header row names columns and importers map by name. The header block says so beside `Rows` (row 8, columns C:D: `Student names,Omitted`), not on a new line, so the header row stays on row 9. Notes are not scrubbed, which the prompt says. Cancel writes nothing.
 
 Two consequences follow from a names-free file not being a complete record:
+
 - **It does not stamp the room as exported.** The §4.3 sheet-deletion warning stays on, because this file could not restore the names. The dialog says so.
 - **Import leaves names alone.** `ReadImportRows` sees the marker and drops `Student Name` from each row, and `WriteImportedRow` skips a column the row lacks, so an overwrite keeps the name already on the sheet and an appended row has a blank name. The confirm dialog states this. A file without the marker still overwrites the name as before.
 
@@ -808,7 +811,7 @@ Two consequences follow from a names-free file not being a complete record:
 
 **Knowing what is unexported — derived, not tracked.** A per-location fingerprint computed on demand:
 
-```
+```text
 row count + CountA(data range) + Sum(Qty) + Sum(Chargeable Cost) + Max(Date/Time)
 ```
 
@@ -835,6 +838,7 @@ Any of **Student name, Student no, Location, Printer, Paper stock, Technician** 
 **Scope.** Always imports into **one** location's job table — there is deliberately no "import into every location" counterpart to Export All Locations. Two entry points: import into whichever location sheet is currently active, or a global command that first prompts for a destination location by code.
 
 **What it covers, in one mechanism:**
+
 - Restoring a backup into the location it came from (after data loss, or reverting a bad edit).
 - Importing one location's exported jobs into a different room.
 - Pulling several locations' exports into one copy of the workbook, for reporting or handover — see the BONUS note in §12.4.
@@ -864,6 +868,7 @@ Any of **Student name, Student no, Location, Printer, Paper stock, Technician** 
 **Row mapping.** For each visible row: `Location` → `SheetForCode` finds the target worksheet; the hidden `Job ID` column (§8.3) → `FindReportRow` locates the actual table row on that sheet, which is then deleted. Values are copied into memory *before* any deletion begins, because the live spill range shrinks as rows are removed elsewhere in the same run.
 
 **Confirmation content:**
+
 - The total record count and a **per-room breakdown**.
 - A staleness warning comparing the current filtered set's signature (§10.4) against the signature stamped by the last **Export report** run — either *"Export report has never been run for a filtered set like this one"* or *"The filters or underlying data have changed since the last Export report"*. This replaces the original plan's "warn if not exported to CSV" wording, since Reports-page deletion is keyed off the Export-report signature rather than the per-location CSV export status (they are different artefacts answering different questions).
 - *"This cannot be undone."*
@@ -893,6 +898,7 @@ The ad-hoc "get me back to where I was" path, distinct from the two artefacts ab
 **A restored room that carries the sample's code reuses the sample's sheet (2026-10-15).** A site that kept the sample room and added its own data and permitted printers to it has a backup room with the sample's code. `SheetForCode` finds the new workbook's sample, and a room's settings are only applied to a room the restore creates, so the jobs used to go into a sheet with the sample's name, department, defaults and permitted printers. `PrepareRoom` now asks `SampleRoomToReuse`: when the backup's room has the code of a sheet that is still the untouched sample (`IsSampleRoom`), `modRegistry.RecyclePrintRoom` resets that sheet as `CreatePrintRoom` resets a duplicate and renames it, and the room is then treated as created, so `ApplyRoomSettings` gives it its own defaults, permitted printers and roll unit. If the sample here has been edited, the jobs go in as before. Also fixed: `BindColumns` fills a room's only permitted printer into the new table's one empty row (and stamps it), so Import no longer saw the row as empty and left a phantom dateless row above the first job; `ClearBindAutofill` blanks it again. Verified by `test-restorereuse.ps1` (renamed sample, unrenamed sample with its own printers, and an older workbook that shipped the sample as `MAIN`).
 
 **Restoring from an older copy of the workbook (0.10.24).** The same picker takes an `.xlsm`/`.xlsx`/`.xlsb` (`IsWorkbookFile`, by extension), and `LoadFromWorkbook` reads it into the same plan: each catalogue table (`TableIn`, `TableRows`) and, for every sheet whose marker cell says it is a print room, its code/name/department, its `LOC_*` settings (`RoomSettingNames`) and its job table. This is the upgrade path - a fresh workbook plus a restore - without a backup step: the older workbook already holds everything a restore needs.
+
 - *Read-only, untouched, nothing running.* `OpenSourceWorkbook` opens a temporary copy (`CopyToTemp`; Excel cannot open two workbooks with one file name and the older copy usually has the new one's, a copy also copes with the original being open or syncing) with `AutomationSecurity` forced to disable macros and `EnableEvents` off, so the older workbook's own `Workbook_Open` (re-protect, re-bind, recalculate) does not run. `CloseSource` closes it and deletes the copy, including on an error. If the copy cannot be made the original is opened read-only, unless its name clashes with this workbook's, which is reported.
 - *Same shape as a CSV.* `TableRows` returns one `clsDict` per row keyed by header text, read in one array fetch (a job table is thousands of rows; a COM call per cell would take minutes), with the two timestamp columns formatted as `modExport.CellOut` writes them, so `modImport.ApplyImportConfirmed` and `ApplyCatalogRows` need no change. Columns are matched by header, so a workbook from an earlier schema works the same way an older CSV does.
 - *Room settings go to rooms the restore creates, before their job records.* `ApplyRoomSettings` writes the default technician/printer/paper, the two disregard defaults and the permitted-printers list, and sets the roll length unit with `SetAppliedRollUnit` and `RefreshQtyValidation` (events are off, so the change handler's rescale - there are no rows yet - does not run). Applying the unit first matters: Import compares each file's `Unit` with the room's, so a centimetre room that still read Metres would convert every roll `Qty` by 100. A room that already exists keeps its own settings, as its existing job records are only added to.
@@ -923,7 +929,6 @@ The four Settings-page lookup tables have no synthetic ID (§3.3) — their natu
 **Verified** by new `test-backup.ps1`: backs up a populated copy, empties a second copy's Printers table and one location's job table entirely (a genuinely destructive corruption, not a partial one — this is exactly what surfaced the bug above), restores from the first copy's backup, and confirms row counts match the original, an untouched table (Papers) is unaffected, the audit log records the restore, and running the same restore a second time is idempotent (no duplicate rows).
 
 ---
-
 
 ### 10.8 Clear table — Print Technicians, Printers, Papers (direct user request, 2026-09-29)
 
@@ -964,6 +969,7 @@ From 0.10.7 to 0.10.24 the **Paid** cells of the results table were editable in 
 **Mark all as...** (section 10.9) is unchanged and remains the bulk route for everything a filter shows.
 
 **Verified** by `test-togglepaid.ps1` (locking, no dropdown, button name/placement, a toggle landing on the right record in both rooms and back, any cell of the row, a multi-row selection with and without confirmation, refusals, Mark all still working) and the Paid = No view check in `test-reportsnav.ps1`.
+
 ## 11. Visual design
 
 | Cell role | Treatment |
@@ -1160,7 +1166,6 @@ Added in this pass:
 - ~~**`LOC_RollUnit` is per-sheet, not per-row**~~ **Closed 2026-10-02, working as intended.** The roll length unit is a deliberate per-sheet display setting (0.10.11): Qty is held in the sheet's unit and converted to metres for `_Data`. A location is not meant to mix centimetre and metre entry job-by-job, so no per-row unit (and no schema bump) is planned.
 - ~~**Mixed-unit import**~~ **Closed 2026-10-02**, no code change needed. `test-importunits.ps1` (Example Print Room on Metres, the Annexe fixture on Centimetres) covers a metres export into a cm room (roll Qty x100, Unit "cm"), a cm export into a metres room (/100, Unit "metres"), Area m2 and Paper Cost unchanged both ways, sheet stock never converted, a cm round trip landing back on the original metres, and a same-unit control.
 
-
 ### 16.6 Departments: what comes next (0.10.30)
 
 Built: the `Departments` sheet, the free-department auto-disregard on entry, a Department filter and breakdowns on Reports, a by-department box on Summary (§3.3, §8). Deliberately **not** built, and what the table is shaped for:
@@ -1218,7 +1223,7 @@ Built: the `Departments` sheet, the free-department auto-disregard on entry, a D
 - **Which columns the pass-column toggle covers.** Passes, Colour, Row Type, Parent and Pass (the design named colour and Passes). Set-up Cost follows the cost toggle only, as designed.
 - **The view does not touch the pass columns (changed 2026-10-09, direct instruction).** The design put them in the Reduced list (companion doc decisions 3 and 8); as built, only the toggle hides or shows them, under All, Reduced and Minimal alike. ApplyMultiPassVisibility runs last in ApplyReducedView and sets them both ways, so an edited or restored `LOC_REDUCED_COLUMNS` cannot hide them or stop the toggle showing them (a restore from before 0.11.0 once left the toggle hiding them on the first click and unable to show them again).
 - **Orphan passes (decision 10)** are flagged ("Parent job not found") but not removed automatically: removing silently would discard a colour and its cost on a guess. Check sheet lists them as problems.
-- **Notice wording (decision 35/36).** `Notice: colour not defined in this workbook - type not checked` - a hyphen, not a semicolon, because Status splits its note on `; `. The prefix `Notice:` is what the yellow conditional format keys on.
+- **Notice wording (decision 35/36).** `Notice: colour not defined in this workbook - type not checked` - a hyphen, not a semicolon, because Status splits its note on `;` and a space. The prefix `Notice:` is what the yellow conditional format keys on.
 - **Pass row look.** A light shade over every pass row by conditional format (not direct formatting, so a row added below a pass never inherits it).
 - **Sort and filter off on location sheets (decision 12)**: the table's AutoFilter arrows are hidden and `ProtectSheet` withholds sorting and filtering on location sheets only.
 - **Pass cells.** A pass row accepts a colour and a note only; anything else typed on it is cleared with a message. Row Type, Parent and Pass are locked.
