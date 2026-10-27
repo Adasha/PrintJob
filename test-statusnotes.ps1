@@ -9,6 +9,8 @@
 # becomes OK. Also (moved here from the old test-phase8.ps1, 0.10.25): the
 # amber warning fill on every non-"OK" Status cell, on every location sheet,
 # and that re-running InitialiseWorkbook does not stack a second rule.
+# 0.11.3: Sheet status and Export are separate side-panel cells with their own
+# labels, and Check this sheet and Refresh Locations each write only their own.
 # Drives a COPY in %TEMP%, never src\PrintJob.xlsm itself.
 
 $ErrorActionPreference = 'Stop'
@@ -72,6 +74,38 @@ try {
     $xl.Run('btnRefreshLocations')
     $r = Check-Notes 'after refresh'
     $failed += $r[0]
+
+    # ---- 0.11.3: Sheet status and Export are separate side-panel cells
+    Write-Host ''
+    Write-Host '=== Sheet status and Export ==='
+    $st = $ws.Range('LOC_Status'); $ex = $ws.Range('LOC_Export')
+    if ($st.Address() -eq $ex.Address()) {
+        Write-Host "FAIL: LOC_Status $($st.Address()) and LOC_Export $($ex.Address()) must be two cells"; $failed++
+    } else {
+        function Check-SidePanel($label) {
+            $bad = 0
+            foreach ($pair in @(@($st, 'Sheet status'), @($ex, 'Export'))) {
+                $got = [string]$pair[0].Offset(0, -1).Text
+                if ($got -ne $pair[1]) { Write-Host "FAIL ($label): label beside $($pair[0].Address()) is '$got', expected '$($pair[1])'"; $bad++ }
+            }
+            $s = [string]$st.Text; $e = [string]$ex.Text
+            if ($s -match 'export') { Write-Host "FAIL ($label): Sheet status reads '$s'"; $bad++ }
+            if ($e -notmatch 'export') { Write-Host "FAIL ($label): Export reads '$e'"; $bad++ }
+            if ($bad -eq 0) { Write-Host "OK ($label): Sheet status '$s', Export '$e'" }
+            return @($bad, $s)
+        }
+
+        $xl.Run('btnCheckSheet')
+        $r = Check-SidePanel 'after Check this sheet'
+        $failed += $r[0]; $checked = $r[1]
+        if (-not ($checked.StartsWith('Checked') -or $checked.StartsWith('Problems found'))) {
+            Write-Host "FAIL: Check this sheet left Sheet status as '$checked'"; $failed++
+        }
+        $xl.Run('btnRefreshLocations')
+        $r = Check-SidePanel 'after Refresh Locations'
+        $failed += $r[0]
+        if ($r[1] -ne $checked) { Write-Host "FAIL: Refresh Locations changed Sheet status to '$($r[1])'"; $failed++ }
+    }
 
     # ---- warning fill: every non-"OK" Status cell, on every location sheet
     Write-Host ''
