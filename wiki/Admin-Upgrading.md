@@ -14,7 +14,8 @@ Move your setup and jobs from an old workbook into a new version.
 2. On **Settings**, click **Restore workbook...**.
 3. Choose your old workbook file.
 4. On a Mac, if Excel asks about the old workbook's macros, choose **Disable
-   Macros**.
+   Macros**. The workbook's notice says the same: they are not needed to
+   read the old workbook.
 5. Read the summary of what will come across and click **Yes**.
 
 ## Result

@@ -49,7 +49,11 @@ been exported. Once jobs change, it says how many changes there are since.
 
 ## Platform notes
 
-> **Mac:** when the workbook is in OneDrive, Excel reports a web address for
+> **Mac:** the first time you export from a folder, Excel asks for access
+> twice: once for the folder, then for the file. Allow both. With **Export
+> folder** blank, the file goes beside the workbook.
+>
+> When the workbook is in OneDrive, Excel reports a web address for
 > its folder. The workbook looks for the matching folder on your Mac; if it
 > cannot find it, the file goes to Documents. Setting an **Export folder**
 > avoids this.

@@ -50,8 +50,8 @@ jobs. The backup files or older workbook are never changed.
 ## Platform notes
 
 > **Mac:** when restoring from an older workbook, Excel may ask about that
-> workbook's macros. Choose **Disable Macros**; the workbook shows a notice
-> first to remind you. The file picker may also look different from usual.
+> workbook's macros. Choose **Disable Macros**: the workbook shows
+> a notice first saying they are not needed for the restore. The file picker may also look different from usual.
 >
 > **Windows:** not yet checked.
 

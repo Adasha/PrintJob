@@ -41,7 +41,10 @@ holds the values, not formulas, so it opens the same on any computer.
 
 ## Platform notes
 
-> **Mac:** if the workbook is in OneDrive and **Export folder** is blank, the
+> **Mac:** Excel may ask for access to the folder and then the file. Allow
+> both.
+>
+> If the workbook is in OneDrive and **Export folder** is blank, the
 > file may be saved in your OneDrive folder or in Documents. The message says
 > where.
 >
