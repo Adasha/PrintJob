@@ -237,6 +237,11 @@ with open_copy() as wb:
     check(near(jv(job, 'Set-up Cost'), 6.0), 'Set-up Cost now 6.00')
     check(level(job + 1) == 2 and level(job + 2) == 2 and level(job) == 1, 'outline levels still line up')
 
+    section('Passes and Pass are locked, as calculated columns are')
+    check(wb.prop(f'@@range:{MAIN}!{j(job, "Passes")}', 'Locked') == 'True', "the job's Passes cell is locked")
+    check(wb.prop(f'@@range:{MAIN}!{j(job + 1, "Pass")}', 'Locked') == 'True', "a pass's Pass cell is locked")
+    check(wb.prop(f'@@range:{MAIN}!{j(job + 1, "Colour")}', 'Locked') == 'False', "a pass's Colour cell is still open for typing")
+
     section('Repeat job copies the group')
     pick(job + 1)
     wb.call('RepeatJob', sheet(MAIN))
