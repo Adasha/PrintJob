@@ -15,7 +15,8 @@ rooms later.
 3. Type the room's department, or leave it blank.
 4. Type a short code for the room's Job IDs, up to six letters or numbers.
    The workbook suggests one from the name; `PHOTO` gives Job IDs like
-   `UNI-PHOTO-00001`.
+   `UNI-PHOTO-00001`. Each room needs its own code: if another room already
+   has it, the workbook says so and suggests a free one, such as `PHOTO2`.
 5. The new sheet opens, empty. Click **Select printers...** on it.
 6. Tick every printer the room has, then click **OK**.
 
