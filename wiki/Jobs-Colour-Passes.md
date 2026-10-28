@@ -18,6 +18,8 @@ colour.
 3. Choose the pass's **Colour**.
 4. Repeat steps 2 and 3 for each colour.
 
+![A Riso job with two pass rows, Black and Red, beneath it, under the Colour passes panel](images/Jobs-Colour-Passes-1-mac.png)
+
 ## Result
 
 Each pass costs its colour's ink over the job's whole printed area, plus the
@@ -66,4 +68,4 @@ The other passes are renumbered.
 
 ---
 
-*Draft for v0.11.4, without screenshots yet. Not yet verified on Windows.*
+*Draft for v0.11.4, with Mac screenshots. Not yet verified on Windows.*

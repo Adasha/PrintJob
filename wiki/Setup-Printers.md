@@ -27,6 +27,8 @@ List each printer, what its ink or toner costs, and what paper it can take.
    (below).
 7. Leave **Active** as Yes.
 
+![The Printers sheet with three roll printers, a sheet printer and a multi-pass Riso](images/Setup-Printers-1-mac.png)
+
 ## Result
 
 The printer can be added to a print room with **Select printers...**. See
@@ -100,4 +102,4 @@ cost per job as well.
 
 ---
 
-*Draft for v0.11.4, without screenshots yet. Not yet verified on Windows.*
+*Draft for v0.11.4, with Mac screenshots. Not yet verified on Windows.*

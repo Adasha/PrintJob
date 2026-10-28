@@ -36,6 +36,8 @@ on the totals.
 | Sheet size required for student-supplied sheet stock | Choose the nearest Sheet size |
 | At least one colour pass is required | Add a pass. See [Colour passes](Jobs-Colour-Passes) |
 
+![A job's orange Status cell with its note listing two problems](images/Jobs-Validation-and-Status-1-mac.png)
+
 ## Check a whole sheet or the workbook
 
 - **Check this sheet**, on the right of a print room sheet, checks every job
@@ -43,6 +45,8 @@ on the totals.
   **Sheet status**.
 - **Check workbook**, on Summary or Settings, checks every print room. It
   also lists rooms with jobs that have not been exported.
+
+![The side panel of a print room sheet: Select printers, Check this sheet, Clear All, Export and Import, with Sheet status beside them](images/Jobs-Validation-and-Status-2-mac.png)
 
 ## Things to know
 
@@ -67,4 +71,4 @@ on the totals.
 
 ---
 
-*Draft for v0.11.4, without screenshots yet. Not yet verified on Windows.*
+*Draft for v0.11.4, with Mac screenshots. Not yet verified on Windows.*

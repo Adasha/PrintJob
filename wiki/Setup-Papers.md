@@ -25,6 +25,8 @@ List each paper stock you print on, its size and what it costs.
    **Cost unit** column shows which.
 7. Leave **Active** as Yes and **Supplied by student** as No.
 
+![The Papers sheet: sheet and roll papers with their Measure, Size mode, Std. size, width, height and cost](images/Setup-Papers-1-mac.png)
+
 ## Result
 
 The paper appears in the **Paper Stock** drop-down on jobs whose printer it
@@ -68,4 +70,4 @@ Either way, the job still pays for ink or toner.
 
 ---
 
-*Draft for v0.11.4, without screenshots yet. Not yet verified on Windows.*
+*Draft for v0.11.4, with Mac screenshots. Not yet verified on Windows.*

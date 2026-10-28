@@ -75,3 +75,6 @@ Most of this is also in the headers of `mac/xlmac.py` and `mac/build.py`.
 - Setting a cell via AppleScript fires `Worksheet_Change`.
 - Probe untried Excel features in isolation first, trapped, through
   `xlmac.builder_helper`.
+- A VBA parameter named `Scale` stops the whole module compiling, with no
+  error shown: every macro in it then returns empty text. If a helper module
+  returns nothing at all, test it with a one-line `Ping` function first.

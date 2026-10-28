@@ -14,6 +14,8 @@ sheet:
 | **Standard paper sizes (mm)** | **Std. size** on Papers, **Max sheet size** on Printers, **Sheet size** on jobs | Size name, Width mm, Height mm |
 | **Consumable types** | **Consumable type** on Printers and Consumables | Consumable type, Active |
 
+![The Paper stock types, Standard paper sizes and Consumable types lists on Settings, each with + and - buttons](images/Setup-Lookup-Lists-1-mac.png)
+
 ## Add an entry
 
 1. Click the **+** button beside the list. A new row appears at the bottom.
@@ -52,4 +54,4 @@ table.
 
 ---
 
-*Draft for v0.11.4, without screenshots yet. Not yet verified on Windows.*
+*Draft for v0.11.4, with Mac screenshots. Not yet verified on Windows.*

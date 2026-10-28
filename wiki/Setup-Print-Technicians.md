@@ -20,6 +20,8 @@ List the people who print jobs, so each job can record who handled it.
 You can also type a name in the first empty row under the table. The row gets
 its TechID as soon as it has a name.
 
+![The Print Technicians sheet: Add row, Remove row and Clear table above the table of technicians with their TechIDs](images/Setup-Print-Technicians-1-mac.png)
+
 ## Result
 
 The name appears in the **Technician** drop-down on every print room sheet.
@@ -58,4 +60,4 @@ instead, so old jobs still show who really handled them.
 
 ---
 
-*Draft for v0.11.4, without screenshots yet. Not yet verified on Windows.*
+*Draft for v0.11.4, with Mac screenshots. Not yet verified on Windows.*

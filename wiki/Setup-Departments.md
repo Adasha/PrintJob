@@ -18,6 +18,8 @@ charged.
 4. Set **Free** to Yes if its jobs are not charged, or No if they are.
 5. Leave **Active** as Yes. Add **Notes** if you want to.
 
+![The Departments sheet with School of Art, its aliases, and Free set to Yes](images/Setup-Departments-1-mac.png)
+
 ## Result
 
 When a job's **Student Name** is the department's name or one of its aliases,
@@ -60,4 +62,4 @@ on Reports and in the **By department** blocks on Reports and Summary.
 
 ---
 
-*Draft for v0.11.4, without screenshots yet. Not yet verified on Windows.*
+*Draft for v0.11.4, with Mac screenshots. Not yet verified on Windows.*

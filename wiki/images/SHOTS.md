@@ -26,17 +26,24 @@ Take every shot from a fresh build, never from a workbook with real data, in
 a copy (on a Mac, inside Excel's container). Set up these on top of the
 shipped sample, in this order:
 
+`mac/docs-screens.py` builds it; this is what it does.
+
 1. Settings: Site name `University Print Bureau`, Org `Example University`,
-   currency £.
-2. Printers: add a multi-pass printer `Riso SF9450`, Colour mode multi-pass,
+   currency £, and Built by `Print Services` (the build writes the builder's
+   own name there).
+2. Print Technicians: the sample's first technician is a real person, so the
+   row and the sample jobs that name it become `J. Rivera`.
+3. Departments: add `School of Art`, aliases `Art School;SoA`, Free = Yes.
+   The sample has no departments.
+4. Consumables: add the Risograph colours Black, Red and Blue.
+5. Printers: add a multi-pass printer `Riso SF9450`, Colour mode multi-pass,
    Max sheet size A3, Template cost 0.50, Cost per m2 0.
-3. Consumables: add the colours Black, Red and Blue for it.
-4. Add print room `Photography`, code `PHOTO`, with HP DesignJet Z9+ and
-   Riso SF9450 ticked in **Select printers...**.
-5. Photography: record three jobs. One on roll paper with a Print Width mm,
-   one sheet job for `School of Art`, and one Riso job with two passes (Black,
-   Red).
-6. Mark the School of Art job Paid.
+6. Add print room `Photography`, code `PHOTO`, with Epson SureColor P9500,
+   Xerox Versant 180 and Riso SF9450.
+7. Photography: three jobs. Alex Morgan, Epson, Matte 180gsm 1067mm roll,
+   2 metres at 900 mm wide. School of Art, Xerox, Matte 180gsm A2 sheet, 4
+   sheets (free, so nothing to charge), marked Paid. Sam Patel, Riso,
+   Uncoated 120gsm A3 sheet, 50 sheets, passes Black and Red.
 
 Leave job `UNI-EXAMPLE-00012` as shipped: it is the job with problems.
 
@@ -50,7 +57,7 @@ cell cursor on A1 unless stated. Light appearance on the Mac.
   `CopyPicture` (screen appearance, picture format), paste it into a chart
   twice the range's size with the picture stretched to fill it, and export
   the chart as PNG. The picture is vector, so the 2x chart renders sharp, at
-  about 2 px per point. Probed on Excel for Mac 16.114 on 2026-10-28: every
+  about 4 px per point on a Retina screen, then downscaled to 1200 px. Probed on Excel for Mac 16.114 on 2026-10-28: every
   step worked, inside Excel's container, with no prompts. Exact ranges are
   found with `probe.ps1 -Sheet <name>` or its Mac equivalent once the demo
   workbook is built, and written into the script, not here.
@@ -73,7 +80,7 @@ cell cursor on A1 unless stated. Light appearance on the Mac.
 | Setup-Departments-1 | Add a department | The departments table with School of Art (Free = Yes) and its aliases | | Range | Both |
 | Setup-Lookup-Lists-1 | The lists | The lookup lists on Settings with their + and - buttons | | Range | Both |
 | Setup-Print-Rooms-1 | Add a print room | The prompt asking for the new room's code | **Add print room...**, name `Photography` typed, at the code prompt | Dialog | Both |
-| Setup-Print-Rooms-2 | Add a print room | The **Select printers...** picker with OK and Cancel | Photography, picker open with two printers ticked | Range | Both |
+| Setup-Print-Rooms-2 | Add a print room | The **Select printers...** picker with OK and Cancel | Photography, picker open with three printers ticked | Window | Both |
 | Jobs-Recording-1 | Record a job | The top of a room sheet: settings block, the Print jobs panel (New, Repeat, Delete), and the first jobs | Example Print Room, scrolled to the top | Range | Both |
 | Jobs-Recording-2 | Delete a job | The Delete confirmation showing the job's details | **Delete** on a Photography job, before answering | Dialog | Both |
 | Jobs-Validation-and-Status-1 | Read a job's status | `UNI-EXAMPLE-00012`'s Status cell with its note showing | Note shown by script (the comment made visible), not by hovering | Range | Both |
@@ -82,7 +89,7 @@ cell cursor on A1 unless stated. Light appearance on the Mac.
 | Jobs-Colour-Passes-1 | Record a multi-pass job | The Riso job expanded with its two pass rows, and the Colour passes panel | Photography, passes shown | Range | Both |
 | Jobs-Paid-Tracking-1 | Mark jobs from Reports | The Reports button strip: **Toggle Paid** under Selected record, and **Mark all as...** | Reports, filtered to Photography | Range | Both |
 | Reports-Summary-1 | Read the totals | The Totals row and the first rows of the table | | Range | Both |
-| Reports-Summary-2 | Price a job before printing | The planner filled in, with the Estimated cost and **Add to print room** | HP DesignJet Z9+, Matte 180gsm 1067mm roll, roll length 2 | Range | Both |
+| Reports-Summary-2 | Price a job before printing | The planner filled in, with the Estimated cost and **Add to print room** | Epson SureColor P9500, Matte 180gsm 1067mm roll, roll length 2, room Photography | Range | Both |
 | Reports-Filtering-1 | The filters | The filter group expanded, one filter set, and the results below | Reports, Location = Photography | Range | Both |
 | Data-Export-Room-1 | Export one room | The include-names question (Yes, No, Cancel) | **Export...** on Photography, before answering | Dialog | Both |
 | Data-Export-Room-2 | Where the files go | Excel asking for access to the export folder | A copy of the demo workbook in an ordinary folder (not Excel's container), first export | Dialog | Mac |
