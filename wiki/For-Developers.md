@@ -9,6 +9,7 @@ in the project repository:
 | `SETUP.md` | Building the workbook on Windows and on a Mac, and running the tests |
 | `docs/CHANGELOG.md` | Every version, in technical detail |
 | `dist/` | The released workbook for each version |
+| [`CONTRIBUTING.md`](https://github.com/Adasha/PrintJob/blob/master/CONTRIBUTING.md) | Making a change: branches, tests, versions, the wiki, and the checks each pull request runs |
 
 The workbook is built from `src/PrintCosts.xlsx` and the VBA in
 `src/PrintCosts-VBA/`. Each feature's page is listed in `wiki/_map.md`,

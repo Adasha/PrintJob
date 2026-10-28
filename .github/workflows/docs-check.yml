@@ -1,0 +1,27 @@
+# Checks the Markdown on every pull request and on pushes to master:
+# markdownlint (settings in .markdownlint.jsonc) and .github/scripts/check-docs.py
+# (links, images, the wiki sidebar and the feature-to-page map). Neither needs
+# Excel; the workbook tests still run locally (SETUP.md).
+
+name: Docs check
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: markdownlint
+        run: npx --yes markdownlint-cli2@0.24.0 "**/*.md" "#node_modules"
+
+      - name: Links, sidebar and map
+        run: python3 .github/scripts/check-docs.py
