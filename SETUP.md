@@ -319,6 +319,7 @@ job IDs already carry it.
 | `test-restorerooms.ps1` | Restore creating a print room the backup has and the workbook lacks (code, name, department, job records), and a second restore not creating another |
 | `test-restoreworkbook.ps1` | Restore workbook from an older copy of the workbook: room, settings and records carried over, the older file read without its macros running, left untouched, no temporary copy left behind, a non-Print-Cost workbook refused |
 | `prune-backups.ps1` | Keeps the N most recent `*.bak.xlsm` and removes the rest. `run-tests.ps1` calls it with `-Keep 1` after a full, all-green run (`build.ps1` only caps them at the newest 10, with `-Keep 10`) |
+| `.github/scripts/check-docs.py` | No Excel needed, any OS with Python 3. Broken links and missing images in the Markdown, wiki pages missing from `wiki/_Sidebar.md`, and `btn*` macros or `SET_*` settings with no row in `wiki/_map.md`. Runs on every pull request with markdownlint (`.github/workflows/docs-check.yml`); see `CONTRIBUTING.md` |
 
 **The tests are non-destructive by construction, not by care.** `test-validation.ps1`
 reads the Clear All confirmation by putting the workbook in quiet mode first:
