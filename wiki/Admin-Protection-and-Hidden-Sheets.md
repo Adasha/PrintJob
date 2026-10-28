@@ -3,6 +3,21 @@
 How the workbook guards against accidental changes, and which sheets are out
 of sight.
 
+## The sheets at a glance
+
+```mermaid
+flowchart LR
+    lists["<b>Setup sheets</b><br/>Print Technicians, Printers,<br/>Papers, Consumables,<br/>Departments, Settings<br/><i>hidden by Hide settings sheets</i>"]
+    rooms["<b>Print room sheets</b><br/><i>always in the tab bar</i>"]
+    data["<b>Working sheets</b><br/>_Data, _Registry, _Audit,<br/>_Export, _Work, _Picker<br/><i>very hidden</i>"]
+    reports["<b>Summary, Reports</b><br/><i>always in the tab bar</i>"]
+    lists -->|drop-downs and prices| rooms
+    rooms -->|every job| data
+    data --> reports
+    classDef unseen stroke-dasharray: 5 5
+    class data unseen
+```
+
 ## Protected sheets
 
 Every sheet is protected without a password. You can type in the cells meant

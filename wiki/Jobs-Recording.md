@@ -26,6 +26,26 @@ Add a print job to a print room sheet, copy one, or delete one.
 The costs fill in and **Status** shows OK. If Status shows something else,
 see [Validation and status](Jobs-Validation-and-Status).
 
+## A job from start to finish
+
+```mermaid
+flowchart LR
+    new["<b>New</b> or <b>Repeat</b><br/>Job ID, date and time,<br/>room defaults"]
+    fill["Choose technician,<br/>printer, paper;<br/>type Qty"]
+    status{"Status"}
+    fix["Fix what the<br/>Status note lists"]
+    paid["Mark <b>Paid</b><br/>on the room sheet<br/>or on Reports"]
+    new --> fill
+    fill -->|"today's prices<br/>copied onto the row"| status
+    status -->|problem| fix
+    fix --> status
+    status -->|OK| paid
+```
+
+The prices are copied again whenever the technician, printer, paper, print
+width or sheet size is changed, so a change to one of those re-prices the job
+at today's prices. Other edits, and later price changes, leave it alone.
+
 ## Use defaults for a batch
 
 The top of the sheet holds the room's defaults. Every new job starts with
