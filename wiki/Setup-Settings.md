@@ -50,6 +50,8 @@ The buttons at the top of the sheet are in three rows:
 The tables to the right of the settings (paper types, standard sizes,
 consumable types) are covered in [Lookup lists](Setup-Lookup-Lists).
 
+Below the tables, **PrintJob on GitHub** opens the project's home page.
+
 ## Things to know
 
 - Changing a setting never changes the cost of a job already recorded. The
@@ -78,4 +80,4 @@ consumable types) are covered in [Lookup lists](Setup-Lookup-Lists).
 
 ---
 
-*Draft for v0.11.3. Not yet verified on Windows or Mac.*
+*Draft for v0.11.4, without screenshots yet. Not yet verified on Windows.*

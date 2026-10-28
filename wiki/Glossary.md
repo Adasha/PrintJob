@@ -28,8 +28,8 @@
 | **Student-supplied paper** | Paper the student brings, recorded as **Supplied (Roll)**, **Supplied (Sheet)** or a paper marked **Supplied by student** |
 | **Subsidy** | The percentage of chargeable cost the university pays, shown on Reports |
 | **Template cost** | The set-up cost of one colour pass on a multi-pass printer |
-| **Workbook version** | The release of the workbook, such as 0.11.3. Shown by **About** |
+| **Workbook version** | The release of the workbook, such as 0.11.4. Shown by **About** |
 
 ---
 
-*Draft for v0.11.3. Not yet verified on Windows or Mac.*
+*Draft for v0.11.4, without screenshots yet. Not yet verified on Windows.*

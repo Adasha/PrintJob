@@ -1,0 +1,48 @@
+# Copies wiki/ on master into the repository's GitHub wiki, which is a
+# separate git repository (PrintJob.wiki.git). wiki/_map.md is the
+# feature-to-page map for reviewers, not a page, so it is left out.
+#
+# Needs a secret WIKI_TOKEN: a classic personal access token with the
+# public_repo scope. The workflow's own GITHUB_TOKEN cannot push to a wiki,
+# and fine-grained tokens do not reach wikis either. The wiki must exist
+# first: enable it in Settings and save one page from the web.
+
+name: Publish wiki
+
+on:
+  push:
+    branches: [master]
+    paths: ['wiki/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency: publish-wiki
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copy wiki/ into the wiki repository
+        env:
+          WIKI_TOKEN: ${{ secrets.WIKI_TOKEN }}
+        run: |
+          if [ -z "$WIKI_TOKEN" ]; then
+            echo "::error::The WIKI_TOKEN secret is not set."
+            exit 1
+          fi
+          git clone --depth 1 "https://x-access-token:${WIKI_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" wiki-repo
+          rsync -a --delete --exclude '.git' --exclude '_map.md' wiki/ wiki-repo/
+          cd wiki-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "The wiki is already up to date."
+            exit 0
+          fi
+          git commit -m "Publish wiki from ${GITHUB_SHA::7}"
+          git push

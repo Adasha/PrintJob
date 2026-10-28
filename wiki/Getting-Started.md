@@ -8,9 +8,10 @@ round.
 - **Excel for Microsoft 365**, on Windows or a Mac. Excel 2019 and earlier
   cannot run the workbook, because its totals use formulas that only
   Microsoft 365 has.
-- **The workbook file**, named like `PrintJob-v0.11.3.xlsm`. Ask whoever looks
+- **The workbook file**, named like `PrintJob-v0.11.4.xlsm`. Ask whoever looks
   after the workbook for your bureau. Released versions are also in the
-  `dist` folder of the project on GitHub.
+  [`dist` folder](https://github.com/Adasha/PrintJob/tree/master/dist) of the
+  project on GitHub.
 - **A place to keep it.** A folder on your computer or in OneDrive both work. Using a OneDrive location is recommended as Excel will autosave as print jobs are added.
   Keep one copy per bureau; each workbook is one site.
 
@@ -79,4 +80,4 @@ needs it:
 
 ---
 
-*Draft for v0.11.3. Not yet verified on Windows or Mac.*
+*Draft for v0.11.4, without screenshots yet. Not yet verified on Windows.*

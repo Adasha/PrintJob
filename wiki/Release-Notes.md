@@ -11,7 +11,7 @@ technical history is in the project's `docs/CHANGELOG.md`.
 
 | Version | What changed |
 | --- | --- |
-| 0.11.4 | **Add print room...** refuses a code another room already has, and suggests a free one. Before, a new room could take an existing room's code and give out the same Job IDs |
+| 0.11.4 | **Add print room...** refuses a code another room already has, and suggests a free one. Before, a new room could take an existing room's code and give out the same Job IDs. Colour passes: **Passes** and **Pass** can no longer be typed over, and **Remove** keeps you on the room's sheet. Settings has a **PrintJob on GitHub** link |
 | 0.11.3 | A room's **Sheet status** shows again; the Export line had been covering it |
 | 0.11.2 | New **Rename print room...** on Settings, which renames the tab too. A new job fills in its Unit when its paper comes from the room's default. On a Mac, **Remove print room...** asks for the room's name again |
 | 0.11.1 | Mac: Export, Export report and Backup no longer risk deleting the workbook |
@@ -34,4 +34,4 @@ Versions before 0.10 are in `docs/CHANGELOG.md`.
 
 ---
 
-*Draft for v0.11.3. Not yet verified on Windows or Mac.*
+*Draft for v0.11.4, without screenshots yet. Not yet verified on Windows.*
