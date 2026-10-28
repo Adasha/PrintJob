@@ -19,6 +19,8 @@ Set your site's details, currency and rounding on the **Settings** sheet.
    - **Currency decimal places**: usually 2.
 3. Leave the rest at their defaults unless you need them (see the table below).
 
+![The top of the Global settings table on Settings: Site ID, Site name, Organisation, Department, Currency symbol, University subsidy and Currency decimal places](images/Setup-Settings-1-mac.png)
+
 ## Result
 
 New IDs use your Site ID, and costs show in your currency.
@@ -52,6 +54,8 @@ consumable types) are covered in [Lookup lists](Setup-Lookup-Lists).
 
 Below the tables, **PrintJob on GitHub** opens the project's home page.
 
+![The Settings button rows: Print rooms, Data and Workbook](images/Setup-Settings-2-mac.png)
+
 ## Things to know
 
 - Changing a setting never changes the cost of a job already recorded. The
@@ -80,4 +84,4 @@ Below the tables, **PrintJob on GitHub** opens the project's home page.
 
 ---
 
-*Draft for v0.11.4, without screenshots yet. Not yet verified on Windows.*
+*Draft for v0.11.4, with Mac screenshots. Not yet verified on Windows.*

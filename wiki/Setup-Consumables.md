@@ -18,6 +18,8 @@ Skip this page if you have no multi-pass printer.
 4. Type the **Cost per m2**, for typical coverage.
 5. Leave **Active** as Yes.
 
+![The Consumables sheet with three Risograph colours and their cost per m2](images/Setup-Consumables-1-mac.png)
+
 ## Result
 
 When you add a colour pass to a job on that printer, the colour appears in
@@ -45,4 +47,4 @@ the pass's **Colour** drop-down. See [Colour passes](Jobs-Colour-Passes).
 
 ---
 
-*Draft for v0.11.4, without screenshots yet. Not yet verified on Windows.*
+*Draft for v0.11.4, with Mac screenshots. Not yet verified on Windows.*

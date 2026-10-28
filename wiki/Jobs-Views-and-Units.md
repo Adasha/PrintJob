@@ -14,6 +14,8 @@ are typed in metres or centimetres.
 
 The view applies to every print room at once.
 
+![A print room sheet with Show columns set to Minimal](images/Jobs-Views-and-Units-1-mac.png)
+
 ## Hide the cost detail
 
 Click **Hide cost detail** to hide Paper Cost, Consumable Cost, Set-up Cost,
@@ -54,4 +56,4 @@ show roll lengths in metres.
 
 ---
 
-*Draft for v0.11.4, without screenshots yet. Not yet verified on Windows.*
+*Draft for v0.11.4, with Mac screenshots. Not yet verified on Windows.*

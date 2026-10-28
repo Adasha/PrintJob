@@ -21,6 +21,8 @@ Add a print job to a print room sheet, copy one, or delete one.
    it blank to cost the full roll width.
 7. Add **Notes** if you want to.
 
+![The top of a print room sheet: the room settings, the Print jobs and Colour passes panels, and the first jobs in the table](images/Jobs-Recording-1-mac.png)
+
 ## Result
 
 The costs fill in and **Status** shows OK. If Status shows something else,
@@ -105,4 +107,4 @@ prices.
 
 ---
 
-*Draft for v0.11.4, without screenshots yet. Not yet verified on Windows.*
+*Draft for v0.11.4, with Mac screenshots. Not yet verified on Windows.*

@@ -20,6 +20,8 @@ A Yes becomes No and a No becomes Yes. To change several jobs, select cells
 in up to 200 rows first. The row the cursor is on decides the new value, and
 the workbook asks before changing them.
 
+![The Reports buttons: Toggle Paid and Go to record under Selected record, and Paid and Unpaid under Mark all as](images/Jobs-Paid-Tracking-1-mac.png)
+
 ## Mark everything a filter shows
 
 1. On **Reports**, set the filters so the list shows exactly the jobs to
@@ -55,4 +57,4 @@ once.
 
 ---
 
-*Draft for v0.11.4, without screenshots yet. Not yet verified on Windows.*
+*Draft for v0.11.4, with Mac screenshots. Not yet verified on Windows.*

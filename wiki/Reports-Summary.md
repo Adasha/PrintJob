@@ -19,6 +19,8 @@ refresh.
 Quantity and area count every job, including disregarded ones. Only the
 money columns split out what is disregarded.
 
+![The Totals row on Summary and the table of rooms, printers and papers below it](images/Reports-Summary-1-mac.png)
+
 ## Price a job before printing
 
 1. In **Plan a print job**, choose the **Printer** and the **Paper**.
@@ -28,6 +30,8 @@ money columns split out what is disregarded.
 3. Read the **Estimated cost**: paper, ink and overall.
 
 Nothing is recorded yet.
+
+![The Plan a print job box with a printer, paper and roll length chosen, the Estimated cost, and Add to print room](images/Reports-Summary-2-mac.png)
 
 ## Add the planned job to a room
 
@@ -63,4 +67,4 @@ the plan is not complete, the workbook says what is missing.
 
 ---
 
-*Draft for v0.11.4, without screenshots yet. Not yet verified on Windows.*
+*Draft for v0.11.4, with Mac screenshots. Not yet verified on Windows.*
