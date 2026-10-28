@@ -45,11 +45,15 @@ cell cursor on A1 unless stated. Light appearance on the Mac.
 
 ## Capture
 
-- **Range**: a cell range exported as a picture by script
-  (`docs-screens.ps1` on Windows; on a Mac, a scripted twin if a probe shows
-  `CopyPicture` and chart export work there, otherwise by hand). Exact ranges
-  are found with `probe.ps1 -Sheet <name>` or its Mac equivalent once the
-  demo workbook is built, and written into the script, not here.
+- **Range**: a cell range exported as a picture by script: `docs-screens.ps1`
+  on Windows, a Python twin under `mac/` on a Mac. Both copy the range with
+  `CopyPicture` (screen appearance, picture format), paste it into a chart
+  twice the range's size with the picture stretched to fill it, and export
+  the chart as PNG. The picture is vector, so the 2x chart renders sharp, at
+  about 2 px per point. Probed on Excel for Mac 16.114 on 2026-10-28: every
+  step worked, inside Excel's container, with no prompts. Exact ranges are
+  found with `probe.ps1 -Sheet <name>` or its Mac equivalent once the demo
+  workbook is built, and written into the script, not here.
 - **Window**: the whole Excel window, by hand (Shift+Cmd+4 then Space on a
   Mac, Alt+PrtScn on Windows).
 - **Dialog**: the dialog alone, by hand, the same way.
