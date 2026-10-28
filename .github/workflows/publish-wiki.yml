@@ -1,6 +1,7 @@
 # Copies wiki/ on master into the repository's GitHub wiki, which is a
-# separate git repository (PrintJob.wiki.git). wiki/_map.md is the
-# feature-to-page map for reviewers, not a page, so it is left out.
+# separate git repository (PrintJob.wiki.git). wiki/_map.md (the
+# feature-to-page map) and wiki/images/SHOTS.md (the shot list) are for
+# contributors, not pages, so they are left out.
 #
 # Needs a secret WIKI_TOKEN: a classic personal access token with the
 # public_repo scope. The workflow's own GITHUB_TOKEN cannot push to a wiki,
@@ -35,7 +36,7 @@ jobs:
             exit 1
           fi
           git clone --depth 1 "https://x-access-token:${WIKI_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" wiki-repo
-          rsync -a --delete --exclude '.git' --exclude '_map.md' wiki/ wiki-repo/
+          rsync -a --delete --exclude '.git' --exclude '_map.md' --exclude 'images/SHOTS.md' wiki/ wiki-repo/
           cd wiki-repo
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
