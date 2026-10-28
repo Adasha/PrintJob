@@ -27,6 +27,11 @@ could be typed over, and Remove pass jumped to Settings. With **Export folder**
 blank, every export and the backup landed beside the workbook; the first
 export asked for access twice (folder, then file).
 
+Mac session 3, 2026-10-28, same build: Summary's Add to print room. Every
+message read correctly (no printer, no paper, a paper the printer cannot
+take, no room), the room drop-down listed only rooms with the planned
+printer, and the job landed on the chosen room's sheet. No differences.
+
 **Tests column.** The Mac test (`mac/test-<name>.py`) and its Windows twin
 (`test-<name>.ps1`) that cover the feature. Blank = no automated test.
 
@@ -77,8 +82,8 @@ export asked for access twice (folder, then file).
 | **Refresh Locations** | `btnRefreshLocations` | `modRegistry.RefreshLocations` | Setup-Print-Rooms | message | duplicate, nextid, restorereuse | Check |
 | **Check workbook** | `btnCheckWorkbook` | `modValidation.CheckWorkbook` | Jobs-Validation-and-Status | message | validation | Check |
 | **Hide settings sheets** / **Show settings sheets** | `btnToggleConfigSheets` | `modInit.ToggleConfigSheets` | Admin-Protection-and-Hidden-Sheets | none | reports | Check |
-| Plan a print job (Printer, Paper, Roll length, Print width, Sheet size) | cell edits | `modPlanner.PlannerChanged` | Reports-Summary | none | jobplanner | Check |
-| **Add to print room** | `btnPlannerAdd` | `modPlanner.AddPlannedJob` | Reports-Summary | room drop-down; message if the plan is incomplete | jobplanner | Check |
+| Plan a print job (Printer, Paper, Roll length, Print width, Sheet size) | cell edits | `modPlanner.PlannerChanged` | Reports-Summary | none | jobplanner | Mac OK |
+| **Add to print room** | `btnPlannerAdd` | `modPlanner.AddPlannedJob` | Reports-Summary | room drop-down; message if the plan is incomplete | jobplanner | Mac OK |
 | By department block | formulas | `modReports.BuildSummary` | Reports-Summary | none | departments, summaryformat | Check |
 
 ### Reports
@@ -230,7 +235,7 @@ built workbook in Excel's container, macros enabled.
 
 - [x] Every prompt above appears, reads correctly, and Cancel leaves nothing changed. Done in session 1: Delete, Clear All, Remove row, Clear table, Re-stamp, Toggle Paid, Mark all as, Delete visible records. Session 2: Remove pass, Restore
 - [x] Typed prompts: Add, Rename and Remove print room (session 1), Import (choose room) (session 2)
-- [ ] Add to print room: the room drop-down, and the messages when the plan is incomplete
+- [x] Add to print room: the room drop-down, and the messages when the plan is incomplete (session 3)
 - [x] File pickers: Import..., Import (choose room)..., Restore workbook... (CSV and older workbook) (session 2)
 - [x] Export, Export All, Export report and Backup: where the files land, and the message shown (session 2)
 - [x] Select printers... picker sheet: OK and Cancel (session 1)
