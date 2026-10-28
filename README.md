@@ -6,6 +6,8 @@ This is an internal project published here mainly to serve as the cloud backup. 
 
 Needs Office 365 subscription, Windows or Mac. See SETUP.md for build instructions.
 
+How to use the workbook is in the [wiki](https://github.com/Adasha/PrintJob/wiki). Released workbooks are in [dist](dist).
+
 ## License
 
 This project is distributed under the [Mozilla Public License 2.0](LICENSE).
