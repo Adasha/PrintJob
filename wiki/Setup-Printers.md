@@ -41,6 +41,24 @@ A paper can be used on a printer only if it fits:
 - A sheet paper must fit within the printer's **Max sheet size**, either way
   round.
 - A blank capacity means the printer cannot take that kind of paper at all.
+- **Supplied (Roll)** and **Supplied (Sheet)** fit any printer that takes
+  that kind of paper. The job's **Print Width mm** or **Sheet size** is then
+  checked against the printer instead.
+
+```mermaid
+flowchart TD
+    measure{"Paper's Measure"}
+    measure -->|Roll| roll{"Printer takes rolls?<br/>Max roll width mm set,<br/>not multi-pass"}
+    measure -->|Sheet| sheet{"Printer takes sheets?<br/>Max sheet size set"}
+    roll -->|No| rollno["Not offered"]
+    roll -->|Yes| rollfit{"Paper no wider<br/>than that width?"}
+    rollfit -->|No| rollno
+    rollfit -->|Yes| rollyes["Offered in Paper Stock"]
+    sheet -->|No| sheetno["Not offered"]
+    sheet -->|Yes| sheetfit{"Paper fits within it,<br/>either way round?"}
+    sheetfit -->|No| sheetno
+    sheetfit -->|Yes| sheetyes["Offered in Paper Stock"]
+```
 
 The **Paper Stock** drop-down on a job offers only papers that fit the job's
 printer.

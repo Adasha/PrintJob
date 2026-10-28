@@ -3,6 +3,28 @@
 Save everything in the workbook in one go, and bring it back later or into
 a new workbook.
 
+## How the files fit together
+
+```mermaid
+flowchart LR
+    subgraph wb["This workbook"]
+        room["One print room"]
+        all["Every room,<br/>setup list and setting"]
+    end
+    csv["Room CSV file"]
+    set["Backup set<br/>CSV files, one date and time"]
+    old["Older copy of<br/>the workbook (.xlsm)"]
+    room -->|"Export..."| csv
+    csv -->|"Import..."| room
+    all -->|"Backup workbook..."| set
+    set -->|"Restore workbook..."| all
+    old -->|"Restore workbook..."| all
+```
+
+Exports and imports move one room's jobs. A backup and a restore move
+everything. See [Exporting a print room](Data-Export-Room) and
+[Importing jobs](Data-Import).
+
 ## Back up the workbook
 
 1. On **Settings**, click **Backup workbook...**.
