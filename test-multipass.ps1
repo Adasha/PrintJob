@@ -235,6 +235,12 @@ try {
     Check ((Level ($job + 1)) -eq 2 -and (Level ($job + 2)) -eq 2 -and (Level $job) -eq 1) 'outline levels still line up'
 
     Write-Host ''
+    Write-Host '=== Passes and Pass are locked, as calculated columns are ==='
+    Check ([bool](J $job 'Passes').Locked) "the job's Passes cell is locked"
+    Check ([bool](J ($job + 1) 'Pass').Locked) "a pass's Pass cell is locked"
+    Check (-not [bool](J ($job + 1) 'Colour').Locked) "a pass's Colour cell is still open for typing"
+
+    Write-Host ''
     Write-Host '=== Repeat job copies the group ==='
     Pick ($job + 1)
     [void]$xl.Run('RepeatJob', $main)

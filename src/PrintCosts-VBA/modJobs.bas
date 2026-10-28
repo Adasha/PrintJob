@@ -272,6 +272,13 @@ Public Sub RemoveRow(ByVal ws As Worksheet)
 
     DeleteJobGroup ws, lo, grp, detail
     ' Only the button path opens the window: a test (DeleteJobGroupAt) moves between sheets at once.
+    HoldViewAfterDelete ws
+End Sub
+
+' Opens the two-second window in which Workbook_SheetActivate sends a switch to
+' another sheet back to WS (SheetToStayOn). Called by the Delete and Remove
+' pass buttons once their delete is done.
+Public Sub HoldViewAfterDelete(ByVal ws As Worksheet)
     mDeleteSheet = ws.Name
     mDeleteDone = Now
 End Sub
@@ -306,7 +313,7 @@ End Sub
 ' audit log. Two places: here, for a switch made while the delete ran, and
 ' ThisWorkbook.Workbook_SheetActivate (via SheetToStayOn), for one that lands just
 ' after a delete made with the Delete button.
-Private Sub StayOnSheet(ByVal ws As Worksheet, ByVal SelAddr As String)
+Public Sub StayOnSheet(ByVal ws As Worksheet, ByVal SelAddr As String)
     Dim landed As String
     On Error Resume Next
     If ws Is ActiveSheet Then Exit Sub

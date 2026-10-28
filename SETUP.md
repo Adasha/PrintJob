@@ -4,7 +4,7 @@
 
 From the `PrintJob` folder:
 
-```
+```powershell
 powershell -ExecutionPolicy Bypass -File build.ps1
 ```
 
@@ -30,7 +30,7 @@ The manual route below still works.
 
 From the `PrintJob` folder:
 
-```
+```sh
 python3 mac/build.py
 ```
 
@@ -187,9 +187,10 @@ button. Row `UNI-EXAMPLE-00012` is deliberately invalid, to show the Status colu
 working.
 
 **Sheets are protected without a password.** That stops accidental edits to
-locked cells, not determined ones. Set a password by hand in Excel (Review >
-Protect Sheet) on a particular workbook if you need one - nothing in
-`modProtect` generates one by default any more.
+locked cells, not determined ones. **A password is not supported** (decided
+2026-10-27): `modProtect` unprotects and reprotects sheets without one, on
+every open and around every write, so a password set by hand would stop the
+buttons writing to the sheet.
 
 **Exports write beside the workbook by default.** Set the "Export folder"
 value on the Settings sheet to send CSV exports and report snapshots
@@ -360,7 +361,7 @@ disagree about the figures with nothing wrong in the workbook at all.
 
 If you are checking that for yourself, hash the file either side of a run:
 
-```
+```powershell
 $h = (Get-FileHash src\PrintJob.xlsm -Algorithm SHA256).Hash
 powershell -ExecutionPolicy Bypass -File test-reports.ps1
 (Get-FileHash src\PrintJob.xlsm -Algorithm SHA256).Hash -eq $h
@@ -376,7 +377,7 @@ through AppleScript instead, one per `.ps1` with the same checks and messages,
 on top of `mac/xlmac.py` (the Mac counterpart of `TestCommon.ps1`). Not every
 test is ported yet: `ls mac/test-*.py` shows which are.
 
-```
+```text
 python3 mac/run-tests.py                  all ported tests, one line each
 python3 mac/run-tests.py --only paid      name fragments
 python3 mac/test-defaults.py              one test, full output
