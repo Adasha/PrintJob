@@ -235,10 +235,19 @@ try {
     Check ((Level ($job + 1)) -eq 2 -and (Level ($job + 2)) -eq 2 -and (Level $job) -eq 1) 'outline levels still line up'
 
     Write-Host ''
-    Write-Host '=== Passes and Pass are locked, as calculated columns are ==='
+    Write-Host '=== Passes, Pass, Unit and Area m2 are locked, as calculated columns are ==='
     Check ([bool](J $job 'Passes').Locked) "the job's Passes cell is locked"
     Check ([bool](J ($job + 1) 'Pass').Locked) "a pass's Pass cell is locked"
     Check (-not [bool](J ($job + 1) 'Colour').Locked) "a pass's Colour cell is still open for typing"
+    # Unit and Area m2: the template's column formats left rows added after
+    # the sample unlocked (0.11.5).
+    foreach ($pair in @(@($job, "the job's"), @(($job + 1), "a pass's"))) {
+        foreach ($h in @('Unit', 'Area m2')) {
+            Check ([bool](J $pair[0] $h).Locked) "$($pair[1]) $h cell is locked"
+        }
+    }
+    $qtyText = [string](J $job 'Qty').Text
+    Check ($qtyText -eq '100') "a whole Qty shows without a trailing point (got '$qtyText')"
 
     Write-Host ''
     Write-Host '=== Repeat job copies the group ==='

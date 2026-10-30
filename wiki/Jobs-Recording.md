@@ -82,6 +82,8 @@ prices.
 > **Warning:** a deleted job cannot be brought back, and its Job ID is never
 > reused. Deleting a job also deletes its colour passes.
 
+![The Delete print job confirmation showing the job's ID, date, student, printer, stock and cost](images/Jobs-Recording-2-mac.png)
+
 ## Things to know
 
 - To correct the date and time, click a cell in the job and click **Now**,
@@ -107,4 +109,4 @@ prices.
 
 ---
 
-*Draft for v0.11.4, with Mac screenshots. Not yet verified on Windows.*
+*Draft for v0.11.5, with Mac screenshots. Not yet verified on Windows.*

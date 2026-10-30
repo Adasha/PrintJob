@@ -9,6 +9,9 @@
 #   python3 mac/docs-screens.py --layout   demo workbook, then print each
 #                                          sheet's tables and shapes and export
 #                                          a trial image of each sheet
+#   python3 mac/docs-screens.py --save     demo workbook only, saved in its
+#                                          copy's folder (path printed) for the
+#                                          Dialog and Window shots taken by hand
 #
 # Images land in WORK_ROOT/docs-screens (inside Excel's container, where Excel
 # asks for no file access); copy the ones you keep into wiki/images.
@@ -239,7 +242,7 @@ def shots(wb, b, room):
         wb.call('UnlockSheet', sheet('Summary'))
         wb.set_value('Summary', a, v)
     shot('Reports-Summary-2', 'Summary', 'A5:F21')
-    shot('Reports-Summary-1', 'Summary', 'A23:P42')
+    shot('Reports-Summary-1', 'Summary', 'A23:O42')
 
     wb.call('SetViewMode', 'Minimal')
     shot('Jobs-Views-and-Units-1', room, f'A1:R{wb.table_last_row(room, ptbl)}')
@@ -250,7 +253,22 @@ def shots(wb, b, room):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--layout', action='store_true')
+    ap.add_argument('--save', action='store_true')
     opts = ap.parse_args()
+
+    if opts.save:
+        copy = open_copy()
+        with copy as wb:
+            build_demo(wb)
+            wb.run('SetQuiet', False)
+            wb.activate('Summary')
+            wb.select('Summary', 'A1')
+            wb.save()
+        # Left where Excel saved it: the sandbox will not read back a copy
+        # made from here (xlmac). The next run of any open_copy replaces it.
+        print('saved:', os.path.join(copy.dir, copy.name))
+        return
+
     if os.path.isdir(OUT):
         shutil.rmtree(OUT)
     os.makedirs(OUT)

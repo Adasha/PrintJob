@@ -38,6 +38,8 @@ Private Const SIDE_PANEL_COL As Long = 47
 Private Const TOOLBAR_ROW As Long = 15
 ' The pass buttons' row (multi-pass costing): the blank row just above the table header.
 Private Const PASS_ROW As Long = 16
+' The Qty whole-number rule is found again by this (ApplyQtyWholeFormat).
+Private Const QTY_CF_MARK As String = "MOD("
 ' Header block rows on a location sheet (short blank gap rows sit between the groups).
 Private Const ROW_NAME As Long = 1
 Private Const ROW_DEPT As Long = 2
@@ -170,9 +172,11 @@ Public Sub InitialiseWorkbook()
             ' none of them is duplicated in this loop.
             n = n + 1
         ElseIf StrComp(ws.Name, "Summary", vbTextCompare) = 0 Then
-            ' Column O onwards, clear of the A:M report table.
-            DrawOne ws, 1, 15, "Refresh Locations", "btnRefreshLocations", 130
-            DrawOne ws, 3, 15, "Check workbook", "btnCheckWorkbook", 130
+            ' Column Q onwards, clear of the A:O report table (column Q since
+            ' 0.11.5: 0.11.0's Passes and Set-up cost columns took the table
+            ' to O, where these and the legend had narrowed it to "####").
+            DrawOne ws, 1, SUM_SIDE_COL, "Refresh Locations", "btnRefreshLocations", 130
+            DrawOne ws, 3, SUM_SIDE_COL, "Check workbook", "btnCheckWorkbook", 130
             ' "Go to Settings" removed (snag 3b, 2026-09-22): with four
             ' configuration sheets and no way to tell which one a given task
             ' needs, the button could only ever jump to one of them (Settings)
@@ -184,7 +188,7 @@ Public Sub InitialiseWorkbook()
             ' silently truncates to 31 rather than erroring on (SetButtonName's
             ' comment) - caught by the length audit that found the Settings
             ' lookup-table buttons' own truncation.
-            DrawOne ws, 5, 15, ConfigToggleCaption(), "btnToggleConfigSheets", 130
+            DrawOne ws, 5, SUM_SIDE_COL, ConfigToggleCaption(), "btnToggleConfigSheets", 130
             ' The job planner box (modPlanner) at the top of the page.
             DrawOne ws, PLN_ADD_ROW, PLN_ADD_COL, "Add to print room", "btnPlannerAdd", 130
         ElseIf StrComp(ws.Name, "Printers", vbTextCompare) = 0 Then
@@ -781,7 +785,10 @@ Private Sub AddQtyRule(ByVal ws As Worksheet, ByVal lo As ListObject)
     Else
         qtyMsg = "Sheets for sheet stock, metres for roll stock. Must be greater than zero."
     End If
-    AddRule lo, "Qty", xlValidateDecimal, "0", False, "Qty", qtyMsg, qtyMsg, xlGreater
+    ' Blank allowed (0.11.5): a missing Qty is already a problem in Status,
+    ' and a pass row never has one, so refusing blanks only made Excel flag
+    ' every pass row's Qty as a validation error.
+    AddRule lo, "Qty", xlValidateDecimal, "0", True, "Qty", qtyMsg, qtyMsg, xlGreater
 End Sub
 
 Public Sub RefreshQtyValidation(ByVal ws As Worksheet)
@@ -2000,8 +2007,30 @@ Private Sub ApplyStatusFormat(ByVal ws As Worksheet)
         Formula1:="=LEFT(INDEX(" & stCol & ",ROW()),7)=""Notice:""")
     fc.Interior.Color = RGB(255, 242, 153)
     ApplyPassFormat ws
+    ApplyQtyWholeFormat lo
     RefreshStatusNotes ws
     RelockSheet ws
+End Sub
+
+' Qty's number format is #,##0.### so a part sheet or 2.5 metres shows its
+' decimals, but that format leaves a bare point on a whole number ("100.").
+' A number format has no "only if there are decimals" section, so a
+' conditional format gives whole numbers #,##0 instead (0.11.5). Written with
+' INDEX(..., ROW()) like the Status rules; the pass rule covers the same
+' cells, so only this rule (found by its MOD) is replaced on a re-run.
+Private Sub ApplyQtyWholeFormat(ByVal lo As ListObject)
+    Dim rng As Range, fc As FormatCondition, i As Long, qCol As String
+    Set rng = lo.ListColumns("Qty").DataBodyRange
+    ' Its own unlock: ApplyPassFormat, just before, ends by relocking.
+    UnlockSheet lo.Parent
+    For i = rng.FormatConditions.Count To 1 Step -1
+        If InStr(1, rng.FormatConditions(i).Formula1, QTY_CF_MARK, vbTextCompare) > 0 Then rng.FormatConditions(i).Delete
+    Next i
+    qCol = rng.Cells(1, 1).EntireColumn.Address(True, True)
+    Set fc = rng.FormatConditions.Add(Type:=xlExpression, _
+        Formula1:="=" & QTY_CF_MARK & "INDEX(" & qCol & ",ROW()),1)=0")
+    fc.NumberFormat = "#,##0"
+    RelockSheet lo.Parent
 End Sub
 
 ' The Status column is narrow (0.10.9), so a row's full message - possibly

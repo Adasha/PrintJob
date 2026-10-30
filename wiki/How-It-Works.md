@@ -90,4 +90,4 @@ room...**: click **Refresh Locations** so the reports include it.
 
 ---
 
-*Draft for v0.11.4, without screenshots yet. Not yet verified on Windows.*
+*Draft for v0.11.5, without screenshots yet. Not yet verified on Windows.*

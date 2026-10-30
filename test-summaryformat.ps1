@@ -53,13 +53,24 @@ try {
 
     # -------------------------------------------------------- legend ---
     Write-Host ''
-    Write-Host '=== Summary legend (column P) ==='
+    Write-Host '=== Summary legend (column R) ==='
     $expected = @('Type your own values here', 'Calculated automatically', 'Workbook configuration', 'Reference information (read-only)')
     for ($i = 0; $i -lt $expected.Count; $i++) {
         $r = 10 + $i
-        $text = [string]$sum.Cells($r, 16).Text
-        Check ($text -eq $expected[$i]) "P${r} reads '$($expected[$i])' (got '$text')"
+        $text = [string]$sum.Cells($r, 18).Text
+        Check ($text -eq $expected[$i]) "R${r} reads '$($expected[$i])' (got '$text')"
     }
+
+    # Chargeable is the table's last column, O: until 0.11.5 the legend
+    # narrowed O to 4 and its figures showed as ####.
+    Write-Host ''
+    Write-Host '=== Summary table: Chargeable (column O) is readable ==='
+    $head = [string]$sum.Cells($SUM_HDR_ROW, 15).Text
+    Check ($head -eq 'Chargeable') "O$($SUM_HDR_ROW) is the Chargeable header (got '$head')"
+    $width = [double]$sum.Columns(15).ColumnWidth
+    Check ($width -ge 10) "column O is at least 10 wide (got $width)"
+    $first = [string]$sum.Cells($SUM_FIRST_ROW, 15).Text
+    Check (-not $first.Contains('#')) "O$($SUM_FIRST_ROW) shows a figure, not #### (got '$first')"
 
     # ------------------------------------------------------- currency ---
     Write-Host ''

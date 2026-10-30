@@ -54,4 +54,4 @@ The sample room is removed once your own rooms are in. Check the totals on
 
 ---
 
-*Draft for v0.11.4, without screenshots yet. Not yet verified on Windows.*
+*Draft for v0.11.5, without screenshots yet. Not yet verified on Windows.*

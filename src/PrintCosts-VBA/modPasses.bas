@@ -473,6 +473,13 @@ Public Sub PreparePassSheet(ByVal ws As Worksheet)
     ' the formula (0.11.4, found in the Mac checks).
     lo.ListColumns("Passes").DataBodyRange.Locked = True
     lo.ListColumns("Pass").DataBodyRange.Locked = True
+    ' Unit and Area m2 likewise: their table-column formats said unlocked, so
+    ' every row added after the sample rows could be typed over (0.11.5,
+    ' found from Excel's unlocked-formula flags in the Mac screenshots). The
+    ' template is fixed by mac/apply-calc-lock-template.py; this repairs rows
+    ' already added in a workbook built before it.
+    lo.ListColumns("Unit").DataBodyRange.Locked = True
+    lo.ListColumns("Area m2").DataBodyRange.Locked = True
     On Error GoTo 0
     RelockSheet ws
     RebuildGroups ws

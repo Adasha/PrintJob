@@ -161,6 +161,11 @@ try {
     Write-Host ''
     Write-Host '--- InitialiseWorkbook said ---'
     Write-Host $log
+    # Setup reports its own failures in the log rather than raising, so a
+    # build that half-ran would otherwise be saved and look done.
+    if ($log -like '*Something went wrong*') {
+        throw 'InitialiseWorkbook failed (see above); the workbook was not saved.'
+    }
 
     # --- save as .xlsm -----------------------------------------------------
     # 52 = xlOpenXMLWorkbookMacroEnabled. Saving as .xlsx discards the code.
