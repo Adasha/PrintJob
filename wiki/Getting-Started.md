@@ -8,7 +8,7 @@ round.
 - **Excel for Microsoft 365**, on Windows or a Mac. Excel 2019 and earlier
   cannot run the workbook, because its totals use formulas that only
   Microsoft 365 has.
-- **The workbook file**, named like `PrintJob-v0.11.4.xlsm`. Ask whoever looks
+- **The workbook file**, named like `PrintJob-v0.11.5.xlsm`. Ask whoever looks
   after the workbook for your bureau. Released versions are also in the
   [`dist` folder](https://github.com/Adasha/PrintJob/tree/master/dist) of the
   project on GitHub.
@@ -80,4 +80,4 @@ needs it:
 
 ---
 
-*Draft for v0.11.4, without screenshots yet. Not yet verified on Windows.*
+*Draft for v0.11.5, without screenshots yet. Not yet verified on Windows.*

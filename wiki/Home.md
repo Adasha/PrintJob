@@ -31,7 +31,7 @@ sets it up. It covers Excel for Microsoft 365 on Windows and on a Mac.
 
 ## Which version
 
-These pages describe workbook version 0.11.4. To see which version you have,
+These pages describe workbook version 0.11.5. To see which version you have,
 open the **Settings** sheet and click **About**. What changed in each version
 is in [Release notes](Release-Notes).
 
@@ -40,4 +40,4 @@ is in [Release notes](Release-Notes).
 
 ---
 
-*Draft for v0.11.4, without screenshots yet. Not yet verified on Windows.*
+*Draft for v0.11.5, without screenshots yet. Not yet verified on Windows.*

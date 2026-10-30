@@ -239,7 +239,7 @@ def shots(wb, b, room):
         wb.call('UnlockSheet', sheet('Summary'))
         wb.set_value('Summary', a, v)
     shot('Reports-Summary-2', 'Summary', 'A5:F21')
-    shot('Reports-Summary-1', 'Summary', 'A23:P42')
+    shot('Reports-Summary-1', 'Summary', 'A23:O42')
 
     wb.call('SetViewMode', 'Minimal')
     shot('Jobs-Views-and-Units-1', room, f'A1:R{wb.table_last_row(room, ptbl)}')

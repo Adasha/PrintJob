@@ -57,4 +57,4 @@ holds the values, not formulas, so it opens the same on any computer.
 
 ---
 
-*Draft for v0.11.4, without screenshots yet. Not yet verified on Windows.*
+*Draft for v0.11.5, without screenshots yet. Not yet verified on Windows.*

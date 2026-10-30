@@ -54,4 +54,4 @@ table.
 
 ---
 
-*Draft for v0.11.4, with Mac screenshots. Not yet verified on Windows.*
+*Draft for v0.11.5, with Mac screenshots. Not yet verified on Windows.*

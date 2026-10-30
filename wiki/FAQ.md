@@ -47,7 +47,7 @@ leave names out.
 
 ## What is the difference between the workbook version and the schema?
 
-The workbook version, such as 0.11.4, changes with every release. The schema
+The workbook version, such as 0.11.5, changes with every release. The schema
 version, such as 1.4, changes only when the shape of the job records changes.
 Both are on **Settings** and in **About**.
 
@@ -59,4 +59,4 @@ beside the full figures. Jobs themselves are not changed. See
 
 ---
 
-*Draft for v0.11.4, without screenshots yet. Not yet verified on Windows.*
+*Draft for v0.11.5, without screenshots yet. Not yet verified on Windows.*
