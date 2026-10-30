@@ -11,7 +11,8 @@ Bring jobs from an exported CSV file into a print room.
 
 1. Open the print room's sheet.
 2. Click **Import...** on the right of the sheet.
-3. Choose the CSV file.
+3. Choose the CSV file. The picker does not open where the file is: go to
+   the folder the export message named.
 4. Read how many jobs will be added and how many will replace jobs already
    there, then click **Yes**.
 
@@ -47,7 +48,9 @@ Importing the same file twice changes nothing the second time.
 ## Platform notes
 
 > **Mac:** the file picker may look different from usual, as the workbook
-> tries more than one way to open it.
+> tries more than one way to open it. To reach a folder you cannot click to,
+> such as one inside your Library folder, press Shift+Cmd+G and type or
+> paste its path.
 >
 > **Windows:** not yet checked.
 

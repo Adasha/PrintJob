@@ -58,6 +58,15 @@ Private Sub Show(ByVal Mode As String, ByVal Target As String, ByVal ReturnTo As
     ws.Cells.Clear
     ClearControls ws
 
+    ' Widths first: the checkboxes and buttons below are placed from the
+    ' cells' positions, and the buttons are free-floating, so widths set after
+    ' them left the controls where the previous widths had put them (0.11.5,
+    ' found in the Mac screenshot session).
+    ws.Columns(1).ColumnWidth = 3
+    ws.Columns(COL_ITEM).ColumnWidth = 46
+    ws.Columns(COL_TICK).ColumnWidth = 12
+    ws.Columns(4).ColumnWidth = 3
+
     ws.Cells(1, COL_STATE).Value = Mode
     ws.Cells(2, COL_STATE).Value = Target
     ws.Cells(3, COL_STATE).Value = ReturnTo
@@ -89,15 +98,13 @@ Private Sub Show(ByVal Mode As String, ByVal Target As String, ByVal ReturnTo As
     Next i
     last = FIRST_ROW + items.Count - 1
 
+    ' OK and Cancel side by side under the list, Cancel ending at the Include
+    ' column's right edge: Cancel used to start at that column and run past it.
     DrawOne ws, last + 2, COL_ITEM, "OK", "btnPickerOK", 90
     DrawOne ws, last + 2, COL_TICK, "Cancel", "btnPickerCancel", 90
+    PlaceCancel ws, last + 2
 
     Frame ws, last
-
-    ws.Columns(1).ColumnWidth = 3
-    ws.Columns(COL_ITEM).ColumnWidth = 46
-    ws.Columns(COL_TICK).ColumnWidth = 12
-    ws.Columns(4).ColumnWidth = 3
     ws.Tab.Color = RGB(255, 192, 0)
 
     ws.Visible = xlSheetVisible
@@ -115,6 +122,15 @@ End Sub
 
 ' A tinted, bordered panel so the sheet reads as a temporary dialog rather than
 ' as part of the workbook.
+Private Sub PlaceCancel(ByVal ws As Worksheet, ByVal RowNo As Long)
+    Dim b As Object, i As Long, rightEdge As Double
+    rightEdge = ws.Cells(RowNo, COL_TICK).Left + ws.Cells(RowNo, COL_TICK).Width
+    For i = 1 To ws.Buttons.Count
+        Set b = ws.Buttons(i)
+        If b.OnAction Like "*btnPickerCancel" Then b.Left = rightEdge - b.Width
+    Next i
+End Sub
+
 Private Sub Frame(ByVal ws As Worksheet, ByVal LastItemRow As Long)
     Dim box As Range, inner As Range
     Set box = ws.Range(ws.Cells(1, COL_ITEM - 1), ws.Cells(LastItemRow + 4, COL_TICK + 1))

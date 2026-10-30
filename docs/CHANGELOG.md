@@ -25,6 +25,12 @@ could be typed over on added rows; whole quantities showed a trailing point
     Status), so Excel no longer flags every pass row's Qty.
   - All four found from Excel's green triangles and the #### in the
     2026-10-28 Mac screenshots (mac/docs-screens.py).
+  - Select printers...: the picker's ticks and its OK and Cancel buttons sat
+    wherever the sheet's previous column widths had put them, because
+    modPicker.Show set the widths after placing them. Widths now come
+    first, and Cancel sits beside OK, ending at the Include column. New
+    test-picker (.ps1 and mac/.py). Found in the 2026-10-30 Mac
+    screenshot session.
   - Builds stop when InitialiseWorkbook reports a failure (mac/build.py,
     build.ps1). It logs its errors rather than raising, so a half-set-up
     workbook was saved and the build said done; that hid this version's own
@@ -33,7 +39,8 @@ could be typed over on added rows; whole quantities showed a trailing point
     shows figures; test-multipass checks Unit and Area m2 are locked and a
     whole Qty's display (.ps1 and mac/.py).
   - Docs: Reports-Summary (screenshot retaken), Jobs-Recording,
-    Jobs-Views-and-Units (screenshots show Qty), Release-Notes.
+    Jobs-Views-and-Units (screenshots show Qty), Data-Import (where the
+    file is), Release-Notes.
 
 0.11.4 - Fix: a new print room could take another room's code; a one-printer
 room's blank row counted as a job (2026-10-27).
