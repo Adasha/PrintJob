@@ -2021,6 +2021,8 @@ End Sub
 Private Sub ApplyQtyWholeFormat(ByVal lo As ListObject)
     Dim rng As Range, fc As FormatCondition, i As Long, qCol As String
     Set rng = lo.ListColumns("Qty").DataBodyRange
+    ' Its own unlock: ApplyPassFormat, just before, ends by relocking.
+    UnlockSheet lo.Parent
     For i = rng.FormatConditions.Count To 1 Step -1
         If InStr(1, rng.FormatConditions(i).Formula1, QTY_CF_MARK, vbTextCompare) > 0 Then rng.FormatConditions(i).Delete
     Next i
@@ -2028,6 +2030,7 @@ Private Sub ApplyQtyWholeFormat(ByVal lo As ListObject)
     Set fc = rng.FormatConditions.Add(Type:=xlExpression, _
         Formula1:="=" & QTY_CF_MARK & "INDEX(" & qCol & ",ROW()),1)=0")
     fc.NumberFormat = "#,##0"
+    RelockSheet lo.Parent
 End Sub
 
 ' The Status column is narrow (0.10.9), so a row's full message - possibly

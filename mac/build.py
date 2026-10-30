@@ -269,6 +269,10 @@ try:
     print()
     print('--- InitialiseWorkbook said ---')
     print(log)
+    # Setup reports its own failures in the log rather than raising, so a
+    # build that half-ran would otherwise be saved and look done.
+    if 'Something went wrong' in log:
+        die('InitialiseWorkbook failed (see above); the workbook was not saved.')
 
     # --- save as .xlsm -----------------------------------------------------
     # filename takes the plain POSIX path; an HFS (colon) path is refused

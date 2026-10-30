@@ -25,6 +25,10 @@ could be typed over on added rows; whole quantities showed a trailing point
     Status), so Excel no longer flags every pass row's Qty.
   - All four found from Excel's green triangles and the #### in the
     2026-10-28 Mac screenshots (mac/docs-screens.py).
+  - Builds stop when InitialiseWorkbook reports a failure (mac/build.py,
+    build.ps1). It logs its errors rather than raising, so a half-set-up
+    workbook was saved and the build said done; that hid this version's own
+    first build, where the Qty rule was added to a protected sheet.
   - Tests: test-summaryformat checks the legend in R and that Chargeable
     shows figures; test-multipass checks Unit and Area m2 are locked and a
     whole Qty's display (.ps1 and mac/.py).
