@@ -41,6 +41,8 @@ Printers, Papers, Consumables, Departments and Settings tabs disappear. Click
 This only tidies the tab bar. Anyone can still show the sheets with Excel's
 **Unhide**.
 
+![Summary with the setup sheets hidden: only Summary, Reports and the print room tabs remain, and the button now reads Show settings sheets](images/Admin-Protection-and-Hidden-Sheets-1-mac.png)
+
 ## Working sheets you never see
 
 Six sheets are hidden so they do not appear in **Unhide** either:
@@ -74,4 +76,4 @@ Do not try to change these. The workbook rebuilds what it needs.
 
 ---
 
-*Draft for v0.11.5, without screenshots yet. Not yet verified on Windows.*
+*Draft for v0.11.5, with Mac screenshots. Not yet verified on Windows.*

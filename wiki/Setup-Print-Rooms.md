@@ -20,6 +20,10 @@ rooms later.
 5. The new sheet opens, empty. Click **Select printers...** on it.
 6. Tick every printer the room has, then click **OK**.
 
+![The Add print room prompt asking for the short code used in the room's job IDs, suggesting PRINTL](images/Setup-Print-Rooms-1-mac.png)
+
+![The Select printers picker for Photography: each printer with an Include tick box, and OK and Cancel below](images/Setup-Print-Rooms-2-mac.png)
+
 ## Result
 
 The room has its own sheet and appears on **Summary** and **Reports**. Its
@@ -79,4 +83,4 @@ sheet is locked once set, so use this command rather than typing over it.
 
 ---
 
-*Draft for v0.11.5, without screenshots yet. Not yet verified on Windows.*
+*Draft for v0.11.5, with Mac screenshots. Not yet verified on Windows.*

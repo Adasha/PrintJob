@@ -26,6 +26,8 @@ go, and cannot be undone.
 
 The room keeps its settings, printers and code. Other rooms are not touched.
 
+![The Clear All warning for Photography: how many jobs and passes will be deleted](images/Data-Deleting-and-Clearing-1-mac.png)
+
 ## Delete the jobs a filter shows
 
 1. On **Reports**, set filters so the list shows exactly the jobs to delete.
@@ -67,4 +69,4 @@ touched.
 
 ---
 
-*Draft for v0.11.5, without screenshots yet. Not yet verified on Windows.*
+*Draft for v0.11.5, with Mac screenshots. Not yet verified on Windows.*

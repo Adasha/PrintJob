@@ -16,6 +16,8 @@ Bring jobs from an exported CSV file into a print room.
 4. Read how many jobs will be added and how many will replace jobs already
    there, then click **Yes**.
 
+![The Import confirmation: how many records will be added and how many overwritten, and that passes come with their jobs](images/Data-Import-1-mac.png)
+
 ## Import into a room you choose
 
 1. On **Settings**, click **Import (choose room)...**.
@@ -61,4 +63,4 @@ Importing the same file twice changes nothing the second time.
 
 ---
 
-*Draft for v0.11.5, without screenshots yet. Not yet verified on Windows.*
+*Draft for v0.11.5, with Mac screenshots. Not yet verified on Windows.*

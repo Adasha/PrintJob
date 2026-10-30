@@ -24,6 +24,8 @@ round.
 3. The workbook opens on the **Summary** sheet.
 4. To check the version, open the **Settings** sheet and click **About**.
 
+![Excel for Mac asking whether to disable macros, with Disable Macros and Enable Macros buttons](images/Getting-Started-2-mac.png)
+
 ## What you will see
 
 The tabs along the bottom, from left to right:
@@ -38,6 +40,8 @@ The tabs along the bottom, from left to right:
 
 The sample jobs show how a print room works. Job `UNI-EXAMPLE-00012` is wrong
 on purpose, so you can see how the **Status** column reports a problem.
+
+![The workbook open on Summary, with the job planner, the totals and the sheet tabs along the bottom](images/Getting-Started-1-mac.png)
 
 ## Next steps
 
@@ -69,7 +73,8 @@ needs it:
 > again. Click **Enable Content** on the yellow bar.
 >
 > **Mac:** Excel asks whether to enable macros as the workbook opens. Click
-> **Enable Macros**. If you chose **Disable Macros** by mistake, close the
+> **Enable Macros**. **Disable Macros** is the highlighted button, so pressing
+> Return turns them off. If you chose **Disable Macros** by mistake, close the
 > workbook and open it again.
 
 ## Related pages
@@ -80,4 +85,4 @@ needs it:
 
 ---
 
-*Draft for v0.11.5, without screenshots yet. Not yet verified on Windows.*
+*Draft for v0.11.5, with Mac screenshots. Not yet verified on Windows.*

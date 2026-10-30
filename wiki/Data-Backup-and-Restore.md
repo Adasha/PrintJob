@@ -44,6 +44,8 @@ names.
    set by its date and time.
 3. Read the summary of what will change and click **Yes**.
 
+![The Restore workbook summary listing each table and print room in the backup and what will be overwritten or created](images/Data-Backup-and-Restore-1-mac.png)
+
 ## Restore from an older copy of the workbook
 
 The same command can read another copy of the workbook (`.xlsm`) instead of a
@@ -85,4 +87,4 @@ jobs. The backup files or older workbook are never changed.
 
 ---
 
-*Draft for v0.11.5, without screenshots yet. Not yet verified on Windows.*
+*Draft for v0.11.5, with Mac screenshots. Not yet verified on Windows.*

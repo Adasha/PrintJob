@@ -11,6 +11,8 @@ another workbook.
    complete copy, **No** to leave names out, or **Cancel**.
 4. A message says how many jobs were exported and where the file is.
 
+![The Export question: include student names, with Yes, No and Cancel](images/Data-Export-Room-1-mac.png)
+
 ## Export every room
 
 1. On **Settings**, click **Export All Locations...**.
@@ -34,6 +36,8 @@ been exported. Once jobs change, it says how many changes there are since.
   exists on this computer.
 - Otherwise, beside the workbook.
 - If neither works, to your Documents folder. The message always says where.
+
+![Excel for Mac asking for access to the Documents folder before writing the export](images/Data-Export-Room-2-mac.png)
 
 ## Things to know
 
@@ -68,4 +72,4 @@ been exported. Once jobs change, it says how many changes there are since.
 
 ---
 
-*Draft for v0.11.5, without screenshots yet. Not yet verified on Windows.*
+*Draft for v0.11.5, with Mac screenshots. Not yet verified on Windows.*
