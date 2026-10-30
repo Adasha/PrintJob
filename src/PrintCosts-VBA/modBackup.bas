@@ -570,25 +570,36 @@ Private Function SourceText(ByVal V As Variant, ByVal Header As String) As Strin
     SourceText = CStr(V)
 End Function
 
+' The restore's summary, in the names the person sees: sheet and list names,
+' not table names, and jobs and colour passes counted apart, as Clear All
+' and Import count them (0.11.5; it read "tblColours: 3 rows" and "PHOTO: 5
+' job records" for 3 jobs and 2 passes).
 Private Function PlanPreview(ByVal CatalogRows As clsDict, ByVal Rooms As Collection) As String
     Dim k As Variant, v As Variant, n As Long, room As clsRestoreRoom, s As String
-    Dim tableRows As Collection, label As String
+    Dim tableRows As Collection, label As String, d As Variant, passes As Long
 
     For Each k In CatalogRows.Keys
         Set tableRows = CatalogRows.Obj(CStr(k))
         n = tableRows.Count
-        s = s & "- " & CStr(k) & ": " & n & " row" & IIf(n = 1, "", "s") & vbCrLf
+        s = s & "- " & TableLabel(CStr(k)) & ": " & n & " row" & IIf(n = 1, "", "s") & vbCrLf
     Next k
 
     For Each v In Rooms
         Set room = v
-        n = room.JobRows.Count
+        passes = 0
+        For Each d In room.JobRows
+            If IsPassDict(d) Then passes = passes + 1
+        Next d
+        n = room.JobRows.Count - passes
         If Len(room.Code) = 0 Then
             label = "(unknown location)"
+        ElseIf Len(room.RoomName) > 0 Then
+            label = room.RoomName & " (" & room.Code & ")"
         Else
             label = room.Code
         End If
-        s = s & "- " & label & ": " & n & " job record" & IIf(n = 1, "", "s")
+        s = s & "- " & label & ": " & n & " print job" & IIf(n = 1, "", "s")
+        If passes > 0 Then s = s & " and " & passes & " colour pass" & IIf(passes = 1, "", "es")
         If Len(room.Code) = 0 Then
             s = s & " (no location code - will be skipped)"
         ElseIf SheetForCode(room.Code) Is Nothing Then
@@ -597,6 +608,21 @@ Private Function PlanPreview(ByVal CatalogRows As clsDict, ByVal Rooms As Collec
         s = s & vbCrLf
     Next v
     PlanPreview = s
+End Function
+
+Private Function TableLabel(ByVal TableName As String) As String
+    Select Case LCase$(TableName)
+        Case "tbltechnicians": TableLabel = "Print Technicians"
+        Case "tblprinters": TableLabel = "Printers"
+        Case "tblpapers": TableLabel = "Papers"
+        Case "tblcolours": TableLabel = "Consumables (colours)"
+        Case "tbldepartments": TableLabel = "Departments"
+        Case "tblsettings": TableLabel = "Settings"
+        Case "tblpapertypes": TableLabel = "Paper stock types"
+        Case "tblstandardsizes": TableLabel = "Standard paper sizes"
+        Case "tblconsumables": TableLabel = "Consumable types"
+        Case Else: TableLabel = TableName
+    End Select
 End Function
 
 ' Private: it takes a clsDict/Collection built by the loaders above, which COM

@@ -67,6 +67,19 @@ with open_copy(clean=False) as wb:
     check(wb.table_row_count('Annexe', 'tblJobs_ANNEX') == 0, 'Annexe job table is empty before restore')
 
     if printers_csv:
+        # The summary Restore asks about first (Ask declines under quiet mode,
+        # so nothing is restored here). 0.11.5: sheet and list names, not
+        # table names, and jobs counted apart from passes.
+        section("Restore's summary uses the names on screen")
+        wb.run('QuietLog')
+        wb.run('RestoreFromFile', printers_csv)
+        preview = wb.run('QuietLog')
+        check('- Printers:' in preview, "the summary names the Printers list as 'Printers'")
+        check('tbl' not in preview, f"no table names in the summary (got: {preview[:300]!r})")
+        check(' print job' in preview and 'job record' not in preview, 'rooms are counted in print jobs')
+        check(wb.table_row_count('Printers', 'tblPrinters') == 0, 'declining the summary restores nothing')
+
+        section('Restore from the backup')
         wb.run('RestoreFromFileConfirmed', printers_csv)
         print(wb.run('QuietLog'))
         time.sleep(0.3)   # the .ps1's settling pause, kept

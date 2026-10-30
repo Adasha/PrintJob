@@ -1269,7 +1269,7 @@ Private Function RoomRemovalSummary(ByVal ws As Worksheet) As String
 
     Set lo = JobsTable(ws)
     If Not lo Is Nothing Then SpanOf lo, n, fd, ld
-    If fd > 0 Then span = " dated " & Format$(fd, "dd/mm/yyyy") & " to " & Format$(ld, "dd/mm/yyyy")
+    span = DatedSpan(fd, ld)
 
     RoomRemovalSummary = "'" & LocValue(ws, "LOC_Name") & "' (" & LocValue(ws, "LOC_Code") & ")" & vbCrLf & _
         n & " print job" & IIf(n = 1, "", "s") & span & "." & vbCrLf & _

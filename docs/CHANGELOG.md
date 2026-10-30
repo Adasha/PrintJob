@@ -31,6 +31,14 @@ could be typed over on added rows; whole quantities showed a trailing point
     first, and Cancel sits beside OK, ending at the Include column. New
     test-picker (.ps1 and mac/.py). Found in the 2026-10-30 Mac
     screenshot session.
+  - Restore's summary names the lists as they appear (Printers, Paper stock
+    types...) instead of their tables (tblPrinters, tblPaperTypes), names
+    each room with its code, and counts print jobs and colour passes apart
+    (modBackup.PlanPreview, TableLabel): "PHOTO: 5 job records" was 3 jobs
+    and 2 passes. test-backup reads the summary (.ps1 and mac/.py).
+  - Clear All and Remove print room give one date when every job is from
+    the same day, not "dated 30/10/2026 to 30/10/2026" (modUtils.DatedSpan;
+    test-validation checks it). Both found in the Mac screenshot session.
   - Builds stop when InitialiseWorkbook reports a failure (mac/build.py,
     build.ps1). It logs its errors rather than raising, so a half-set-up
     workbook was saved and the build said done; that hid this version's own
