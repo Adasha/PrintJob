@@ -27,7 +27,7 @@ Option Explicit
 
 Public Const APP_NAME As String = "Print Cost Management"
 ' Release history lives in docs/CHANGELOG.md (and git), not in this module.
-Public Const APP_VERSION As String = "0.11.4"
+Public Const APP_VERSION As String = "0.11.5"
 Public Const APP_AUTHOR As String = "Adam Shailer"
 ' The project's home page, linked at the foot of the Settings sheet
 ' (modInit.EnsureSettingsLinks).

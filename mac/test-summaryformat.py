@@ -14,7 +14,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import xlmac  # noqa: E402
-from xlmac import open_copy, check, section, SUM_FIRST_ROW, SUM_TOT_ROW  # noqa: E402
+from xlmac import open_copy, check, section, SUM_FIRST_ROW, SUM_HDR_ROW, SUM_TOT_ROW  # noqa: E402
 from fixture_annexe import add_annexe_fixture  # noqa: E402
 
 with open_copy() as wb:
@@ -32,13 +32,23 @@ with open_copy() as wb:
         check(font_color == 2097328, f'rule font is red RGB(176,0,32) (got {font_color})')
 
     # -------------------------------------------------------- legend ---
-    section('Summary legend (column P)')
+    section('Summary legend (column R)')
     expected = ['Type your own values here', 'Calculated automatically', 'Workbook configuration',
                 'Reference information (read-only)']
     for i, want in enumerate(expected):
         r = 10 + i
-        text = wb.cell_text('Summary', r, 16)
-        check(text == want, f"P{r} reads '{want}' (got '{text}')")
+        text = wb.cell_text('Summary', r, 18)
+        check(text == want, f"R{r} reads '{want}' (got '{text}')")
+
+    # Chargeable is the table's last column, O: until 0.11.5 the legend
+    # narrowed O to 4 and its figures showed as ####.
+    section('Summary table: Chargeable (column O) is readable')
+    head = wb.cell_text('Summary', SUM_HDR_ROW, 15)
+    check(head == 'Chargeable', f"O{SUM_HDR_ROW} is the Chargeable header (got '{head}')")
+    width = wb.column_width('Summary', 15)
+    check(width >= 10, f'column O is at least 10 wide (got {width})')
+    first = wb.cell_text('Summary', SUM_FIRST_ROW, 15)
+    check('#' not in first, f"O{SUM_FIRST_ROW} shows a figure, not #### (got '{first}')")
 
     # ------------------------------------------------------- currency ---
     section('Currency wiring: SET_CURRENCY -> NumberFormat')

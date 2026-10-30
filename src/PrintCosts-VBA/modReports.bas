@@ -29,6 +29,7 @@ Private Const SHEET_REPORTS As String = "Reports"
 Public Const SUM_TOT_ROW As Long = 24      ' totals values; their labels are the row above
 Public Const SUM_HDR_ROW As Long = 27      ' table header
 Public Const SUM_FIRST_ROW As Long = 28    ' first row of the spilled table
+Public Const SUM_SIDE_COL As Long = 17     ' Q: buttons and legend, clear of the A:O table
 Private Const DATA_SPILL As String = "_Data!$A$10#"
 Private Const DATA_HDR As String = "_Data!$A$9:$AZ$9"
 Private Const EXPORT_SIG_CELL As String = "AN1"
@@ -302,29 +303,34 @@ End Sub
 ' the four everyday cell-role colours - not the exceptional Warning/Error
 ' states above, which explain themselves by firing, and not the niche
 ' Snapshot/historical role, which lives collapsed in a column group nobody
-' opens day to day. Sits at O9 down: clear of the report table (A:M) and
-' clear of the buttons InitialiseWorkbook draws at column O rows 1/3/5/7, and
-' level with the table's own header row so it reads as "this explains that".
+' opens day to day. Sits at Q9 down (SUM_SIDE_COL): clear of the report table (A:O)
+' and of the buttons InitialiseWorkbook draws in the same column at rows
+' 1/3/5. Until 0.11.5 it sat at O9 with column O narrowed to 4, which turned
+' the table's last column (Chargeable, in O since 0.11.0) into "####"; O9:P13
+' is cleared so a workbook initialised before then loses the old copy.
 ' Colours are the exact ones already in use elsewhere on this sheet/Reports,
 ' so the swatches actually match what they claim to explain.
 Private Sub DrawLegend(ByVal ws As Worksheet)
-    ws.Range("O9").Value = "Cell colours"
-    ws.Range("O9").Font.Bold = True
+    ws.Range("O9:P13").Clear
+    ws.Cells(9, SUM_SIDE_COL).Value = "Cell colours"
+    ws.Cells(9, SUM_SIDE_COL).Font.Bold = True
 
     LegendRow ws, 10, "Type your own values here", RGB(255, 255, 255), False, False, True
     LegendRow ws, 11, "Calculated automatically", RGB(217, 217, 217), True, False, False
     LegendRow ws, 12, "Workbook configuration", RGB(222, 232, 244), False, False, False
     LegendRow ws, 13, "Reference information (read-only)", RGB(217, 217, 217), False, True, False
 
-    ws.Columns("O").ColumnWidth = 4
-    ws.Columns("P").ColumnWidth = 30
+    ws.Columns("O").ColumnWidth = 14
+    ws.Columns("P").ColumnWidth = 4
+    ws.Columns(SUM_SIDE_COL).ColumnWidth = 4
+    ws.Columns(SUM_SIDE_COL + 1).ColumnWidth = 30
 End Sub
 
 Private Sub LegendRow(ByVal ws As Worksheet, ByVal RowNo As Long, ByVal Label As String, _
                        ByVal Fill As Long, ByVal Italic As Boolean, ByVal GreyText As Boolean, _
                        ByVal BlueBorder As Boolean)
     Dim swatch As Range
-    Set swatch = ws.Cells(RowNo, 15) ' column O
+    Set swatch = ws.Cells(RowNo, SUM_SIDE_COL)
     swatch.Interior.Color = Fill
     If BlueBorder Then
         With swatch.Borders(xlEdgeLeft)
@@ -334,7 +340,7 @@ Private Sub LegendRow(ByVal ws As Worksheet, ByVal RowNo As Long, ByVal Label As
         End With
     End If
 
-    With ws.Cells(RowNo, 16) ' column P
+    With ws.Cells(RowNo, SUM_SIDE_COL + 1)
         .Value = Label
         .Font.Italic = Italic
         If GreyText Then .Font.Color = RGB(110, 110, 110)

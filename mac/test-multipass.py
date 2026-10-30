@@ -237,10 +237,17 @@ with open_copy() as wb:
     check(near(jv(job, 'Set-up Cost'), 6.0), 'Set-up Cost now 6.00')
     check(level(job + 1) == 2 and level(job + 2) == 2 and level(job) == 1, 'outline levels still line up')
 
-    section('Passes and Pass are locked, as calculated columns are')
+    section("Passes, Pass, Unit and Area m2 are locked, as calculated columns are")
     check(wb.prop(f'@@range:{MAIN}!{j(job, "Passes")}', 'Locked') == 'True', "the job's Passes cell is locked")
     check(wb.prop(f'@@range:{MAIN}!{j(job + 1, "Pass")}', 'Locked') == 'True', "a pass's Pass cell is locked")
     check(wb.prop(f'@@range:{MAIN}!{j(job + 1, "Colour")}', 'Locked') == 'False', "a pass's Colour cell is still open for typing")
+    # Unit and Area m2: the template's column formats left rows added after
+    # the sample unlocked (0.11.5).
+    for r, what in ((job, "the job's"), (job + 1, "a pass's")):
+        for h in ('Unit', 'Area m2'):
+            check(wb.prop(f'@@range:{MAIN}!{j(r, h)}', 'Locked') == 'True', f'{what} {h} cell is locked')
+    qty_text = wb.text(MAIN, j(job, 'Qty'))
+    check(qty_text == '100', f"a whole Qty shows without a trailing point (got '{qty_text}')")
 
     section('Repeat job copies the group')
     pick(job + 1)

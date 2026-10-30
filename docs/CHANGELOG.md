@@ -3,6 +3,34 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```text
+0.11.5 - Fix: Summary's Chargeable column showed ####; Unit and Area m2
+could be typed over on added rows; whole quantities showed a trailing point
+(2026-10-30). Schema unchanged (1.4).
+
+  - Summary: the legend and the Refresh Locations, Check workbook and
+    Hide/Show settings sheets buttons move from O:P to Q:R
+    (modReports.SUM_SIDE_COL). Since 0.11.0's Passes and Set-up cost
+    columns the table reaches O, which the legend narrowed to 4, so every
+    Chargeable figure showed as ####. DrawLegend clears the old O9:P13.
+  - Unit and Area m2 are locked on every job and pass row. Their
+    table-column formats said unlocked, so rows added after the sample (New,
+    Repeat, Import, Add pass, the planner) could be typed over, replacing
+    the formula. Template fixed by mac/apply-calc-lock-template.py;
+    PreparePassSheet also locks both columns on each Refresh Locations, for
+    rooms in workbooks built before.
+  - Qty: a whole number shows as 100, not "100." (#,##0.### leaves the
+    point). A conditional format gives whole numbers #,##0
+    (modInit.ApplyQtyWholeFormat).
+  - Qty's validation allows a blank (a missing Qty is already a problem in
+    Status), so Excel no longer flags every pass row's Qty.
+  - All four found from Excel's green triangles and the #### in the
+    2026-10-28 Mac screenshots (mac/docs-screens.py).
+  - Tests: test-summaryformat checks the legend in R and that Chargeable
+    shows figures; test-multipass checks Unit and Area m2 are locked and a
+    whole Qty's display (.ps1 and mac/.py).
+  - Docs: Reports-Summary (screenshot retaken), Jobs-Recording,
+    Jobs-Views-and-Units (screenshots show Qty), Release-Notes.
+
 0.11.4 - Fix: a new print room could take another room's code; a one-printer
 room's blank row counted as a job (2026-10-27).
 Schema unchanged (1.4).
