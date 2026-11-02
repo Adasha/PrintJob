@@ -68,7 +68,7 @@ with open_copy(clean=False) as wb:
 
     if printers_csv:
         # The summary Restore asks about first (Ask declines under quiet mode,
-        # so nothing is restored here). 0.11.5: sheet and list names, not
+        # so nothing is restored here). 0.11.6: sheet and list names, not
         # table names, and jobs counted apart from passes.
         section("Restore's summary uses the names on screen")
         wb.run('QuietLog')

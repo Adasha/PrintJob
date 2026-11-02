@@ -33,7 +33,7 @@ with open_copy() as wb:
     print(f'  rows before={before} after={after}  {verdict}')
     for need in ('Example Print Room', f'{before} print job', '15/09/2026', '19/09/2026', 'cannot be undone'):
         print(f"  contains '{need:<18}' {'yes' if need in log else 'NO'}")
-    # The span's wording (modUtils.DatedSpan, 0.11.5): one date when every job
+    # The span's wording (modUtils.DatedSpan, 0.11.6): one date when every job
     # is from one day, not "dated X to X". 46325 is 30/10/2026.
     for a, b, want in ((46325.25, 46325.75, ' dated 30/10/2026'),
                        (46325.5, 46327.5, ' dated 30/10/2026 to 01/11/2026'),

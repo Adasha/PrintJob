@@ -59,4 +59,4 @@ Settings and pass both to whoever looks after your workbook.
 
 ---
 
-*Draft for v0.11.5, without screenshots yet. Not yet verified on Windows.*
+*Draft for v0.11.6, without screenshots yet. Not yet verified on Windows.*

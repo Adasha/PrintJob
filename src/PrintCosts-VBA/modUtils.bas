@@ -351,7 +351,7 @@ End Function
 ' without going through formatting at all.
 ' " dated 30/10/2026" when every job is from one day, else " dated A to B";
 ' "" when there is no date. For the Clear All and Remove print room prompts
-' (0.11.5: they read "dated 30/10/2026 to 30/10/2026").
+' (0.11.6: they read "dated 30/10/2026 to 30/10/2026").
 Public Function DatedSpan(ByVal FirstD As Double, ByVal LastD As Double) As String
     If FirstD <= 0 Then Exit Function
     If Int(FirstD) = Int(LastD) Then

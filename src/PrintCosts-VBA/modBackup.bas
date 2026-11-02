@@ -572,7 +572,7 @@ End Function
 
 ' The restore's summary, in the names the person sees: sheet and list names,
 ' not table names, and jobs and colour passes counted apart, as Clear All
-' and Import count them (0.11.5; it read "tblColours: 3 rows" and "PHOTO: 5
+' and Import count them (0.11.6; it read "tblColours: 3 rows" and "PHOTO: 5
 ' job records" for 3 jobs and 2 passes).
 Private Function PlanPreview(ByVal CatalogRows As clsDict, ByVal Rooms As Collection) As String
     Dim k As Variant, v As Variant, n As Long, room As clsRestoreRoom, s As String

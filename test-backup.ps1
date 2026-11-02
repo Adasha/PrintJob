@@ -99,7 +99,7 @@ try {
     Check ($loAnnexe.ListRows.Count -eq 0) "Annexe job table is empty before restore"
 
     # The summary Restore asks about first (Ask declines under quiet mode,
-    # so nothing is restored here). 0.11.5: sheet and list names, not
+    # so nothing is restored here). 0.11.6: sheet and list names, not
     # table names, and jobs counted apart from passes.
     Write-Host ''
     Write-Host "=== Restore's summary uses the names on screen ==="
