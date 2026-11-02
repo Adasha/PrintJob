@@ -353,9 +353,7 @@ Public Sub ClearAll(ByVal ws As Worksheet)
             If d > lo_last Then lo_last = d
         End If
     Next i
-    If lo_first > 0 Then
-        span = " dated " & Format$(lo_first, "dd/mm/yyyy") & " to " & Format$(lo_last, "dd/mm/yyyy")
-    End If
+    span = DatedSpan(lo_first, lo_last)
 
     ' Spec 11 is explicit about what the confirmation must name: the location,
     ' the number of records, and the date range.

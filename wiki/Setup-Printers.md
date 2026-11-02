@@ -102,4 +102,4 @@ cost per job as well.
 
 ---
 
-*Draft for v0.11.5, with Mac screenshots. Not yet verified on Windows.*
+*Draft for v0.11.6, with Mac screenshots. Not yet verified on Windows.*

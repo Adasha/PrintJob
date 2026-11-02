@@ -218,7 +218,7 @@ End Sub
 
 ' A row in the file is a pass row when its Row Type says so. A file from before
 ' 0.11.0 has no Row Type, so every row reads as a job.
-Private Function IsPassDict(ByVal d As clsDict) As Boolean
+Public Function IsPassDict(ByVal d As clsDict) As Boolean
     IsPassDict = (StrComp(Trim$(CStr(d.Item("Row Type"))), ROW_PASS, vbTextCompare) = 0)
 End Function
 

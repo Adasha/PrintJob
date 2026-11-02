@@ -98,6 +98,21 @@ try {
     Check ($loPrinters.ListRows.Count -eq 0) "tblPrinters is empty before restore"
     Check ($loAnnexe.ListRows.Count -eq 0) "Annexe job table is empty before restore"
 
+    # The summary Restore asks about first (Ask declines under quiet mode,
+    # so nothing is restored here). 0.11.6: sheet and list names, not
+    # table names, and jobs counted apart from passes.
+    Write-Host ''
+    Write-Host "=== Restore's summary uses the names on screen ==="
+    [void]$xlB.Run('QuietLog')
+    $xlB.Run('RestoreFromFile', $printersCsv.FullName)
+    $preview = [string]$xlB.Run('QuietLog')
+    Check ($preview -like '*- Printers:*') "the summary names the Printers list as 'Printers'"
+    Check (-not ($preview -like '*tbl*')) "no table names in the summary (got: $($preview.Substring(0, [Math]::Min(300, $preview.Length))))"
+    Check (($preview -like '* print job*') -and -not ($preview -like '*job record*')) 'rooms are counted in print jobs'
+    Check ($wbB.Worksheets('Printers').ListObjects('tblPrinters').ListRows.Count -eq 0) 'declining the summary restores nothing'
+
+    Write-Host ''
+    Write-Host '=== Restore from the backup ==='
     $xlB.Run('RestoreFromFileConfirmed', $printersCsv.FullName)
     Write-Host $xlB.Run('QuietLog')
 

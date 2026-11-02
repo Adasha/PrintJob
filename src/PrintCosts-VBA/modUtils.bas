@@ -349,6 +349,18 @@ End Function
 ' to text first and then reads the leading digits - "15/09/2026 10:24" comes
 ' back as 15, a date in January 1900. .Value2 hands over the underlying serial
 ' without going through formatting at all.
+' " dated 30/10/2026" when every job is from one day, else " dated A to B";
+' "" when there is no date. For the Clear All and Remove print room prompts
+' (0.11.6: they read "dated 30/10/2026 to 30/10/2026").
+Public Function DatedSpan(ByVal FirstD As Double, ByVal LastD As Double) As String
+    If FirstD <= 0 Then Exit Function
+    If Int(FirstD) = Int(LastD) Then
+        DatedSpan = " dated " & Format$(FirstD, "dd/mm/yyyy")
+    Else
+        DatedSpan = " dated " & Format$(FirstD, "dd/mm/yyyy") & " to " & Format$(LastD, "dd/mm/yyyy")
+    End If
+End Function
+
 Public Function DateSerialOf(ByVal c As Range) As Double
     Dim v As Variant
     v = c.Value2

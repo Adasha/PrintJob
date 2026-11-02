@@ -78,6 +78,12 @@ try {
     foreach ($need in 'Example Print Room', "$before print job", '15/09/2026', '19/09/2026', 'cannot be undone') {
         Write-Host ("  contains '{0,-18}' {1}" -f $need, $(if ($log -like "*$need*") { 'yes' } else { 'NO' }))
     }
+    # The span's wording (modUtils.DatedSpan, 0.11.6): one date when every job
+    # is from one day, not "dated X to X". 46325 is 30/10/2026.
+    foreach ($c in @(@(46325.25, 46325.75, ' dated 30/10/2026'), @(46325.5, 46327.5, ' dated 30/10/2026 to 01/11/2026'), @(0, 0, ''))) {
+        $got = [string]$xl.Run('DatedSpan', [double]$c[0], [double]$c[1])
+        Write-Host ("  DatedSpan({0}, {1}) = '{2}'  {3}" -f $c[0], $c[1], $got, $(if ($got -eq $c[2]) { 'correct' } else { "FAIL: expected '$($c[2])'" }))
+    }
 
     # ---------------------------------------------------------------- AT-11
     Write-Host ''

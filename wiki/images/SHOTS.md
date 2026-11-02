@@ -48,7 +48,8 @@ shipped sample, in this order:
 Leave job `UNI-EXAMPLE-00012` as shipped: it is the job with problems.
 
 **Window:** Excel at 1440 x 900 points, zoom 100%, ribbon collapsed, the
-cell cursor on A1 unless stated. Light appearance on the Mac.
+cell cursor on A1 unless stated. Dark or light appearance on the Mac: the
+2026-10-30 set is dark, and the Range shots are the same either way.
 
 ## Capture
 

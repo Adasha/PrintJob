@@ -11,6 +11,7 @@ technical history is in the project's `docs/CHANGELOG.md`.
 
 | Version | What changed |
 | --- | --- |
+| 0.11.6 | **Restore** lists what it will bring back by the names you see, such as Printers and Paper stock types, and counts print jobs and colour passes apart. **Clear All** and **Remove print room...** give one date when every job is from the same day |
 | 0.11.5 | **Summary** shows the Chargeable figures again; they had been hidden as ####. **Unit** and **Area m2** can no longer be typed over on new jobs. A whole quantity shows as 100, not "100.". **Select printers...** lines up its ticks and buttons |
 | 0.11.4 | **Add print room...** refuses a code another room already has, and suggests a free one. Before, a new room could take an existing room's code and give out the same Job IDs. Colour passes: **Passes** and **Pass** can no longer be typed over, and **Remove** keeps you on the room's sheet. Settings has a **PrintJob on GitHub** link |
 | 0.11.3 | A room's **Sheet status** shows again; the Export line had been covering it |
@@ -35,4 +36,4 @@ Versions before 0.10 are in `docs/CHANGELOG.md`.
 
 ---
 
-*Draft for v0.11.5, without screenshots yet. Not yet verified on Windows.*
+*Draft for v0.11.6, without screenshots yet. Not yet verified on Windows.*
