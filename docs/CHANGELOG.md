@@ -3,6 +3,26 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```text
+0.11.7 - The Summary job planner prices multi-pass printers (2026-11-03).
+Schema unchanged (1.4). Tested on the Mac only.
+
+  - Multi-pass printers are offered in Plan a print job. Print width never
+    applies to one (multi-pass is sheet stock only), so row 10 becomes up to
+    five colour dropdowns, B10:F10, one per pass, and turns back for a
+    single-pass printer. No row is added and nothing below the box moves.
+    Changing between the two shapes empties the row (modPlanner.ShapeColourRow).
+  - The estimate prices each pass as its row would: ROUND(area x colour rate)
+    per pass, plus the printer's Template cost per pass. The ink line becomes
+    "Ink and set-up", with the split and pass count beside it (C15).
+  - Add to print room writes the job and its passes, stamped, in the same way
+    as Repeat job. A job added below a pass group stays outside it. For more
+    than five passes: add the job, then use Add pass on its row.
+  - Fix: planner messages that start with a quoted name lost the opening
+    quote in the cell ("Foo' is not on the Printers sheet"), because Excel
+    reads a leading apostrophe as its text prefix. Found by the new test.
+  - test-jobplanner covers all of this (.ps1 and mac/.py);
+    test-multipass-views now expects the printer to be offered.
+
 0.11.6 - Fix: Restore's summary used internal table names and counted passes
 as jobs; Clear All and Remove print room repeated a one-day date (2026-11-02).
 Schema unchanged (1.4).

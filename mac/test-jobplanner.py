@@ -122,6 +122,126 @@ with open_copy() as wb:
     time.sleep(0.3)
     check(wb.table_row_count(WS, TBL) == before, 'incomplete plan -> no row added')
 
+    section('a multi-pass printer')
+    # Added here, not with the Annexe: everything above is the single-pass box.
+    CWS, CTBL, PWS, PTBL = 'Consumables', 'tblColours', 'Printers', 'tblPrinters'
+    wb.activate(CWS)
+    for name, typ, rate in (('Black', 'Risograph', 0.30), ('Blue', 'Risograph', 0.40), ('Cyan', 'Ink', 0.10)):
+        wb.run('AddCatalogRow', CTBL)
+        crow = wb.table_last_row(CWS, CTBL)
+        wb.call('UnlockSheet', sheet(CWS))
+        wb.set_value(CWS, addr(crow, wb.table_col(CWS, CTBL, 'Colour')), name)
+        wb.set_value(CWS, addr(crow, wb.table_col(CWS, CTBL, 'Consumable type')), typ)
+        wb.set_value(CWS, addr(crow, wb.table_col(CWS, CTBL, 'Cost per m2')), rate)
+    wb.activate(PWS)
+    wb.run('AddCatalogRow', PTBL)
+    prow = wb.table_last_row(PWS, PTBL)
+    wb.call('UnlockSheet', sheet(PWS))
+    for h, v in (('Model', 'Test RISO'), ('Consumable type', 'Risograph'), ('Colour mode', 'multi-pass'),
+                 ('Template cost', 3.0), ('Max sheet size', 'A1'), ('Active', 'Yes')):
+        wb.set_value(PWS, addr(prow, wb.table_col(PWS, PTBL, h)), v)
+    wb.call('UnlockSheet', sheet(WS))
+    loc = wb.name_addr(WS, 'LOC_Printers')
+    wb.set_value(WS, loc, wb.text(WS, loc) + ';Test RISO')
+    wb.run('RefreshSummaryPlanner')
+    wb.activate(SUM)
+
+    check('Test RISO' in list_items('B7'), 'the multi-pass printer is offered')
+    wb.clear_contents(SUM, 'B7:B11')
+    wb.set_value(SUM, 'B7', 'Test RISO')
+    wb.set_value(SUM, 'B8', 'Gloss 200gsm SRA3 sheet')
+    wb.set_value(SUM, 'B9', 100)
+    recalc()
+    check(t('A10') == 'Colours (one per pass)', f"row 10 asks for colours (got '{t('A10')}')")
+    check(t('A15') == 'Ink and set-up', 'the ink line includes set-up')
+    b_items, f_items = list_items('B10'), list_items('F10')
+    check(b_items == ['Black', 'Blue'], f"first slot lists this printer's colours (got {b_items})")
+    check(f_items == ['Black', 'Blue'], f"fifth slot lists the same colours (got {f_items})")
+    check(t('C10') == '', 'the width hint is gone')
+    check(t('A17') == 'Choose at least one colour.', f"no colour -> prompt (got '{t('A17')}')")
+    check(t('B16') == '', 'no colour -> no estimate')
+
+    wb.set_value(SUM, 'B19', room_name)
+    before = wb.table_row_count(WS, TBL)
+    wb.run('btnPlannerAdd')
+    time.sleep(0.3)
+    check(wb.table_row_count(WS, TBL) == before, 'no colour -> no row added')
+
+    wb.set_value(SUM, 'B10', 'Cyan')
+    recalc()
+    check(t('A17') == "'Cyan' is not a colour Test RISO can use.", f"another type's colour -> message (got '{t('A17')}')")
+
+    section('colours are priced one by one and can repeat')
+    wb.set_value(SUM, 'B10', 'Black')
+    wb.set_value(SUM, 'D10', 'Blue')          # a gap in the strip is not a pass
+    wb.set_value(SUM, 'F10', 'Black')
+    recalc()
+    total, paper, ink_setup = wb.number(SUM, 'B16'), wb.number(SUM, 'B14'), wb.number(SUM, 'B15')
+    check(total > 0, f'an estimate is produced ({total})')
+    check(abs(paper + ink_setup - total) < 0.0001, f'paper + ink and set-up = overall ({paper} + {ink_setup})')
+    check(t('C15').endswith('set-up (3 passes)'), f"the breakdown names the passes (got '{t('C15')}')")
+
+    wb.run('btnPlannerAdd')
+    time.sleep(0.5)
+    after = wb.table_row_count(WS, TBL)
+    check(after == before + 4, f'a job and three passes were added ({before} -> {after})')
+
+    section('the added job and its passes')
+    first_data = wb.table_first_row(WS, TBL)
+    job = before + 1
+
+    def cell(row_no, col):
+        return wb.value(WS, addr(first_data + row_no, wb.table_col(WS, TBL, col)))
+
+    gross = float(cell(job, 'Gross Cost') or 0)
+    cons, setup = float(cell(job, 'Consumable Cost') or 0), float(cell(job, 'Set-up Cost') or 0)
+    check(abs(gross - total) < 0.005, f"the job's Gross Cost ({gross}) equals the planner's Overall ({total})")
+    check(abs(cons + setup - ink_setup) < 0.005, f"its ink and set-up ({cons} + {setup}) equal the planner's ({ink_setup})")
+    check(abs(setup - 9) < 0.005, f'set-up is 3 passes at 3.00 ({setup})')
+    check(int(float(cell(job, 'Passes') or 0)) == 3, 'Passes is 3')
+    check(wb.row_outline_level(WS, first_data + job) == 1, 'the job row is outline level 1')
+    job_id = cell(job, 'Job ID')
+    for i, (colour, rate) in enumerate((('Black', 0.30), ('Blue', 0.40), ('Black', 0.30)), start=1):
+        p = job + i
+        check(cell(p, 'Row Type') == 'Pass' and cell(p, 'Parent') == job_id and int(float(cell(p, 'Pass'))) == i,
+              f'pass {i} belongs to the job')
+        check(cell(p, 'Colour') == colour and abs(float(cell(p, 'S_ConsRate') or 0) - rate) < 0.0001,
+              f'pass {i} is {colour} at {rate}')
+        check(wb.row_outline_level(WS, first_data + p) == 2, f'pass {i} is outline level 2')
+
+    wb.activate(SUM)
+    wb.clear_contents(SUM, 'D10')
+    wb.clear_contents(SUM, 'F10')
+    recalc()
+    check(t('C15').endswith('set-up (1 pass)'), f"one colour reads as one pass (got '{t('C15')}')")
+    before = wb.table_row_count(WS, TBL)
+    wb.run('btnPlannerAdd')
+    time.sleep(0.5)
+    wb.activate(SUM)
+    check(wb.table_row_count(WS, TBL) == before + 2, 'a second job with one pass was added')
+    check(wb.row_outline_level(WS, first_data + before + 1) == 1, 'added below a pass, the job row is still level 1')
+
+    section('row 10 goes back for a single-pass printer')
+    wb.set_value(SUM, 'C10', 'Blue')
+    wb.set_value(SUM, 'B7', prn)
+    wb.set_value(SUM, 'B8', stk)
+    wb.set_value(SUM, 'B9', 7)
+    recalc()
+    check(t('A10') == 'Print width mm', 'the Print width label is back')
+    check(t('A15') == 'Ink (consumable)', 'the ink label is back')
+    check(t('B10') == '', 'the colour in B10 is gone')
+    check(t('C10') != 'Blue' and t('D10') == '' and t('F10') == '', 'and the other slots')
+    check(t('C15') == '', 'no set-up breakdown')
+    check(wb.number(SUM, 'B16') > 0, 'the estimate still works')
+    wb.set_value(SUM, 'B7', 'Test RISO')
+    recalc()
+    check(t('B10') == '' and t('C10') == '', 'back on the multi-pass printer, the strip starts empty')
+    wb.set_value(SUM, 'B8', 'Matte 180gsm 1067mm roll')
+    wb.set_value(SUM, 'B10', 'Black')
+    recalc()
+    check('cannot take' in t('A17'), f"a roll paper on the multi-pass printer -> message (got '{t('A17')}')")
+    check(t('B16') == '', 'and no estimate')
+
     wb.run('SetQuiet', False)
 
 finish()

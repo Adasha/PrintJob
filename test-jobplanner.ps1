@@ -10,6 +10,9 @@
 #      room, and the new row's Gross Cost must equal the planner's Overall
 #   5. the new row is prefilled (Printer, Paper Stock, Qty) and stamped
 #   6. nothing is added when the plan is incomplete or no room is chosen
+#   7. a multi-pass printer (0.11.7): row 10 becomes five colour dropdowns, the
+#      estimate prices each pass and its set-up, and the job is added with its
+#      passes; a single-pass printer gets row 10 back
 #
 # Drives a COPY of src\PrintJob.xlsm in %TEMP%, closes without saving. Needs a
 # second room for (2), so uses the shared Annexe fixture.
@@ -131,6 +134,120 @@ try {
     [void]$xl.Run('btnPlannerAdd')
     Start-Sleep -Milliseconds 300
     Check ($lo.ListRows.Count -eq $before) 'incomplete plan -> no row added'
+
+    Write-Host '=== a multi-pass printer ==='
+    # Added here, not with the Annexe: everything above is the single-pass box.
+    $cws = $wb.Worksheets('Consumables'); $clo = $cws.ListObjects('tblColours'); [void]$cws.Activate()
+    foreach ($row in @(@('Black', 'Risograph', 0.30), @('Blue', 'Risograph', 0.40), @('Cyan', 'Ink', 0.10))) {
+        [void]$xl.Run('AddCatalogRow', 'tblColours'); [void]$xl.Run('UnlockSheet', $cws)
+        $r = $clo.ListRows($clo.ListRows.Count).Range
+        $r.Cells(1, (Col $clo 'Colour')).Value2 = $row[0]; $r.Cells(1, (Col $clo 'Consumable type')).Value2 = $row[1]; $r.Cells(1, (Col $clo 'Cost per m2')).Value2 = [double]$row[2]
+    }
+    $pws = $wb.Worksheets('Printers'); $plo = $pws.ListObjects('tblPrinters'); [void]$pws.Activate()
+    [void]$xl.Run('AddCatalogRow', 'tblPrinters'); [void]$xl.Run('UnlockSheet', $pws)
+    $pr = $plo.ListRows($plo.ListRows.Count).Range
+    $pr.Cells(1, (Col $plo 'Model')).Value2 = 'Test RISO'; $pr.Cells(1, (Col $plo 'Consumable type')).Value2 = 'Risograph'
+    $pr.Cells(1, (Col $plo 'Colour mode')).Value2 = 'multi-pass'; $pr.Cells(1, (Col $plo 'Template cost')).Value2 = [double]3
+    $pr.Cells(1, (Col $plo 'Max sheet size')).Value2 = 'A1'; $pr.Cells(1, (Col $plo 'Active')).Value2 = 'Yes'
+    [void]$xl.Run('UnlockSheet', $ws)
+    $loc = $ws.Names.Item('LOC_Printers').RefersToRange; $loc.Value2 = ([string]$loc.Value2 + ';Test RISO')
+    [void]$xl.Run('RefreshSummaryPlanner')
+    [void]$sum.Activate()
+
+    function T([string]$a1) { return [string]$sum.Range($a1).Text }
+    Check ((Get-ListItems $wb $sum.Range('B7')) -contains 'Test RISO') 'the multi-pass printer is offered'
+    $sum.Range('B7:B11').ClearContents() | Out-Null
+    $sum.Range('B7').Value2 = 'Test RISO'
+    $sum.Range('B8').Value2 = 'Gloss 200gsm SRA3 sheet'
+    $sum.Range('B9').Value2 = 100
+    $xl.Run('PlannerRecalc', $sum)
+    Check ((T 'A10') -eq 'Colours (one per pass)') "row 10 asks for colours (got '$(T 'A10')')"
+    Check ((T 'A15') -eq 'Ink and set-up') 'the ink line includes set-up'
+    $bItems = @(Get-ListItems $wb $sum.Range('B10')); $fItems = @(Get-ListItems $wb $sum.Range('F10'))
+    Check (($bItems -join ',') -eq 'Black,Blue') "first slot lists this printer's colours (got $($bItems -join ','))"
+    Check (($fItems -join ',') -eq 'Black,Blue') "fifth slot lists the same colours (got $($fItems -join ','))"
+    Check ((T 'C10') -eq '') 'the width hint is gone'
+    Check ((T 'A17') -eq 'Choose at least one colour.') "no colour -> prompt (got '$(T 'A17')')"
+    Check ((T 'B16') -eq '') 'no colour -> no estimate'
+
+    $sum.Range('B19').Value2 = $roomName
+    $before = $lo.ListRows.Count
+    [void]$xl.Run('btnPlannerAdd')
+    Start-Sleep -Milliseconds 300
+    Check ($lo.ListRows.Count -eq $before) 'no colour -> no row added'
+
+    $sum.Range('B10').Value2 = 'Cyan'
+    $xl.Run('PlannerRecalc', $sum)
+    Check ((T 'A17') -eq "'Cyan' is not a colour Test RISO can use.") "another type's colour -> message (got '$(T 'A17')')"
+
+    Write-Host '=== colours are priced one by one and can repeat ==='
+    $sum.Range('B10').Value2 = 'Black'
+    $sum.Range('D10').Value2 = 'Blue'          # a gap in the strip is not a pass
+    $sum.Range('F10').Value2 = 'Black'
+    $xl.Run('PlannerRecalc', $sum)
+    $total = [double]$sum.Range('B16').Value2
+    $paper = [double]$sum.Range('B14').Value2
+    $inkSetup = [double]$sum.Range('B15').Value2
+    Check ($total -gt 0) "an estimate is produced ($total)"
+    Check ([Math]::Abs($paper + $inkSetup - $total) -lt 0.0001) "paper + ink and set-up = overall ($paper + $inkSetup)"
+    Check ((T 'C15').EndsWith('set-up (3 passes)')) "the breakdown names the passes (got '$(T 'C15')')"
+
+    [void]$xl.Run('btnPlannerAdd')
+    Start-Sleep -Milliseconds 500
+    $after = $lo.ListRows.Count
+    Check ($after -eq $before + 4) "a job and three passes were added ($before -> $after)"
+
+    Write-Host '=== the added job and its passes ==='
+    $job = $before + 1
+    function JV([int]$rowNo, [string]$h) { return $lo.ListRows($rowNo).Range.Cells(1, (Col $lo $h)).Value2 }
+    $gross = [double](JV $job 'Gross Cost'); $cons = [double](JV $job 'Consumable Cost'); $setup = [double](JV $job 'Set-up Cost')
+    Check ([Math]::Abs($gross - $total) -lt 0.005) "the job's Gross Cost ($gross) equals the planner's Overall ($total)"
+    Check ([Math]::Abs($cons + $setup - $inkSetup) -lt 0.005) "its ink and set-up ($cons + $setup) equal the planner's ($inkSetup)"
+    Check ([Math]::Abs($setup - 9) -lt 0.005) "set-up is 3 passes at 3.00 ($setup)"
+    Check ([int](JV $job 'Passes') -eq 3) 'Passes is 3'
+    Check ([int]$lo.ListRows($job).Range.EntireRow.OutlineLevel -eq 1) 'the job row is outline level 1'
+    $jobId = [string](JV $job 'Job ID')
+    $i = 0
+    foreach ($want in @(@('Black', 0.30), @('Blue', 0.40), @('Black', 0.30))) {
+        $i++
+        $p = $job + $i
+        Check ([string](JV $p 'Row Type') -eq 'Pass' -and [string](JV $p 'Parent') -eq $jobId -and [int](JV $p 'Pass') -eq $i) "pass $i belongs to the job"
+        Check ([string](JV $p 'Colour') -eq $want[0] -and [Math]::Abs([double](JV $p 'S_ConsRate') - $want[1]) -lt 0.0001) "pass $i is $($want[0]) at $($want[1])"
+        Check ([int]$lo.ListRows($p).Range.EntireRow.OutlineLevel -eq 2) "pass $i is outline level 2"
+    }
+
+    [void]$sum.Activate()
+    $sum.Range('D10').ClearContents() | Out-Null
+    $sum.Range('F10').ClearContents() | Out-Null
+    $xl.Run('PlannerRecalc', $sum)
+    Check ((T 'C15').EndsWith('set-up (1 pass)')) "one colour reads as one pass (got '$(T 'C15')')"
+    $before = $lo.ListRows.Count
+    [void]$xl.Run('btnPlannerAdd')
+    Start-Sleep -Milliseconds 500
+    [void]$sum.Activate()
+    Check ($lo.ListRows.Count -eq $before + 2) 'a second job with one pass was added'
+    Check ([int]$lo.ListRows($before + 1).Range.EntireRow.OutlineLevel -eq 1) 'added below a pass, the job row is still level 1'
+
+    Write-Host '=== row 10 goes back for a single-pass printer ==='
+    $sum.Range('C10').Value2 = 'Blue'
+    $sum.Range('B7').Value2 = $prn
+    $sum.Range('B8').Value2 = $stk
+    $sum.Range('B9').Value2 = 7
+    $xl.Run('PlannerRecalc', $sum)
+    Check ((T 'A10') -eq 'Print width mm') 'the Print width label is back'
+    Check ((T 'A15') -eq 'Ink (consumable)') 'the ink label is back'
+    Check ((T 'B10') -eq '') 'the colour in B10 is gone'
+    Check ((T 'C10') -ne 'Blue' -and (T 'D10') -eq '' -and (T 'F10') -eq '') 'and the other slots'
+    Check ((T 'C15') -eq '') 'no set-up breakdown'
+    Check ([double]$sum.Range('B16').Value2 -gt 0) 'the estimate still works'
+    $sum.Range('B7').Value2 = 'Test RISO'
+    $xl.Run('PlannerRecalc', $sum)
+    Check ((T 'B10') -eq '' -and (T 'C10') -eq '') 'back on the multi-pass printer, the strip starts empty'
+    $sum.Range('B8').Value2 = 'Matte 180gsm 1067mm roll'
+    $sum.Range('B10').Value2 = 'Black'
+    $xl.Run('PlannerRecalc', $sum)
+    Check ((T 'A17') -like '*cannot take*') "a roll paper on the multi-pass printer -> message (got '$(T 'A17')')"
+    Check ((T 'B16') -eq '') 'and no estimate'
 
     $xl.Run('SetQuiet', $false)
 }

@@ -14,7 +14,7 @@
 #   4. Add pass / Remove pass grey unless a multi-pass job or one of its passes is
 #      selected.
 #   5. Location sheets: no AutoFilter arrows, sorting and filtering withheld.
-#   6. The job planner does not offer multi-pass printers.
+#   6. The job planner offers multi-pass printers (test-jobplanner prices them).
 #
 # Drives a COPY in %TEMP%, never src\PrintJob.xlsm itself. Closes WITHOUT saving.
 
@@ -222,11 +222,11 @@ try {
     Check ([bool]$rep.Protection.AllowFiltering) 'Reports keeps its filtering'
 
     Write-Host ''
-    Write-Host '=== The planner does not offer multi-pass printers ==='
+    Write-Host '=== The planner offers multi-pass printers ==='
     [void]$xl.Run('RefreshSummaryPlanner')
     $v = $sum.Range('B7').Validation.Formula1
     $items = @(); $listRange = $xl.Evaluate($v.TrimStart('=')); foreach ($c in $listRange.Cells) { $items += [string]$c.Value2 }
-    Check (($items | Where-Object { [string]$_ -eq 'Test RISO' }).Count -eq 0 -and ($items | Where-Object { [string]$_ -like '*Xerox*' }).Count -gt 0) "Test RISO is not in the planner's printer list (offered: $($items -join ', '))"
+    Check (($items | Where-Object { [string]$_ -eq 'Test RISO' }).Count -gt 0 -and ($items | Where-Object { [string]$_ -like '*Xerox*' }).Count -gt 0) "Test RISO is in the planner's printer list (offered: $($items -join ', '))"
 } finally {
     if ($wb) { try { $wb.Close($false) } catch {} }
     try { $xl.Quit() } catch {}

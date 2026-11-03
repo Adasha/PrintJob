@@ -19,6 +19,19 @@ Option Explicit
 '   Consumable cost = ROUND(Area m2 x printer rate per m2, SET_ROUND_DP)
 '   Overall         = paper + consumable            (gross: disregard flags are not applied)
 '
+' A multi-pass printer (0.11.7) has no flat rate: each colour costs its own ink
+' over the whole area, as a pass row does, and each pass adds the printer's
+' Template cost:
+'
+'   Ink             = sum of ROUND(Area m2 x colour rate, SET_ROUND_DP), one per pass
+'   Set-up          = passes x Template cost
+'   Overall         = paper + ink + set-up
+'
+' Multi-pass is sheet stock only, so Print width never applies to one, and row 10
+' becomes a strip of up to five colour dropdowns, one per pass (B10:F10). No row
+' is added and nothing below the box moves. More than five passes: add the job,
+' then use Add pass on its row.
+'
 ' The roll length is always entered in METRES here, whatever Roll length unit a
 ' print room uses; AddPlannedJob converts it for a Centimetres room.
 '
@@ -35,6 +48,7 @@ Public Const PLN_PRINTER As String = "B7"
 Public Const PLN_PAPER As String = "B8"
 Public Const PLN_QTY As String = "B9"
 Public Const PLN_WIDTH As String = "B10"
+Public Const PLN_COLOURS As String = "B10:F10"     ' the same row, for a multi-pass printer
 Public Const PLN_SIZE As String = "B11"
 Public Const PLN_PAPER_COST As String = "B14"
 Public Const PLN_INK_COST As String = "B15"
@@ -45,9 +59,14 @@ Public Const PLN_ADD_ROW As Long = 19
 Public Const PLN_ADD_COL As Long = 3
 
 Private Const R_QTY_LABEL As String = "A9"
+Private Const R_WIDTH_LABEL As String = "A10"
+Private Const R_INK_LABEL As String = "A15"
+Private Const R_INK_HINT As String = "C15"
+Private Const R_SLOTS As String = "C10:F10"        ' the hint in width mode, colours 2-5 in strip mode
 Private Const TAG_PRN As String = "PLN|PRN"
 Private Const TAG_STK As String = "PLN|STK"
 Private Const TAG_LOC As String = "PLN|LOC"
+Private Const TAG_CLR As String = "PLN|CLR"
 
 ' The outcome of reading the box. A Type must sit in the declarations section,
 ' above the first procedure.
@@ -56,6 +75,8 @@ Private Type PlanResult
     IsError As Boolean     ' True = a conflict (shown red); False = just not filled in yet
     PaperCost As Double
     InkCost As Double
+    SetupCost As Double    ' multi-pass only
+    Colours As Collection  ' multi-pass only: the chosen colour names, in pass order
     Qty As Double
     WidthMM As Double      ' 0 = not entered
     SizeName As String
@@ -92,7 +113,7 @@ Public Sub BuildPlanner(ByVal ws As Worksheet)
     ws.Range("A7").Value = "Printer"
     ws.Range("A8").Value = "Paper"
     ws.Range(R_QTY_LABEL).Value = "Roll length (metres)"
-    ws.Range("A10").Value = "Print width mm"
+    ws.Range(R_WIDTH_LABEL).Value = "Print width mm"
     ws.Range("A11").Value = "Sheet size"
     ws.Range("A7:A11").Font.Bold = True
 
@@ -112,7 +133,7 @@ Public Sub BuildPlanner(ByVal ws As Worksheet)
     ws.Range("A13:F13").Borders(xlEdgeBottom).LineStyle = xlContinuous
     ws.Range("A13:F13").Borders(xlEdgeBottom).Color = RGB(150, 160, 175)
     ws.Range("A14").Value = "Paper"
-    ws.Range("A15").Value = "Ink (consumable)"
+    ws.Range(R_INK_LABEL).Value = "Ink (consumable)"
     ws.Range("A16").Value = "Overall"
     ws.Range("A16:B16").Font.Bold = True
     With ws.Range("B14:B16")
@@ -123,6 +144,8 @@ Public Sub BuildPlanner(ByVal ws As Worksheet)
         .Locked = True
     End With
     ws.Range(PLN_TOTAL_COST).Font.Bold = True
+    ws.Range(R_INK_HINT).Font.Italic = True
+    ws.Range(R_INK_HINT).Font.Color = RGB(110, 110, 110)
 
     ws.Range("A19").Value = "Add to print room"
     ws.Range("A19").Font.Bold = True
@@ -162,9 +185,7 @@ Private Function AllRoomPrinters() As Collection
     Set seen = New clsDict
     For Each v In LocationSheets()
         For Each m In PrintersFor(v)
-            ' A multi-pass printer is not offered: the planner prices one flat rate
-            ' and cannot price a job's colour passes (multi-pass design, ARCHITECTURE 17.2).
-            If Not seen.Exists(CStr(m)) And Not Prn(CStr(m)).MultiPass Then
+            If Not seen.Exists(CStr(m)) Then
                 seen.Add CStr(m), True
                 out.Add CStr(m)
             End If
@@ -211,21 +232,29 @@ End Function
 ' other field rules out are suffixed (unavailable) and remain pickable (the
 ' estimate then explains why it cannot be given).
 Public Sub BindPlannerLists(ByVal ws As Worksheet)
-    Dim prn As String, stk As String, printers As Collection
+    Dim chosen As String, stk As String, printers As Collection, asStrip As Boolean, p As clsPrinterDef
 
-    prn = CleanPick(CStr(ws.Range(PLN_PRINTER).Value))
+    chosen = CleanPick(CStr(ws.Range(PLN_PRINTER).Value))
     stk = CleanPick(CStr(ws.Range(PLN_PAPER).Value))
     Set printers = AllRoomPrinters()
 
     ApplyTo ws, ws.Range(PLN_PRINTER), MarkPrinters(printers, stk), TAG_PRN, "Printer", _
         "Every printer available in any print room. Ones that cannot take the chosen paper are marked (unavailable)."
-    ApplyTo ws, ws.Range(PLN_PAPER), MarkStocks(AllRoomStocks(printers), prn), TAG_STK, "Paper", _
+    ApplyTo ws, ws.Range(PLN_PAPER), MarkStocks(AllRoomStocks(printers), chosen), TAG_STK, "Paper", _
         "Every paper available in any print room. Ones the chosen printer cannot take are marked (unavailable)."
-    BindRoomList ws, prn
+    BindRoomList ws, chosen
+
+    Set p = Prn(chosen)
+    asStrip = (p.Found And p.MultiPass)
+    If asStrip Then
+        ApplyTo ws, ws.Range(PLN_COLOURS), ColoursFor(p.Consumable), TAG_CLR, "Colour", _
+            "One colour per pass, in print order. A colour can repeat. For more than five passes, add the job, then use Add pass on its row."
+    End If
 
     ' ApplyTo relocks the sheet each time it finishes, so open it again for the
     ' rules below (a validation change on a protected sheet is a 1004).
     UnlockSheet ws
+    ShapeColourRow ws, asStrip
     With ws.Range(PLN_SIZE).Validation
         .Delete
         .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Formula1:="=RNG_STD_SIZES"
@@ -237,9 +266,40 @@ Public Sub BindPlannerLists(ByVal ws As Worksheet)
         .ErrorMessage = "Choose one of the standard sizes listed on Settings."
     End With
     AddDecimalRule ws.Range(PLN_QTY), "Amount", "Metres of roll, or number of sheets. Must be greater than zero."
-    AddDecimalRule ws.Range(PLN_WIDTH), "Print width", "Optional for catalogue rolls (blank = full roll width). Required for 'Supplied (Roll)'. In millimetres."
+    If Not asStrip Then AddDecimalRule ws.Range(PLN_WIDTH), "Print width", "Optional for catalogue rolls (blank = full roll width). Required for 'Supplied (Roll)'. In millimetres."
 
     RelockSheet ws
+End Sub
+
+' Whether row 10 is currently the colour strip. The slots are unlocked only then,
+' so this needs no state of its own.
+Private Function StripShown(ByVal ws As Worksheet) As Boolean
+    StripShown = Not ws.Range(R_SLOTS).Cells(1, 1).Locked
+End Function
+
+' Puts row 10 in the shape the printer needs: width and hint, or five colour
+' dropdowns. What the row held means nothing in the other shape (a width is not a
+' colour), so a change of shape empties it. Caller has the sheet unlocked. The
+' strip's validation is ApplyTo's, set by BindPlannerLists.
+Private Sub ShapeColourRow(ByVal ws As Worksheet, ByVal WantStrip As Boolean)
+    Dim slot As Range
+    If StripShown(ws) <> WantStrip Then ws.Range(PLN_COLOURS).ClearContents
+    If WantStrip Then
+        For Each slot In ws.Range(PLN_COLOURS).Cells
+            StyleBox slot
+        Next slot
+        ws.Range(R_SLOTS).Font.Italic = False
+        ws.Range(R_SLOTS).Font.Color = RGB(0, 0, 0)
+    Else
+        ws.Range(R_SLOTS).Validation.Delete
+        ws.Range(R_SLOTS).Locked = True
+        ws.Range(R_SLOTS).Interior.Color = BOX_FILL
+        ws.Range(R_SLOTS).Font.Italic = True
+        ws.Range(R_SLOTS).Font.Color = RGB(110, 110, 110)
+        For Each slot In ws.Range(R_SLOTS).Cells
+            slot.Borders(xlEdgeLeft).LineStyle = xlNone
+        Next slot
+    End If
 End Sub
 
 Private Sub BindRoomList(ByVal ws As Worksheet, ByVal Model As String)
@@ -263,7 +323,7 @@ End Sub
 Private Function PlanFor(ByVal ws As Worksheet) As PlanResult
     Dim res As PlanResult, p As clsPrinterDef, s As clsStock
     Dim w As Double, h As Double, area As Double, dp As Long, usedW As Double
-    Dim cap As String
+    Dim cap As String, slot As Range, nm As String, cr As clsColour, k As Variant
 
     res.Printer = CleanPick(CStr(ws.Range(PLN_PRINTER).Value))
     res.Stock = CleanPick(CStr(ws.Range(PLN_PAPER).Value))
@@ -350,17 +410,53 @@ Private Function PlanFor(ByVal ws As Worksheet) As PlanResult
     End If
 
     res.PaperCost = Application.WorksheetFunction.Round(res.Qty * s.Cost, dp)
-    res.InkCost = Application.WorksheetFunction.Round(area * p.RatePerM2, dp)
+    If p.MultiPass Then
+        ' Every problem with the colours is reported before any is priced.
+        Set res.Colours = New Collection
+        For Each slot In ws.Range(PLN_COLOURS).Cells
+            nm = Trim$(CStr(slot.Value))
+            If Len(nm) > 0 Then
+                Set cr = Colour(nm)
+                If Not cr.Found Or Not cr.Active Or StrComp(cr.ConsumableType, Trim$(p.Consumable), vbTextCompare) <> 0 Then
+                    res.Message = "'" & nm & "' is not a colour " & p.Model & " can use."
+                    res.IsError = True
+                    PlanFor = res: Exit Function
+                End If
+                res.Colours.Add cr.Colour
+            End If
+        Next slot
+        If ColoursFor(p.Consumable).Count = 0 Then
+            res.Message = "No colours are set up for " & p.Model & " on the Consumables sheet."
+            res.IsError = True
+            PlanFor = res: Exit Function
+        End If
+        If res.Colours.Count = 0 Then
+            res.Message = "Choose at least one colour."
+            PlanFor = res: Exit Function
+        End If
+        For Each k In res.Colours
+            res.InkCost = res.InkCost + Application.WorksheetFunction.Round(area * Colour(CStr(k)).RatePerM2, dp)
+        Next k
+        res.SetupCost = res.Colours.Count * p.TemplateCost
+    Else
+        res.InkCost = Application.WorksheetFunction.Round(area * p.RatePerM2, dp)
+    End If
     PlanFor = res
 End Function
 
 ' Rewrites the labels, hints, grey-outs and estimate from the current inputs.
 Public Sub PlannerRecalc(ByVal ws As Worksheet)
     Dim res As PlanResult, p As clsPrinterDef, s As clsStock, isSheet As Boolean
-    Dim ev As Boolean, perJob As Boolean, symbol As String
+    Dim ev As Boolean, perJob As Boolean, symbol As String, asStrip As Boolean
 
     ev = Application.EnableEvents
     Application.EnableEvents = False
+
+    ' Row 10 follows the printer, and its dropdowns have to follow with it.
+    Set p = Prn(CleanPick(CStr(ws.Range(PLN_PRINTER).Value)))
+    asStrip = (p.Found And p.MultiPass)
+    If StripShown(ws) <> asStrip Then BindPlannerLists ws
+
     UnlockSheet ws
 
     res = PlanFor(ws)
@@ -372,6 +468,8 @@ Public Sub PlannerRecalc(ByVal ws As Worksheet)
 
     ' --- labels and hints -------------------------------------------------
     ws.Range(R_QTY_LABEL).Value = IIf(isSheet, "Number of sheets", "Roll length (metres)")
+    ws.Range(R_WIDTH_LABEL).Value = IIf(asStrip, "Colours (one per pass)", "Print width mm")
+    ws.Range(R_INK_LABEL).Value = IIf(asStrip, "Ink and set-up", "Ink (consumable)")
 
     If p.Found Then
         ws.Range("C7").Value = "Takes " & CapacityText(p)
@@ -397,10 +495,12 @@ Public Sub PlannerRecalc(ByVal ws As Worksheet)
 
     If isSheet Then
         ws.Range("C9").Value = "Sheets to print"
-        ws.Range("C10").Value = "Not needed for sheets"
+        If Not asStrip Then ws.Range("C10").Value = "Not needed for sheets"
     Else
         ws.Range("C9").Value = "Metres of paper to use"
-        If perJob Then
+        If asStrip Then
+            ' C10 is the second colour.
+        ElseIf perJob Then
             ws.Range("C10").Value = "Required for student-supplied roll"
         ElseIf s.Found Then
             ws.Range("C10").Value = "Optional - blank uses the full " & Mm(s.WidthMM) & " mm"
@@ -415,20 +515,29 @@ Public Sub PlannerRecalc(ByVal ws As Worksheet)
     End If
 
     ' --- inputs that do not apply to this paper are greyed and emptied ----
-    SetApplicable ws.Range(PLN_WIDTH), Not isSheet
+    If Not asStrip Then SetApplicable ws.Range(PLN_WIDTH), Not isSheet
     SetApplicable ws.Range(PLN_SIZE), (isSheet And perJob)
 
     ' --- estimate --------------------------------------------------------
     If Len(res.Message) = 0 Then
         ws.Range(PLN_PAPER_COST).Value = res.PaperCost
-        ws.Range(PLN_INK_COST).Value = res.InkCost
-        ws.Range(PLN_TOTAL_COST).Value = res.PaperCost + res.InkCost
+        ws.Range(PLN_INK_COST).Value = res.InkCost + res.SetupCost
+        ws.Range(PLN_TOTAL_COST).Value = res.PaperCost + res.InkCost + res.SetupCost
+        If asStrip Then
+            ws.Range(R_INK_HINT).Value = symbol & Format$(res.InkCost, "#,##0.00") & " ink + " & _
+                symbol & Format$(res.SetupCost, "#,##0.00") & " set-up (" & res.Colours.Count & _
+                IIf(res.Colours.Count = 1, " pass)", " passes)")
+        Else
+            ws.Range(R_INK_HINT).ClearContents
+        End If
         ws.Range(PLN_MESSAGE).Value = "Estimate at today's prices. Disregard flags are not applied, so this is the gross cost."
         ws.Range(PLN_MESSAGE).Font.Color = RGB(110, 110, 110)
         ws.Range(PLN_MESSAGE).Font.Bold = False
     Else
         ws.Range(PLN_PAPER_COST & ":" & PLN_TOTAL_COST).ClearContents
-        ws.Range(PLN_MESSAGE).Value = res.Message
+        ws.Range(R_INK_HINT).ClearContents
+        ' A leading apostrophe is Excel's text prefix and would not show: double it.
+        ws.Range(PLN_MESSAGE).Value = IIf(Left$(res.Message, 1) = "'", "'", "") & res.Message
         If res.IsError Then
             ws.Range(PLN_MESSAGE).Font.Color = RGB(176, 0, 32)
             ws.Range(PLN_MESSAGE).Font.Bold = True
@@ -466,7 +575,7 @@ End Sub
 Public Sub PlannerChanged(ByVal ws As Worksheet, ByVal Target As Range)
     Dim planRange As Range, c As Range, picks As Range
 
-    Set planRange = ws.Range("B7:B11,B19")
+    Set planRange = ws.Range("B7:B11," & R_SLOTS & ",B19")
     If Intersect(Target, planRange) Is Nothing Then Exit Sub
 
     ' A marked "(unavailable)" pick is stored as the real name, as on a job row.
@@ -550,6 +659,7 @@ End Sub
 
 Private Sub CreatePlannedJob(ByVal target As Worksheet, ByRef res As PlanResult)
     Dim lo As ListObject, r As ListRow, n As Long, s As clsStock, qty As Double
+    Dim pr As ListRow, pn As Long, k As Variant
 
     Set lo = JobsTable(target)
     If lo Is Nothing Then
@@ -586,10 +696,31 @@ Private Sub CreatePlannedJob(ByVal target As Worksheet, ByRef res As PlanResult)
     If Len(LocValue(target, "LOC_DefTech")) > 0 Then CellIn(lo, n, "Technician").Value = LocValue(target, "LOC_DefTech")
     CellIn(lo, n, "Notes").Value = "Planned on the Summary page"
 
+    ' A job row added below a collapsed group must not join it.
+    r.Range.EntireRow.OutlineLevel = 1
+    r.Range.EntireRow.Hidden = False
+
+    ' The passes, as RepeatJob writes them: stamped at today's colour rates and
+    ' the printer's Template cost. Nothing to do for a single-pass printer.
+    If Not res.Colours Is Nothing Then
+        For Each k In res.Colours
+            Set pr = lo.ListRows.Add
+            pn = pn + 1
+            CellIn(lo, pr.Index, "Row Type").Value = ROW_PASS
+            CellIn(lo, pr.Index, "Parent").Value = CellIn(lo, n, "Job ID").Value
+            CellIn(lo, pr.Index, "Pass").Value = pn
+            CellIn(lo, pr.Index, "Colour").Value = CStr(k)
+            pr.Range.EntireRow.OutlineLevel = 2
+            pr.Range.EntireRow.Hidden = False
+            RestampPassRow target, lo, pr.Index
+        Next k
+    End If
+
     RelockSheet target
     BindStockCell target, lo, n
     BindPrinterCell target, lo, n
     StampRow target, n
+    If pn > 0 Then BindPassColours target, lo
     AppOn
 
     ' Take the person to the new row so the student details can be typed in.
