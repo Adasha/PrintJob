@@ -20,6 +20,9 @@ colour.
 
 ![A Riso job with two pass rows, Black and Red, beneath it, under the Colour passes panel](images/Jobs-Colour-Passes-1-mac.png)
 
+To price a job first, and add it with its passes already filled in, use
+[Plan a print job](Reports-Summary) on Summary.
+
 ## Result
 
 Each pass costs its colour's ink over the job's whole printed area, plus the
@@ -68,4 +71,4 @@ The other passes are renumbered.
 
 ---
 
-*Draft for v0.11.6, with Mac screenshots. Not yet verified on Windows.*
+*Draft for v0.11.7, with Mac screenshots. Not yet verified on Windows.*

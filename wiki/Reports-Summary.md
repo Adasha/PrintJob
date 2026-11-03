@@ -27,9 +27,16 @@ money columns split out what is disregarded.
 2. Fill in what the paper needs: **Roll length** (and **Print width mm** if
    narrower than the roll) for roll paper, or **Sheet size** for a sheet the
    student brought.
-3. Read the **Estimated cost**: paper, ink and overall.
+3. For a multi-pass printer, choose the **Colours**, one per pass, in the row
+   where **Print width mm** was. A colour can repeat.
+4. Read the **Estimated cost**: paper, ink and overall. For a multi-pass
+   printer the ink line includes set-up, with the split beside it.
 
 Nothing is recorded yet.
+
+The row holds five colours. For a job with more passes, add it to a room, then
+add the rest with **Add** in its **Colour passes** panel. See
+[Colour passes](Jobs-Colour-Passes).
 
 ![The Plan a print job box with a printer, paper and roll length chosen, the Estimated cost, and Add to print room](images/Reports-Summary-2-mac.png)
 
@@ -67,4 +74,4 @@ the plan is not complete, the workbook says what is missing.
 
 ---
 
-*Draft for v0.11.6, with Mac screenshots. Not yet verified on Windows.*
+*Draft for v0.11.7, with Mac screenshots. Not yet verified on Windows.*

@@ -337,7 +337,7 @@ with builder_helper(HELPER) as helper, open_copy() as wb:
           'protection withholds sorting and filtering')
     check(wb.prop(sheet(REP), 'Protection.AllowFiltering') == 'True', 'Reports keeps its filtering')
 
-    section('The planner does not offer multi-pass printers')
+    section('The planner offers multi-pass printers')
     wb.run('RefreshSummaryPlanner')
 
     def list_items(a1):
@@ -355,8 +355,8 @@ with builder_helper(HELPER) as helper, open_copy() as wb:
         return [c for row in wb.texts(sh_, ref.replace('$', '')) for c in row]
 
     items = list_items('B7')
-    check('Test RISO' not in items and any('Xerox' in i for i in items),
-          f"Test RISO is not in the planner's printer list (offered: {', '.join(items)})")
+    check('Test RISO' in items and any('Xerox' in i for i in items),
+          f"Test RISO is in the planner's printer list (offered: {', '.join(items)})")
 
 if xlmac._any_fail:
     print('FAIL')

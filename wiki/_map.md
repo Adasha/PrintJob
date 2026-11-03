@@ -82,7 +82,7 @@ printer, and the job landed on the chosen room's sheet. No differences.
 | **Refresh Locations** | `btnRefreshLocations` | `modRegistry.RefreshLocations` | Setup-Print-Rooms | message | duplicate, nextid, restorereuse | Check |
 | **Check workbook** | `btnCheckWorkbook` | `modValidation.CheckWorkbook` | Jobs-Validation-and-Status | message | validation | Check |
 | **Hide settings sheets** / **Show settings sheets** | `btnToggleConfigSheets` | `modInit.ToggleConfigSheets` | Admin-Protection-and-Hidden-Sheets | none | reports | Check |
-| Plan a print job (Printer, Paper, Roll length, Print width, Sheet size) | cell edits | `modPlanner.PlannerChanged` | Reports-Summary | none | jobplanner | Mac OK |
+| Plan a print job (Printer, Paper, Roll length, Print width or Colours, Sheet size) | cell edits | `modPlanner.PlannerChanged` | Reports-Summary | none | jobplanner | Mac OK |
 | **Add to print room** | `btnPlannerAdd` | `modPlanner.AddPlannedJob` | Reports-Summary | room drop-down; message if the plan is incomplete | jobplanner | Mac OK |
 | By department block | formulas | `modReports.BuildSummary` | Reports-Summary | none | departments, summaryformat | Check |
 
