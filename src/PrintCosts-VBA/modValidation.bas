@@ -280,6 +280,8 @@ Private Sub OnStockChanged(ByVal ws As Worksheet, ByVal lo As ListObject, ByVal 
 
     ' Print width is meaningless for cut sheets (spec 10.6).
     Set s = Stock(stk)
+    ' Student-supplied stock needs a size, so its column must be there to fill in.
+    If s.PerJobSize Then RevealColumnGroup ws, "size"
     If s.Measure = "Sheet" Then
         If Len(CellIn(lo, n, "Print Width mm").Value) > 0 Then
             CellIn(lo, n, "Print Width mm").ClearContents

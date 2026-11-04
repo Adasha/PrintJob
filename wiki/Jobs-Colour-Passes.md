@@ -41,8 +41,8 @@ The other passes are renumbered.
 
 - **Toggle passes** folds or unfolds the selected job's passes.
 - **Toggle all passes** does the same for every job on the sheet.
-- **Hide pass columns** hides the Passes, Colour and other pass columns on
-  every room. **Show pass columns** brings them back.
+- The **Colour passes** box under **Show:** hides or shows the Passes and Colour
+  columns on this room. See [Views and units](Jobs-Views-and-Units).
 
 ## Things to know
 
@@ -71,4 +71,4 @@ The other passes are renumbered.
 
 ---
 
-*Draft for v0.11.7, with Mac screenshots. Not yet verified on Windows.*
+*Draft for v0.12.0, with Mac screenshots. Not yet verified on Windows.*

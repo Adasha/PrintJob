@@ -112,8 +112,8 @@ Public Sub RefreshLocations()
         EnsureJobCountDisplay ws
         BindColumns ws
         PreparePassSheet ws         ' row groups in line, no sort/filter (multi-pass)
-        ApplyReducedView ws
-        ApplyCostColumnsVisibility ws
+        EnsureColumnsSetting ws
+        ApplyRoomColumns ws
         ProtectSheet ws
         n = n + 1
     Next v
@@ -255,6 +255,19 @@ Private Sub FixButtons(ByVal ws As Worksheet)
             End If
         End If
     Next i
+    HealBoxes ws
+End Sub
+
+' The Show: checkboxes get the same re-qualifying on save as the buttons. Their
+' macro is known, so a box is only rewritten when it points at another file.
+Private Sub HealBoxes(ByVal ws As Worksheet)
+    Dim i As Long, cur As String
+    For i = 1 To ws.CheckBoxes.Count
+        If Left$(ws.CheckBoxes(i).Name, Len(COL_BOX_TAG)) = COL_BOX_TAG Then
+            cur = CStr(ws.CheckBoxes(i).OnAction)
+            If cur <> COL_BOX_MACRO And InStr(1, cur, ThisWorkbook.Name & "!", vbTextCompare) <> 1 Then ws.CheckBoxes(i).OnAction = COL_BOX_MACRO
+        End If
+    Next i
 End Sub
 
 ' Excel re-qualifies every button's OnAction with the workbook file name when it
@@ -272,6 +285,7 @@ Public Sub HealButtons()
     mine = ThisWorkbook.Name & "!"
 
     For Each ws In ThisWorkbook.Worksheets
+        HealBoxes ws
         For i = 1 To ws.Buttons.Count
             Set b = ws.Buttons(i)
             If Left$(b.Name, 4) = "pcb_" Then
@@ -1103,6 +1117,7 @@ Private Sub ResetPrintRoom(ByVal ws As Worksheet, ByVal RoomName As String, ByVa
     ClearLocCell ws, "LOC_DefDisCons"
     ClearLocCell ws, "LOC_Printers"
     ClearLocCell ws, "LOC_RollUnit"
+    ClearLocCell ws, "LOC_Columns"
     On Error Resume Next
     ws.Names("LOC_RollUnitApplied").Delete
     On Error GoTo 0

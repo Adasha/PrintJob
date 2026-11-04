@@ -78,7 +78,7 @@ Open `PrintCosts.xlsx`, then open the VBA editor:
 - Windows: **Alt + F11**
 - Mac: **Tools → Macro → Visual Basic Editor**
 
-In the editor, **File → Import File…**, and import these twenty-eight files. Order
+In the editor, **File → Import File…**, and import these twenty-nine files. Order
 does not matter.
 
 | File | What it is |
@@ -100,7 +100,8 @@ does not matter.
 | `modPicker.bas` | The multi-select picker |
 | `modDepartments.bas` | The Departments sheet: build, sheet edits, and setting both disregards to Yes when a free department's name is entered on a job |
 | `modConsumables.bas` | The Consumables sheet: the colours a multi-pass printer prints with - build, ID counter, sheet edits |
-| `modPasses.bas` | Multi-pass costing: colour pass rows (add, remove, renumber, row groups), the pass buttons and column toggle, Colour dropdowns |
+| `modPasses.bas` | Multi-pass costing: colour pass rows (add, remove, renumber, row groups), the pass buttons, Colour dropdowns |
+| `modColumns.bas` | The Show: checkboxes on a print room: column groups, rules, per-room choices, the internal columns setting |
 | `modPlanner.bas` | The job planner box at the top of Summary: price a job, then add it to a print room |
 | `modInit.bas` | One-time setup |
 | `modMain.bas` | The button entry points |
@@ -114,7 +115,7 @@ does not matter.
 
 If you are building by hand on a Mac this list is the whole build, so a missing
 module is not a documentation slip - it is a project that will not compile at
-step 3. Check you imported twenty-eight.
+step 3. Check you imported twenty-nine.
 
 `ThisWorkbook.cls` is the exception: it **cannot be imported**, because every
 workbook already has a `ThisWorkbook` object. Open `ThisWorkbook.cls` in a text
@@ -164,12 +165,12 @@ room is left as it is; remove it with Remove print room... when you no longer
 want it. Running `InitialiseWorkbook` again is safe at any time: it re-draws
 the buttons and re-applies protection.
 
-**Each print room has a column view and a cost-detail toggle on row 2**, above
-the job table. The drop-down offers All, Reduced and Minimal; Reduced hides the
-columns listed in `SET_LOC_REDUCED_COLUMNS` and Minimal hides those plus
-`SET_LOC_MINIMAL_COLUMNS` (both editable on Settings). Changing it changes
-every room together. The **Hide/Show cost detail** button beside it toggles the
-Paper Cost to Disregarded columns, again for every room.
+**Each print room has Show: checkboxes on row 2**, above the job table: Colour
+passes, Cost detail, Disregards, Print size, Technician and Printer. Each box
+changes that room only. Colour passes and Printer default from what the room
+has; a click wins until that changes (`docs/column-toggles-design.md`). The
+internal columns (Job ID, Row Type, Parent, Pass, S_SchemaVer) are one setting
+for every room, **Show internal columns** on Settings.
 
 **Roll length unit is a per-room setting** (`Roll length unit` in the room's
 header block, Metres or Centimetres). Qty is typed in that unit and the Unit
@@ -289,7 +290,7 @@ job IDs already carry it.
 | `verify.ps1` | Opens the built `.xlsm` **read-only** and reports version, document properties, tables, registry, the consolidated range and button bindings |
 | `test-duplicate.ps1` | AT-13. Duplicates a print room in VBA, refreshes, reports, and closes without saving |
 | `test-reports.ps1` | Summary and Reports end to end: every AT-12 criteria case, the Technician/Printer/Paper Stock filters and sort-by-column, export-names prompt, minimum-columns view, Paid column, Summary buttons, and Export report (header block, single-value promotion, name blanking). Adds the Annexe fixture as a second location. Closes without saving |
-| `test-layout.ps1` | Shipped column order, no outline groups, Notes visible, H_Issues/snapshot hidden, header block survives a reduced-view toggle, Summary/Reports still reconcile |
+| `test-layout.ps1` | Shipped column order, no outline groups, Notes visible, H_Issues/snapshot hidden, header block survives every Show: group being off, Summary/Reports still reconcile |
 | `test-manualhide.ps1` | Columns hidden by hand (not via the toggle): table-anchored buttons leave a hidden column and side-panel buttons follow column 36 on the next click |
 | `TestCommon.ps1` | Not a test: shared `Invoke-ComRetry`, `Check` (assertion line) and `Col` (column lookup), dot-sourced by the tests |
 | `test-export.ps1` | Phase 6. Exports a print room, reads the CSV back, edits a row and confirms the fingerprint notices |
@@ -299,14 +300,13 @@ job IDs already carry it.
 | `test-import.ps1` | Export All Locations, and Import restoring into origin and into a different room |
 | `test-multipass.ps1` | Multi-pass costing: the Consumables sheet and a multi-pass printer, Add pass (Parent, Pass, outline levels, Template cost), colour rates and roll-up, Disregard Consumable, problems versus notices, the printer-change block, collapse/expand, removing and renumbering, Repeat job, counts, deleting a group |
 | `test-multipass-io.ps1` | Export/Import of passes (round trip, block replacement, orphan passes, a pre-0.11.0 file, an unknown colour), Re-stamp prices, a pass added mid-table, and the colours table in the backup |
-| `test-multipass-views.ps1` | Multi-pass on Reports and Summary (Passes and Set-up columns, Pass type filter, Passes sort), the pass-column toggle (independent of the All / Reduced / Minimal view), Add/Remove pass greying, no sort or filter on location sheets, the planner offering multi-pass printers |
+| `test-multipass-views.ps1` | Multi-pass on Reports and Summary (Passes and Set-up columns, Pass type filter, Passes sort), the Colour passes box, Add/Remove pass greying, no sort or filter on location sheets, the planner offering multi-pass printers |
 | `test-departments.ps1` | The Departments sheet and table, Add row and typed rows (IDs, defaults, tidied aliases, duplicate warning), the on-entry disregard stamp (name, alias, case; Free/inactive/non-department; a hand-set value survives; re-entry re-stamps), the `_Data` Department column, the Reports filter, breakdown and Summary box reconciling to the totals |
 | `test-deletereports.ps1` | Export report (a static-value `.xlsx` snapshot) and the Reports-page bulk delete, including the audit log entry |
 | `test-suppliedstock.ps1` | Printer/paper compatibility rework: "Supplied by student" paper stock — zero Paper Cost with normal Consumable Cost, Print Width mm/Sheet size required-field enforcement, and rejection when an entered width/size exceeds the chosen printer's capacity |
 | `run-tests.ps1` | Runs every `test-*.ps1` in turn and prints one line per script; `-Only` takes name fragments. Logs land in `%TEMP%\testrun-<Label>` |
 | `test-addroom.ps1`, `test-renameroom.ps1`, `test-removeroom.ps1` | The Add, Rename and Remove print room commands |
-| `test-reducedview.ps1`, `test-costcolumns.ps1` | The All / Reduced / Minimal column views and the Hide/Show cost detail toggle |
-| `test-viewedge.ps1` | Column views meeting Refresh Locations, setup, Add print room, Import and bad Settings lists |
+| `test-columntoggles.ps1` | The Show: checkboxes: each group's columns, per-room choices, the Colour passes and Printer rules, columns returning when a job needs them, the internal columns setting, and the strip's layout |
 | `test-rollunit.ps1` | The per-room roll length unit (cm or metres) |
 | `test-importunits.ps1` | Import converting roll Qty between a cm file and a metres room, and the reverse |
 | `test-jobvalidation.ps1` | Job-table validation is bound to the right columns by name, nothing is left below the table, and a column move is repaired |

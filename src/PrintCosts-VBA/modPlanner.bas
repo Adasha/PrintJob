@@ -720,6 +720,8 @@ Private Sub CreatePlannedJob(ByVal target As Worksheet, ByRef res As PlanResult)
     BindStockCell target, lo, n
     BindPrinterCell target, lo, n
     StampRow target, n
+    RevealBlankJobColumns target, lo, n
+    If Not res.Colours Is Nothing Then RevealColumnGroup target, "passes"
     If pn > 0 Then BindPassColours target, lo
     AppOn
 

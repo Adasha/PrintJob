@@ -84,14 +84,6 @@ Fail:
     ReportError "Toggle all passes"
 End Sub
 
-Public Sub btnToggleMultiPass()
-    On Error GoTo Fail
-    ToggleMultiPassColumns
-    Exit Sub
-Fail:
-    ReportError "Hide/Show pass columns"
-End Sub
-
 Public Sub btnRemoveRow()
     On Error GoTo Fail
     If Not RequireLocation Then Exit Sub
@@ -174,20 +166,14 @@ Fail:
     ReportError "Clear defaults"
 End Sub
 
-Public Sub ddViewMode()
+' The Show: checkboxes on a print room (modColumns).
+Public Sub chkShowColumn()
     On Error GoTo Fail
-    ViewDropDownChanged
+    ColumnBoxClicked
     Exit Sub
 Fail:
+    AppReset
     ReportError "Show columns"
-End Sub
-
-Public Sub btnToggleCostColumns()
-    On Error GoTo Fail
-    ToggleCostColumns
-    Exit Sub
-Fail:
-    ReportError "Hide cost detail"
 End Sub
 
 Public Sub btnCheckSheet()

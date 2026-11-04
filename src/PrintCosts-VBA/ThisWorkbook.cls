@@ -76,6 +76,8 @@ Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)
                 Application.EnableEvents = False
                 OnColourEdited Target
                 Application.EnableEvents = True
+            ElseIf Sh.Name = "Settings" Then
+                OnColumnSettingEdited Target
             End If
             Exit Sub
     End Select
@@ -130,7 +132,8 @@ Private Sub Workbook_SheetActivate(ByVal Sh As Object)
         ' Catches a location sheet's buttons drifting from a manually
         ' collapsed/expanded cost-columns group left over from the last visit
         ' - see modInit.RepositionLocationButtons' own comment.
-        If IsLocation(Sh) Then RepositionLocationButtons Sh
+        ' Also picks up a printer change made while away (modColumns' rules).
+        If IsLocation(Sh) Then ApplyRoomColumns Sh
     End If
 End Sub
 
