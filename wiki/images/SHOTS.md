@@ -86,7 +86,7 @@ cell cursor on A1 unless stated. Dark or light appearance on the Mac: the
 | Jobs-Recording-2 | Delete a job | The Delete confirmation showing the job's details | **Delete** on a Photography job, before answering | Dialog | Both |
 | Jobs-Validation-and-Status-1 | Read a job's status | `UNI-EXAMPLE-00012`'s Status cell with its note showing | Note shown by script (the comment made visible), not by hovering | Range | Both |
 | Jobs-Validation-and-Status-2 | Check a whole sheet or the workbook | The side panel: **Check this sheet** and **Sheet status** after a check | Example Print Room after **Check this sheet** | Range | Both |
-| Jobs-Views-and-Units-1 | Show fewer columns | A room sheet at the Minimal view | Photography, view set to Minimal | Range | Both |
+| Jobs-Views-and-Units-1 | Show fewer columns | A room sheet with the Show: boxes on row 2 | Photography, Disregards and Print size unticked | Range | Both |
 | Jobs-Colour-Passes-1 | Record a multi-pass job | The Riso job expanded with its two pass rows, and the Colour passes panel | Photography, passes shown | Range | Both |
 | Jobs-Paid-Tracking-1 | Mark jobs from Reports | The Reports button strip: **Toggle Paid** under Selected record, and **Mark all as...** | Reports, filtered to Photography | Range | Both |
 | Reports-Summary-1 | Read the totals | The Totals row and the first rows of the table | | Range | Both |

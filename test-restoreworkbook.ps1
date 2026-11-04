@@ -72,6 +72,18 @@ try {
     $annexeWs.Names.Item('LOC_Printers').RefersToRange.Value2 = $expect.Printers
     $xlA.Run('RelockSheet', $annexeWs)
 
+    # A room's Show: choices, and a settings row only a workbook from before 0.12.0
+    # has: Restore must carry the first and skip the second. The internal columns
+    # row stands in for it, so the old workbook has no row the fresh copy lacks.
+    [void]$xlA.Run('SetColumnGroup', $annexeWs, 'cost', $false)
+    $expect.Columns = [string]$xlA.Run('LocValue', $annexeWs, 'LOC_Columns')
+    $setWs = $wbA.Worksheets('Settings'); $setLo = $setWs.ListObjects('tblSettings'); $kc = Col $setLo 'Key'
+    $xlA.Run('UnlockSheet', $setWs)
+    for ($i = 1; $i -le $setLo.ListRows.Count; $i++) {
+        if ([string]$setLo.ListRows($i).Range.Cells(1, $kc).Value2 -eq 'SHOW_INTERNAL_COLS') { $setLo.ListRows($i).Range.Cells(1, $kc).Value2 = 'COST_COLS_HIDDEN' }
+    }
+    $xlA.Run('RelockSheet', $setWs)
+
     # The real user path: events on, so the change handler rescales the roll rows.
     $xlA.Run('UnlockSheet', $annexeWs)
     $annexeWs.Names.Item('LOC_RollUnit').RefersToRange.Value2 = 'Centimetres'
@@ -154,6 +166,14 @@ try {
     Check ([string]$xlB.Run('LocValue', $a, 'LOC_DefTech') -eq $expect.Tech) "default technician carried over ('$($xlB.Run('LocValue', $a, 'LOC_DefTech'))')"
     Check ([string]$xlB.Run('LocValue', $a, 'LOC_Printers') -eq $expect.Printers) "permitted printers carried over ('$($xlB.Run('LocValue', $a, 'LOC_Printers'))')"
     Check ([string]$xlB.Run('LocValue', $a, 'LOC_RollUnit') -eq $expect.Unit) "roll length unit carried over ('$($xlB.Run('LocValue', $a, 'LOC_RollUnit'))')"
+    Check (($expect.Columns -eq 'cost=off') -and ([string]$xlB.Run('LocValue', $a, 'LOC_Columns') -eq $expect.Columns)) "Show: choices carried over ('$($xlB.Run('LocValue', $a, 'LOC_Columns'))')"
+    [void]$a.Activate()
+    Check ([bool]$a.ListObjects('tblJobs_ANNEX').ListColumns('Paper Cost').Range.EntireColumn.Hidden) '...and applied to the room'
+    $setLo = $wbB.Worksheets('Settings').ListObjects('tblSettings'); $kc = Col $setLo 'Key'
+    $keys = @(); for ($i = 1; $i -le $setLo.ListRows.Count; $i++) { $keys += [string]$setLo.ListRows($i).Range.Cells(1, $kc).Value2 }
+    Check ($keys -notcontains 'COST_COLS_HIDDEN') "the old workbook's retired setting is not restored"
+    $internalName = $null; try { $internalName = $wbB.Names.Item('SET_SHOW_INTERNAL_COLS') } catch {}
+    Check (($null -ne $internalName) -and ($keys -contains 'SHOW_INTERNAL_COLS')) 'the internal columns setting is still here'
     $lo = $a.ListObjects('tblJobs_ANNEX')
     Check ($lo.ListRows.Count -eq $expect.Jobs) "Annexe holds $($expect.Jobs) job row(s) (got $($lo.ListRows.Count))"
     $q = Sum-Qty $wbB 'Annexe' 'tblJobs_ANNEX'

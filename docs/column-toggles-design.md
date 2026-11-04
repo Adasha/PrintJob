@@ -181,7 +181,9 @@ New checks:
 - Each reveal in the table above, with its box ticked afterwards.
 - Single-printer auto-fill on New job.
 - The Internal setting applies to every room and leaves the `H_` columns hidden.
-- `LOC_Columns` survives backup and restore, and resets on Add print room.
+- `LOC_Columns` carries over when restoring from a copy of the workbook (a CSV backup
+  holds no room settings, so a room made from one starts at the defaults), and resets on
+  Add print room.
 - Layout with every group off: the strip is clear of the side panel.
 
 ## Manual checks

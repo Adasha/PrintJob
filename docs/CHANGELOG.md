@@ -10,8 +10,9 @@ Schema unchanged (1.4). Tested on the Mac only.
     Cost detail, Disregards, Print size, Technician and Printer. The All /
     Reduced / Minimal drop-down and the Hide/Show cost detail and pass column
     buttons are gone (modColumns; docs/column-toggles-design.md).
-  - Each room keeps its own choices, in LOC_Columns (AX11), and they go with the
-    room through backup and restore.
+  - Each room keeps its own choices, in LOC_Columns (AX11). Restoring from a copy
+    of the workbook brings them to the rooms it creates, like a room's other
+    settings; a CSV backup does not hold them, so those rooms start at the defaults.
   - Colour passes defaults to on when the room permits a multi-pass printer or
     already has pass rows. Printer defaults to off when the room permits exactly
     one active printer. A click wins until that answer changes.

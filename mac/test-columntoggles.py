@@ -36,14 +36,30 @@ with open_copy() as wb:
     wb.activate(MAIN)
     main = sheet(MAIN)
 
+    # Columns do not move during a run, so each table's layout is read once, and
+    # the group checks read every column's state in one call.
+    layouts = {}
+
+    def layout(ws, tbl):
+        if (ws, tbl) not in layouts:
+            headers = wb.table_headers(ws, tbl)
+            first = wb.table_col(ws, tbl, headers[0])
+            layouts[(ws, tbl)] = {h: first + i for i, h in enumerate(headers)}
+        return layouts[(ws, tbl)]
+
     def hid(h, ws=MAIN, tbl=TBL):
-        return wb.column_hidden(ws, wb.table_col(ws, tbl, h))
+        return wb.column_hidden(ws, layout(ws, tbl)[h])
+
+    def states(hs):
+        cols = layout(MAIN, TBL)
+        now = wb.columns_hidden(MAIN, max(cols.values()))
+        return [now[cols[h] - 1] for h in hs]
 
     def all_hid(hs):
-        return all(hid(h) for h in hs)
+        return all(states(hs))
 
     def none_hid(hs):
-        return not any(hid(h) for h in hs)
+        return not any(states(hs))
 
     def ticked(g, ws=MAIN):
         return float(wb.prop(shape(ws, f'pcb_show_{g}'), 'Value')) == 1
@@ -115,6 +131,7 @@ with open_copy() as wb:
         check(none_hid(hs) and ticked(g), f'{g} on: its columns return and the box ticks')
 
     section('The strip stays clear with every group off')
+    everything = [h for hs in GROUPS.values() for h in hs]
     for g in GROUPS:
         choose(g, False)
     check(none_hid(ALWAYS), 'every group off: the always-visible columns stay')
@@ -130,10 +147,10 @@ with open_copy() as wb:
     check(prev <= panel, f'the strip ends before the side panel ({prev} <= {panel})')
     wb.run('btnRefreshLocations')
     time.sleep(0.5)
-    check(all(all_hid(GROUPS[g]) for g in GROUPS), 'Refresh Locations keeps the choices')
+    check(all_hid(everything), 'Refresh Locations keeps the choices')
     wb.run('InitialiseWorkbook')
     time.sleep(1)
-    check(all(all_hid(GROUPS[g]) for g in GROUPS), 'a second setup keeps the choices')
+    check(all_hid(everything), 'a second setup keeps the choices')
     check(not ticked('cost'), '...and the redrawn boxes show them')
     for g in GROUPS:
         choose(g, True)
@@ -213,7 +230,12 @@ with open_copy() as wb:
     check(cell('Technician', last_job()) == tech, 'a default technician fills the new job')
     check(hid('Technician'), '...and Technician stays hidden')
     set_default_tech('')
-    choose('tech', True)
+    wb.select(MAIN, addr(last_job(), wb.table_col(MAIN, TBL, 'Student Name')))
+    choose('tech', False)
+    wb.run('btnRepeatJob')
+    time.sleep(0.3)
+    check(cell('Technician', last_job()) == '', 'Repeat with no default technician leaves it blank')
+    check(not hid('Technician') and ticked('tech'), '...and brings Technician back and ticks it')
 
     # The printer is multi-pass here, which takes sheet stock only, so a supplied roll would be refused.
     set_colour_mode(EPSON, '')

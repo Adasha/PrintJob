@@ -93,6 +93,17 @@ with open_copy() as wb:
     wb.set_value(a, wb.name_addr(a, 'LOC_Printers'), expect['Printers'])
     wb.call('RelockSheet', sheet(a))
 
+    # A room's Show: choices, and a settings row only a workbook from before 0.12.0
+    # has: Restore must carry the first and skip the second. The internal columns
+    # row stands in for it, so the old workbook has no row the fresh copy lacks.
+    wb.call('SetColumnGroup', sheet(a), 'cost', False)
+    expect['Columns'] = wb.call('LocValue', sheet(a), 'LOC_Columns')
+    keys = wb.table_column_texts('Settings', 'tblSettings', 'Key')
+    wb.call('UnlockSheet', sheet('Settings'))
+    wb.set_value('Settings', xlmac.addr(wb.table_first_row('Settings', 'tblSettings') + 1 + keys.index('SHOW_INTERNAL_COLS'),
+                                        wb.table_col('Settings', 'tblSettings', 'Key')), 'COST_COLS_HIDDEN')
+    wb.call('RelockSheet', sheet('Settings'))
+
     # The real user path: events on, so the change handler rescales the roll rows.
     wb.call('UnlockSheet', sheet(a))
     wb.set_value(a, wb.name_addr(a, 'LOC_RollUnit'), 'Centimetres')
@@ -161,6 +172,12 @@ with b_ctx as wb:
         check(lv('LOC_DefTech') == expect['Tech'], f"default technician carried over ('{lv('LOC_DefTech')}')")
         check(lv('LOC_Printers') == expect['Printers'], f"permitted printers carried over ('{lv('LOC_Printers')}')")
         check(lv('LOC_RollUnit') == expect['Unit'], f"roll length unit carried over ('{lv('LOC_RollUnit')}')")
+        check(expect['Columns'] == 'cost=off' and lv('LOC_Columns') == expect['Columns'], f"Show: choices carried over ('{lv('LOC_Columns')}')")
+        wb.activate('Annexe')
+        check(wb.column_hidden('Annexe', wb.table_col('Annexe', 'tblJobs_ANNEX', 'Paper Cost')), '...and applied to the room')
+        keys = wb.table_column_texts('Settings', 'tblSettings', 'Key')
+        check('COST_COLS_HIDDEN' not in keys, "the old workbook's retired setting is not restored")
+        check(wb.wb_name('SET_SHOW_INTERNAL_COLS') is not None and 'SHOW_INTERNAL_COLS' in keys, 'the internal columns setting is still here')
         n = wb.table_row_count('Annexe', 'tblJobs_ANNEX')
         check(n == expect['Jobs'], f"Annexe holds {expect['Jobs']} job row(s) (got {n})")
         q = sum_qty(wb, 'Annexe', 'tblJobs_ANNEX')
