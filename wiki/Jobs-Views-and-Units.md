@@ -3,25 +3,30 @@
 Choose how many columns a print room sheet shows, and whether roll lengths
 are typed in metres or centimetres.
 
-## Show fewer columns
+## Choose which columns show
 
-1. On any print room sheet, find **Show columns:** near the top.
-2. Choose a view:
-   - **All**: every column.
-   - **Reduced**: hides Status, Job ID, Area m2 and a version column.
-   - **Minimal**: also hides Printer, both Disregard columns, Print Width mm
-     and Sheet size, for quick entry at the desk.
+On a print room sheet, find **Show:** near the top, and tick or untick:
 
-The view applies to every print room at once.
+| Box | Columns |
+| --- | --- |
+| **Colour passes** | Passes, Colour |
+| **Cost detail** | Paper Cost, Consumable Cost, Set-up Cost, Gross Cost, Disregarded, Area m2 |
+| **Disregards** | Disregard Paper, Disregard Consumable |
+| **Print size** | Print Width mm, Sheet size |
+| **Technician** | Technician |
+| **Printer** | Printer |
 
-![A print room sheet with Show columns set to Minimal](images/Jobs-Views-and-Units-1-mac.png)
+Each room keeps its own choices. Status, Chargeable Cost, Paid and the columns
+you fill in for every job always show.
 
-## Hide the cost detail
+Two boxes start from what the room has:
 
-Click **Hide cost detail** to hide Paper Cost, Consumable Cost, Set-up Cost,
-Gross Cost and Disregarded. **Chargeable Cost** and **Paid** stay visible.
-Click **Show cost detail** to bring them back. This also applies to every
-room.
+- **Colour passes** starts ticked if the room has a multi-pass printer or
+  already has colour passes.
+- **Printer** starts unticked if the room has exactly one printer, because new
+  jobs fill it in for you.
+
+Your click stays until the room's printers change that answer.
 
 ## Type roll lengths in centimetres
 
@@ -38,10 +43,11 @@ show roll lengths in metres.
   centimetres.
 - Hidden columns still hold their values, and still count in costs and
   reports.
-- To change which columns Reduced and Minimal hide, edit the lists on
-  [Settings](Setup-Settings). Separate the column names with semicolons.
-- The colour pass columns have their own button. See
-  [Colour passes](Jobs-Colour-Passes).
+- A hidden column comes back by itself when a job needs it: **Add pass** for
+  Colour passes, a new job with no technician or printer to fill in, or
+  student-supplied paper for Print size.
+- Job ID and the other internal columns are controlled by **Show internal
+  columns** on [Settings](Setup-Settings), for every room at once.
 
 ## Platform notes
 

@@ -387,7 +387,7 @@ End Function
 ' these are what a new room is given beyond that.
 Private Function RoomSettingNames() As Variant
     RoomSettingNames = Array("LOC_DefTech", "LOC_DefPrinter", "LOC_DefPaper", _
-        "LOC_DefDisPaper", "LOC_DefDisCons", "LOC_Printers", "LOC_RollUnit")
+        "LOC_DefDisPaper", "LOC_DefDisCons", "LOC_Printers", "LOC_RollUnit", "LOC_Columns")
 End Function
 
 Private Function PlanHasRoomSettings(ByVal Rooms As Collection) As Boolean
@@ -910,7 +910,7 @@ Private Sub ApplyRoomSettings(ByVal Ws As Worksheet, ByVal Settings As clsDict)
 
     AppOff
     UnlockSheet Ws
-    names = Array("LOC_DefTech", "LOC_DefPrinter", "LOC_DefPaper", "LOC_DefDisPaper", "LOC_DefDisCons", "LOC_Printers")
+    names = Array("LOC_DefTech", "LOC_DefPrinter", "LOC_DefPaper", "LOC_DefDisPaper", "LOC_DefDisCons", "LOC_Printers", "LOC_Columns")
     For i = LBound(names) To UBound(names)
         If Settings.Exists(CStr(names(i))) Then
             s = Trim$(CStr(Settings.Item(CStr(names(i)))))
@@ -982,7 +982,8 @@ Private Sub ApplyCatalogRows(ByVal TableName As String, ByVal lo As ListObject, 
             skip = False
             If StrComp(TableName, "tblSettings", vbTextCompare) = 0 Then
                 If d.Exists("Notes") Then notesVal = Trim$(CStr(d.Item("Notes"))) Else notesVal = ""
-                skip = (Left$(notesVal, 9) = "Read-only")
+                ' A backup from before 0.12.0 still holds the old column view settings.
+                skip = (Left$(notesVal, 9) = "Read-only") Or IsRetiredSetting(key)
             End If
 
             If skip Then

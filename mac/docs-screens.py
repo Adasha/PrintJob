@@ -244,9 +244,11 @@ def shots(wb, b, room):
     shot('Reports-Summary-2', 'Summary', 'A5:F21')
     shot('Reports-Summary-1', 'Summary', 'A23:O42')
 
-    wb.call('SetViewMode', 'Minimal')
+    for g in ('disregard', 'size'):
+        wb.call('SetColumnGroup', sheet(room), g, False)
     shot('Jobs-Views-and-Units-1', room, f'A1:R{wb.table_last_row(room, ptbl)}')
-    wb.call('SetViewMode', 'All')
+    for g in ('disregard', 'size'):
+        wb.call('SetColumnGroup', sheet(room), g, True)
     return out
 
 

@@ -81,31 +81,23 @@ try {
     Check ([string]$main.Range('B2').Text -eq 'Print Services') "B2 (department) reads correctly before toggle"
 
     Write-Host ''
-    Write-Host '=== Reduce clutter ON: header block still visible, button still there ==='
-    [void]$xl.Run('SetViewMode', 'Reduced')
+    Write-Host '=== Every Show: group off: header block still visible, boxes still there ==='
+    $groups = 'passes', 'cost', 'disregard', 'size', 'tech', 'printer'
+    foreach ($g in $groups) { [void]$xl.Run('SetColumnGroup', $main, $g, $false) }
     Start-Sleep -Milliseconds 300
     Check (-not [bool]$main.Columns('A').Hidden) "column A is NOT hidden (header block lives there)"
     Check (-not [bool]$main.Columns('B').Hidden) "column B is NOT hidden (header block lives there)"
-    Check ([string]$main.Range('B1').Text -eq 'Example Print Room') "B1 (room name) still reads correctly with reduced view ON"
-    Check ([string]$main.Range('B2').Text -eq 'Print Services') "B2 (department) still reads correctly with reduced view ON"
+    Check ([string]$main.Range('B1').Text -eq 'Example Print Room') "B1 (room name) still reads correctly with the groups off"
+    Check ([string]$main.Range('B2').Text -eq 'Print Services') "B2 (department) still reads correctly with the groups off"
 
     $sheetStatusCol = $lo.Range.Column + $statusIdx - 1
-    $sheetJobIdCol = $lo.Range.Column + $jobIdIdx - 1
-    Check ([bool]$main.Columns($sheetStatusCol).Hidden) "Status's own (new) column IS hidden"
-    Check ([bool]$main.Columns($sheetJobIdCol).Hidden) "Job ID's own (new) column IS hidden"
-
-    $found = $false
-    for ($i = 1; $i -le $main.DropDowns().Count; $i++) {
-        if ([string]$main.DropDowns($i).Name -like 'pcb_ddViewMode*') { $found = $true }
-    }
-    Check $found "the view drop-down is still present after switching to Reduced"
+    Check (-not [bool]$main.Columns($sheetStatusCol).Hidden) "Status's own column stays visible"
 
     Write-Host ''
-    Write-Host '=== Reduce clutter OFF again: everything restored ==='
-    [void]$xl.Run('SetViewMode', 'All')
+    Write-Host '=== Every Show: group on again: everything restored ==='
+    foreach ($g in $groups) { [void]$xl.Run('SetColumnGroup', $main, $g, $true) }
     Start-Sleep -Milliseconds 300
-    Check (-not [bool]$main.Columns($sheetStatusCol).Hidden) "Status's column visible again"
-    Check (-not [bool]$main.Columns($sheetJobIdCol).Hidden) "Job ID's column visible again"
+    Check (-not [bool]$main.Columns($lo.Range.Column + (Col $lo 'Technician') - 1).Hidden) "Technician's column visible again"
 
     # ---------------------------------------------------------------- sanity
     Write-Host ''

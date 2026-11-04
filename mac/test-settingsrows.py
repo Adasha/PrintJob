@@ -28,13 +28,15 @@ def row_of(keys, key):
 
 def check_order(wb, tag):
     keys = wb.table_column_texts(SET, TBL, 'Key')
-    red = row_of(keys, 'LOC_REDUCED_COLUMNS')
-    mn = row_of(keys, 'LOC_MINIMAL_COLUMNS')
-    check(red > 0 and mn > 0, f'{tag}: both rows exist (reduced={red} minimal={mn})')
-    check(mn == red + 1, f'{tag}: LOC_MINIMAL_COLUMNS is directly below LOC_REDUCED_COLUMNS (rows {red}, {mn})')
-    _, cell = wb.wb_name('SET_LOC_MINIMAL_COLUMNS')
+    pos = row_of(keys, 'SHOW_INTERNAL_COLS')
+    check(pos > 0, f'{tag}: SHOW_INTERNAL_COLS exists (row {pos})')
+    _, cell = wb.wb_name('SET_SHOW_INTERNAL_COLS')
     name_row = int(''.join(c for c in cell if c.isdigit()))
-    check(name_row == wb.table_first_row(SET, TBL) + mn, f'{tag}: SET_LOC_MINIMAL_COLUMNS points at the moved row')
+    check(name_row == wb.table_first_row(SET, TBL) + pos, f'{tag}: SET_SHOW_INTERNAL_COLS points at its row')
+    for k, want in (('EXPORT_FOLDER', 'SET_EXPORT_FOLDER'), ('TECH_ID_HWM', 'SET_TECH_ID_HWM')):
+        _, c = wb.wb_name(want)
+        check(int(''.join(ch for ch in c if ch.isdigit())) == wb.table_first_row(SET, TBL) + row_of(keys, k),
+              f'{tag}: {want} still points at its row after the old rows went')
     check(len(keys) == len(set(keys)), f'{tag}: no duplicate keys')
 
 

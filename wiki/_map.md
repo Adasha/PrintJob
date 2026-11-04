@@ -65,9 +65,7 @@ printer, and the job landed on the chosen room's sheet. No differences.
 | **Toggle all passes** | `btnToggleAllPasses` | `modPasses.ToggleAllPasses` | Jobs-Colour-Passes | none | multipass | Mac OK |
 | **Now** | `btnNow` | `modJobs.StampNow` | Jobs-Recording | none | | Mac OK |
 | Double-click a blank Date/Time cell | event | `ThisWorkbook.Workbook_SheetBeforeDoubleClick` | Jobs-Recording | none | | Mac OK |
-| **Show columns:** drop-down (All, Reduced, Minimal) | `ddViewMode` | `modInit.ViewDropDownChanged` | Jobs-Views-and-Units | none | reducedview, viewedge, manualhide | Mac OK |
-| **Hide cost detail** / **Show cost detail** | `btnToggleCostColumns` | `modInit.ToggleCostColumns` | Jobs-Views-and-Units | none | costcolumns | Mac OK |
-| **Hide pass columns** / **Show pass columns** | `btnToggleMultiPass` | `modPasses.ToggleMultiPassColumns` | Jobs-Colour-Passes | none | multipass-views | Mac OK |
+| **Show:** checkboxes (Colour passes, Cost detail, Disregards, Print size, Technician, Printer) | `chkShowColumn` | `modColumns.ColumnBoxClicked` | Jobs-Views-and-Units | none | columntoggles, manualhide | Check |
 | **Clear defaults** | `btnClearDefaults` | `modJobs.ClearDefaults` | Jobs-Recording | none | defaults | Check |
 | **Select printers...** | `btnSelectPrinters` | `modPicker.PickPrinters` | Setup-Print-Rooms | picker sheet (OK, Cancel) | | Mac OK |
 | **Check this sheet** | `btnCheckSheet` | `modCatalog.LoadCatalog`, `modValidation` | Jobs-Validation-and-Status | message | validation, jobvalidation, statusnotes | Check |
@@ -191,11 +189,12 @@ are locked and skipped by Restore.
 | `SUBSIDY_PCT` | University subsidy | Yes | Setup-Settings, Reports-Filtering |
 | `ROUND_DP` | Currency decimal places | Yes (recalculates existing records) | Setup-Settings |
 | `EXPORT_FOLDER` | Export folder | Yes | Data-Export-Room |
-| `LOC_REDUCED_VIEW` | Location column view | Set by the Show columns drop-down | Jobs-Views-and-Units |
-| `LOC_REDUCED_COLUMNS` | Reduced view - hidden columns | Yes | Jobs-Views-and-Units |
-| `LOC_MINIMAL_COLUMNS` | Minimal view - extra hidden columns | Yes | Jobs-Views-and-Units |
-| `COST_COLS_HIDDEN` | Hide cost detail columns | Set by the button | Jobs-Views-and-Units |
-| `MULTIPASS_COLS_HIDDEN` | Hide multi-pass columns | Set by the button | Jobs-Colour-Passes |
+| `SHOW_INTERNAL_COLS` | Show internal columns | Yes | Jobs-Views-and-Units |
+| `LOC_REDUCED_VIEW` | Location column view | Retired 0.12.0: still in the template, removed at setup | Jobs-Views-and-Units |
+| `LOC_REDUCED_COLUMNS` | Reduced view - hidden columns | Retired 0.12.0: still in the template, removed at setup | Jobs-Views-and-Units |
+| `LOC_MINIMAL_COLUMNS` | Minimal view - extra hidden columns | Retired 0.12.0: still in the template, removed at setup | Jobs-Views-and-Units |
+| `COST_COLS_HIDDEN` | Hide cost detail columns | Retired 0.12.0: still in the template, removed at setup | Jobs-Views-and-Units |
+| `MULTIPASS_COLS_HIDDEN` | Hide multi-pass columns | Retired 0.12.0: still in the template, removed at setup | Jobs-Views-and-Units |
 | `REPORT_HEADING` | Report heading | Yes | Reports-Export |
 | `SCHEMA` | Schema version | Read-only | Admin-Upgrading |
 | `APP_VER` | Workbook version | Read-only | Admin-Upgrading |

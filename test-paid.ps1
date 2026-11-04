@@ -102,19 +102,19 @@ try {
 
     # ------------------------------------------------------- cost visibility
     # 2026-09-27: the outline group over Paper Cost..Disregarded was replaced
-    # by the ToggleCostColumns button (docs/ARCHITECTURE.md §16.3, "button
-    # lag" writeup) - test-costcolumns.ps1 covers that toggle directly. All
+    # by the Cost detail box (docs/ARCHITECTURE.md §16.3, "button
+    # lag" writeup) - test-columntoggles.ps1 covers that box directly. All
     # this checks here is that Chargeable Cost and Paid are never touched by
     # it, same guarantee the old outline group used to make.
     Write-Host ''
     Write-Host '=== Chargeable Cost and Paid are never hidden by the cost-columns toggle ==='
     Check (-not [bool]$main.Columns($sheetChgCol).Hidden) "Chargeable Cost is visible by default (got hidden=$([bool]$main.Columns($sheetChgCol).Hidden))"
     Check (-not [bool]$main.Columns($sheetPaidCol).Hidden) "Paid is visible by default (got hidden=$([bool]$main.Columns($sheetPaidCol).Hidden))"
-    [void]$xl.Run('btnToggleCostColumns')
+    [void]$xl.Run('SetColumnGroup', $main, 'cost', $false)
     Start-Sleep -Milliseconds 300
     Check (-not [bool]$main.Columns($sheetChgCol).Hidden) "Chargeable Cost stays visible once cost detail is hidden (got hidden=$([bool]$main.Columns($sheetChgCol).Hidden))"
     Check (-not [bool]$main.Columns($sheetPaidCol).Hidden) "Paid stays visible once cost detail is hidden (got hidden=$([bool]$main.Columns($sheetPaidCol).Hidden))"
-    [void]$xl.Run('btnToggleCostColumns')
+    [void]$xl.Run('SetColumnGroup', $main, 'cost', $true)
     Start-Sleep -Milliseconds 300
 
     $xl.Run('SetQuiet', $false)

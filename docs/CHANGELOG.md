@@ -3,6 +3,31 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```text
+0.12.0 - Show: checkboxes replace the column views on a print room (2026-11-04).
+Schema unchanged (1.4). Tested on the Mac only.
+
+  - Row 2 of a print room is now "Show:" and six checkboxes: Colour passes,
+    Cost detail, Disregards, Print size, Technician and Printer. The All /
+    Reduced / Minimal drop-down and the Hide/Show cost detail and pass column
+    buttons are gone (modColumns; docs/column-toggles-design.md).
+  - Each room keeps its own choices, in LOC_Columns (AX11), and they go with the
+    room through backup and restore.
+  - Colour passes defaults to on when the room permits a multi-pass printer or
+    already has pass rows. Printer defaults to off when the room permits exactly
+    one active printer. A click wins until that answer changes.
+  - A column comes back, and its box ticks, when a job needs it: Add pass, New or
+    Repeat job with no technician or printer to fill in, student-supplied stock.
+  - Job ID, Row Type, Parent, Pass and S_SchemaVer are now one workbook-wide
+    setting on Settings, Show internal columns, off by default.
+  - Status can no longer be hidden. Area m2 moved in with the cost detail.
+  - Existing views reset to these defaults once. The five old settings
+    (LOC_REDUCED_VIEW, LOC_REDUCED_COLUMNS, LOC_MINIMAL_COLUMNS, COST_COLS_HIDDEN,
+    MULTIPASS_COLS_HIDDEN) are removed at setup and ignored by Restore, so the
+    editable column lists have gone.
+  - New test-columntoggles replaces test-reducedview, test-costcolumns and
+    test-viewedge; test-layout, test-paid, test-settingsrows and
+    test-multipass-views follow the new controls.
+
 0.11.7 - The Summary job planner prices multi-pass printers (2026-11-03).
 Schema unchanged (1.4). Tested on the Mac only.
 

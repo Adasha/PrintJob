@@ -1,6 +1,6 @@
 # Column toggles on print room sheets — design notes
 
-Status: design agreed 2026-11-03. Nothing implemented. Target version 0.12.0.
+Status: design agreed 2026-11-03. Being built on `feat/column-toggles` as 0.12.0; tested on the Mac only. The plan below notes where the build departed from it.
 
 Replaces the view row described in `column-view-presets-design.md`, including its
 layered model (decision 8), and ARCHITECTURE §4.1's All / Reduced / Minimal text once built.
@@ -82,13 +82,13 @@ tick its box, stored as a click:
 | New or Repeat job, printer not filled | Printer |
 | Student-supplied stock chosen | Print size |
 
-New job fills `Printer` automatically when the room permits exactly one active printer,
-even with no default set, so the auto rule's hidden state never leaves it blank. The
-paper list already offers only compatible stock in that case, so a stock pick cannot clear
+`BindColumns`' one-choice auto-fill already fills `Printer` on a new job when the room
+permits exactly one active printer, even with no default set, so the auto rule's hidden
+state never leaves it blank. The paper list already offers only compatible stock in that case, so a stock pick cannot clear
 the printer. Job-planner jobs (`modPlanner`) follow the same rules as New job.
 
-Hiding Printer by hand in a room with several printers remains possible. A stock pick that
-clears the printer then needs the same reveal, in `OnStockChanged`.
+Hiding Printer by hand in a room with several printers remains possible. A stock pick
+cannot blank the printer: when the two clash, `OnStockChanged` clears the stock instead.
 
 `Parent job not found` and `Pass number out of sequence` refer to Internal columns. They
 should not occur in normal use, so they stay as Status messages; the Settings switch shows
@@ -96,14 +96,16 @@ the columns for investigation.
 
 ## Storage
 
-- **Per room:** one new name, `LOC_Columns`, in the next free row of the location settings
-  block (AW label, AX value), holding only what has been clicked. Example:
+- **Per room:** one new name, `LOC_Columns`, in the location settings block (AX11, label in
+  AW11), holding only what has been clicked. Example:
   `passes=off@on;cost=off`, where `@on` is the rule's answer at the time of the click.
   Empty means all defaults. Adding a later group needs no new cell.
-- **Workbook:** `SET_SHOW_INTERNAL_COLS` (Yes/No, default No). It needs a template row,
-  because `SetSetting` silently does nothing when the name is missing.
+- **Workbook:** `SET_SHOW_INTERNAL_COLS` (Yes/No, default No). Setup adds the row and name
+  (`modColumns.EnsureColumnSettings`), as `EnsureSubsidySetting` does, so the template is
+  not edited.
 - **Retired:** `SET_LOC_REDUCED_VIEW`, `SET_LOC_REDUCED_COLUMNS`,
-  `SET_LOC_MINIMAL_COLUMNS`, `SET_COST_COLS_HIDDEN`, `SET_MULTIPASS_COLS_HIDDEN`.
+  `SET_LOC_MINIMAL_COLUMNS`, `SET_COST_COLS_HIDDEN`, `SET_MULTIPASS_COLS_HIDDEN`. Setup
+  removes the rows and names; Restore skips them in older backups.
 - **Schema:** `SCHEMA_VER` stays as it is, since it only tracks job-table columns.
 
 ## Layout
@@ -135,8 +137,7 @@ while another session's test run is in progress.
    only read when the picker's OK is pressed, so none of this has been exercised. Adam
    then clicks one by hand, because tests cannot click. If it fails, stop and rethink the
    control before going further.
-2. **Template.** A new `mac/apply-column-toggles-template.py`, like the existing template
-   scripts: remove the five retired rows and names, add `SHOW_INTERNAL_COLS`.
+2. **Settings rows.** Done in code at setup rather than in the template (see Storage).
 3. **Groups and state** (`modInit`, `modPasses`). Group definitions, `LOC_Columns` read and
    write, rule evaluation, and one `ApplyRoomColumns ws` replacing `ApplyReducedView`,
    `ApplyCostColumnsVisibility` and `ApplyMultiPassVisibility`. It changes a column only if
@@ -154,9 +155,8 @@ while another session's test run is in progress.
 7. **Rooms and backup.** Add `LOC_Columns` to both lists in `modBackup` (`RoomSettingNames`
    and `ApplyRoomSettings`), to the reset in `CreatePrintRoom` (`modRegistry`), and to
    `EnsureLocName` for existing rooms.
-8. **Older backups.** Check what restoring a pre-0.12.0 backup does with the five retired
-   rows. They must be ignored, not added back as dead rows or reported as errors. Not yet
-   read closely enough to say what happens today.
+8. **Older backups.** `ApplyCatalogRows` would have appended the five retired rows from a
+   pre-0.12.0 backup as dead rows, so it now skips them (`IsRetiredSetting`).
 9. **Docs and release.** `APP_VERSION` to 0.12.0 (the middle number has so far tracked
    build phases; see `modVersion`), changelog entry including the one-off reset, SETUP.md's
    row 2 paragraph and test table, ARCHITECTURE §4.1 and the §17 multi-pass button text, the

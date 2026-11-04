@@ -190,6 +190,7 @@ Public Sub btnPickerOK()
         LocRange(t, "LOC_Printers").Value = out
         RelockSheet t
         BindColumns t
+        ApplyRoomColumns t
     End If
     AppOn
     Close_

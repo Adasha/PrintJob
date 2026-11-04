@@ -3,10 +3,9 @@
 #
 # Settings table row order and editable/locked styling.
 #
-#   - LOC_MINIMAL_COLUMNS sits directly below LOC_REDUCED_COLUMNS, in a fresh
-#     build and after a second setup run. The rows ship in PrintCosts.xlsx in
-#     display order; setup adds and moves nothing.
-#   - SET_LOC_MINIMAL_COLUMNS still resolves to the Value cell of that row.
+#   - SHOW_INTERNAL_COLS exists once, in a fresh build and after a second setup
+#     run, which adds it and removes the column view rows it replaced.
+#   - Its name, and the names of rows below the removed ones, resolve to their rows.
 #   - Every Value cell is styled to match its lock state: locked ("Read-only"
 #     notes) are grey/italic with no border, editable are white with a border.
 #
@@ -30,12 +29,14 @@ function RowOf($lo, $key) {
 
 function CheckOrder($wb, $tag) {
     $lo = $wb.Worksheets('Settings').ListObjects('tblSettings')
-    $red = RowOf $lo 'LOC_REDUCED_COLUMNS'
-    $min = RowOf $lo 'LOC_MINIMAL_COLUMNS'
-    Check ($red -gt 0 -and $min -gt 0) "$tag`: both rows exist (reduced=$red minimal=$min)"
-    Check ($min -eq $red + 1) "$tag`: LOC_MINIMAL_COLUMNS is directly below LOC_REDUCED_COLUMNS (rows $red, $min)"
-    $n = $wb.Names.Item('SET_LOC_MINIMAL_COLUMNS').RefersToRange
-    Check ($n.Row -eq $lo.DataBodyRange.Cells($min, 3).Row) "$tag`: SET_LOC_MINIMAL_COLUMNS points at the moved row"
+    $pos = RowOf $lo 'SHOW_INTERNAL_COLS'
+    Check ($pos -gt 0) "$tag`: SHOW_INTERNAL_COLS exists (row $pos)"
+    $n = $wb.Names.Item('SET_SHOW_INTERNAL_COLS').RefersToRange
+    Check ($n.Row -eq $lo.DataBodyRange.Cells($pos, 3).Row) "$tag`: SET_SHOW_INTERNAL_COLS points at its row"
+    foreach ($k in 'EXPORT_FOLDER', 'TECH_ID_HWM') {
+        $c = $wb.Names.Item("SET_$k").RefersToRange
+        Check ($c.Row -eq $lo.DataBodyRange.Cells((RowOf $lo $k), 3).Row) "$tag`: SET_$k still points at its row after the old rows went"
+    }
     $keys = @(); for ($i = 1; $i -le $lo.ListRows.Count; $i++) { $keys += [string]$lo.DataBodyRange.Cells($i, 1).Value2 }
     Check (@($keys | Group-Object | Where-Object Count -gt 1).Count -eq 0) "$tag`: no duplicate keys"
 }

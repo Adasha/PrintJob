@@ -12,7 +12,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from xlmac import open_copy, check, section, finish, SUM_TOT_ROW  # noqa: E402
+from xlmac import open_copy, check, section, finish, sheet, SUM_TOT_ROW  # noqa: E402
 
 MAIN = 'Example Print Room'
 TBL = 'tblJobs_EXAMPLE'
@@ -70,27 +70,24 @@ with open_copy() as wb:
     check(wb.text(MAIN, 'B1') == 'Example Print Room', 'B1 (room name) reads correctly before toggle')
     check(wb.text(MAIN, 'B2') == 'Print Services', 'B2 (department) reads correctly before toggle')
 
-    section('Reduce clutter ON: header block still visible, button still there')
-    wb.run('SetViewMode', 'Reduced')
+    section('Every Show: group off: header block still visible, boxes still there')
+    groups = ('passes', 'cost', 'disregard', 'size', 'tech', 'printer')
+    for g in groups:
+        wb.call('SetColumnGroup', sheet(MAIN), g, False)
     time.sleep(0.3)
     check(not hidden(1), 'column A is NOT hidden (header block lives there)')
     check(not hidden(2), 'column B is NOT hidden (header block lives there)')
-    check(wb.text(MAIN, 'B1') == 'Example Print Room', 'B1 (room name) still reads correctly with reduced view ON')
-    check(wb.text(MAIN, 'B2') == 'Print Services', 'B2 (department) still reads correctly with reduced view ON')
+    check(wb.text(MAIN, 'B1') == 'Example Print Room', 'B1 (room name) still reads correctly with the groups off')
+    check(wb.text(MAIN, 'B2') == 'Print Services', 'B2 (department) still reads correctly with the groups off')
 
     sheet_status_col = col0 + status_idx - 1
-    sheet_job_id_col = col0 + job_id_idx - 1
-    check(hidden(sheet_status_col), "Status's own (new) column IS hidden")
-    check(hidden(sheet_job_id_col), "Job ID's own (new) column IS hidden")
+    check(not hidden(sheet_status_col), "Status's own column stays visible")
 
-    found = any(n.startswith('pcb_ddViewMode') for n in wb.dropdown_names(MAIN))
-    check(found, 'the view drop-down is still present after switching to Reduced')
-
-    section('Reduce clutter OFF again: everything restored')
-    wb.run('SetViewMode', 'All')
+    section('Every Show: group on again: everything restored')
+    for g in groups:
+        wb.call('SetColumnGroup', sheet(MAIN), g, True)
     time.sleep(0.3)
-    check(not hidden(sheet_status_col), "Status's column visible again")
-    check(not hidden(sheet_job_id_col), "Job ID's column visible again")
+    check(not hidden(col0 + idx('Technician') - 1), "Technician's column visible again")
 
     # ---------------------------------------------------------------- sanity
     section('Downstream sanity: Summary/Reports still reconcile')

@@ -7,6 +7,12 @@ technical history is in the project's `docs/CHANGELOG.md`.
 > **Mac:** use 0.11.1 or later. Before 0.11.1, Export, Export report and
 > Backup on a Mac could delete the workbook.
 
+## 0.12
+
+| Version | What changed |
+| --- | --- |
+| 0.12.0 | Tick boxes under **Show:** replace the column views and the Hide buttons on a print room. Each room keeps its own choices, and existing views go back to the defaults once. See [Views and units](Jobs-Views-and-Units). |
+
 ## 0.11
 
 | Version | What changed |

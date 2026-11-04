@@ -209,6 +209,7 @@ Public Sub AddPass(ByVal ws As Worksheet)
     lo.ListRows(n).Range.EntireRow.Hidden = False
     RelockSheet ws
     BindPassColours ws, lo
+    RevealColumnGroup ws, "passes"
     AppOn
 
     CellIn(lo, n, "Colour").Select
@@ -485,52 +486,6 @@ Public Sub PreparePassSheet(ByVal ws As Worksheet)
     RebuildGroups ws
 End Sub
 
-' ----------------------------------------------------- column toggle (view) ---
-' The multi-pass columns have their own toggle, independent of the All / Reduced /
-' Minimal drop-down: the view never hides or shows them, only the toggle does
-' (decision 1 of column-view-presets-design.md; the planned Reduced-list entry in
-' its decision 3 was dropped, 2026-10-09). Set-up Cost is NOT in this group - it
-' follows the cost toggle.
-Public Function MultiPassColumns() As Variant
-    MultiPassColumns = Array("Passes", "Colour", "Row Type", "Parent", "Pass")
-End Function
-
-Public Function MultiPassColsHidden() As Boolean
-    MultiPassColsHidden = (StrComp(SettingText("MULTIPASS_COLS_HIDDEN", "No"), "Yes", vbTextCompare) = 0)
-End Function
-
-Public Function MultiPassColsCaption() As String
-    MultiPassColsCaption = IIf(MultiPassColsHidden(), "Show pass columns", "Hide pass columns")
-End Function
-
-' Sets the pass columns from the toggle, and only the toggle: hidden when it says
-' hide, shown when it says show, whatever the All / Reduced / Minimal view is.
-' ApplyReducedView calls this last, so the view's lists cannot override it.
-'
-' Both directions are done here rather than left to the view's Settings list. That
-' list is editable and a Restore workbook overwrites it with whatever the backup
-' held; when showing relied on it, a restored workbook's toggle hid the columns on
-' the first click and could never show them again. A pass column that a (stale or
-' edited) list names is still put back to what the toggle says.
-Public Sub ApplyMultiPassVisibility(ByVal ws As Worksheet)
-    Dim lo As ListObject
-    Set lo = JobsTable(ws)
-    If lo Is Nothing Then Exit Sub
-    ApplyColumnVisibility lo, MultiPassColumns(), MultiPassColsHidden()
-End Sub
-
-' The toggle button: flips the setting and re-applies the view on every
-' location sheet, which re-hides (or, via the view, re-shows) the columns.
-Public Sub ToggleMultiPassColumns()
-    Dim ws As Worksheet
-    SetSetting "MULTIPASS_COLS_HIDDEN", IIf(MultiPassColsHidden(), "No", "Yes")
-    AppOff
-    For Each ws In ThisWorkbook.Worksheets
-        If IsLocation(ws) Then ApplyReducedView ws
-    Next ws
-    AppOn
-End Sub
-
 ' ------------------------------------------------------------ collapse / expand ---
 ' Toggle passes (decision 7): hide or show the selected job's pass rows - a job
 ' whose passes are all visible collapses, otherwise it expands. Works with the
@@ -603,7 +558,7 @@ Public Sub RefreshPassButtons(ByVal ws As Worksheet)
         If Left$(nm, 4) = "pcb_" Then
             If InStr(nm, "btnAddPass") = 5 Or InStr(nm, "btnRemovePass") = 5 Then
                 greyIt = noMulti Or Not onJob
-            ElseIf InStr(nm, "btnTogglePasses") = 5 Or InStr(nm, "btnToggleAllPasses") = 5 Or InStr(nm, "btnToggleMultiPass") = 5 Then
+            ElseIf InStr(nm, "btnTogglePasses") = 5 Or InStr(nm, "btnToggleAllPasses") = 5 Then
                 greyIt = noMulti
             Else
                 GoTo NextButton

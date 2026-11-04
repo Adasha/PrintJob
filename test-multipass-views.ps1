@@ -112,48 +112,21 @@ try {
     Check ((Near $gross ([double]$sum.Range("D$SUM_TOT_ROW").Value2))) 'the table''s Gross column adds up to the Gross total'
 
     Write-Host ''
-    Write-Host '=== The pass-column toggle is independent of the view ==='
-    $pass = 'Passes', 'Colour', 'Row Type', 'Parent', 'Pass'
+    Write-Host '=== The Colour passes box ==='
+    $pass = 'Passes', 'Colour'
     [void]$main.Activate()
     function AllHidden($names) { foreach ($n in $names) { if (-not (ColHidden $n)) { return $false } }; return $true }
     function NoneHidden($names) { foreach ($n in $names) { if (ColHidden $n) { return $false } }; return $true }
-    [void]$xl.Run('SetViewMode', 'All')
-    Check (NoneHidden $pass) 'view All, toggle on: the pass columns show'
-    [void]$xl.Run('ToggleMultiPassColumns')
-    Check (AllHidden $pass) 'toggle off: they hide'
-    [void]$xl.Run('SetViewMode', 'All')
-    Check (AllHidden $pass) '...and choosing All does not switch the group back on'
-    [void]$xl.Run('ToggleMultiPassColumns')
-    Check (NoneHidden $pass) 'toggle on again: they show (view All)'
-    foreach ($mode in 'Reduced', 'Minimal') {
-        [void]$xl.Run('SetViewMode', $mode)
-        Check (NoneHidden $pass) "view $mode, toggle on: the pass columns still show (only the toggle hides them)"
-    }
-    [void]$xl.Run('ToggleMultiPassColumns')
-    [void]$xl.Run('SetViewMode', 'Reduced')
-    Check (AllHidden $pass) 'view Reduced, toggle off: they stay hidden'
-    [void]$xl.Run('ToggleMultiPassColumns')
-    Check (NoneHidden $pass) '...and the toggle shows them again under Reduced'
-    [void]$xl.Run('SetViewMode', 'All')
-    Check (NoneHidden $pass) 'back to All: shown'
+    Check (NoneHidden $pass) 'a multi-pass printer here: the pass columns show'
+    [void]$xl.Run('SetColumnGroup', $main, 'passes', $false)
+    Check (AllHidden $pass) 'unticked: they hide'
+    [void]$xl.Run('SetColumnGroup', $main, 'passes', $true)
+    Check (NoneHidden $pass) 'ticked: they show'
     Check (-not (ColHidden 'Set-up Cost')) 'Set-up Cost is visible'
-    [void]$xl.Run('ToggleCostColumns')
-    Check ((ColHidden 'Set-up Cost') -and (ColHidden 'Consumable Cost')) 'the cost toggle hides Set-up Cost with the other cost detail'
+    [void]$xl.Run('SetColumnGroup', $main, 'cost', $false)
+    Check ((ColHidden 'Set-up Cost') -and (ColHidden 'Consumable Cost')) 'the Cost detail box hides Set-up Cost with the other cost detail'
     Check (NoneHidden $pass) '...without touching the pass columns'
-    [void]$xl.Run('ToggleCostColumns')
-
-    # A workbook restored from before 0.11.0 has the OLD Reduced-columns list (Restore overwrites it by Key).
-    # The toggle must still show the columns again, and Reduced must still hide them.
-    [void]$xl.Run('SetSetting', 'LOC_REDUCED_COLUMNS', 'Status;Job ID;Area m2;S_SchemaVer')
-    [void]$xl.Run('SetViewMode', 'All')
-    [void]$xl.Run('ToggleMultiPassColumns')
-    Check (AllHidden $pass) 'old Reduced list: the toggle still hides the pass columns'
-    [void]$xl.Run('ToggleMultiPassColumns')
-    Check (NoneHidden $pass) '...and the next click shows them again (it used to do nothing)'
-    [void]$xl.Run('SetViewMode', 'Reduced')
-    [void]$xl.Run('SetViewMode', 'Reduced')
-    Check (NoneHidden $pass) '...and Reduced leaves them showing'
-    [void]$xl.Run('SetViewMode', 'All')
+    [void]$xl.Run('SetColumnGroup', $main, 'cost', $true)
 
     Write-Host ''
     Write-Host '=== Location toolbar: Print jobs | Colour passes | pass toggles | Now ==='
@@ -213,7 +186,6 @@ try {
     Check ((-not (GreyOf 'pcb_btnAddPass')) -and (-not (GreyOf 'pcb_btnRemovePass'))) 'the multi-pass job selected: both are live'
     Pick ($job + 1); [void]$xl.Run('RefreshPassButtons', $main)
     Check (-not (GreyOf 'pcb_btnAddPass')) 'one of its passes selected: still live'
-    Check ($null -ne ($main.Buttons() | Where-Object { $_.Name.StartsWith('pcb_btnToggleMultiPass') })) 'the pass-column toggle button is drawn'
 
     Write-Host ''
     Write-Host '=== No sort or filter on a location sheet ==='

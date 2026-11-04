@@ -32,8 +32,7 @@ New IDs use your Site ID, and costs show in your currency.
 | **University subsidy** | A percentage of the chargeable cost the university pays, such as 25%. Reports show the amount after subsidy beside the full figures. Recorded jobs are not changed. | [Filtering](Reports-Filtering) |
 | **Export folder** | Where exports and reports are saved. Blank saves beside the workbook. The folder must already exist. | [Exporting a print room](Data-Export-Room) |
 | **Report heading** | The heading at the top of an exported report. Blank gives "Print job report". | [Exporting a report](Reports-Export) |
-| **Reduced view - hidden columns**, **Minimal view - extra hidden columns** | The columns each view hides, separated by semicolons | [Views and units](Jobs-Views-and-Units) |
-| **Location column view**, **Hide cost detail columns**, **Hide multi-pass columns** | Set by the buttons on each print room sheet; no need to edit here | [Views and units](Jobs-Views-and-Units) |
+| **Show internal columns** | Yes shows Job ID, Row Type, Parent, Pass and a version column on every print room | [Views and units](Jobs-Views-and-Units) |
 
 Rows whose **Notes** start "Read-only" are filled in by the workbook: the
 version, when it was built, and the last ID numbers issued. They are locked.

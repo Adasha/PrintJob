@@ -200,8 +200,8 @@ with builder_helper(HELPER) as helper, open_copy() as wb:
     gross = sum(float(r[12] or 0) for r in sp)
     check(near(gross, float(wb.value(SUM, f'D{SUM_TOT_ROW}'))), "the table's Gross column adds up to the Gross total")
 
-    section('The pass-column toggle is independent of the view')
-    passes = ('Passes', 'Colour', 'Row Type', 'Parent', 'Pass')
+    section('The Colour passes box')
+    passes = ('Passes', 'Colour')
     wb.activate(MAIN)
 
     def all_hidden(names):
@@ -210,45 +210,16 @@ with builder_helper(HELPER) as helper, open_copy() as wb:
     def none_hidden(names):
         return not any(col_hidden(n) for n in names)
 
-    def view(mode):
-        wb.call('SetViewMode', mode)
-
-    view('All')
-    check(none_hidden(passes), 'view All, toggle on: the pass columns show')
-    wb.run('ToggleMultiPassColumns')
-    check(all_hidden(passes), 'toggle off: they hide')
-    view('All')
-    check(all_hidden(passes), '...and choosing All does not switch the group back on')
-    wb.run('ToggleMultiPassColumns')
-    check(none_hidden(passes), 'toggle on again: they show (view All)')
-    for mode in ('Reduced', 'Minimal'):
-        view(mode)
-        check(none_hidden(passes), f'view {mode}, toggle on: the pass columns still show (only the toggle hides them)')
-    wb.run('ToggleMultiPassColumns')
-    view('Reduced')
-    check(all_hidden(passes), 'view Reduced, toggle off: they stay hidden')
-    wb.run('ToggleMultiPassColumns')
-    check(none_hidden(passes), '...and the toggle shows them again under Reduced')
-    view('All')
-    check(none_hidden(passes), 'back to All: shown')
+    check(none_hidden(passes), 'a multi-pass printer here: the pass columns show')
+    wb.call('SetColumnGroup', sheet(MAIN), 'passes', False)
+    check(all_hidden(passes), 'unticked: they hide')
+    wb.call('SetColumnGroup', sheet(MAIN), 'passes', True)
+    check(none_hidden(passes), 'ticked: they show')
     check(not col_hidden('Set-up Cost'), 'Set-up Cost is visible')
-    wb.run('ToggleCostColumns')
-    check(col_hidden('Set-up Cost') and col_hidden('Consumable Cost'), 'the cost toggle hides Set-up Cost with the other cost detail')
+    wb.call('SetColumnGroup', sheet(MAIN), 'cost', False)
+    check(col_hidden('Set-up Cost') and col_hidden('Consumable Cost'), 'the Cost detail box hides Set-up Cost with the other cost detail')
     check(none_hidden(passes), '...without touching the pass columns')
-    wb.run('ToggleCostColumns')
-
-    # A workbook restored from before 0.11.0 has the OLD Reduced-columns list (Restore overwrites it by Key).
-    # The toggle must still show the columns again, and Reduced must still hide them.
-    wb.call('SetSetting', 'LOC_REDUCED_COLUMNS', 'Status;Job ID;Area m2;S_SchemaVer')
-    view('All')
-    wb.run('ToggleMultiPassColumns')
-    check(all_hidden(passes), 'old Reduced list: the toggle still hides the pass columns')
-    wb.run('ToggleMultiPassColumns')
-    check(none_hidden(passes), '...and the next click shows them again (it used to do nothing)')
-    view('Reduced')
-    view('Reduced')
-    check(none_hidden(passes), '...and Reduced leaves them showing')
-    view('All')
+    wb.call('SetColumnGroup', sheet(MAIN), 'cost', True)
 
     section('Location toolbar: Print jobs | Colour passes | pass toggles | Now')
 
@@ -329,7 +300,6 @@ with builder_helper(HELPER) as helper, open_copy() as wb:
     pick(job + 1)
     refresh()
     check(not grey_of('pcb_btnAddPass'), 'one of its passes selected: still live')
-    check(any(b['name'].startswith('pcb_btnToggleMultiPass') for b in wb.buttons(MAIN)), 'the pass-column toggle button is drawn')
 
     section('No sort or filter on a location sheet')
     check(wb.prop(table(TBL), 'ShowAutoFilter') == 'False', 'the AutoFilter arrows are hidden')

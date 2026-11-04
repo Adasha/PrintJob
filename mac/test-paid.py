@@ -15,7 +15,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from xlmac import open_copy, check, section, finish, addr, SUM_TOT_ROW  # noqa: E402
+from xlmac import open_copy, check, section, finish, addr, sheet, SUM_TOT_ROW  # noqa: E402
 
 MAIN = 'Example Print Room'
 TBL = 'tblJobs_EXAMPLE'
@@ -90,13 +90,13 @@ with open_copy() as wb:
     check(not h, f'Chargeable Cost is visible by default (got hidden={h})')
     h = hidden(sheet_paid_col)
     check(not h, f'Paid is visible by default (got hidden={h})')
-    wb.run('btnToggleCostColumns')
+    wb.call('SetColumnGroup', sheet(MAIN), 'cost', False)
     time.sleep(0.3)
     h = hidden(sheet_chg_col)
     check(not h, f'Chargeable Cost stays visible once cost detail is hidden (got hidden={h})')
     h = hidden(sheet_paid_col)
     check(not h, f'Paid stays visible once cost detail is hidden (got hidden={h})')
-    wb.run('btnToggleCostColumns')
+    wb.call('SetColumnGroup', sheet(MAIN), 'cost', True)
     time.sleep(0.3)
 
     wb.run('SetQuiet', False)
