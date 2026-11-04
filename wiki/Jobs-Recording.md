@@ -109,4 +109,4 @@ prices.
 
 ---
 
-*Draft for v0.11.7, with Mac screenshots. Not yet verified on Windows.*
+*Draft for v0.12.0, with Mac screenshots. Not yet verified on Windows.*

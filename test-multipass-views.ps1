@@ -9,8 +9,8 @@
 #      Passes and Set-up in its row; the Pass type filter (F11) and Passes as a sort
 #      choice; the Matching totals still reconcile; passes never listed.
 #   2. Summary: Passes (C) and Set-up cost (L) per key, totals unchanged in meaning.
-#   3. Column toggles: the pass columns follow their own toggle only (All / Reduced /
-#      Minimal neither hide nor show them); Set-up Cost follows the cost toggle.
+#   3. Show: boxes: the pass columns follow the Colour passes box; Set-up Cost
+#      follows Cost detail.
 #   4. Add pass / Remove pass grey unless a multi-pass job or one of its passes is
 #      selected.
 #   5. Location sheets: no AutoFilter arrows, sorting and filtering withheld.

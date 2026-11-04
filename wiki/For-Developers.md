@@ -24,4 +24,4 @@ copy replaces anything edited on the web.
 
 ---
 
-*Draft for v0.11.7.*
+*Draft for v0.12.0.*

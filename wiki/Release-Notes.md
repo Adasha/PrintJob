@@ -43,4 +43,4 @@ Versions before 0.10 are in `docs/CHANGELOG.md`.
 
 ---
 
-*Draft for v0.11.7, without screenshots yet. Not yet verified on Windows.*
+*Draft for v0.12.0, without screenshots yet. Not yet verified on Windows.*

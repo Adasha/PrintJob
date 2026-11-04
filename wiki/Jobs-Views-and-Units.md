@@ -16,6 +16,8 @@ On a print room sheet, find **Show:** near the top, and tick or untick:
 | **Technician** | Technician |
 | **Printer** | Printer |
 
+![A print room sheet with the Show boxes on row 2, and Disregards and Print size unticked](images/Jobs-Views-and-Units-1-mac.png)
+
 Each room keeps its own choices. Status, Chargeable Cost, Paid and the columns
 you fill in for every job always show.
 
@@ -62,4 +64,4 @@ show roll lengths in metres.
 
 ---
 
-*Draft for v0.11.7, with Mac screenshots. Not yet verified on Windows.*
+*Draft for v0.12.0, with Mac screenshots. Not yet verified on Windows.*

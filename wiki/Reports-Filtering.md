@@ -75,4 +75,4 @@ The job's print room sheet opens with the job selected.
 
 ---
 
-*Draft for v0.11.7, without screenshots yet. Not yet verified on Windows.*
+*Draft for v0.12.0, without screenshots yet. Not yet verified on Windows.*
