@@ -145,6 +145,11 @@ with open_copy() as wb:
         prev = left + float(wb.prop(shape(MAIN, f'pcb_show_{g}'), 'Width'))
     panel = wb.column_lefts(MAIN, 47)[46]
     check(prev <= panel, f'the strip ends before the side panel ({prev} <= {panel})')
+    box_h = float(wb.prop(shape(MAIN, 'pcb_show_cost'), 'Height'))
+    box_end = float(wb.prop(shape(MAIN, 'pcb_show_cost'), 'Top')) + box_h
+    clear_top = next(b['top'] for b in wb.buttons(MAIN) if b['name'].startswith('pcb_btnClearDefaults'))
+    check(box_h >= 18, f'the boxes are tall enough for their captions ({box_h})')
+    check(box_end <= clear_top, f'the strip stays above Clear defaults ({box_end} <= {clear_top})')
     wb.run('btnRefreshLocations')
     time.sleep(0.5)
     check(all_hid(everything), 'Refresh Locations keeps the choices')

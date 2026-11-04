@@ -46,7 +46,9 @@ Private Const ROW_JOB_COUNT As Long = 13
 ' VIEW_ROW (2), from column D's left edge - see RepositionColumnStrip.
 Private Const VIEW_ROW As Long = 2
 Private Const VIEW_FIRST_COL As Long = 4
-Private Const VIEW_LABEL_W As Double = 38
+Private Const VIEW_LABEL_W As Double = 46
+' Taller than row 2 (15pt), which clips an 11pt caption; row 3's gap leaves room.
+Private Const VIEW_CTRL_H As Double = 20
 Private Const VIEW_BTN_GAP As Double = 2
 Private Const VIEW_LABEL_NAME As String = "lblShow"
 ' SidePanelButtonLayout's own inputs (2026-09-27, cost-columns toggle) -
@@ -1264,12 +1266,12 @@ Private Sub DrawColumnStrip(ByVal ws As Worksheet)
     Dim lb As Object, cb As CheckBox, g As Variant, c As Range
     Set c = ws.Cells(VIEW_ROW, VIEW_FIRST_COL)
     ws.Range(c, ws.Cells(VIEW_ROW, SIDE_PANEL_COL - 1)).ClearContents
-    Set lb = ws.Labels.Add(c.Left, c.Top, VIEW_LABEL_W, 16)
+    Set lb = ws.Labels.Add(c.Left, c.Top, VIEW_LABEL_W, VIEW_CTRL_H)
     lb.Name = BTN_TAG & VIEW_LABEL_NAME
     lb.Caption = "Show:"
     lb.Placement = xlFreeFloating
     For Each g In ColumnGroups()
-        Set cb = ws.CheckBoxes.Add(c.Left, c.Top, ColumnGroupWidth(CStr(g)), 16)
+        Set cb = ws.CheckBoxes.Add(c.Left, c.Top, ColumnGroupWidth(CStr(g)), VIEW_CTRL_H)
         cb.Name = COL_BOX_TAG & CStr(g)
         cb.Caption = ColumnGroupCaption(CStr(g))
         cb.Value = xlOn
@@ -1578,15 +1580,13 @@ End Sub
 ' column change can strand a box. As with RepositionToolbar, one already in place
 ' is left alone.
 Private Sub RepositionColumnStrip(ByVal ws As Worksheet)
-    Dim x As Double, t As Double, rowH As Double, g As Variant
+    Dim x As Double, t As Double, g As Variant
     x = ws.Cells(1, VIEW_FIRST_COL).Left
-    t = ws.Cells(VIEW_ROW, 1).Top + 0.5
-    rowH = ws.Cells(VIEW_ROW, 1).Height - 1
-    If rowH < 12 Then rowH = 12
-    PlaceStripControl ws.Labels, BTN_TAG & VIEW_LABEL_NAME, x, t, VIEW_LABEL_W, rowH
+    t = ws.Cells(VIEW_ROW, 1).Top
+    PlaceStripControl ws.Labels, BTN_TAG & VIEW_LABEL_NAME, x, t, VIEW_LABEL_W, VIEW_CTRL_H
     x = x + VIEW_LABEL_W + VIEW_BTN_GAP
     For Each g In ColumnGroups()
-        PlaceStripControl ws.CheckBoxes, COL_BOX_TAG & CStr(g), x, t, ColumnGroupWidth(CStr(g)), rowH
+        PlaceStripControl ws.CheckBoxes, COL_BOX_TAG & CStr(g), x, t, ColumnGroupWidth(CStr(g)), VIEW_CTRL_H
         x = x + ColumnGroupWidth(CStr(g)) + VIEW_BTN_GAP
     Next g
 End Sub

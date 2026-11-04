@@ -125,6 +125,11 @@ try {
     }
     $panel = [double]$main.Cells(1, 47).Left
     Check ($prev -le $panel) "the strip ends before the side panel ($prev <= $panel)"
+    $costBox = $main.Shapes.Item('pcb_show_cost')
+    $boxEnd = [double]$costBox.Top + [double]$costBox.Height
+    $clearTop = 0.0; foreach ($b in $main.Buttons()) { if ($b.Name -like 'pcb_btnClearDefaults*') { $clearTop = [double]$b.Top } }
+    Check ([double]$costBox.Height -ge 18) "the boxes are tall enough for their captions ($($costBox.Height))"
+    Check ($boxEnd -le $clearTop) "the strip stays above Clear defaults ($boxEnd <= $clearTop)"
     [void]$xl.Run('btnRefreshLocations')
     Start-Sleep -Milliseconds 500
     Check (AllHid $everything) 'Refresh Locations keeps the choices'
