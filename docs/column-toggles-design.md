@@ -1,6 +1,6 @@
 # Column toggles on print room sheets — design notes
 
-Status: design agreed 2026-11-03. Being built on `feat/column-toggles` as 0.12.0; tested on the Mac only. The plan below notes where the build departed from it.
+Status: design agreed 2026-11-03. Built on `feat/column-toggles` as 0.12.0; full Mac suite 49 of 49 on 2026-11-04, nothing run on Windows. The plan below notes where the build departed from it.
 
 Replaces the view row described in `column-view-presets-design.md`, including its
 layered model (decision 8), and ARCHITECTURE §4.1's All / Reduced / Minimal text once built.
