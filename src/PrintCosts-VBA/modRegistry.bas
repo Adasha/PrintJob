@@ -61,6 +61,7 @@ Public Sub RefreshLocations()
     Dim problems As String, gone As String, n As Long
 
     On Error GoTo Fail
+    If Not ExcelCanRun("Refresh Locations") Then Exit Sub
     AppOff
     EnsureSystemSheets
 
@@ -910,6 +911,7 @@ Public Function CreatePrintRoom(ByVal RoomName As String, Optional ByVal Dept As
     On Error GoTo Fail
     RoomName = Trim$(RoomName)
     If Len(RoomName) = 0 Then Exit Function
+    If Not ExcelCanRun("Add print room") Then Exit Function
 
     Set src = TemplateLocationSheet()
     If src Is Nothing Then
@@ -1004,6 +1006,7 @@ Public Sub ChangeRoomName(ByVal ws As Worksheet, ByVal NewName As String)
     On Error GoTo Fail
     NewName = Trim$(NewName)
     If Len(NewName) = 0 Then Exit Sub
+    If Not ExcelCanRun("Rename print room") Then Exit Sub
     Set c = LocRange(ws, "LOC_Name")
     If c Is Nothing Then Exit Sub
 
@@ -1032,6 +1035,7 @@ Public Sub RenameRoomSheet(ByVal ws As Worksheet)
 
     On Error GoTo Fail
     If Len(Trim$(LocValue(ws, "LOC_Name"))) = 0 Then Exit Sub
+    If Not ExcelCanRun("Renaming the print room's tab") Then Exit Sub
     want = SanitiseSheetName(LocValue(ws, "LOC_Name"))
     If StrComp(ws.Name, want, vbBinaryCompare) = 0 Then Exit Sub
     ' Only the case differs: the sheet already holds this name.
@@ -1147,8 +1151,15 @@ Private Function SanitiseSheetName(ByVal s As String) As String
         s = Replace$(s, bad(i), "")
     Next i
     s = Trim$(s)
-    If Len(s) = 0 Then s = "Print Room"
     If Len(s) > 31 Then s = Trim$(Left$(s, 31))
+    ' An apostrophe is fine inside a sheet name but not at either end of one.
+    Do While Left$(s, 1) = "'"
+        s = Trim$(Mid$(s, 2))
+    Loop
+    Do While Right$(s, 1) = "'"
+        s = Trim$(Left$(s, Len(s) - 1))
+    Loop
+    If Len(s) = 0 Then s = "Print Room"
     SanitiseSheetName = s
 End Function
 
@@ -1322,6 +1333,7 @@ Public Sub DeletePrintRoom(ByVal ws As Worksheet)
     Dim RoomName As String, detail As String
 
     On Error GoTo Fail
+    If Not ExcelCanRun("Remove print room") Then Exit Sub
     RoomName = LocValue(ws, "LOC_Name")
     detail = RoomRemovalSummary(ws)
 

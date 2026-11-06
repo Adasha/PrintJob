@@ -7,7 +7,9 @@ round.
 
 - **Excel for Microsoft 365**, on Windows or a Mac. Excel 2019 and earlier
   cannot run the workbook, because its totals use formulas that only
-  Microsoft 365 has.
+  Microsoft 365 has. If the workbook says on opening that Excel is missing
+  functions, type `=LET(x,1,x)` into a blank workbook. Anything but `1` means
+  that copy of Excel needs repairing, even if it says Microsoft 365.
 - **The workbook file**, named like `PrintJob-v0.11.7.xlsm`. Ask whoever looks
   after the workbook for your bureau. Released versions are also in the
   [`dist` folder](https://github.com/Adasha/PrintJob/tree/master/dist) of the

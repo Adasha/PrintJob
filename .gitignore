@@ -23,3 +23,6 @@ src/*.bak.xlsx
 
 # Python bytecode from the mac/ test scripts
 __pycache__/
+
+# Workbook copies sent in for review: hold real names, never commit
+review/

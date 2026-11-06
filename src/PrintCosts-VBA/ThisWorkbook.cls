@@ -34,6 +34,9 @@ Private Sub Workbook_Open()
     ThisWorkbook.Sheets("Summary").Activate
     ThisWorkbook.Sheets("Summary").Range("A1").Select
     On Error GoTo 0
+
+    ' Last, so the message sits over a finished workbook.
+    WarnIfExcelFunctionsMissing
 End Sub
 
 Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)

@@ -33,6 +33,9 @@ Public Const INPUT_PROMPT_MAX As Long = 250
 Private mCalc As XlCalculation
 Private mDepth As Long
 Private mScreenBefore As Boolean   ' NewScratchBook / CloseScratchBook
+Private mFnChecked As Boolean      ' MissingExcelFunctions
+Private mFnMissing As String
+Private mFnPretend As String
 
 ' Quiet mode. When a build script or an automated test drives the workbook
 ' over COM there is nobody to dismiss a dialog, and a single MsgBox would hang
@@ -97,6 +100,87 @@ End Function
 Public Sub CloseScratchBook(ByVal wb As Workbook)
     wb.Close False
     Application.ScreenUpdating = mScreenBefore
+End Sub
+
+' ---------------------------------------------------- newer Excel functions ---
+' The room header, Status, _Data, Summary and Reports are built from functions
+' only recent Excel has. Written by VBA into an Excel that lacks them, LET and
+' XLOOKUP are stored as unknown names, a LET variable called n turns into a
+' reference to the N function, and the _Data formula raises 1004 - and those
+' formulas stay broken when the file moves to a working Excel, until the next
+' Refresh Locations rewrites them. Found on a Mac reporting the same version,
+' build and Microsoft 365 licence as a Mac that works (0.12.1), so the version
+' number proves nothing: each function is tried instead.
+Private Function ExcelFunctionProbes() As Variant
+    ExcelFunctionProbes = Array( _
+        "LET", "=LET(x,1,x)", _
+        "XLOOKUP", "=XLOOKUP(1,{1},{1})", _
+        "FILTER", "=ROWS(FILTER({1;2},{1;0}))", _
+        "UNIQUE", "=ROWS(UNIQUE({1;1}))", _
+        "SORT", "=ROWS(SORT({2;1}))", _
+        "SORTBY", "=ROWS(SORTBY({2;1},{2;1}))", _
+        "SEQUENCE", "=ROWS(SEQUENCE(2))", _
+        "VSTACK", "=ROWS(VSTACK(1,2))", _
+        "HSTACK", "=COLUMNS(HSTACK(1,2))", _
+        "TAKE", "=ROWS(TAKE({1;2},1))", _
+        "LAMBDA", "=LAMBDA(x,x)(1)", _
+        "MAP", "=ROWS(MAP({1;2},LAMBDA(x,x)))", _
+        "BYROW", "=ROWS(BYROW({1;2},LAMBDA(x,x)))")
+End Function
+
+Public Function ExcelKnowsFormula(ByVal FormulaText As String) As Boolean
+    Dim v As Variant
+    On Error GoTo Nope
+    v = Application.Evaluate(FormulaText)
+    ExcelKnowsFormula = Not IsError(v)
+Nope:
+End Function
+
+' The missing functions as "LET, VSTACK", or "" when Excel has them all. Tried
+' once per session: restarting Excel is part of any repair.
+Public Function MissingExcelFunctions() As String
+    Dim p As Variant, i As Long
+    If Len(mFnPretend) > 0 Then
+        MissingExcelFunctions = mFnPretend
+        Exit Function
+    End If
+    If Not mFnChecked Then
+        p = ExcelFunctionProbes()
+        For i = LBound(p) To UBound(p) - 1 Step 2
+            If Not ExcelKnowsFormula(CStr(p(i + 1))) Then mFnMissing = mFnMissing & IIf(Len(mFnMissing) > 0, ", ", "") & CStr(p(i))
+        Next i
+        mFnChecked = True
+    End If
+    MissingExcelFunctions = mFnMissing
+End Function
+
+' For a test: no working Excel lacks these, so the refusals could not be
+' reached otherwise. "" goes back to the real answer.
+Public Sub PretendMissingExcelFunctions(ByVal Names As String)
+    mFnPretend = Names
+End Sub
+
+' What every refused command and the open-time warning say, bar the first line.
+Private Sub SayExcelFunctionsMissing(ByVal Problem As String, ByVal Absent As String)
+    Say Problem, _
+        "This copy of Excel is missing functions the workbook is built on: " & Absent & ".", _
+        "Close Excel, restart the computer and check for Excel updates. If =LET(x,1,x) in a blank workbook still shows #NAME?, ask IT to repair or reinstall Excel, even if About Excel shows Microsoft 365. Then run Refresh Locations."
+End Sub
+
+' False, having said why, when What must not run on this Excel. Nothing has
+' been changed by then: callers ask before they touch anything.
+Public Function ExcelCanRun(ByVal What As String) As Boolean
+    Dim absent As String
+    absent = MissingExcelFunctions()
+    ExcelCanRun = (Len(absent) = 0)
+    If Not ExcelCanRun Then SayExcelFunctionsMissing What & " did not run, and nothing was changed.", absent
+End Function
+
+' From Workbook_Open.
+Public Sub WarnIfExcelFunctionsMissing()
+    Dim absent As String
+    absent = MissingExcelFunctions()
+    If Len(absent) > 0 Then SayExcelFunctionsMissing "This workbook will not work properly on this computer: Status, Summary and Reports can show errors or leave jobs out.", absent
 End Sub
 
 ' --------------------------------------------------------------- messaging ---
@@ -295,6 +379,12 @@ Public Function BlankSoleRow(ByVal lo As ListObject) As Boolean
 End Function
 
 ' ------------------------------------------------------------------- names ---
+' A sheet's name as the start of a reference. A room's name is the user's: an
+' apostrophe in it has to be doubled, or Excel rejects the reference (1004).
+Public Function SheetRef(ByVal ws As Worksheet) As String
+    SheetRef = "'" & Replace(ws.Name, "'", "''") & "'!"
+End Function
+
 Public Function LocRange(ByVal ws As Worksheet, ByVal RefName As String) As Range
     On Error GoTo Missing
     Set LocRange = ws.Names(RefName).RefersToRange

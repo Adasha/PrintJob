@@ -1356,5 +1356,5 @@ Private Sub EnsureExportName(ByVal ws As Worksheet)
     On Error Resume Next
     ws.Names("LOC_Export").Delete
     On Error GoTo 0
-    ws.Names.Add Name:="LOC_Export", RefersTo:="='" & ws.Name & "'!" & EXPORT_CELL
+    ws.Names.Add Name:="LOC_Export", RefersTo:="=" & SheetRef(ws) & EXPORT_CELL
 End Sub

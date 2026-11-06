@@ -3,6 +3,28 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```text
+0.12.1 - Fix: stop before damaging formulas on an Excel without LET and friends;
+apostrophes in print room names (2026-11-05). Schema unchanged (1.4). Tested on
+the Mac only; the refusals only by pretending, as no Excel with the fault was to hand.
+
+  - A Mac reporting the same version, build (16.114.4, 26110224) and Microsoft 365
+    licence as working Macs did not recognise LET in a blank workbook. On it
+    Refresh Locations raised 1004 at the _Data formula, leaving Reports and Summary
+    without jobs, and the formulas it had already rewritten were stored broken:
+    Printers at this location and Status showed #NAME?. They stayed broken on a
+    working Mac until a Refresh Locations there, which repairs them.
+  - The workbook now tries each function it depends on (modUtils.
+    MissingExcelFunctions). If any is missing it warns on opening, and Refresh
+    Locations, Add, Rename and Remove print room, Restore workbook and setup refuse
+    before changing anything. The room header and H_Issues are no longer rewritten
+    on such an Excel by the commands that remain allowed.
+  - Fix: an apostrophe in a print room's name made Refresh Locations raise 1004
+    after deleting the room's LOC_ name, because the sheet name was not escaped
+    (modUtils.SheetRef). An apostrophe at either end of a name is now dropped from
+    the tab, where Excel does not allow one.
+  - New test-excelcheck and test-roomname (.ps1 and mac/.py).
+  - review/ is git-ignored: workbook copies sent in for review hold real names.
+
 0.12.0 - Show: checkboxes replace the column views on a print room (2026-11-04).
 Schema unchanged (1.4). Tested on the Mac only.
 
