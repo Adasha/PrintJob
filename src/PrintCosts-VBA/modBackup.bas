@@ -229,6 +229,7 @@ End Sub
 Public Sub RestoreFromFile(ByVal AnyFilePath As String)
     Dim catalogRows As clsDict, rooms As Collection, srcDesc As String
 
+    If Not ExcelCanRun("Restore workbook") Then Exit Sub
     If Not LoadRestorePlan(AnyFilePath, catalogRows, rooms, srcDesc) Then Exit Sub
 
     If Not Ask("Restore the workbook from " & srcDesc & "?" & vbCrLf & vbCrLf & _
@@ -252,6 +253,7 @@ End Sub
 Public Sub RestoreFromFileConfirmed(ByVal AnyFilePath As String)
     Dim catalogRows As clsDict, rooms As Collection, srcDesc As String
 
+    If Not ExcelCanRun("Restore workbook") Then Exit Sub
     If Not LoadRestorePlan(AnyFilePath, catalogRows, rooms, srcDesc) Then Exit Sub
     ApplyRestorePlan catalogRows, rooms
 End Sub

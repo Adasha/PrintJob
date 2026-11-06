@@ -111,6 +111,7 @@ Public Sub InitialiseWorkbook()
     On Error GoTo Fail
     Dim ws As Worksheet, n As Long
 
+    If Not ExcelCanRun("Setup") Then Exit Sub
     AppOff
     If ThisWorkbook.Date1904 Then ThisWorkbook.Date1904 = False
 
@@ -835,6 +836,7 @@ End Sub
 ' principle be repointed by a future edit, same defensive reasoning as the
 ' job count below.
 Public Sub EnsurePrintersDisplay(ByVal ws As Worksheet)
+    If Len(MissingExcelFunctions()) > 0 Then Exit Sub   ' would store a broken formula
     UnlockSheet ws
     ws.Cells(ROW_PRINTERS, 1).Value = "Printers at this location"
     ws.Cells(ROW_PRINTERS, 1).Font.Bold = True
@@ -888,7 +890,7 @@ Private Sub EnsureLocName(ByVal ws As Worksheet, ByVal Nm As String, ByVal Addr 
     On Error Resume Next
     ws.Names(Nm).Delete
     On Error GoTo 0
-    ws.Names.Add Name:=Nm, RefersTo:="='" & ws.Name & "'!" & Addr
+    ws.Names.Add Name:=Nm, RefersTo:="=" & SheetRef(ws) & Addr
 End Sub
 
 ' Same white-fill, blue-left-border treatment every unlocked input cell gets
@@ -985,6 +987,7 @@ End Sub
 ' text is past the 255 characters Range.Formula accepts (1004).
 Public Sub EnsureJobIssuesFormula(ByVal ws As Worksheet, ByVal lo As ListObject)
     If lo.DataBodyRange Is Nothing Then Exit Sub
+    If Len(MissingExcelFunctions()) > 0 Then Exit Sub   ' would store a broken formula
 
     UnlockSheet ws
     lo.ListColumns("H_Issues").DataBodyRange.Formula2 = BuildJobIssuesFormula()
