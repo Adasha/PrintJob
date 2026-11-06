@@ -32,4 +32,4 @@
 
 ---
 
-*Draft for v0.12.0, without screenshots yet. Not yet verified on Windows.*
+*Draft for v0.12.1, without screenshots yet. Not yet verified on Windows.*
