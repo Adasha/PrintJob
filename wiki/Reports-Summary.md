@@ -74,4 +74,4 @@ the plan is not complete, the workbook says what is missing.
 
 ---
 
-*Draft for v0.12.0, with Mac screenshots. Not yet verified on Windows.*
+*Draft for v0.12.1, with Mac screenshots. Not yet verified on Windows.*

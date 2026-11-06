@@ -11,6 +11,7 @@ technical history is in the project's `docs/CHANGELOG.md`.
 
 | Version | What changed |
 | --- | --- |
+| 0.12.1 | On a copy of Excel that is missing functions the workbook needs (such as LET), it now warns on opening, and Refresh, Add, Rename and Remove print room and Restore refuse instead of breaking formulas. See [Getting started](Getting-Started) to check your Excel. Print room names with an apostrophe now work. |
 | 0.12.0 | Tick boxes under **Show:** replace the column views and the Hide buttons on a print room. Each room keeps its own choices, and existing views go back to the defaults once. See [Views and units](Jobs-Views-and-Units). |
 
 ## 0.11
@@ -43,4 +44,4 @@ Versions before 0.10 are in `docs/CHANGELOG.md`.
 
 ---
 
-*Draft for v0.12.0, without screenshots yet. Not yet verified on Windows.*
+*Draft for v0.12.1, without screenshots yet. Not yet verified on Windows.*

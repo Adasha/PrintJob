@@ -63,4 +63,4 @@ Importing the same file twice changes nothing the second time.
 
 ---
 
-*Draft for v0.12.0, with Mac screenshots. Not yet verified on Windows.*
+*Draft for v0.12.1, with Mac screenshots. Not yet verified on Windows.*
