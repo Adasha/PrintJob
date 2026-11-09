@@ -20,6 +20,12 @@ Mac only; not run on Windows.
     version will then no longer import or restore into a new workbook.
   - Template change kept as mac/apply-width-rule-template.py. New test-widthcost
     (.ps1 and mac/.py).
+  - Reports: a blue line down the left edge of column G, so that with the filters
+    collapsed there is a sign that something sits to the left of the +/- control.
+  - Fix: with a button or other shape left selected, Repeat, Remove, Now and
+    Remove from a catalogue table failed with a VBA error (438) instead of saying
+    that no row is selected. They now read the cursor through modUtils.SelectedCell.
+    New test-shapeselected (.ps1 and mac/.py).
 
 0.12.1 - Fix: stop before damaging formulas on an Excel without LET and friends;
 apostrophes in print room names (2026-11-05). Schema unchanged (1.4). Tested on

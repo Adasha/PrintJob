@@ -26,7 +26,7 @@ import zipfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import xlmac  # noqa: E402
-from xlmac import (open_copy, check, section, sheet, spill, Workbook, open_in_excel, osa,  # noqa: E402
+from xlmac import (open_copy, check, section, sheet, spill, rng, Workbook, open_in_excel, osa,  # noqa: E402
                    ExcelError, col_letters, SUM_HDR_ROW, SUM_FIRST_ROW, SUM_TOT_ROW)
 from fixture_annexe import add_annexe_fixture  # noqa: E402
 
@@ -162,6 +162,9 @@ with ctx as wb:
           'right-hand filter inputs are in E, beside their labels in D (0.11.0); F is the spacer')
     check('Multi-pass' in wb.validation_formula1(REP, 'E8'), 'Printer type (E8) offers Single pass / Multi-pass')
     check('Neither' in wb.validation_formula1(REP, 'B16'), 'Disregarded (B16) offers Neither (0.11.0)')
+    for a1 in ('G1', 'G10', 'G500'):
+        check(wb.prop(rng(REP, a1), 'Borders(7).LineStyle') == '1' and wb.prop(rng(REP, a1), 'Borders(7).Weight') == '-4138',
+              f'{a1} has a medium line down its left edge, a hint that filters sit to the left when collapsed (0.12.2)')
 
     section('Reports: Paid and Paper type filters')
     wb.calculate_full_rebuild()
