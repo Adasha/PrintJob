@@ -17,8 +17,10 @@ Add a print job to a print room sheet, copy one, or delete one.
    did not fill them.
 5. Type the **Qty**: sheets for sheet paper, or the length for roll paper. The
    **Unit** column says which.
-6. For roll paper narrower than the roll, type the **Print Width mm**. Leave
-   it blank to cost the full roll width.
+6. For roll paper narrower than the roll, type the **Print Width mm**. The
+   paper cost is the share of the roll the print used. Leave it blank to
+   cost the full roll width. Jobs entered before version 0.12.2 keep the
+   full roll cost.
 7. Add **Notes** if you want to.
 
 ![The top of a print room sheet: the room settings, the Print jobs and Colour passes panels, and the first jobs in the table](images/Jobs-Recording-1-mac.png)

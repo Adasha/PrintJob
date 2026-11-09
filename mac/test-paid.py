@@ -25,9 +25,9 @@ with open_copy() as wb:
 
     # --------------------------------------------------------------- schema
     section('Schema version bumped', first=True)
-    # 1.4 since multi-pass costing (0.11.0); see test-paid.ps1 for the history.
+    # 1.5 since print width scales paper cost (0.12.2); see test-paid.ps1 for the history.
     schema = wb.wb_name_text('SET_SCHEMA')
-    check(schema == '1.4', f"SET_SCHEMA reads 1.4 (got '{schema}')")
+    check(schema == '1.5', f"SET_SCHEMA reads 1.5 (got '{schema}')")
 
     # ----------------------------------------------------------- column exists
     section('Paid column')

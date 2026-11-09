@@ -185,6 +185,9 @@ try {
     Check ([double]$c.Columns('E').ColumnWidth -gt 10 -and [double]$c.Columns('F').ColumnWidth -lt 5) 'right-hand filter inputs are in E, beside their labels in D (0.11.0); F is the spacer'
     Check ([string]$c.Range('E8').Validation.Formula1 -like '*Multi-pass*') 'Printer type (E8) offers Single pass / Multi-pass'
     Check ([string]$c.Range('B16').Validation.Formula1 -like '*Neither*') 'Disregarded (B16) offers Neither (0.11.0)'
+    foreach ($a1 in 'G1', 'G10', 'G500') {
+        Check ($c.Range($a1).Borders(10).LineStyle -eq 1 -and $c.Range($a1).Borders(10).Weight -eq -4138) "$a1 has a medium line down its right edge, a hint that filters sit to the left when collapsed (0.12.2)"
+    }
 
     Write-Host ''
     Write-Host '=== Reports: Paid and Paper type filters ==='

@@ -14,6 +14,7 @@ Option Explicit
 ' (Area m2 / Paper Cost / Consumable Cost / Gross Cost, shipped in the .xlsx):
 '
 '   Paper cost      = ROUND(Qty x unit cost, SET_ROUND_DP)           Qty in metres or sheets
+'                     roll: x (print width / stock width), 0.12.2
 '   Area m2         = roll : print width / 1000 x metres
 '                     sheet: width / 1000 x height / 1000 x sheets
 '   Consumable cost = ROUND(Area m2 x printer rate per m2, SET_ROUND_DP)
@@ -409,7 +410,13 @@ Private Function PlanFor(ByVal ws As Worksheet) As PlanResult
         area = (usedW / 1000#) * res.Qty
     End If
 
-    res.PaperCost = Application.WorksheetFunction.Round(res.Qty * s.Cost, dp)
+    ' A roll costs Qty x unit cost x (print width / stock width): the width is the share of
+    ' the roll used (0.12.2). Sheet stock is unaffected, and so is a roll with no width.
+    If s.Measure <> "Sheet" And s.WidthMM > 0 And usedW > 0 Then
+        res.PaperCost = Application.WorksheetFunction.Round(res.Qty * s.Cost * IIf(usedW < s.WidthMM, usedW / s.WidthMM, 1#), dp)
+    Else
+        res.PaperCost = Application.WorksheetFunction.Round(res.Qty * s.Cost, dp)
+    End If
     If p.MultiPass Then
         ' Every problem with the colours is reported before any is priced.
         Set res.Colours = New Collection

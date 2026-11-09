@@ -35,11 +35,11 @@ try {
 
     # --------------------------------------------------------------- schema
     Write-Host '=== Schema version bumped ==='
-    # 1.4 since multi-pass costing (0.11.0); 1.3 was the paper family removal
+    # 1.5 since print width scales paper cost (0.12.2); 1.4 was multi-pass costing (0.11.0); 1.3 was the paper family removal
     # (1.2 was the Sheet size job-row column; modUtils.SCHEMA_VER) - Paid itself is still what
     # bumped it from 1.0 to 1.1 originally, unaffected by this test.
     $schema = [string]$wb.Names.Item('SET_SCHEMA').RefersToRange.Text
-    Check ($schema -eq '1.4') "SET_SCHEMA reads 1.4 (got '$schema')"
+    Check ($schema -eq '1.5') "SET_SCHEMA reads 1.5 (got '$schema')"
 
     # ----------------------------------------------------------- column exists
     Write-Host ''

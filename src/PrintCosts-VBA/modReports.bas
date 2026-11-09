@@ -830,6 +830,16 @@ Public Sub BuildReports()
     ws.Columns("A:G").Hidden = False
     ws.Outline.SummaryColumn = xlSummaryOnRight
     ws.Columns("A:F").Group
+    ' A line down the RIGHT edge of G (0.12.2): with A:F collapsed, G is all that
+    ' separates the +/- control from the results, and nothing says the filters
+    ' are still there. G's left edge will not do: Excel draws it as F's right
+    ' edge, which goes with F when the group closes. Same blue as the filter
+    ' inputs' left edge.
+    With ws.Range("G1:G" & RESULTS_LAST_ROW).Borders(xlEdgeRight)
+        .LineStyle = xlContinuous
+        .Color = RGB(46, 100, 168)
+        .Weight = xlMedium
+    End With
     RelockSheet ws
 End Sub
 
