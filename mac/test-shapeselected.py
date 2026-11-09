@@ -12,7 +12,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from xlmac import open_copy, check, section, finish, sheet, table, shape  # noqa: E402
+from xlmac import open_copy, check, section, finish, sheet, table, shape, ExcelError  # noqa: E402
 
 WS, TBL = 'Example Print Room', 'tblJobs_EXAMPLE'
 
@@ -21,11 +21,20 @@ with open_copy() as wb:
     wb.activate(WS)
     btn = wb.buttons(WS)[0]['name']
 
+    def select_button():
+        # Select returns Null, which ScriptProp cannot turn into text (error 94):
+        # the shape is selected all the same, and the check below proves it.
+        try:
+            wb.prop(shape(WS, btn), 'Select')
+        except ExcelError as e:
+            if 'Invalid use of Null' not in str(e):
+                raise
+
     def selected_type():
         return wb._do('return (class of selection) as text')
 
     section('A button is selected')
-    wb.prop(shape(WS, btn), 'Select')
+    select_button()
     check('range' not in selected_type().lower(), 'the button really is the selection')
 
     before = wb.table_row_count(WS, TBL)
@@ -38,7 +47,7 @@ with open_copy() as wb:
     for name, args in (('StampNow', (sheet(WS),)), ('RemoveRow', (sheet(WS),)), ('RepeatJob', (sheet(WS),)),
                        ('AddPass', (sheet(WS),)), ('RemovePass', (sheet(WS),)),
                        ('RemoveCatalogRow', ('tblColours',))):
-        wb.prop(shape(WS, btn), 'Select')
+        select_button()
         try:
             wb.call(name, *args)
             ok = True

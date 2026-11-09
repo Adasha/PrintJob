@@ -20,7 +20,7 @@ Mac only; not run on Windows.
     version will then no longer import or restore into a new workbook.
   - Template change kept as mac/apply-width-rule-template.py. New test-widthcost
     (.ps1 and mac/.py).
-  - Reports: a blue line down the left edge of column G, so that with the filters
+  - Reports: a blue line down the right edge of column G, so that with the filters
     collapsed there is a sign that something sits to the left of the +/- control.
   - Fix: with a button or other shape left selected, Repeat, Remove, Now and
     Remove from a catalogue table failed with a VBA error (438) instead of saying
