@@ -24,7 +24,14 @@ Public Const MARKER_CELL As String = "AZ1"
 ' snapshots (plus the hidden H_Ink, H_Setup and H_Notices working columns).
 ' Records exported at 1.3 still import: the missing columns read as a Job row
 ' with no passes and no set-up cost.
-Public Const SCHEMA_VER As String = "1.4"
+' 1.5 (0.12.2, print width scales paper cost): the job table gained the
+' S_WidthRule snapshot, just before S_SchemaVer. "scaled" on a job row means its
+' Paper Cost is Qty x unit cost x (Print Width mm / stock width); blank means the
+' rule before 0.12.2, the whole roll width. Records exported at 1.4 still import:
+' the missing column reads blank, so they keep the old rule. Temporary: removed
+' in the first release after the late-January 2027 changeover.
+Public Const SCHEMA_VER As String = "1.5"
+Public Const WIDTH_RULE_SCALED As String = "scaled"
 Public Const JOBS_PREFIX As String = "tblJobs_"
 Public Const LIST_SEP As String = ";"
 ' Longest prompt InputText passes to Application.InputBox (see InputText).

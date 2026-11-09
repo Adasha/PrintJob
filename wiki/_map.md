@@ -212,7 +212,7 @@ are locked and skipped by Restore.
 | `tblColours` | Consumables | ColourID, Consumable type, Colour, Cost per m2, Active | Setup-Consumables |
 | `tblDepartments` | Departments | DeptID, Name, Aliases, Free, Active, Notes, Match list (hidden), Dis Paper %, Dis Cons %, Allowance, Allowance period (last four reserved) | Setup-Departments |
 | `tblPaperTypes`, `tblStandardSizes`, `tblConsumables` | Settings | Paper type / Size name, Width mm, Height mm / Consumable type; each with Active except sizes | Setup-Lookup-Lists |
-| `tblJobs_<CODE>` | each print room | 45 columns, A:AS; `H_` and `S_` columns hidden | Jobs-Recording |
+| `tblJobs_<CODE>` | each print room | 46 columns, A:AT; `H_` and `S_` columns hidden | Jobs-Recording |
 
 ## Findings from the inventory
 

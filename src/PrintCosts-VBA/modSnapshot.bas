@@ -55,6 +55,15 @@ Public Sub StampRow(ByVal ws As Worksheet, ByVal RowNo As Long)
     End If
 
     CellIn(lo, RowNo, "S_TechID").Value = TechID(CStr(CellIn(lo, RowNo, "Technician").Value))
+    ' Print width scales paper cost (0.12.2). The rule is chosen once, when a row is
+    ' first stamped, and never again: a row already stamped (S_StampedAt filled) keeps
+    ' whatever it has, so re-stamping, re-picking a printer or paper, and imported rows
+    ' (which carry their own S_WidthRule and never come through here) cannot move an old
+    ' row onto the new rule. Temporary: delete with the S_WidthRule column after the
+    ' late-January 2027 changeover.
+    If Len(CStr(CellIn(lo, RowNo, "S_StampedAt").Value)) = 0 And Len(CStr(CellIn(lo, RowNo, "S_WidthRule").Value)) = 0 Then
+        CellIn(lo, RowNo, "S_WidthRule").Value = WIDTH_RULE_SCALED
+    End If
     CellIn(lo, RowNo, "S_StampedAt").Value = Now
     CellIn(lo, RowNo, "S_StampedBy").Value = CurrentUser
     CellIn(lo, RowNo, "S_SchemaVer").Value = SCHEMA_VER

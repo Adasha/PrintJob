@@ -3,6 +3,24 @@
 Moved out of `modVersion.bas` (where it was ~600 lines of comment) so the module stays cheap to read. Newest first. Text is verbatim from the old header comment.
 
 ```text
+0.12.2 - Print width scales paper cost (2026-11-09). Schema 1.5. Tested on the
+Mac only; not run on Windows.
+
+  - A roll job's Paper Cost is now Qty x unit cost x (Print Width mm / stock width),
+    so a student is charged only for the width of roll their print used. A blank
+    width, a width equal to the roll, and all sheet stock cost as before. The Job
+    planner estimate follows.
+  - Jobs entered before this version keep the full-width paper cost, including after
+    Re-stamp prices, re-picking a printer or paper, and importing or restoring a
+    record from an earlier version. New snapshot column S_WidthRule (hidden with
+    the other snapshot columns): "scaled" on rows first stamped from 0.12.2,
+    blank on older ones. Exports now include it; a file without it imports as old.
+  - Temporary: each location starts a new workbook in late January 2027, after
+    which the column and the old rule are to be removed. Records from before this
+    version will then no longer import or restore into a new workbook.
+  - Template change kept as mac/apply-width-rule-template.py. New test-widthcost
+    (.ps1 and mac/.py).
+
 0.12.1 - Fix: stop before damaging formulas on an Excel without LET and friends;
 apostrophes in print room names (2026-11-05). Schema unchanged (1.4). Tested on
 the Mac only; the refusals only by pretending, as no Excel with the fault was to hand.

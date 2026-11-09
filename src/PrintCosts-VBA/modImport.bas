@@ -370,6 +370,9 @@ Private Sub WriteImportedRow(ByVal lo As ListObject, ByVal RowNo As Long, ByVal 
     ' Absent from a 1.3 file (and blank on a job row in a 1.4 one): written blank.
     WriteNum lo, RowNo, "S_SetupCost", d
     WriteText lo, RowNo, "S_ColourID", d
+    ' Absent from a file before 1.5: blank, which keeps the full-width paper cost
+    ' rule that file's rows were costed under.
+    WriteText lo, RowNo, "S_WidthRule", d
     WriteDate lo, RowNo, "S_StampedAt", d
     WriteText lo, RowNo, "S_StampedBy", d
     WriteText lo, RowNo, "S_SchemaVer", d
