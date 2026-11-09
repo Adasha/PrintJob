@@ -391,8 +391,9 @@ Public Function SelectedRow(ByVal ws As Worksheet, ByRef lo As ListObject) As Lo
     If lo Is Nothing Then Exit Function
     If lo.DataBodyRange Is Nothing Then Exit Function
 
-    Dim c As Range
-    Set c = Application.Intersect(Selection.Cells(1, 1).EntireRow, lo.DataBodyRange)
+    Dim c As Range, sc As Range
+    Set sc = SelectedCell()
+    If Not sc Is Nothing Then Set c = Application.Intersect(sc.EntireRow, lo.DataBodyRange)
     If c Is Nothing Then
         Say "No print job row is selected.", "This command works on the row the cursor is in.", "Click any cell in the print job you want, then try again."
         Exit Function

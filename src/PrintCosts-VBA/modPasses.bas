@@ -123,9 +123,9 @@ Public Function SelectedTableRow(ByVal ws As Worksheet, ByVal lo As ListObject) 
     Dim c As Range
     If lo Is Nothing Then Exit Function
     If lo.DataBodyRange Is Nothing Then Exit Function
-    On Error Resume Next
-    Set c = Application.Intersect(Selection.Cells(1, 1).EntireRow, lo.DataBodyRange)
-    On Error GoTo 0
+    Dim sc As Range
+    Set sc = SelectedCell()
+    If Not sc Is Nothing Then Set c = Application.Intersect(sc.EntireRow, lo.DataBodyRange)
     If c Is Nothing Then Exit Function
     SelectedTableRow = c.Row - lo.DataBodyRange.Row + 1
 End Function

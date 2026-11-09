@@ -190,6 +190,15 @@ Public Sub WarnIfExcelFunctionsMissing()
     If Len(absent) > 0 Then SayExcelFunctionsMissing "This workbook will not work properly on this computer: Status, Summary and Reports can show errors or leave jobs out.", absent
 End Sub
 
+' The first cell of the current selection, or Nothing when the selection is not
+' a range (a button or other shape left selected). Selection.Cells raises 438 on
+' a shape, so every command that reads the cursor's row goes through here.
+Public Function SelectedCell() As Range
+    On Error Resume Next
+    If TypeName(Selection) = "Range" Then Set SelectedCell = Selection.Cells(1, 1)
+    On Error GoTo 0
+End Function
+
 ' --------------------------------------------------------------- messaging ---
 ' Spec section 15 wants three things from every message: what is wrong, why,
 ' and what to do about it. Say() takes them as separate arguments so that a

@@ -803,7 +803,9 @@ Public Sub RemoveCatalogRow(ByVal TableName As String)
         Exit Sub
     End If
 
-    Set c = Application.Intersect(Selection.Cells(1, 1).EntireRow, lo.DataBodyRange)
+    Dim sc As Range
+    Set sc = SelectedCell()
+    If Not sc Is Nothing Then Set c = Application.Intersect(sc.EntireRow, lo.DataBodyRange)
     If c Is Nothing Then
         Say "No row is selected.", "This command works on the row the cursor is in.", "Click any cell in the row you want to remove, then try again."
         Exit Sub

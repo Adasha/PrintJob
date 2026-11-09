@@ -307,6 +307,7 @@ job IDs already carry it.
 | `run-tests.ps1` | Runs every `test-*.ps1` in turn and prints one line per script; `-Only` takes name fragments. Logs land in `%TEMP%\testrun-<Label>` |
 | `test-addroom.ps1`, `test-renameroom.ps1`, `test-removeroom.ps1` | The Add, Rename and Remove print room commands |
 | `test-excelcheck.ps1` | An Excel missing LET and the other newer functions: the check itself, the commands that refuse, and nothing changing when they do |
+| `test-shapeselected.ps1` | A button left selected (0.12.2): Repeat, Remove, Now, pass buttons and catalogue Remove raise no error and change nothing |
 | `test-widthcost.ps1` | Print width scales paper cost (0.12.2): rows from before keep the full-width cost, new, repeated and planned jobs scale, re-stamping never changes a row's rule |
 | `test-roomname.ps1` | Apostrophes in a print room's name: adding, refreshing, renaming and removing the room |
 | `test-columntoggles.ps1` | The Show: checkboxes: each group's columns, per-room choices, the Colour passes and Printer rules, columns returning when a job needs them, the internal columns setting, and the strip's layout |
