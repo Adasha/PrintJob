@@ -60,4 +60,4 @@ instead, so old jobs still show who really handled them.
 
 ---
 
-*Draft for v0.12.1, with Mac screenshots. Not yet verified on Windows.*
+*Draft for v0.12.2, with Mac screenshots. Not yet verified on Windows.*

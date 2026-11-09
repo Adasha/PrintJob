@@ -11,6 +11,7 @@ technical history is in the project's `docs/CHANGELOG.md`.
 
 | Version | What changed |
 | --- | --- |
+| 0.12.2 | On a roll of paper, a job is now charged for the width that was printed (Print Width divided by the roll width), not the whole roll. Jobs entered before 0.12.2 keep their old cost. Repeat, Remove and Now no longer fail when a button is left selected. On Reports, a blue line beside the filters shows that they are still there when collapsed. See [Recording jobs](Jobs-Recording). |
 | 0.12.1 | On a copy of Excel that is missing functions the workbook needs (such as LET), it now warns on opening, and Refresh, Add, Rename and Remove print room and Restore refuse instead of breaking formulas. See [Getting started](Getting-Started) to check your Excel. Print room names with an apostrophe now work. |
 | 0.12.0 | Tick boxes under **Show:** replace the column views and the Hide buttons on a print room. Each room keeps its own choices, and existing views go back to the defaults once. See [Views and units](Jobs-Views-and-Units). |
 
@@ -44,4 +45,4 @@ Versions before 0.10 are in `docs/CHANGELOG.md`.
 
 ---
 
-*Draft for v0.12.1, without screenshots yet. Not yet verified on Windows.*
+*Draft for v0.12.2, without screenshots yet. Not yet verified on Windows.*
