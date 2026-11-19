@@ -4,7 +4,7 @@ Excel-based print bureau logging and costing system for university print rooms. 
 
 This is an internal project published here mainly to serve as the cloud backup. It's entirely vibe coded, albeit by someone informed. You can use it if you like, but don't expect support.
 
-Needs Office 365 subscription, Windows or Mac. See SETUP.md for build instructions.
+Needs Office 365 subscription, Windows or Mac. See [SETUP.md](SETUP.md) for build instructions.
 
 How to use the workbook is in the [wiki](https://github.com/Adasha/PrintJob/wiki). Released workbooks are in [dist](dist). To change it, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
